@@ -228,7 +228,10 @@ ne vide pas l'écran) avec ses trois états.
   selon les droits (`MenuButton`), état par `StatusBadge` ; « À instruire » avec compteur
   dans la barre latérale.
 - **Brouillons** : onglet du panneau droit et page `/drafts/:id` ; liste des opérations
-  (retirer, modifier), simulation débrayée (400 ms, 024 § A ; `POST /v1/drafts/{id}/simulation`),
+  (retirer, modifier : le panneau d'édition de la sorte prérempli de l'opération, qui la
+  remplace à sa place, Q-021-17 ; une modification garde la version sur laquelle elle a
+  été écrite, l'objet changé depuis dit avec ses champs, « Reprendre sur la version
+  actuelle » pour la réécrire, Q-021-20), simulation débrayée (400 ms, 024 § A ; `POST /v1/drafts/{id}/simulation`),
   violations par opération avec `CodeBadge`, motif, dates d'effet, soumission (clé
   d'idempotence). Page `/drafts` : `DataGrid` des brouillons (titre, opérations, dernière
   modification, suppression annoncée `expires_at`), reprendre, nouveau, supprimer.
@@ -589,8 +592,11 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   dépendants ; le flux, s'il arrive ensuite, trouve des versions égales et ne relit rien.
 - `sdk.drafts` (024 § A) : `list`, `get`, `create`, `update`, `addOperations`, `remove`,
   `simulate` (débrayée, 400 ms), `submit({ approvalSelf })` ; écritures avec `If-Match`, et
-  sur 412 relecture puis nouvel essai de l'ajout ; le brouillon actif d'un onglet est son
-  identifiant en `sessionStorage`, la période de chaque brouillon aussi (le brouillon du
+  sur 412 relecture puis nouvel essai de l'ajout ; une opération remplacée à sa place
+  (« Modifier » de sa ligne, `replaceInDraft` de `@kartenn/sdk/host`) part sous l'`If-Match`
+  du brouillon tel que sa ligne était lu, et n'est retentée après un 412 que si cette place
+  tient encore la même opération ; elle date le brouillon comme un ajout ; le brouillon
+  actif d'un onglet est son identifiant en `sessionStorage`, la période de chaque brouillon aussi (le brouillon du
   serveur n'en a pas : la date de son premier ajout sous `valid_at` seul, lue avant
   l'envoi de cet ajout, ou le choix du
   pied ; `draftPeriod` de `@kartenn/sdk/host`, hors API des plugins), lue par sa simulation

@@ -432,7 +432,11 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **Q-021-17 — Modifier une opération du brouillon** (021-14l) : « Modifier » sur une ligne
   rouvre le panneau d'édition de l'objet prérempli de l'opération, qui la remplace à sa
   place sous `If-Match`, simulation relancée. Options pesées : panneau d'édition, retirer
-  puis refaire (design amendé). Retenu : panneau d'édition.
+  puis refaire (design amendé). Retenu : panneau d'édition. *Maquette E5 amendée, validée
+  par l'utilisateur le 2026-11-11 (021-14l)* : chaque ligne d'opération du brouillon
+  (`EcranBrouillon.vue`, montré par E5) porte le crayon « Modifier » avant « Retirer » ;
+  refusé avec sa raison pour une opération qu'aucun panneau n'écrit (la propriété posée
+  de la maquette).
 - **Q-021-18 — Colonnes de propriétés d'une liste** (021-12i) : aucune colonne de
   propriété par défaut ; le sélecteur « Colonnes » propose les propriétés déclarées pour
   le type, et le choix se garde par vue et par utilisateur comme les autres réglages de
@@ -443,3 +447,13 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   l'héritée ; la cellule le dit avant l'envoi (« surcharge la valeur héritée de
   <source> »), et retirer la valeur propre rend l'héritage. Options pesées : valeur
   propre, cellule sans éditeur avec renvoi vers la source. Retenu : valeur propre.
+- **Q-021-20 — Version d'une modification remplacée** (021-14l, complète Q-021-17) :
+  constat de la revue de la 14l, la première version écrivait l'opération remplacée sur
+  la version de l'objet lue à l'ouverture du panneau, si bien qu'une opération en conflit
+  (l'objet changé depuis son écriture) perdait ce conflit sans que rien ne le dise.
+  Options pesées : garder l'`expected` d'origine ; rebaser sur la version lue en le
+  disant ; rebaser sans rien dire. Retenu : garder l'`expected` d'origine — l'opération
+  reste en conflit tant qu'il n'est pas résolu ; le panneau dit « L'objet a changé depuis
+  cette opération » et montre les champs qui ont bougé (lus dans l'historique de l'objet) ;
+  écrire sur la version courante demande l'action explicite « Reprendre sur la version
+  actuelle ».

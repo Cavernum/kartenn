@@ -291,6 +291,47 @@ export function createDrafts(deps: DraftDeps) {
   };
 
   /**
+   * Puts `op` in place of the operation `index` of the draft as `read` holds it (the version
+   * its line was shown at, task 14l), under `If-Match` of that read. Modified meanwhile
+   * (another tab, 412): read again, then tried once more while that operation is still the
+   * one replaced, at its place (a replacement commutes with what changed elsewhere), else
+   * the conflict. As an addition, the date read at the call dates the draft once written
+   * (`dateAddition`; task 14j), the second try keeping it.
+   */
+  async function replaceOperation(
+    read: Entry<Draft>,
+    index: number,
+    op: Operation,
+  ): Promise<DraftOutcome<Operation>> {
+    const at = additionDate();
+    const id = read.data.id;
+    const replaced = JSON.stringify(read.data.operations?.[index]);
+    const send = async (entry: Entry<Draft>) => {
+      const operations = (entry.data.operations ?? []).map((o, i) => (i === index ? op : o));
+      const ifMatch = entry.etag ?? (await etagOf(id));
+      const answer = await client.request("PATCH", path(id), { body: { operations }, ifMatch });
+      dateAddition(id, at);
+      return saved(answer.data as Draft, answer.etag);
+    };
+    let conflict: ApiProblem;
+    try {
+      return await send(read);
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || error.status !== 412) return failure(id, error, op);
+      conflict = error;
+    }
+    const current = await reread(id);
+    if (!current || JSON.stringify(current.data.operations?.[index]) !== replaced) {
+      return { kind: "conflict", current, input: op, problem: conflict };
+    }
+    try {
+      return await send(current);
+    } catch (error) {
+      return failure(id, error, op);
+    }
+  }
+
+  /**
    * Adds operations after those of the draft. Modified meanwhile (another tab, 412): read
    * again, then tried once more, an addition commuting with what changed (024 « Erreurs »).
    * Given as a function, the operations are made from those of the draft at the version sent
@@ -461,6 +502,7 @@ export function createDrafts(deps: DraftDeps) {
     get,
     create,
     update,
+    replaceOperation,
     addOperations,
     remove,
     simulate,

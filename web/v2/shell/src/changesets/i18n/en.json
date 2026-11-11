@@ -109,6 +109,7 @@
   },
   "drafts": {
     "remove": "Remove operation {n}: {op} {subject}",
+    "modify": "Modify operation {n}: {op} {subject}",
     "none": "No active draft in this tab: an edit in place or an addition creates one.",
     "page": "My drafts",
     "onPage": "The active draft is open in the page: its operations and its submission are there.",
@@ -128,7 +129,8 @@
       "simulating": "The simulation is not finished.",
       "simulationFailed": "The simulation failed.",
       "violations": "The simulation reports errors ({n}): correct them or remove their operations.",
-      "active": "It is already the active draft."
+      "active": "It is already the active draft.",
+      "noPanel": "No edit panel for this operation: remove it, then make it again."
     },
     "action": {
       "apply": "Apply",

@@ -14,9 +14,21 @@
 // the lists show the new parent once read again, never before. « Créer un VLAN pour ce
 // réseau » (REQ-026-6, 021/A13): the creation and the setting of `core.vlan` on the network
 // by a local name, two operations of one changeset, to the draft or applied at once; a
-// refusal of the setting said on the field of the network.
-import { addToActiveDraft } from "@kartenn/sdk/host";
-import { changesets, keys, reads, write, type Entry, type Submission } from "@kartenn/sdk";
+// refusal of the setting said on the field of the network. « Modifier » of an operation of a
+// draft (task 14l, Q-021-17): the same form prefilled from the operation — a creation, or the
+// modification over the object read —, which replaces it at its place under `If-Match`
+// (`replaceInDraft`), the draft's simulation asked again by its new version.
+import { addToActiveDraft, replaceInDraft } from "@kartenn/sdk/host";
+import {
+  changesets,
+  keys,
+  reads,
+  write,
+  type components,
+  type Entry,
+  type Operation,
+  type Submission,
+} from "@kartenn/sdk";
 import {
   AttributeList,
   Button,
@@ -47,14 +59,18 @@ import {
 import ProblemState from "../../problems/ProblemState.vue";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
+import { operationLine } from "../../draft/operations.ts";
 import { failed, isConflict, useWriteAction } from "./action.ts";
 import {
   ANCHOR_KINDS,
   changesOf,
   checkValue,
+  draftedCreations,
+  editOfOperation,
   editRight,
   EDITS,
   initialValues,
+  localText,
   patchOf,
   textOf,
   type EditField,
@@ -83,6 +99,14 @@ const kindWords = computed(() => keyLabel("kind", collection.value.type) ?? coll
 const creating = computed(() => props.request.mode === "create");
 const moving = computed(() => props.request.mode === "move");
 const objectId = computed(() => (props.request.mode === "create" ? null : props.request.id));
+/** « Modifier » of an operation of a draft: where it is, the operation, its line. */
+const replacing = computed(() => {
+  const slot = props.request.mode === "move" ? undefined : props.request.replace;
+  const operation = slot?.draft.data.operations?.[slot.index];
+  return slot && operation
+    ? { ...slot, operation, line: operationLine(operation), edit: editOfOperation(operation) }
+    : null;
+});
 const fields = computed<readonly EditField[]>(() => {
   const edit = EDITS[collection.value.id];
   return creating.value ? edit.creation : moving.value ? (edit.move ?? []) : edit.modification;
@@ -156,6 +180,31 @@ const selectValue = (field: EditField) => {
   return text === "" && field.kind === "reference" && !field.required ? NONE : text;
 };
 const fromSelect = (value: string | undefined) => (value === NONE ? "" : (value ?? ""));
+/**
+ * The objects an earlier operation of the draft creates (a local name, 021/A13), offered
+ * beside those read to the references of an operation replaced (task 14l): named by what
+ * that operation names, said « opération n du brouillon ».
+ */
+const drafted = computed(() => {
+  const slot = replacing.value;
+  return slot ? draftedCreations(slot.draft.data.operations ?? [], slot.index) : [];
+});
+function draftedOptions(
+  target: CollectionId,
+  value: (local: number) => string,
+  kind?: string,
+): ListOption[] {
+  return drafted.value
+    .filter((d) => d.collection === target)
+    .map((d) => ({
+      value: value(d.local),
+      label: operationLine(d.operation).subject ?? `#${d.local}`,
+      detail: kind
+        ? t("edit.replace.draftedOf", { kind, n: d.index + 1 })
+        : t("edit.replace.drafted", { n: d.index + 1 }),
+      mono: true,
+    }));
+}
 function optionsOf(field: EditField): ListOption[] {
   if (field.kind === "choice") {
     return (field.options ?? []).map((key) => {
@@ -167,21 +216,28 @@ function optionsOf(field: EditField): ListOption[] {
     return ANCHOR_KINDS.flatMap((kind) => {
       const of = collectionOfKind(kind)!;
       const words = keyLabel("kind", of.type) ?? kind;
-      return itemsOf(of.id).map((i) => ({
-        value: `${kind}:${String(i.id)}`,
-        label: nameOf(i),
-        detail: words,
-        mono: true,
-      }));
+      return [
+        ...itemsOf(of.id).map((i) => ({
+          value: `${kind}:${String(i.id)}`,
+          label: nameOf(i),
+          detail: words,
+          mono: true,
+        })),
+        ...draftedOptions(of.id, (local) => `${kind}:${localText(local)}`, words),
+      ];
     });
   }
   const items = field.target ? itemsOf(field.target) : [];
+  const inDraft = field.target ? draftedOptions(field.target, localText) : [];
   // A move lists the valid targets only (REQ-021-32): the others are not offered at all.
   const valid = (id: string | null, label: string) =>
     !moving.value || moves.canMove(movedNode.value, id === null ? null : { id, label }).ok;
-  const options = items
-    .filter((i) => valid(String(i.id), nameOf(i)))
-    .map((i) => ({ value: String(i.id), label: nameOf(i), mono: true }));
+  const options = [
+    ...items
+      .filter((i) => valid(String(i.id), nameOf(i)))
+      .map((i) => ({ value: String(i.id), label: nameOf(i), mono: true })),
+    ...inDraft,
+  ];
   return field.required || !valid(null, t("edit.none"))
     ? options
     : [{ value: NONE, label: t("edit.none") }, ...options];
@@ -224,6 +280,8 @@ const moves = useMoves({
 // replaced by a read that comes later (a 412 reads the object again).
 const values = ref<Values>({});
 const before = ref<Values>({});
+/** The form as it opened: an operation replaced, its own values over the object read. */
+const opened = ref<Values>({});
 const version = ref<string | null>(null);
 const filled = ref(false);
 function fill(): void {
@@ -232,8 +290,9 @@ function fill(): void {
     item.value,
     props.request.mode === "create" ? (props.request.preset ?? {}) : {},
   );
-  values.value = { ...start };
+  values.value = { ...start, ...replacing.value?.edit?.values };
   before.value = { ...start };
+  opened.value = { ...values.value };
   version.value = typeof item.value?.version === "string" ? item.value.version : null;
   if (moving.value) {
     // The parent read, by its slug (the summary of the record), or « Aucun ».
@@ -340,12 +399,50 @@ const {
         ? t("edit.motiveCreate", words)
         : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
-  words: { draft: "edit.toDraft", apply: "edit.apply", past: "edit.why.past" },
+  words: {
+    draft: "edit.toDraft",
+    apply: "edit.apply",
+    past: "edit.why.past",
+    ...(replacing.value
+      ? { saved: (what: string) => t("edit.replace.done", { n: replacing.value!.index + 1, what }) }
+      : {}),
+  },
   refused,
+});
+/**
+ * What the refusal of a replacement says: the draft gone (404), or changed so that the
+ * operation is no longer at its place (412, read again by the SDK).
+ */
+const refusalWords = computed(() => {
+  const answer = refusal.value;
+  if (!replacing.value || !answer) return {};
+  if (answer.kind === "failed" && answer.problem?.status === 404) {
+    return { title: t("drafts.goneRefused"), note: t("edit.replace.goneText") };
+  }
+  return answer.kind === "conflict"
+    ? { title: t("drafts.changed"), note: t("edit.replace.changedText") }
+    : {};
+});
+/** « Remplacer dans le brouillon »: the refusal of the draft action, if any (rights). */
+const replaceRefusal = computed(() => {
+  const draft = actions.value.find((a) => a.id === "draft");
+  return draft?.forbidden
+    ? { forbidden: draft.forbidden }
+    : draft?.reason
+      ? { reason: draft.reason }
+      : {};
 });
 
 const title = computed(() => {
   const request = props.request;
+  const slot = replacing.value;
+  if (slot) {
+    return t("edit.replace.title", {
+      n: slot.index + 1,
+      op: slot.line.op,
+      subject: slot.line.subject ?? "",
+    });
+  }
   if (request.mode === "edit") return t("edit.modify", { kind: kindWords.value, name: name.value });
   if (request.mode === "move") {
     return t("edit.move.title", { kind: kindWords.value, name: name.value });
@@ -375,7 +472,11 @@ const shownText = (field: EditField, value: unknown) => {
 };
 /** After a 412: each field whose value read again differs from the input. */
 const changed = computed(() => {
-  const current = refusal.value?.kind === "conflict" ? (refusal.value.current?.data as Item) : null;
+  // An operation replaced: a 412 is of the draft, whose operation moved (`refusalWords`).
+  const current =
+    refusal.value?.kind === "conflict" && !replacing.value
+      ? (refusal.value.current?.data as Item)
+      : null;
   if (!current) return [];
   return fields.value
     .filter((field) => textOf(current[field.name]) !== textOf(values.value[field.name]))
@@ -385,6 +486,56 @@ const changed = computed(() => {
       input: shownText(field, values.value[field.name]),
     }));
 });
+
+// A modification replaced keeps the version it was written on (Q-021-20): an object changed
+// since is said, with the fields that moved, and the operation stays in conflict until it
+// is taken up at the version read now — an action of its own, never silent.
+/** The version the operation replaced was written on, if it names one. */
+const originalExpected = computed(() => {
+  const expected = (replacing.value?.operation as { expected?: unknown } | undefined)?.expected;
+  return typeof expected === "string" ? expected : null;
+});
+/** « Reprendre sur la version actuelle » chosen. */
+const rebased = ref(false);
+/** The object changed since the operation was written. */
+const stale = computed(
+  () =>
+    replacing.value !== null &&
+    !creating.value &&
+    originalExpected.value !== null &&
+    version.value !== null &&
+    originalExpected.value !== version.value,
+);
+type Version = components["schemas"]["Version"];
+const history = useInfiniteQuery(() => ({
+  ...reads.subPages<Version>(collection.value.kind, objectId.value ?? "-", "history"),
+  enabled: stale.value,
+}));
+/** The fields that moved since that version: as they were, as they are (first page read). */
+const moved = computed(() => {
+  const current = item.value;
+  const then = rowsOf(history.data.value as never)
+    .map((v) => (v as unknown as Version | undefined)?.object as unknown as Item | undefined)
+    .find((object) => object?.version === originalExpected.value);
+  if (!current || !then) return [];
+  return fields.value
+    .filter((field) => textOf(then[field.name]) !== textOf(current[field.name]))
+    .map((field) => ({
+      message: t("edit.replace.movedField", {
+        field: labelOf(field),
+        then: shownText(field, then[field.name]),
+        now: shownText(field, current[field.name]),
+      }),
+    }));
+});
+/** Takes the operation up at the version read now: written on it once replaced. */
+async function rebase(): Promise<void> {
+  rebased.value = true;
+  writing.tell(t("edit.replace.rebased", { version: version.value }));
+  // The alert goes with its button: the focus to the first field (2.4.3).
+  await nextTick();
+  root.value?.querySelector<HTMLElement>(".k-edit-panel__field :is(input, button)")?.focus();
+}
 
 function checked(): boolean {
   const found: Record<string, string> = {};
@@ -415,6 +566,8 @@ function refused(answer: Refusal): void {
     );
     void toFirstError();
   }
+  // An operation replaced: the 412 is of the draft, read again by the SDK; nothing here.
+  if (replacing.value) return;
   // Applying again writes on the version read again; the input stays. A 412 gives it; a
   // changeset refused for a version no longer current (a move) does not: read again here.
   const current = answer.kind === "conflict" ? (answer.current?.data as Item | undefined) : null;
@@ -443,6 +596,10 @@ async function run(id: string = action.value): Promise<void> {
     : creating.value
       ? t("edit.whatCreated", { kind: kindWords.value, name: nameOf(values.value as Item) })
       : t("edit.whatModified", { kind: kindWords.value, name: name.value });
+  if (replacing.value) {
+    await replace(what);
+    return;
+  }
   if (id === "apply" && motive.value.trim() === "") {
     errors.value = { ...errors.value, motive: t("edit.motiveMissing") };
     void toFirstError();
@@ -488,6 +645,45 @@ async function run(id: string = action.value): Promise<void> {
       ...(version.value ? { ifMatch: `"${version.value}"` } : {}),
     }),
   );
+}
+
+/**
+ * « Modifier » of an operation of a draft: the operation the form gives, in its place
+ * (`replaceInDraft`, under `If-Match` of the draft as its line was read). A creation keeps
+ * its local name (021/A13: what refers to it still does); a modification is written over
+ * the object read now (its version as `expected`), only what differs from it. Nothing
+ * typed: said, nothing sent; the object already as typed: said, the removal to do instead.
+ */
+async function replace(what: string): Promise<void> {
+  const slot = replacing.value!;
+  const typed = changesOf(fields.value, opened.value, values.value);
+  if (Object.keys(typed).length === 0 && !rebased.value) {
+    writing.tell(t("edit.unchanged"));
+    return;
+  }
+  const edit = EDITS[collection.value.id];
+  let op: Operation;
+  if (creating.value) {
+    const local = (slot.operation as { local?: unknown }).local;
+    op = { ...edit.create(values.value), ...(typeof local === "number" ? { local } : {}) };
+  } else if (rebased.value) {
+    // Taken up at the version read now: only what differs from the object as it is.
+    const changes = changesOf(fields.value, before.value, values.value);
+    if (Object.keys(changes).length === 0) {
+      writing.tell(t("edit.replace.same"));
+      return;
+    }
+    op = edit.update(objectId.value!, version.value, changes);
+  } else {
+    // At the version the operation was written on (Q-021-20): what it wrote, and what was
+    // typed besides; still in conflict, as before, if the object changed since.
+    const names = new Set([...Object.keys(slot.edit?.values ?? {}), ...Object.keys(typed)]);
+    const changes = Object.fromEntries(
+      Object.entries(values.value).filter(([name]) => names.has(name)),
+    );
+    op = edit.update(objectId.value!, originalExpected.value, changes);
+  }
+  await writing.write(what, () => replaceInDraft(slot.draft, slot.index, op));
 }
 
 /**
@@ -590,6 +786,24 @@ watch(
   >
     <Stack gap="3">
       <Heading :level="2">{{ title }}</Heading>
+      <p v-if="replacing" class="k-edit-panel__lead">
+        {{ t("edit.replace.lead", { title: replacing.draft.data.title }) }}
+      </p>
+      <InlineAlert
+        v-if="stale && !rebased"
+        tone="warn"
+        :title="t('edit.replace.stale')"
+        :items="moved"
+      >
+        <Stack gap="2">
+          <p>
+            {{ t("edit.replace.staleText", { then: originalExpected, now: version }) }}
+          </p>
+          <Cluster>
+            <Button size="sm" @click="rebase">{{ t("edit.replace.rebase") }}</Button>
+          </Cluster>
+        </Stack>
+      </InlineAlert>
       <Cluster
         v-if="props.request.mode === 'create' && props.request.kinds"
         gap="1"
@@ -679,12 +893,25 @@ watch(
         :key="refusal.kind + changed.length"
         :refusal="refusal"
         :changed="changed"
+        v-bind="refusalWords"
       />
       <!-- Present before its sentence, so that the sentence is said. -->
       <p class="k-edit-panel__notice" role="status">{{ notice ?? "" }}</p>
       <Cluster justify="end" gap="2">
         <Button variant="ghost" @click="closeEdit()">{{ t("views.cancel") }}</Button>
+        <!-- An operation of a draft replaced: to that draft only, nothing applied at once. -->
+        <Button
+          v-if="replacing"
+          variant="primary"
+          icon="draft"
+          :loading="busy"
+          :shortcut="['Control', 'Enter']"
+          v-bind="replaceRefusal"
+          @click="run('draft')"
+          >{{ t("edit.replace.run") }}</Button
+        >
         <SplitButton
+          v-else
           v-model:action="action"
           :actions="actions"
           :loading="busy"
@@ -699,7 +926,8 @@ watch(
 
 <style>
 @layer components {
-  .k-edit-panel__notice {
+  .k-edit-panel__notice,
+  .k-edit-panel__lead {
     color: var(--k-text-muted);
   }
 }

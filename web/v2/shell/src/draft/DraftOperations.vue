@@ -7,15 +7,20 @@
 // deletion of an inactive draft is announced (`expires_at`). A removal refused is said here
 // (`problems/`), the focus kept in the list. Under `as_of` the draft is read only, said at
 // its head (design 021 « Écrans » : lecture seule annoncée en tête), each removal refused.
-import { drafts } from "@kartenn/sdk";
-import { DiffValue, Icon, IconButton, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
-import { computed, nextTick, ref, shallowRef, watch } from "vue";
+// « Modifier » of a line (task 14l, Q-021-17) opens the edit panel of its kind prefilled
+// from the operation, which replaces it at its place; refused, with its reason, for an
+// operation no panel writes (a closure, a move…) and under `as_of`.
+import { drafts, type Draft, type Entry } from "@kartenn/sdk";
+import { Cluster, DiffValue, Icon, IconButton, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
 import KLink from "../prefetch/KLink.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
+import { editOfOperation } from "../views/edit/fields.ts";
 import type { Refusal } from "../views/edit/inline.ts";
+import { lineToReturn, openEdit } from "../views/edit/panel.ts";
 import { useKeyLabel } from "../views/data.ts";
 import LostSubmissions from "./LostSubmissions.vue";
 import OperationText from "./OperationText.vue";
@@ -40,6 +45,33 @@ const cascaded = computed(() => simulated.value?.cascaded.length ?? 0);
 function removeLabel(index: number): string {
   const line = operationLine(operations.value[index]!);
   return t("drafts.remove", { n: index + 1, op: line.op, subject: line.subject ?? "" });
+}
+/** What a modify button says: the same words, the title of the panel it opens. */
+function modifyLabel(index: number): string {
+  const line = operationLine(operations.value[index]!);
+  return t("drafts.modify", { n: index + 1, op: line.op, subject: line.subject ?? "" });
+}
+/** The form of each operation, `null` for one no edit panel writes. */
+const edits = computed(() => operations.value.map((operation) => editOfOperation(operation)));
+/** Why « Modifier » is refused on a line: under `as_of`, or no panel for its operation. */
+function modifyReason(index: number): string | undefined {
+  if (!writable.value) return t("drafts.why.past");
+  return edits.value[index] ? undefined : t("drafts.why.noPanel");
+}
+/**
+ * « Modifier »: the edit panel of the kind, prefilled from the operation, which it replaces
+ * at its place in the draft as read now (its version, for `If-Match`).
+ */
+function modify(index: number): void {
+  const edit = edits.value[index];
+  const read = query.data.value as Entry<Draft> | undefined;
+  if (!edit || !read || read.data.id !== props.id || modifyReason(index)) return;
+  const replace = { draft: read, index };
+  openEdit(
+    edit.mode === "create"
+      ? { mode: "create", collection: edit.collection, replace }
+      : { mode: "edit", collection: edit.collection, id: edit.id!, replace },
+  );
 }
 
 const list = ref<HTMLElement | null>(null);
@@ -76,6 +108,23 @@ watch(
   },
   { flush: "post" },
 );
+/**
+ * The edit of a line closed while the Détail tab had taken this one's place: shown again,
+ * the focus to the « Modifier » of that line (2.4.3), else the list, else what says it is
+ * empty or gone.
+ */
+const returning = lineToReturn();
+function giveBack(): void {
+  const line = returning.value;
+  // Waited while the draft is read; gone or unread, the focus to what says so, and cleared.
+  if (!line || (props.id !== null && !draft.value && !query.isError.value)) return;
+  returning.value = null;
+  const buttons = list.value?.querySelectorAll<HTMLElement>("[data-k-modify]") ?? [];
+  const own = line.draft === props.id ? buttons[line.index] : undefined;
+  (own ?? list.value ?? empty.value ?? none.value)?.focus();
+}
+watch([returning, draft, query.isError], giveBack, { flush: "post" });
+onMounted(giveBack);
 /** The draft is no longer the server's (deleted, submitted or taken over elsewhere). */
 const refusedGone = computed(
   () => refusal.value?.kind === "failed" && refusal.value.problem?.status === 404,
@@ -158,16 +207,27 @@ const value = (text: string | null | undefined) =>
           <div class="k-draft-ops__line">
             <span class="k-draft-ops__mark"><Icon name="draft" /></span>
             <OperationText :operation="operation" />
-            <IconButton
-              data-k-remove
-              icon="x"
-              size="sm"
-              variant="ghost"
-              :label="removeLabel(index)"
-              :loading="removing === index"
-              v-bind="writable ? {} : { reason: t('drafts.why.past') }"
-              @click="remove(index)"
-            />
+            <Cluster gap="1" :wrap="false">
+              <IconButton
+                data-k-modify
+                icon="pencil"
+                size="sm"
+                variant="ghost"
+                :label="modifyLabel(index)"
+                v-bind="modifyReason(index) ? { reason: modifyReason(index) } : {}"
+                @click="modify(index)"
+              />
+              <IconButton
+                data-k-remove
+                icon="x"
+                size="sm"
+                variant="ghost"
+                :label="removeLabel(index)"
+                :loading="removing === index"
+                v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+                @click="remove(index)"
+              />
+            </Cluster>
           </div>
           <InlineAlert
             v-if="violations.get(index)?.length"
