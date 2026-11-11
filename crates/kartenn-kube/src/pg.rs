@@ -552,6 +552,42 @@ pub(crate) async fn pod_domain_moved(
     .map_err(|e| store(&e))
 }
 
+/// Whether changing the service or external domain `column` (`service_domain_id` or
+/// `external_domain_id`) of `cluster` to `domain` (`null` for none) over `period` moves it
+/// under living services or ingresses of the cluster: they are anchored in these domains,
+/// and so are their addresses (design « Types d'objets »). As `pod_domain_moved`.
+pub(crate) async fn service_domain_moved(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    column: &'static str,
+    domain: &Value,
+    period: Option<Period>,
+) -> Result<bool, StoreError> {
+    debug_assert!(matches!(column, "service_domain_id" | "external_domain_id"));
+    let (from, to) = bounds(period);
+    let sql = format!(
+        "WITH portion AS (SELECT tstzrange(coalesce($3::timestamptz, now()), $4) AS p)
+         SELECT EXISTS (SELECT 1 FROM kube.cluster c, portion
+                         WHERE c.id = $1 AND c.valid_period && portion.p
+                           AND c.{column} IS DISTINCT FROM ($2 #>> '{{}}')::uuid)
+            AND EXISTS (SELECT 1 FROM (SELECT namespace_id, valid_period FROM {SERVICE_TABLE}
+                                       UNION ALL
+                                       SELECT namespace_id, valid_period FROM {INGRESS_TABLE}) o,
+                               portion
+                         WHERE o.valid_period && portion.p
+                           AND EXISTS (SELECT 1 FROM {NAMESPACE_TABLE} n
+                                        WHERE n.id = o.namespace_id AND n.cluster_id = $1))"
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(cluster)
+        .bind(domain)
+        .bind(from)
+        .bind(to)
+        .fetch_one(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
 /// The parent of the node, namespace, workload, service or ingress `id` of `table` (its
 /// cluster, or its namespace) and the domain of its cluster it is anchored in, at the
 /// start of `period`: its place in the tree of the module and its anchor.

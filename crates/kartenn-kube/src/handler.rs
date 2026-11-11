@@ -1956,6 +1956,27 @@ impl ModuleHandler for Handler {
                         &[id],
                     ));
                 }
+                // Services and ingresses, and their addresses, are anchored in the service
+                // and external domains, the external one falling back to the service one:
+                // the same rule (Q-019-17), setting a domain that was none included.
+                for (column, field) in [
+                    ("service_domain_id", "service_domain"),
+                    ("external_domain_id", "external_domain"),
+                ] {
+                    if let Some(domain) = patch.get(column)
+                        && pg::service_domain_moved(conn, id, column, domain, period).await?
+                    {
+                        return Err(pg::refused(
+                            &OPERATION_INVALID,
+                            format!(
+                                "{field}: the cluster {id} has living services or ingresses, \
+                                 anchored in its service and external domains; close them \
+                                 before changing it"
+                            ),
+                            &[id],
+                        ));
+                    }
+                }
                 pg::identities(conn, CLUSTER_TABLE, id, patch, period).await?;
                 pg::portion(conn, CLUSTER_TABLE, id, patch, period, changeset).await?;
             }

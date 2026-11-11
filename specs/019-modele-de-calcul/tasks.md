@@ -449,7 +449,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     n'est pas vu, d'où un refus final peu clair (à vérifier pour un lot `kube.sync` qui
     déplace une plage d'un nœud à l'autre) ; `targets` est lu avant les verrous (lié à
     la 021-22o).
-- [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
+- [x] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 ; découpée le 2026-11-10 en 4a à 4d (trois types et les arêtes ne tiennent pas dans
   un contexte), cochée avec la dernière.
@@ -731,7 +731,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     l'union de leurs `cites` ; pas de test IPv6 ni d'un service et d'un ingress de
     namespaces différents (même chemin) ; la cascade d'un namespace qui clôt un porteur
     pendant qu'un autre porteur du lot rend l'adresse suit `close_owned`, non testée
-- [ ] 4f. Domaines des services et des adresses externes figés sous des objets vivants
+- [x] 4f. Domaines des services et des adresses externes figés sous des objets vivants
   (revue de la 4c ; même règle que Q-019-15 pour le domaine des pods) : `update_cluster`
   qui change `service_domain_id` ou `external_domain_id` d'un cluster qui a des services
   ou des ingress vivants est refusé (`kube.operation.invalid`), comme
@@ -740,6 +740,17 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-kube/src/handler.rs` (`update_cluster`), `pg.rs`
     (`pod_domain_moved` à imiter) ; test `pod_domain_change_refused_with_living_objects`
   - dépend de : 4c
+  - choix : le refus se tranche dans `apply` du plan `update_cluster`, à côté de celui du
+    domaine des pods (`pg::service_domain_moved`, une requête par colonne nommée dans le
+    correctif) ; un seul ensemble d'objets pour les deux domaines, services et ingress
+    vivants d'un namespace du cluster : le domaine externe se replie sur celui des
+    services (ancrage des ingress, adresses externes des services), changer l'un déplace
+    les deux familles ; `IS DISTINCT FROM`, poser un domaine externe qui était nul ou le
+    retirer compte comme un changement, redonner la même valeur (nulle comprise) non ;
+    les namespaces seuls (ancrés dans le domaine des pods) ne bloquent pas — verify :
+    `service_domains_change_refused_with_living_objects`
+  - reste : pas de ré-ancrage (Q-019-15, A) ; pas de test sur une période passée ou
+    future (`period` suivi comme pour le domaine des pods)
 - [x] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
   `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
   module (ADR 0026 clauses 11, 12) ; la chaîne d'exécution d'un workload (nœuds,
