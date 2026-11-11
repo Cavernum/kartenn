@@ -1832,7 +1832,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, faite le 2026-11-11), pied en attente
     de reprise (14h, faite le 2026-11-11), badge de la barre et segments de date (14i, `@kartenn/ui`, faite le 2026-11-11), brouillon
     daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k, faite le 2026-11-11), modifier une
-    opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
+    opération du brouillon (14l, faite le 2026-11-11). Restent à l'utilisateur, inchangés : « Revue requise »
     avant la soumission (contrat), composants du résultat de simulation et de la ligne
     d'opération, « Tout afficher » d'une `DiffList`, icône de l'état « en revue », contrat
     de `GET /v1/changesets` ; de la 14e, l'aperçu daté de la Topographie (une règle à
@@ -3265,7 +3265,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     les brouillons d'Alice côte à côte ; les assertions dans le `try`, le second contexte
     encore ouvert ; titre du test inchangé (`web/v2/PARITE.md` le cite, vérifié par
     `shell/test/parity.test.ts`).
-- [ ] 14l. Modifier une opération du brouillon (design 021 « Écrans », Brouillons :
+- [x] 14l. Modifier une opération du brouillon (design 021 « Écrans », Brouillons :
   « liste des opérations (retirer, modifier) » ; seul le retrait est là) : forme arbitrée
   par l'utilisateur le 2026-11-11 (Q-021-17) — « Modifier » sur la ligne
   rouvre le panneau d'édition de la sorte (`EditPanel`, REQ-021-36) prérempli de
@@ -3276,6 +3276,56 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/{DraftOperations.vue,operations.ts}`,
     `web/v2/shell/src/views/edit/` (`EditPanel`, `panel.ts`), `drafts.update`
   - dépend de : 14
+  - fait le 2026-11-11 — SDK (`data/drafts.ts`) : `replaceOperation(read, index, op)`, offert
+    au shell seul (`replaceInDraft` de `@kartenn/sdk/host`) : `PATCH` des opérations, celle
+    de l'index remplacée, sous l'`If-Match` du brouillon tel que sa ligne était lu ; après
+    un 412, relu, retenté une fois si la place tient encore la même opération, sinon le
+    conflit ; la date lue à l'appel (`additionDate`) date le brouillon comme un ajout (règle
+    de la 14j), gardée au second essai. Shell : `fields.ts` `editOfOperation` (la sorte, la
+    création ou l'objet modifié, les valeurs du formulaire tirées des membres de
+    l'opération : `prefix` → `value`, références, ancres, drapeaux ; `null` pour une
+    clôture, un déplacement, une propriété, `within`) ; `panel.ts` : `replace` (`DraftSlot` :
+    le brouillon lu et l'index) sur les demandes `create` et `edit`, `lineToReturn` ;
+    `DraftOperations.vue` : bouton « Modifier l'opération n : … » (`pencil`, `data-k-modify`)
+    avant « Retirer », refusé avec sa raison sous `as_of` (`drafts.why.past`) et pour une
+    opération qu'aucun panneau n'écrit (`drafts.why.noPanel`) ; `EditPanel.vue` : titre de la
+    ligne, phrase d'en-tête (`edit.replace.lead`), formulaire prérempli (les valeurs de
+    l'opération sur l'objet lu), un seul bouton « Remplacer dans le brouillon » (rien
+    d'appliqué tout de suite), « Rien n'a changé » sans envoi, l'objet déjà tel que saisi dit
+    (`edit.replace.same`), refus 412 et 404 dans leurs mots ; succès « Opération n
+    remplacée : … » (`words.saved` de `action.ts`), la simulation relancée par la nouvelle
+    version du brouillon ; le focus rendu au « Modifier » de la ligne, l'onglet Brouillon
+    remontré par le cadre (`ShellFrame.vue`) quand l'onglet Détail avait pris sa place.
+    Vitest : `sdk/test/drafts.test.ts` (en place sous l'`If-Match` lu ; 412 retenté si
+    l'opération est la même, sinon conflit ; daté à l'appel, gardé après le 412),
+    `shell/test/draft-replace.test.ts` (`editOfOperation` ; une modification remplacée sous
+    `If-Match`, simulée de nouveau, le focus sur sa ligne ; une création gardant son nom
+    local ; un 412 dont la place a changé dit, rien de retenté). Parcours `draft` « an
+    operation modified: its edit panel prefilled, replaced at its place, simulated again »
+    (doublon corrigé, simulation valide, focus, brouillon relu) ; « … read only » vérifie
+    aussi « Modifier » refusé sous `as_of`. `design.md` (`sdk.drafts`) dit le remplacement.
+  - choix : une modification remplacée s'écrit sur l'objet lu à l'ouverture (sa version en
+    `expected`, seulement ce qui en diffère), non sur l'`expected` de l'opération d'origine :
+    rouvrir une opération en conflit la remet à jour ; une création garde son `local`
+    (021/A13) ; le bouton « Modifier » montré sur chaque ligne, refusé avec sa raison plutôt
+    que caché ; un `Button` primaire au lieu d'un `SplitButton` à une entrée ; l'égalité de
+    l'opération à sa place comparée par son JSON (servi par le même serveur) ;
+    `editOfOperation` dans `fields.ts` (à côté de `OPERATION_MEMBERS`), non dans
+    `draft/operations.ts` ; un clic qui laisse le focus sur `body` traité comme un
+    déclencheur parti (le focus va à la ligne) ; Vitest dans un fichier neuf plutôt que dans
+    `changesets.test.ts` (déjà 1 000 lignes) ; maquettes E5 inchangées. Relectures : le
+    retour du focus effacé aussi quand le brouillon est parti ou illisible (`a11y-auditor`) ;
+    l'onglet Brouillon remontré seulement pour le brouillon actif hors de sa page (sur
+    `/drafts/:id`, la ligne reprend le focus, le panneau laissé tel quel).
+  - reste : les maquettes `EcranBrouillon.vue` et `E5Brouillon.vue` ne montrent que
+    « Retirer » : leur ajouter le crayon (normal et refusé) change une maquette validée et
+    ses captures, à l'utilisateur (`ui-reviewer`) ; relevés mineurs : les lignes sont clées
+    par leur index (une renumérotation entre l'ouverture et le retour mène le focus au
+    « Modifier » voisin) ; brouillon illisible au retour, le focus reste perdu (l'état
+    d'erreur n'a pas de cible) ; cibles de 24 px côte à côte à 4 px (`gap="1"`) à vérifier
+    au rendu en densité compacte ; à juger au lecteur d'écran : l'annonce « Opération n
+    remplacée » suivie du nom du bouton focalisé, le crayon refusé et sa raison, la phrase
+    d'en-tête lue alors que le focus va au premier champ.
 - [x] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
   date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;

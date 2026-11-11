@@ -589,8 +589,11 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   dépendants ; le flux, s'il arrive ensuite, trouve des versions égales et ne relit rien.
 - `sdk.drafts` (024 § A) : `list`, `get`, `create`, `update`, `addOperations`, `remove`,
   `simulate` (débrayée, 400 ms), `submit({ approvalSelf })` ; écritures avec `If-Match`, et
-  sur 412 relecture puis nouvel essai de l'ajout ; le brouillon actif d'un onglet est son
-  identifiant en `sessionStorage`, la période de chaque brouillon aussi (le brouillon du
+  sur 412 relecture puis nouvel essai de l'ajout ; une opération remplacée à sa place
+  (« Modifier » de sa ligne, `replaceInDraft` de `@kartenn/sdk/host`) part sous l'`If-Match`
+  du brouillon tel que sa ligne était lu, et n'est retentée après un 412 que si cette place
+  tient encore la même opération ; elle date le brouillon comme un ajout ; le brouillon
+  actif d'un onglet est son identifiant en `sessionStorage`, la période de chaque brouillon aussi (le brouillon du
   serveur n'en a pas : la date de son premier ajout sous `valid_at` seul, lue avant
   l'envoi de cet ajout, ou le choix du
   pied ; `draftPeriod` de `@kartenn/sdk/host`, hors API des plugins), lue par sa simulation
