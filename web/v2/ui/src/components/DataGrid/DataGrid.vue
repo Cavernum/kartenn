@@ -403,9 +403,15 @@ function stateText(row: R, column: GridColumn): string | undefined {
   const state = stateOf(row, column);
   return state !== undefined && state !== "error" ? props.stateReason(row, column) : undefined;
 }
-/** The sentences a cell says of itself besides its value: its state's reason, then why not. */
-const notesOf = (row: R, column: GridColumn): string[] =>
-  [stateText(row, column), readonlyText(row, column)].filter((text): text is string => !!text);
+/**
+ * The sentences a cell says of itself besides its value: its state's reason, then why not,
+ * each once (the same text from both is one sentence, one description, one tooltip line).
+ */
+const notesOf = (row: R, column: GridColumn): string[] => [
+  ...new Set(
+    [stateText(row, column), readonlyText(row, column)].filter((text): text is string => !!text),
+  ),
+];
 const reasons = computed<string[]>(() => {
   if (!(props.editable && props.readonlyReason) && !props.stateReason) return [];
   const found = new Set<string>();
@@ -432,6 +438,7 @@ watch(reasonTip.open, (now) =>
 );
 onBeforeUnmount(() => window.removeEventListener("keydown", closeTip, { capture: true }));
 function reasonOf(row: R, column: GridColumn): string | undefined {
+  // One id per sentence: the same twice (its state's reason, why not) is one (`notesOf`).
   const ids = notesOf(row, column)
     .map((text) => reasons.value.indexOf(text))
     .filter((at) => at >= 0)
