@@ -283,6 +283,22 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   plans d'un changeset ; amendement additif 10 de l'ADR 0026 (créations partageables,
   tâche 4e0) plutôt qu'un repli sur le connecteur (l'utilisateur, 2026-11-11).
 
+### Q-019-18 — Auteur des écritures des miroirs (revue de la tâche 5a)
+- Constat : appliquer `kube.connector.direct` demande qu'une règle distingue les
+  opérations envoyées par l'auteur de celles que `kube.sync` planifie ; un membre d'un
+  groupe de connecteur par un groupe d'émetteur (`idp_group`) échappait à la règle ; un
+  `Close` à la main d'un miroir encore vivant dans le cluster laissait le miroir faux,
+  contre X5.
+- Décisions (l'utilisateur, 2026-11-11, toutes sur la recommandation) :
+  - `CheckContext::operations` (les seules opérations de l'auteur) ratifié, amendement
+    additif 11 de l'ADR 0026 ;
+  - `kube.connector.direct` reconnaît tout membre du groupe, direct ou par un groupe
+    d'émetteur, selon la résolution du RBAC ; `kube.object.managed` exige toujours un
+    compte de service membre direct ;
+  - un `Close` direct d'un miroir hors `kube.sync` est refusé (`kube.object.managed`) ;
+    la restauration qui annule un lot reste permise (X5) ; retirer un objet passe par le
+    cluster, ou par la clôture du cluster en cascade.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
