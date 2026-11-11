@@ -906,7 +906,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`crates/kartenn-machines/src/handler.rs`) à imiter
   - dépend de : 5a
   - fait : `handler.rs` (`OBJECTS_SECTION`, `diff` sur les miroirs touchés) ; `pg.rs`
-    (`object_changes` : versions d'avant la transaction contre versions courantes, une
+    (`MIRRORS`, l'état explicite de chaque type ; `object_changes` : versions d'avant la
+    transaction contre versions courantes, périodes agrégées une fois par miroir, une
     ligne par portion de temps qui diffère) ; `module.rs` (test `catalogue_problems_empty`,
     le module seul puis avec le noyau et `machines` : aucun problème, déclaration
     inchangée) ; test `clusters::section_lists_changed_objects` (création d'un nœud et
@@ -915,18 +916,17 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     ligne, `clear_absent`, clôture en cascade du cluster simulée puis appliquée : nœud,
     namespace et workload clos ; un cluster ne fait aucune ligne).
   - choix : miroirs seulement (nœuds, namespaces, workloads, services, ingress), pas le
-    cluster, déclaré et sans champ suivi ; `before` et `after` sont la ligne de la table
-    sans ses colonnes de versionnement (`id`, `valid_period`, `sys_start`, `sys_end`,
-    `changeset_id`) : identité (`cluster_id` ou `namespace_id`, `name`, `kind` d'un
-    workload), champs suivis sous leurs noms de colonne, `absent_since` ; une ligne par
-    portion où l'état diffère, sa période dans `period` (comme `machines.attachments`),
-    aucune pour une portion à l'état inchangé (une version identique réécrite) ; objets
-    pris dans `touched` du contexte (index par identifiant, pas de balayage sur
-    `sys_start`) ;
+    cluster, déclaré et sans champ suivi ; `before` et `after` en JSON explicite par type
+    (Q-019-19, arbitrée par l'utilisateur à la revue : noms du design, `absent_since` en
+    RFC 3339 UTC formaté en SQL comme le rend `time`) ; une ligne par portion où l'état
+    diffère, sa période dans `period` (comme `machines.attachments`), aucune pour une
+    portion à l'état inchangé (une version identique réécrite) ; objets pris dans
+    `touched` du contexte (index par identifiant, pas de balayage sur `sys_start`) ;
     ordre : type (nœud, namespace, workload, service, ingress), identifiant, début.
   - reste : la section n'est pas encore lue par la 010 ni la 011 (REQ-019-36, leurs
     amendements) ; pas de test d'une écriture bornée dans le passé (plusieurs portions)
-    ni d'un service ou d'un ingress dans la section.
+    ni d'un service ou d'un ingress dans la section (revue) ; le format de
+    `absent_since` n'est pas testé sous un autre fuseau de session.
 - [ ] 6. Journal d'observation et ses garde-fous : tables `observation_batch` et
   `pod_observation` partitionnée, droits PostgreSQL d'ajout seul et déclencheur, route
   de lot sous `kube.observation.record` (validation à l'entrée, refus du lot entier),
