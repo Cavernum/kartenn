@@ -471,6 +471,9 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 - Connecteur arrêté : `kube.sync.stale` ; les objets restent tels qu'au dernier lot.
 - Domaine des pods changé sur un cluster qui a des nœuds ou des namespaces vivants :
   refusé (`kube.operation.invalid`, Q-019-15) ; pas de ré-ancrage.
+- Domaine des services ou des adresses externes changé (posé ou retiré compris) sur un
+  cluster qui a des services ou des ingress vivants : refusé de même (Q-019-17,
+  tâche 4f).
 - Proposition forcée (016/G12) ou approbation exigée par un lot (mesure `policy.opens`
   dépassée par une valeur de label) : le lot reste un changeset `pending` (024 : le
   compte a `approval.self`, mais la politique le retient) ; le connecteur attend sa

@@ -452,7 +452,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
 - [x] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 ; découpée le 2026-11-10 en 4a à 4d (trois types et les arêtes ne tiennent pas dans
-  un contexte), cochée avec la dernière.
+  un contexte), complétée par 4e0, 4e et 4f (revues), cochée avec la dernière.
 - [x] 4a. Workloads : table `kube.workload` (design « Données », migration suivante),
   `upsert` et `close` des workloads dans `kube.sync` par (namespace, sorte, nom),
   labels suivis du gabarit de pod (X4), compte de service, ports déclarés,
@@ -751,6 +751,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `service_domains_change_refused_with_living_objects`
   - reste : pas de ré-ancrage (Q-019-15, A) ; pas de test sur une période passée ou
     future (`period` suivi comme pour le domaine des pods)
+  - reste (revue) : le retrait d'un domaine externe (posé → nul) sous des objets vivants
+    n'est pas testé ; `service_domain_moved` (`pg.rs` vers 573-579) part de tous les
+    services et ingress vivants de la base avant de filtrer par namespace du cluster,
+    partir de `kube.namespace` (`cluster_id`) et des index par namespace serait plus sûr
+    (à mesurer, opération rare) ; poser un domaine externe égal au domaine des services
+    alors qu'il était nul est refusé bien que l'ancrage ne bouge pas (prudent).
 - [x] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
   `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
   module (ADR 0026 clauses 11, 12) ; la chaîne d'exécution d'un workload (nœuds,
