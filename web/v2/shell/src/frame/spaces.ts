@@ -248,13 +248,13 @@ export function spaceEntry(space: Space, rights: Rights): SpaceEntry {
 /**
  * The groups of the sidebar for `rights`, labels in the language of `t`, in the order of
  * the spaces; a space left without entries is dropped. `badges`: the counters of entries,
- * by id (« À instruire »), shown when above zero.
+ * by id (« À instruire »), shown when above zero and said with their unit.
  */
 export function sidebarGroups(
   rights: Rights,
   t: (key: string) => string,
   spaces: readonly Space[] = CORE_SPACES,
-  badges: Readonly<Record<string, number | string>> = {},
+  badges: Readonly<Record<string, EntryBadge>> = {},
 ): SidebarGroup[] {
   return [...spaces]
     .sort((a, b) => SPACE_ORDER.indexOf(a.id) - SPACE_ORDER.indexOf(b.id))
@@ -263,15 +263,27 @@ export function sidebarGroups(
       label: t(space.label),
       entries: space.entries
         .filter((entry) => visible(entry, rights))
-        .map((entry) => ({
-          id: entry.id,
-          label: t(entry.label),
-          icon: entry.icon,
-          to: entry.to,
-          ...(badges[entry.id] && badges[entry.id] !== "0" ? { badge: badges[entry.id] } : {}),
-        })),
+        .map((entry) => {
+          const badge = badges[entry.id];
+          return {
+            id: entry.id,
+            label: t(entry.label),
+            icon: entry.icon,
+            to: entry.to,
+            ...(badge?.count && badge.count !== "0"
+              ? { badge: badge.count, badgeLabel: badge.label }
+              : {}),
+          };
+        }),
     }))
     .filter((group) => group.entries.length > 0);
+}
+
+/** The counter of an entry: as shown (`pageCount`), and as said, with its unit. */
+export interface EntryBadge {
+  count: number | string;
+  /** « 3 changesets à instruire », « plus de 100 changesets à instruire ». */
+  label: string;
 }
 
 /**

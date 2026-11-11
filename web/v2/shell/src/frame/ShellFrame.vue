@@ -144,9 +144,17 @@ const proposals = useInfiniteQuery(() => ({
   ...reads.list("/v1/proposals"),
   enabled: session.value.me !== null && session.value.rights.has("core.changeset.read"),
 }));
+// Said with its unit (« 3 changesets à instruire »), never a bare number.
 const badges = computed(() => {
   const first = proposals.data.value?.pages[0]?.data;
-  return { proposals: pageCount(first?.items.length ?? 0, !!first?.links?.next) };
+  const rows = first?.items.length ?? 0;
+  const more = !!first?.links?.next;
+  return {
+    proposals: {
+      count: pageCount(rows, more),
+      label: more ? t("badge.proposalsMore", { n: rows }) : t("badge.proposals", rows),
+    },
+  };
 });
 const groups = computed(() => sidebarGroups(session.value.rights, t, spaces.value, badges.value));
 const located = computed(() => locate(route.path, spaces.value));

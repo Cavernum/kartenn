@@ -25,14 +25,14 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - list "Changesets":
           - listitem:
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":

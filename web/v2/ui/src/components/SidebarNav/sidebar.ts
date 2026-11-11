@@ -12,6 +12,12 @@ export interface SidebarEntry {
   to: string;
   /** A count, or its text when only a bound is known (« 100+ »). */
   badge?: number | string;
+  /**
+   * The counter as assistive technologies say it, after the label, with its unit (« À
+   * instruire » then « 3 changesets à instruire »), in place of the bare count; the count
+   * alone without it. Without a `badge`, nothing is shown nor said.
+   */
+  badgeLabel?: string;
 }
 
 /** A space of the sidebar (spec 021, « Cadre »): a disclosure of entries. */

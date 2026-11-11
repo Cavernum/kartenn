@@ -27,7 +27,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets" [expanded]
         - list:
@@ -35,7 +35,7 @@
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -73,7 +73,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets"
         - button "Administration" [expanded]
@@ -107,14 +107,14 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - list "Changesets":
           - listitem:
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -149,14 +149,14 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - list "Changesets":
           - listitem:
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -191,14 +191,14 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - list "Changesets":
           - listitem:
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -209,6 +209,48 @@
               - /url: /admin
         - button "Barre latérale"
       - code: collapsed-hover
+      - text: ""
+    - 'figure "single-keys-off — Raccourcis à une touche coupés par l''hôte (WCAG 2.1.4) : le repli ne montre ni ne déclare `[` ; Ctrl+K reste"':
+      - navigation "Navigation principale":
+        - button "Rechercher"
+        - list "Référentiel":
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Topographie":
+              - /url: /topology
+          - listitem:
+            - link "VLAN":
+              - /url: /vlans
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4 anomalies ouvertes":
+              - /url: /anomalies
+        - list "Changesets":
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2 changesets à instruire":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - list "Administration":
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale"
+      - code: single-keys-off
       - text: ""
     - figure "hover — Survol d'une entrée":
       - navigation "Navigation principale":
@@ -235,7 +277,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets" [expanded]
         - list:
@@ -243,7 +285,7 @@
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -281,7 +323,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets" [expanded]
         - list:
@@ -289,7 +331,7 @@
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":
@@ -325,14 +367,14 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - list "Changesets":
           - listitem:
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":

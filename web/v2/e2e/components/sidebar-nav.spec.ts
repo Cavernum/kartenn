@@ -3,7 +3,8 @@ import { expect, openState, test } from "../fixtures/index.ts";
 
 // Keyboard script of the sidebar (Disclosure in a `navigation` landmark; spec 020, design
 // « Inventaire » line 18; spec 021, « Cadre », REQ-021-2, 29): collapsed in icons, every
-// control keeps its name (the space names its list, a counter is in its entry's name),
+// control keeps its name (the space names its list, a counter is in its entry's name,
+// with its unit),
 // and a tooltip after it on keyboard focus and on hover repeats the name, the counter and
 // the shortcut (decorative; Escape closes it, the focus stays); the collapse toggle says
 // its state (`aria-expanded`) and its shortcut `[`; expanded, the spaces are disclosures.
@@ -29,11 +30,14 @@ test.describe("SidebarNav (Disclosure in navigation)", () => {
       "aria-current",
       "page",
     );
-    await expect(referential.getByRole("link", { name: "Anomalies 4" })).toBeVisible();
+    // A counter is said with its unit, never as a bare number.
+    await expect(
+      referential.getByRole("link", { name: "Anomalies 4 anomalies ouvertes", exact: true }),
+    ).toBeVisible();
     await expect(
       nav(page)
         .getByRole("list", { name: "Changesets" })
-        .getByRole("link", { name: "À instruire 2" }),
+        .getByRole("link", { name: "À instruire 2 changesets à instruire", exact: true }),
     ).toBeVisible();
     // No disclosure while collapsed: every space is open.
     await expect(nav(page).getByRole("button", { name: "Référentiel" })).toHaveCount(0);

@@ -39,8 +39,12 @@ test.describe("DateTimeField (Spinbutton segments, Date Picker Dialog)", () => {
     await expect(group.getByRole("spinbutton")).toHaveCount(5);
     await expect(group).toHaveAccessibleDescription("Date et heure de Paris.");
     await expect(group).toContainText("Europe/Paris");
+    // Each segment carries the help too, reached without the group; the time, its zone.
+    await expect(segment(page, "Valide au", "Année")).toHaveAccessibleDescription(
+      "Date et heure de Paris.",
+    );
     await expect(segment(page, "Valide au", "Heure")).toHaveAccessibleDescription(
-      /^Europe\/Paris UTC\+0[12]:00$/,
+      /^Date et heure de Paris\. Europe\/Paris UTC\+0[12]:00$/,
     );
     await enter(page);
     for (const name of ["Mois", "Jour", "Heure", "Minutes"]) {
@@ -120,6 +124,9 @@ test.describe("DateTimeField (Spinbutton segments, Date Picker Dialog)", () => {
     const group = page.getByRole("group", { name: "Valide au" });
     await expect(group).toHaveAccessibleDescription(`${reason} Date et heure de Paris.`);
     await expect(segment(page, "Valide au", "Jour")).toHaveAttribute("aria-invalid", "true");
+    await expect(segment(page, "Valide au", "Jour")).toHaveAccessibleDescription(
+      `${reason} Date et heure de Paris.`,
+    );
     await expect(segment(page, "Valide au", "Jour")).toHaveText("31");
     await expect(
       page.locator(".k-form-field__live[aria-live='polite']").filter({ hasText: reason }),

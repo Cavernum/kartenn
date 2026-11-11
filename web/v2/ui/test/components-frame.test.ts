@@ -67,6 +67,24 @@ describe("SidebarNav", () => {
     expect(html).not.toContain("aria-controls");
   });
 
+  it("says a counter with its unit when given, the bare count hidden", async () => {
+    const said = await render(SidebarNav, {
+      brand: "kartenn",
+      groups: [
+        {
+          ...groups[0]!,
+          entries: [{ ...groups[0]!.entries[1]!, badgeLabel: "3 préfixes à revoir" }],
+        },
+      ],
+    });
+    expect(said).toContain(
+      '<span class="k-sidebar__badge" aria-hidden="true">3</span><span class="k-visually-hidden">3 préfixes à revoir</span>',
+    );
+    const bare = await render(SidebarNav, { brand: "kartenn", groups });
+    expect(bare).toContain('<span class="k-sidebar__badge">3</span>');
+    expect(bare).not.toContain("préfixes à revoir");
+  });
+
   it("leaves out a space without entries; « Rechercher » opens a dialog (Ctrl+K)", async () => {
     const html = await render(SidebarNav, {
       brand: "kartenn",

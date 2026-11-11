@@ -325,12 +325,13 @@ function valueNow(kind: SegmentKind): number | undefined {
   return n >= LIMITS[kind].min && n <= maxOf(kind) ? n : undefined;
 }
 
-/** A segment is described by the refusal (read again on each segment), the time by its zone. */
-function describedBy(kind: SegmentKind): string | undefined {
-  const ids = [
-    shownError.value ? `${id}-error` : null,
-    kind === "hour" || kind === "minute" ? zoneId : null,
-  ];
+/**
+ * A segment is described as its group is, by the refusal then the help (`field`, from
+ * `FormField`: read again on each segment, which a reader reaches without the group, WCAG
+ * 1.3.1, 4.1.2; a read-only field's reason is its help), and the time by its zone.
+ */
+function describedBy(kind: SegmentKind, field: string | undefined): string | undefined {
+  const ids = [field, kind === "hour" || kind === "minute" ? zoneId : null];
   return ids.filter(Boolean).join(" ") || undefined;
 }
 
@@ -400,6 +401,7 @@ defineExpose({ check, focus });
 <template>
   <FormField
     :id="id"
+    v-slot="{ describedBy: field }"
     group
     class="k-date-field"
     :label="props.label"
@@ -445,7 +447,7 @@ defineExpose({ check, focus });
             :aria-invalid="shownError ? 'true' : undefined"
             :aria-readonly="props.readonly ? 'true' : undefined"
             :aria-disabled="props.disabled ? 'true' : undefined"
-            :aria-describedby="describedBy(kind)"
+            :aria-describedby="describedBy(kind, field)"
             :data-empty="entry[kind] === '' ? 'true' : undefined"
             :data-fault="own.segment === kind ? 'true' : undefined"
             @keydown="onKeydown($event, i)"

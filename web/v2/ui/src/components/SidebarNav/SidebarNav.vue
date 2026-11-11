@@ -7,7 +7,9 @@
 // 021, « Cadre », REQ-021-2): the brand, the palette button (Ctrl+K), the spaces as
 // disclosures of entries (a space without entries is left out), the active entry
 // `aria-current="page"`, the collapse toggle at the bottom (`[`; the shortcuts are the
-// shell's, said here by `aria-keyshortcuts`). Collapsed (a model the host keeps), it
+// shell's, said here by `aria-keyshortcuts`). An entry's counter is in its name, after its
+// label, said with its unit when the host gives one (`badgeLabel`), the bare number then
+// hidden from assistive technologies. Collapsed (a model the host keeps), it
 // shows icons only: every space open, each list named by its space, each control keeping
 // its name (labels hidden on screen only, the counter in the name), and a tooltip after
 // it on hover and keyboard focus (APG Tooltip) that repeats its name, its counter and its
@@ -155,7 +157,14 @@ watch(() => [props.active, collapsed.value], revealCurrent);
             >
               <Icon :name="entry.icon" class="k-sidebar__icon" />
               <span class="k-sidebar__label">{{ entry.label }}</span>
-              <span v-if="entry.badge" class="k-sidebar__badge">{{ entry.badge }}</span>
+              <span
+                v-if="entry.badge"
+                class="k-sidebar__badge"
+                :aria-hidden="entry.badgeLabel ? 'true' : undefined"
+                >{{ entry.badge }}</span
+              ><span v-if="entry.badge && entry.badgeLabel" class="k-visually-hidden">{{
+                entry.badgeLabel
+              }}</span>
             </LinkTo>
           </li>
         </ul>

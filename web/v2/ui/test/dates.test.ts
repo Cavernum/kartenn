@@ -267,6 +267,34 @@ describe("as rendered", () => {
     expect(html).toMatch(/aria-label="Choisir la date\s:\sValide au"/);
   });
 
+  it("DateTimeField: each segment carries the error and the help, the time its zone too", async () => {
+    const described = (html: string, label: string) =>
+      new RegExp(`aria-label="${label}"[^>]*aria-describedby="([^"]+)"`).exec(html)?.[1];
+    const frozen = await render(DateTimeField, {
+      label: "Valide au",
+      timeZone: PARIS,
+      readonly: true,
+      hint: "Figée : une soumission attend sa reprise.",
+      modelValue: "2025-11-03T08:30:00Z",
+    });
+    const hint = /<p id="([^"]+)" class="k-form-field__hint">Figée/.exec(frozen)![1]!;
+    const zone = /<span id="([^"]+)" class="k-date-field__zone"/.exec(frozen)![1]!;
+    for (const label of ["Année", "Mois", "Jour"]) expect(described(frozen, label)).toBe(hint);
+    for (const label of ["Heure", "Minutes"])
+      expect(described(frozen, label)).toBe(`${hint} ${zone}`);
+    const refused = await render(DateTimeField, {
+      label: "Valide au",
+      timeZone: PARIS,
+      hint: "Date et heure de Paris.",
+      error: "Hors de la période.",
+      granularity: "day",
+      modelValue: "2026-01-15",
+    });
+    const help = /<p id="([^"]+)" class="k-form-field__hint">/.exec(refused)![1]!;
+    const error = /<p id="([^"]+)" class="k-form-field__error">/.exec(refused)![1]!;
+    expect(described(refused, "Jour")).toBe(`${error} ${help}`);
+  });
+
   it("DateTimeField: a day has three segments and no zone", async () => {
     const html = await render(DateTimeField, {
       label: "Créé le",
