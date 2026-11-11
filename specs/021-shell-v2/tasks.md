@@ -3144,7 +3144,13 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `single-keys-off`, absent de la référence de main.
   - reste : la lecture réelle du nom d'un lien compté et de la double description des
     segments par NVDA, JAWS ou VoiceOver, à juger au lecteur d'écran ; les maquettes à
-    doter de `badgeLabel` si leurs instantanés doivent montrer l'unité.
+    doter de `badgeLabel` si leurs instantanés doivent montrer l'unité. Revue (mineurs) :
+    « jamais nombre nu » du skill `kartenn-ui` et de l'inventaire de la 020 (ligne 18)
+    promet trop — écrire « nombre nu sans `badgeLabel` » ; les maquettes `_ui`
+    (`ecrans/sidebar.ts`, `donnees017.ts`) gardent des compteurs nus ; le choix de la clé
+    `badge.proposals` / `badge.proposalsMore` (`ShellFrame.vue`) n'est pas testé (le
+    parcours `changesets.spec.ts` pourrait vérifier « changesets à instruire » dans le nom
+    du lien) ; la relecture `a11y-auditor` n'est notée qu'en parenthèse, sans son verdict.
 - [ ] 14j. Brouillon daté, reste de la revue de la 14e : `dateAddition`
   (`sdk/src/data/drafts.ts`) lit le contexte avant l'envoi, non après la réponse (une date
   changée pendant l'écriture date aujourd'hui le brouillon à la nouvelle) ; `replace` de
