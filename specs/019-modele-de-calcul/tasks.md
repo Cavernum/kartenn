@@ -1087,11 +1087,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `batch_outside_pod_ranges_refused_whole` (raisons des cinq refus journalisés),
     `future_instant_clamped_and_audited`.
   - reste : aucun test de l'annulation du lot quand l'inscription d'audit échoue.
-- [ ] 6c. Tâches de fond du journal (Q-019-20, 24) : colonne
+- [x] 6c. Tâches de fond du journal (Q-019-20, 24) : colonne
   `observation_batch.earliest` (plus petit instant du lot) et borne de purge écrite par
-  cluster ; `kube.observations.verify` (quotidienne : empreinte recalculée des lots dont
+  cluster ; `kube.observations_verify` (quotidienne : empreinte recalculée des lots dont
   `earliest` suit la borne de leur cluster, `observation.batch.altered` avec `expected`
-  et `found` en cas d'écart) et `kube.observations.purge` (par cluster, une fonction du
+  et `found` en cas d'écart) et `kube.observations_purge` (par cluster, une fonction du
   propriétaire supprime les lignes fermées depuis plus que sa rétention et avance sa
   borne ; un jour est détaché et supprimé quand tous les clusters l'ont dépassé ;
   partitions de jours créées d'avance) — REQ-019-16 (audit par lot, rétention) —
@@ -1102,6 +1102,45 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     dit encore « sans DELETE de masse » — l'amender selon Q-019-20, purge par cluster par
     une fonction du propriétaire sous une borne de purge)
   - dépend de : 6b
+  - fait (2026-11-12) : migration `0007_observation_retention.sql` (`earliest` rempli
+    des lignes existantes puis exigé, `earliest <= received_at` ; table
+    `observation_purge_bound` en lecture seule pour `kartenn_app` ; fonction du
+    propriétaire `observation_purge()`) ; `kartenn-kube` `jobs.rs` (`JOBS`, `verify`,
+    `purge`, `run`), `Module::jobs`, `Handler::run_job`, `observations::JOURNAL` (repris
+    par `rest.rs`), `record` écrit `earliest` ; noyau : `ModuleTx::audit` (`kartenn-service`,
+    implémentée par `PgTx`) ; ADR 0043 (amendement du 2026-11-12, décisions 4 et 8), ADR
+    0026 (amendement 13) ; design (« Données », précision 6c) ; tests
+    `observations::retention::altered_batch_detected` (ligne supprimée hors de
+    l'application, copie réécrite pour lui correspondre : l'empreinte de l'événement fait
+    foi ; copie seule réécrite, lignes intactes : rien ; sans événement, la copie ; un
+    événement ERROR, haute, ciblant le cluster, par lot altéré ; lu sous `kartenn_app`),
+    `purge_drops_old_partitions` (deux clusters à 30 et 60 jours : chacun sous sa borne,
+    jour dépassé par les deux supprimé, les autres gardés ; semaine à venir créée ; lots
+    touchés par la purge non relus ; purge et vérification sous `kartenn_app`, seconde
+    purge sans effet ; rétention abaissée puis haussée : borne jamais en arrière),
+    `open_observation_never_purged` (ouverte depuis 100 jours, rétention d'un jour,
+    gardée ; fermeture du jour sans création de partition).
+  - choix : noms `observations_verify` et `observations_purge` (les noms de tâches de
+    module sont `[a-z][a-z0-9_]*`, REQ-016-16) ; un lot est entier si `earliest >=
+    purged_before`, la purge supprimant les fins `< purged_before` ; `earliest` d'un lot
+    vide = son instant ; la purge sans paramètre, à `now()` (le rôle de l'application ne
+    choisit pas la date) ; rétention de la version en vigueur du cluster, sinon de la
+    dernière ; borne `greatest(ancienne, now() - rétention)` ; jours créés d'avance
+    d'aujourd'hui à J+7 par la purge (pas de troisième tâche) ; `DROP` de la partition
+    (qui la détache) sans `DETACH` séparé ; créations et suppressions de jours après les
+    `DELETE` ; vérification par tranches de 500 lots, chaque tranche en une requête (bornes,
+    lignes et empreinte de l'événement dans un même instantané) ; événement trouvé par
+    `name` et `recorded_at = received_at` (même transaction, 6b) ; sans événement, la
+    copie fait l'empreinte attendue ; `Outcome::Failure`, cible le cluster ; un lot altéré
+    est signalé à chaque passage ; audit par `ModuleTx::audit` plutôt que par `Findings`
+    ou un chemin propre au serveur.
+  - reste : la vérification relit chaque jour tous les lots entiers de la rétention
+    (jusqu'à 400 jours ; aucun banc ne la mesure) ; une fermeture datée d'avant la borne
+    de son cluster recrée un jour supprimé, purgé au passage suivant, et rend son lot
+    non vérifiable ; la purge tient un verrou exclusif sur `pod_observation_closed`
+    jusqu'à sa validation quand elle crée ou supprime un jour (les lots attendent) ; un
+    cluster sans version (supprimé de `kube.cluster`) garde sa dernière borne et retient
+    la suppression des jours ; pas d'événement d'audit ni de compteur pour une purge.
 - [x] 6d. Lectures du journal : `who_had` (port de lecture) et
   `GET /v1/kube-clusters/{id}/observations?ip=&at=`, `GET /v1/workloads/{id}/observations`
   sous `kube.observation.read` (permission déclarée, évaluée sur le `pod_domain` du

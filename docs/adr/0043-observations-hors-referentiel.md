@@ -53,7 +53,7 @@ retenue par l'utilisateur (Q-019-4, A, 2026-11-09) l'est donc **avec garde-fous*
    Les droits PostgreSQL du rôle de l'application s'y limitent : insertion, et mise à
    jour de la seule borne haute encore ouverte, gardée par un déclencheur ; aucune autre
    mise à jour, aucune suppression ligne à ligne. Seule la purge supprime, par partition
-   entière.
+   entière (amendée le 2026-11-12 : par cluster, sous une borne de purge).
 5. **Audit par lot, empreinte du contenu.** Chaque lot accepté inscrit dans sa
    transaction l'événement d'audit `observation.batch.recorded` au journal scellé (spec
    012, ADR 0019) : journal, source, nombre d'ouvertures et de fermetures, empreinte
@@ -73,11 +73,44 @@ retenue par l'utilisateur (Q-019-4, A, 2026-11-09) l'est donc **avec garde-fous*
 8. **Rétention et exploitation.** Chaque source a une rétention réglable (pour la 019 :
    30 jours par défaut, de 1 à 400, propriété du cluster). La table est **partitionnée
    par temps** : la purge détache et supprime les partitions entièrement hors rétention,
-   sans `DELETE` de masse ; une observation encore ouverte n'est jamais purgée, et la
+   sans `DELETE` de masse (amendée le 2026-11-12 : purge par cluster par une fonction du
+   propriétaire, voir plus bas) ; une observation encore ouverte n'est jamais purgée, et la
    rétention court depuis la fin de l'observation. Index GiST sur (source, IP, période).
    Au-delà de la rétention, l'enquête n'est plus possible : la lecture rend une réponse
    vide avec le motif `retention`, et l'audit ne garde que la trace du lot (empreinte et
    nombres), pas son contenu.
+
+## Amendement — 2026-11-12, purge par cluster sous une borne (019/Q-019-20, Q-019-24)
+
+Les décisions 4 et 8 disaient la purge « par partition entière, sans `DELETE` de masse ».
+Les partitions de jours de la tâche 019-6a sont communes aux clusters : n'en supprimer une
+que lorsque tous les clusters l'ont dépassée garderait les lignes d'un cluster à 30 jours
+aussi longtemps que celles d'un cluster à 400, contre l'esprit de la décision 8 (aucune
+donnée de topologie gardée sans besoin). Décision de l'utilisateur (019/Q-019-20, option C,
+contre des partitions par cluster ou une lecture seule bornée), qui remplace dans les
+décisions 4 et 8 la purge par partition entière :
+
+- **Purge par cluster.** Une fonction du propriétaire du schéma
+  (`kube.observation_purge()`, `SECURITY DEFINER`, à l'instant de sa transaction, sans
+  date fournie par l'appelant) supprime, cluster par cluster, les observations fermées
+  avant sa rétention, et avance sa **borne de purge** (`kube.observation_purge_bound`,
+  jamais en arrière). C'est le seul `DELETE` du journal ; le rôle de l'application n'a
+  toujours ni `DELETE` ni `TRUNCATE`, il ne peut que déclencher la purge prévue.
+- **Partition supprimée quand tous l'ont dépassée.** Un jour est supprimé (`DROP` de la
+  partition, qui la détache) quand la borne de chaque cluster a dépassé sa fin ; les jours
+  de la semaine à venir sont créés d'avance par la même tâche.
+- **Vérification des lots entiers** (Q-019-24, décision 5) : `observation_batch.earliest`
+  (le plus petit instant du lot) ; un lot dont `earliest` n'est pas avant la borne de son
+  cluster n'a perdu aucune ligne à la purge et voit son empreinte recalculée ; une ligne
+  supprimée hors de la purge l'altère.
+- Inchangé : une observation ouverte n'est jamais purgée, la rétention court depuis la
+  fin de l'observation.
+
+Source : `crates/kartenn-kube/migrations/0007_observation_retention.sql`,
+`crates/kartenn-kube/src/jobs.rs` (tâches `kube.observations_verify` et
+`kube.observations_purge`, ADR 0023). Tests : `kartenn-kube`
+`observations::retention::altered_batch_detected`, `purge_drops_old_partitions`,
+`open_observation_never_purged`.
 
 ## Alternatives
 

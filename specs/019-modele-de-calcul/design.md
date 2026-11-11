@@ -209,17 +209,38 @@ Garde-fous tenus par le schéma et la route (REQ-019-16) :
   `closed`, `hash`, lot) dans la transaction du lot ; le contenu canonique est la liste
   triée des ouvertures (toutes les colonnes sauf la borne haute) puis des fermetures
   (`pod_uid`, `ip`, borne haute), sérialisée en JSON canonique (RFC 8785). La tâche de
-  fond `kube.observations.verify` (quotidienne) recalcule l'empreinte des lots dont
+  fond `kube.observations_verify` (quotidienne) recalcule l'empreinte des lots dont
   aucune ligne n'est purgée (`observation_batch.earliest` après la borne de purge de
   leur cluster, Q-019-24) et inscrit `observation.batch.altered` en cas d'écart ;
   l'empreinte de l'audit scellé fait foi, la copie de `observation_batch` ne sert qu'à
   la recherche.
-- **Purge** (tâche de fond `kube.observations.purge`, ADR 0023 ; Q-019-20) : par
+- **Purge** (tâche de fond `kube.observations_purge`, ADR 0023 ; Q-019-20) : par
   cluster, une fonction du propriétaire du schéma supprime les lignes fermées depuis
   plus que la rétention du cluster et avance sa borne de purge ; une partition de jour
   est détachée et supprimée quand tous les clusters l'ont dépassée ; une observation
   ouverte n'est jamais purgée. Les partitions de jours sont créées d'avance par la tâche
   de fond. Le partitionnement est fixé par la tâche 6a (précision ci-dessous).
+
+Précision (2026-11-12, tâche 6c, migration `0007_observation_retention.sql`) : les noms
+de tâches de module sont `[a-z][a-z0-9_]*` (REQ-016-16), d'où `observations_verify` et
+`observations_purge`. `earliest` est le plus petit début ouvert et la plus petite fin
+posée par le lot, l'instant du lot s'il n'écrit rien ; la borne de purge d'un cluster
+(`kube.observation_purge_bound.purged_before`) dit que toute observation fermée du
+cluster finie avant elle est supprimée : un lot est entier si `earliest` n'est pas avant
+elle. La fonction `kube.observation_purge()` (propriétaire, `SECURITY DEFINER`, à
+l'instant de sa transaction, sans paramètre : le rôle de l'application la déclenche sans
+choisir la date) avance la borne de chaque cluster selon la rétention de sa version en
+vigueur (sinon la dernière), jamais en arrière, supprime ses fermées finies avant elle,
+crée les jours d'aujourd'hui à sept jours, puis supprime (`DROP`) les jours dont la fin
+précède la plus petite borne ; créations et suppressions viennent en dernier, leur verrou
+sur `pod_observation_closed` n'étant tenu que jusqu'à la validation. La vérification lit,
+par tranches de 500 lots, les bornes, les lignes et l'empreinte de l'événement
+`observation.batch.recorded` (inscrit dans la transaction du lot, à son instant) en une
+seule requête, donc un seul instantané : une purge validée entre-temps ne fait pas passer
+un lot pour altéré. Faute d'événement (purgé de l'audit), la copie de `observation_batch`
+sert d'empreinte attendue. Un lot altéré est signalé à chaque passage (cible : le
+cluster ; `outcome` `failure`), par `ModuleTx::audit` dans la transaction de la tâche
+(ADR 0026, amendement 13).
 
 Un pod en `hostNetwork` est noté sans `ip` (l'adresse est celle du nœud).
 
