@@ -2098,9 +2098,8 @@ impl ModuleHandler for Handler {
             let (clusters, nodes) = (of(cluster_kind()), of(node_kind()));
             let (mut ingresses, services) = (of(ingress_kind()), of(service_kind()));
             // Who writes, whatever the changeset writes (019/X5, X10).
-            let author = tx.actors().author;
             let conn = connection(tx)?;
-            let mut found = crate::authorship::check(conn, author, context, cluster_kind()).await?;
+            let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
             if clusters.is_empty()
                 && nodes.is_empty()
                 && ingresses.is_empty()

@@ -819,36 +819,45 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `CheckContext::changeset` (`crates/kartenn-service/src/module.rs`)
   - dépend de : 4c
   - fait : `crates/kartenn-kube/src/authorship.rs` (les deux règles, appelées par
-    `check` avant son retour anticipé) ; `CheckContext::operations` (ADR 0026,
-    amendement 11 : les opérations écrites par l'auteur, sans celles qu'ajoutent les
-    modules ni la revue d'un validateur ; design B3 corrigé : l'auteur se lit par
-    `ModuleTx::actors`) ; tests `clusters::managed_field_refused_for_human` (un
-    administrateur, puis le connecteur d'un autre cluster sur les mêmes domaines),
+    `check` avant son retour anticipé) ; `CheckContext::operations` et
+    `CheckContext::author` (ADR 0026, amendement 11, Q-019-18 : les opérations écrites
+    par l'auteur, sans celles qu'ajoutent les modules ni la revue d'un validateur ;
+    l'auteur avec son émetteur et les groupes de sa session ; design B3 corrigé) ; tests
+    `clusters::managed_field_refused_for_human` (un administrateur, puis le connecteur
+    d'un autre cluster sur les mêmes domaines),
     `managed_field_refused_for_person_in_connector_group`, `property_on_mirror_accepted`,
     `connector_direct_operation_refused` (propriété seule, propriété à côté d'un lot,
-    `Close` en cascade ; la mise à nul `unselect` du même lot passe) ;
-    `tests/it/support.rs` : chaque cluster des tests désigne un groupe dont un compte de
-    service soumet les lots ; les suites existantes (réseaux de la 3c, adresses
-    partagées de la 4e, mises à nul de la 4b) passent sous ce compte.
+    `Close` en cascade, personne membre par un groupe d'émetteur ; réseau d'un nœud créé
+    et clos, IP de cluster créée et mise à nul `unselect` par les lots),
+    `mirror_closed_by_hand_refused` (`Close` d'un workload et d'un namespace en cascade
+    refusés, annulation d'un lot par restauration, clôture du cluster en cascade qui
+    emporte ses miroirs) ; `tests/it/support.rs` : chaque cluster des tests désigne un
+    groupe dont un compte de service soumet les lots ; les suites existantes passent sous
+    ce compte, leurs clôtures de namespace ou de workload à la main remplacées par la
+    clôture du cluster en cascade (`close_cluster`).
   - choix : `kube.object.managed` juge les objets miroirs d'un changeset qui porte un
-    `kube.sync` ; une clôture ou une restauration génériques (annulation d'un lot par un
-    administrateur, X5) et les propriétés restent sous les droits ordinaires, une
-    clôture à la main d'un miroir par un administrateur passe ; membre = identité membre
-    directe (`member_kind = 'identity'`), vivante maintenant, du groupe qu'une version du
-    cluster vivante à partir de maintenant désigne, groupe vivant ; `kube.connector.direct`
-    vaut pour tout membre direct d'un groupe de connecteur (personne comprise, lettre du
-    design), une violation par changeset qui nomme ses groupes, le nombre d'opérations
-    hors `kube.sync` et la première ; sans auteur (kartenn lui-même), un `kube.sync` est
-    refusé et `kube.connector.direct` ne s'applique pas ; `kube.cluster.connector_group`
-    n'avait rien à compléter (existence et vie sur la période, à la création comme à la
-    modification, tâche 3b) ; `check_modules` prend un contexte commun (limite
-    d'arguments) ; `granted` des tests crée un compte de service du groupe.
-  - reste : un membre par un groupe d'émetteur (`idp_group`) n'est pas reconnu comme
-    membre d'un groupe de connecteur (les jetons ne sont pas lus par une règle) ; la
-    clôture d'un groupe ou le retrait d'un membre ne relit pas les clusters ; une requête
-    d'appartenance par changeset dès que le module est chargé, non mesurée (tâche 16) ;
-    une clôture à la main d'un miroir par un administrateur n'est pas réécrite tant que
-    l'objet ne change pas dans le cluster.
+    `kube.sync` (compte de service membre direct, `member_kind = 'identity'`, vivant
+    maintenant, du groupe qu'une version du cluster vivante à partir de maintenant
+    désigne, groupe vivant), et refuse tout `Close` d'un miroir écrit par l'auteur
+    (Q-019-18) ; une restauration (annulation d'un lot, X5), la clôture d'un cluster en
+    cascade et les propriétés restent sous les droits ordinaires ;
+    `kube.connector.direct` vaut pour tout membre, direct ou par un groupe d'émetteur,
+    par `kartenn_member_of` sur l'auteur du RBAC (Q-019-18), une violation par
+    changeset qui nomme ses groupes, le nombre d'opérations hors `kube.sync` et la
+    première ; `kube.cluster.connector_group` n'avait rien à compléter (existence et vie
+    sur la période, à la création comme à la modification, tâche 3b) ; `check_modules`
+    prend un contexte commun (limite d'arguments) ; `granted` des tests crée un compte de
+    service du groupe.
+  - reste : l'annulation d'un lot qui a créé des miroirs porte leur `Close` et est donc
+    refusée (le noyau ne marque pas un changeset d'annulation) ; `connector_groups`
+    s'appuie sur `kartenn_member_of` (groupe vivant), `unmanaged` sur un groupe vivant lu
+    à part ; une version future du cluster qui change de groupe laisse passer les
+    membres des deux groupes sur la période courante ; la clôture d'un groupe ou le
+    retrait d'un membre ne relit pas les clusters ; une requête d'appartenance par
+    changeset avec auteur, coût à mesurer (tâche 16) ; `granted` fait de toute identité
+    un compte du connecteur (RBAC kube testé seulement sur ce chemin) ;
+    `managed_field_refused_for_human` change un label au lieu de renommer (aligner sur
+    l'acceptation de REQ-019-12).
 - [ ] 5b. Absence : `mark_absent` et `clear_absent` dans `kube.sync`, colonne
   `absent_since`, anomalie `kube.object.absent` qui nomme les dépendants, levée au
   retour d'un objet de même identité (avec la réouverture d'identité de la 4a) —
