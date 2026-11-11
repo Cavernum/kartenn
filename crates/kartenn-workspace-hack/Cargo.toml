@@ -17,22 +17,26 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["form", "http1", "http2", "json", "matched-path", "query", "tokio"] }
-base64 = { version = "0.22" }
+base64-2b5c6dc72f624058 = { package = "base64", version = "0.23" }
+base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 digest-a6292c17cd707f01 = { package = "digest", version = "0.11", features = ["alloc", "mac", "oid"] }
 either = { version = "1", features = ["serde", "use_std"] }
+figment = { version = "0.10", default-features = false, features = ["env", "toml"] }
 form_urlencoded = { version = "1" }
 futures-channel = { version = "0.3", features = ["sink"] }
+futures-io = { version = "0.3" }
 futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "io", "sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.17" }
 hyper = { version = "1", features = ["client", "http1", "http2", "server"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "native-tokio", "ring", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "server-graceful", "service"] }
 idna = { version = "1" }
 indexmap = { version = "2", features = ["serde"] }
@@ -52,7 +56,7 @@ regex-syntax = { version = "0.8" }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10", features = ["oid"] }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
@@ -69,31 +73,37 @@ tokio-stream = { version = "0.1", features = ["fs", "net"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
 toml_edit = { version = "0.22", features = ["serde"] }
 tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "tls-native-roots", "tls-ring", "transport"] }
-tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "load-shed"] }
+tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "filter", "limit", "load-shed", "retry"] }
+tower-http = { version = "0.7", features = ["auth", "catch-panic", "compression-br", "compression-gzip", "compression-zstd", "decompression-br", "decompression-gzip", "decompression-zstd", "map-response-body", "timeout", "trace", "util"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "registry"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 zeroize = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 axum = { version = "0.8", default-features = false, features = ["form", "http1", "http2", "json", "matched-path", "query", "tokio"] }
-base64 = { version = "0.22" }
+base64-2b5c6dc72f624058 = { package = "base64", version = "0.23" }
+base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 cc = { version = "1", default-features = false, features = ["parallel"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 digest-a6292c17cd707f01 = { package = "digest", version = "0.11", features = ["alloc", "mac", "oid"] }
 either = { version = "1", features = ["serde", "use_std"] }
+figment = { version = "0.10", default-features = false, features = ["env", "toml"] }
 form_urlencoded = { version = "1" }
 futures-channel = { version = "0.3", features = ["sink"] }
+futures-io = { version = "0.3" }
 futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "io", "sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.17" }
 hyper = { version = "1", features = ["client", "http1", "http2", "server"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "native-tokio", "ring", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "server-graceful", "service"] }
 idna = { version = "1" }
 indexmap = { version = "2", features = ["serde"] }
@@ -113,7 +123,7 @@ regex-syntax = { version = "0.8" }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value"] }
 sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10", features = ["oid"] }
 sha2-a6292c17cd707f01 = { package = "sha2", version = "0.11" }
 slab = { version = "0.4" }
@@ -134,9 +144,11 @@ tokio-stream = { version = "0.1", features = ["fs", "net"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
 toml_edit = { version = "0.22", features = ["serde"] }
 tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "tls-native-roots", "tls-ring", "transport"] }
-tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "limit", "load-shed"] }
+tower = { version = "0.5", default-features = false, features = ["balance", "buffer", "filter", "limit", "load-shed", "retry"] }
+tower-http = { version = "0.7", features = ["auth", "catch-panic", "compression-br", "compression-gzip", "compression-zstd", "decompression-br", "decompression-gzip", "decompression-zstd", "map-response-body", "timeout", "trace", "util"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "registry"] }
 uuid = { version = "1", features = ["serde", "v7"] }
 zeroize = { version = "1", features = ["derive"] }
 
