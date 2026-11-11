@@ -232,6 +232,37 @@ async fn an_author_keeps_a_draft_under_its_versions(pool: PgPool) {
     assert!(list["items"][0].get("reason").is_none());
     assert!(!list["items"][0]["operations"].is_array());
 
+    // Q-021-21: a guard (`expect`) is kept, but not counted.
+    let guard = json!({"op": "expect", "kind": "domain", "id": {"id": author}, "expected": author});
+    let (status, guarded) = call(
+        &app,
+        "POST",
+        "/v1/drafts",
+        None,
+        Some(json!({"title": "Guarded", "operations": [guard, domain("guarded")]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{guarded}");
+    assert_eq!(guarded["operations"].as_array().unwrap().len(), 2);
+    assert_eq!(guarded["operation_count"], 1);
+    let (_, list) = call(&app, "GET", "/v1/drafts", None, None).await;
+    let counts: Vec<_> = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["operation_count"].clone())
+        .collect();
+    assert_eq!(counts, [json!(1), json!(1)]);
+    let (status, _) = call(
+        &app,
+        "DELETE",
+        &format!("/v1/drafts/{}", guarded["id"].as_str().unwrap()),
+        Some(1),
+        None,
+    )
+    .await;
+    assert!(status.is_success(), "{status}");
+
     // REQ-024-3: If-Match on every modification.
     let uri = format!("/v1/drafts/{id}");
     let patch = json!({"title": "Lab 2", "reason": {"summary": "Two labs"}});

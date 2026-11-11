@@ -40,7 +40,7 @@ pub struct DraftSummary {
     pub author: Uuid,
     /// Title.
     pub title: String,
-    /// The number of its operations.
+    /// The number of its operations, its guards (`expect`) left out (021, Q-021-21).
     pub operations: i64,
     /// Version, its entity tag.
     pub version: i64,
@@ -86,8 +86,11 @@ impl From<sqlx::Error> for DraftError {
     }
 }
 
-/// The columns of a summary.
-const SUMMARY: &str = "id, author_id, title, jsonb_array_length(operations)::bigint AS count, version,
+/// The columns of a summary; its count leaves out the guards (`expect`), which an edit in
+/// place adds beside the operation they guard (021, Q-021-21).
+const SUMMARY: &str = "id, author_id, title,
+    (SELECT count(*) FROM jsonb_array_elements(operations) AS o
+     WHERE o->>'op' IS DISTINCT FROM 'expect')::bigint AS count, version,
     created_at, updated_at,
     CASE WHEN updated_at <= now() - make_interval(days => 83) THEN updated_at + make_interval(days => 90) END
         AS expires_at";
