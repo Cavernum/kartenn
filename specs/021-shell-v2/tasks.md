@@ -1322,7 +1322,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     Propriétés édité en place → 12h ; colonnes de propriété d'une liste (à arbitrer) → 12i ;
     référence au-delà de la première page → 12j ; `c` et `e` refusés muets au clavier
     (12c, 12d) → 12k ; captures des vrais écrans (à arbitrer, transverse aux 11, 12, 14,
-    17) → 12l.
+    17) → 12l ; relevés de la revue de la 12e → 12m, 12n ; valeur héritée d'une propriété
+    (à arbitrer, avant la 12h) → 12o.
 - [x] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
   déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
   relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur
@@ -3341,13 +3342,17 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     du toast, sans « En revue : » devant (le mot caché « (en revue) » est déjà dans le nom
     de la cellule) ; pas de capture nouvelle (description et infobulle seulement, une
     infobulle à délai se capture mal) ; une cellule qui a les deux phrases (en revue, puis
-    devenue sans éditeur) les montre jointes dans l'infobulle, chacune finie par son point.
-  - reste : le `TreeGrid` n'a pas `stateReason` (12f) ; `ExpandableGrid` ne transmet ni
-    `stateReason` ni `readonlyReason` (antérieur pour le second) ; une ligne en revue
-    (`rowState`) ne dit pas le motif, seule sa cellule ; relevés de l'`a11y-auditor`,
-    antérieurs et communs à `readonlyReason` : l'infobulle ne s'ouvre ni au focus ni au
-    toucher (le pied le dit au clavier dans le shell, rien au toucher), et elle se ferme
-    quand le pointeur quitte la cellule (non survolable, WCAG 1.4.13).
+    devenue sans éditeur) les montre jointes dans l'infobulle, chacune finie par son point ;
+    la même phrase rendue par les deux n'est dite qu'une fois (un id, une ligne de
+    l'infobulle : `notesOf`, corrections de la revue).
+  - reste : le `TreeGrid` n'a pas `stateReason` (12f) ; infobulle de raison ni au focus,
+    ni au toucher, ni survolable, Échap qui la ferme sans arrêter la touche → 12m ;
+    `ExpandableGrid` sans `stateReason` ni `readonlyReason`, ligne en revue (`rowState`)
+    muette sur son motif → 12n. Mineurs de la revue : l'infobulle reste-t-elle au-dessus
+    de l'éditeur quand on entre à l'édition au clavier sous le pointeur (à vérifier) ;
+    `activeHeld` de `ListView` parcourt `shownRows` (la grille du contenu lit
+    `activeRow`) ; le motif `changeset.approval.self.missing` n'est pas éprouvé sur la
+    cellule (seul `changeset.approval.self` l'est).
 - [ ] 12f. Édition en place dans l'arbre, reste de la 12a : `TreeGrid` prend
   `readonlyReason` et `stateReason` (description d'une cellule sans éditeur ou en revue,
   comme le `DataGrid`, 12e) ; 202, 422 et 403 prouvés dans l'arbre ; un seul `useNodeEdit`
@@ -3374,15 +3379,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   l'objet modifiée dans la cellule (`prop.<clé>.edit`, `X.edit`, présent), au brouillon
   ou par Ctrl+Entrée (`properties` du patch de la sorte, sous `If-Match`), valeur
   vérifiée par le type de sa déclaration ; une valeur héritée ou calculée sans éditeur,
-  avec pourquoi — REQ-021-15, 16, 37 ; 018 — verify : Vitest (éditabilité d'une
+  avec pourquoi — REQ-021-15, 16, 37 ; 003 (propriétés), 018 (permissions) — verify :
+  Vitest (éditabilité d'une
   propriété, opération du brouillon, patch `properties`) ; parcours `edit` (une
   propriété modifiée au clavier → brouillon à 1)
   - où : `web/v2/shell/src/views/record/PropertiesTab.vue`, `views/edit/{fields.ts,inline.ts}`
     (`propertyRight`, colonne `prop.<clé>`) ; schémas `*Patch.properties` de
     `specs/006-api-rest/openapi-v1.json`
-  - dépend de : 12
-  - à vérifier avant de lancer : modifier une valeur héritée pose-t-elle une valeur propre
-    (spec 018) ? Si 018 ne le dit pas, c'est à l'utilisateur.
+  - dépend de : 12 ; 12o (arbitrage de l'utilisateur)
 - [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), à arbitrer par
   l'utilisateur : lesquelles une liste montre (déclarations du type, choix de
   l'utilisateur au sélecteur « Colonnes », colonnes de la maquette) ; aucune maquette ni
@@ -3408,6 +3412,33 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   d'API ; il faudrait un banc de captures à API simulée, transverse (les 11, 14 et 17
   l'attendent aussi), plutôt qu'une tâche de la 12 — à la session principale ou à
   l'utilisateur de le placer.
+- [ ] 12m. Infobulle de raison d'une cellule accessible (relevés de l'`a11y-auditor` sur
+  la 12e, communs à `readonlyReason` et `stateReason`) : ouverte aussi au focus de la
+  cellule (WCAG 1.4.13 : au survol et au focus, REQ-021-37) et au toucher (un appui, ou
+  une autre voie visible), survolable (le pointeur passé de la cellule à l'infobulle la
+  garde ouverte), Échap qui la ferme arrête la touche (`closeTip` la laisse aller à la
+  grille) ; ligne `Tooltip` du skill `kartenn-ui` — verify : script clavier
+  `e2e/components/data-grid.spec.ts` (focus → infobulle, Échap la ferme sans autre effet,
+  pointeur sur l'infobulle → gardée) ; script tactile (`e2e/visual/touch.spec.ts`)
+  - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (`onCellEnter`, `onCellLeave`,
+    `closeTip`, `reasonTip`), `Tooltip/` (`useTooltip`), `DataGrid.catalogue.ts`
+  - dépend de : 12e
+- [ ] 12n. Le pourquoi d'un état partout où une grille le porte (relevés de la revue de
+  la 12e) : `ExpandableGrid` transmet `stateReason` et `readonlyReason` (avec `editable`)
+  à ses deux `DataGrid` ; une ligne en revue (`rowState`) dit son motif (description de
+  sa première cellule, comme son mot caché) — REQ-021-15 — verify : Vitest monté
+  (`ExpandableGrid` : raisons dans la grille compacte et la grande ; ligne en revue
+  décrite par son motif) ; `shell/test/edit.test.ts` (motif de la ligne)
+  - où : `web/v2/ui/src/components/ExpandableGrid/ExpandableGrid.vue`,
+    `DataGrid/DataGrid.vue` (`markOf`, `rowState`), `shell/src/views/edit/inline.ts`
+    (`rowState`) ; test voisin `ui/test/no-value-mounted.test.ts`
+  - dépend de : 12e
+- [ ] 12o. Valeur héritée d'une propriété modifiée en place, à arbitrer par l'utilisateur
+  avant la 12h : modifier dans l'onglet Propriétés une valeur héritée (résolue d'un
+  parent ou d'une déclaration) pose-t-il une valeur propre de l'objet, ou la cellule
+  reste-t-elle sans éditeur avec un renvoi vers le porteur ? La spec 003 (résolution des
+  propriétés) est à relire d'abord ; si elle ne le dit pas, à l'utilisateur.
+  - où : `specs/003-proprietes/`, `web/v2/shell/src/views/record/PropertiesTab.vue`
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
