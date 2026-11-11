@@ -3102,6 +3102,13 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     annoncé, l'alerte du refus dit `edit.kept` (`a11y-auditor`, mineur) ; un clic dans le
     vide pendant la reprise laisse le focus perdu, qui va alors au bouton principal ;
     lecture de la raison d'un champ en lecture seule par un vrai lecteur d'écran à juger.
+    Revue (mineurs) : le bouton principal est pris comme premier `button` de la rangée
+    (`DraftSubmit.vue`), fragile face à l'ordre interne de `SplitButton` (la classe
+    `.k-split-button__main` ou un `focus()` exposé le serait moins) ; l'assert de
+    `changesets.test.ts` sur le pied d'un brouillon supprimé côté serveur fige le défaut
+    consigné ci-dessus ; la règle « déplacé seulement s'il est perdu » et le brouillon
+    disparu après une action ailleurs n'ont pas de test ; la clause dit encore « région
+    d'état » alors que l'annonce passe par l'alerte (noté en `choix :`).
 - [ ] 14i. Accessibilité de deux composants de `@kartenn/ui` (relevés des 14 et 14e) : le
   badge d'une entrée de `SidebarNav` dit son unité aux technologies d'assistance (« À
   instruire » suivi de « 3 changesets à instruire », pas d'un « 3 » nu) ; les segments d'un
