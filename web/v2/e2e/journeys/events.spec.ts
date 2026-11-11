@@ -1,5 +1,12 @@
 import type { BrowserContext, Page } from "@playwright/test";
-import { apiCall, expect, loginIn, ownedDomain, test } from "../fixtures/journeys.ts";
+import {
+  apiCall,
+  expect,
+  expectAccessible,
+  loginIn,
+  ownedDomain,
+  test,
+} from "../fixtures/journeys.ts";
 
 // The event stream of the new shell against the real kartenn-server (spec 021, task 5;
 // REQ-021-23; 022 « Contrat consommé par les clients »): a change applied in one browser
@@ -90,6 +97,7 @@ test("a network renumbered in one browser shows in another in under 2 s, without
     await renumber(page, ids[0]!, "198.51.100.0/25");
     await expect(valueOf(reader)).toContainText("198.51.100.0/25", { timeout: VISIBLE_MS });
     expect(await reader.evaluate(() => (window as { __kept?: boolean }).__kept)).toBe(true);
+    await expectAccessible(reader);
   } finally {
     await other.close();
   }
