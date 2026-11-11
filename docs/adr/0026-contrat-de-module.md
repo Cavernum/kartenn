@@ -437,19 +437,20 @@ clôture, refusée sans la déclaration du nouveau porteur, la clôture avec le 
 `kartenn-kube` `clusters::vip_shared_across_holders`,
 `clusters::vip_handover_in_one_batch` et `clusters::vip_shared_read_required`.
 
-### Amendement 11 — 2026-11-11, opérations écrites par l'auteur, lues par une règle (019/X10)
+### Amendement 11 — 2026-11-11, opérations écrites par l'auteur, lues par une règle (019/Q-019-18)
 
-Un ajout additif, un champ de contexte comme ceux de l'amendement 1 (tâche 019-5a) :
-`CheckContext::operations`, les opérations que l'auteur a écrites, dans leur ordre ; ni
-celles que les modules ajoutent (`ModulePlan::core`, mises à nul), ni les opérations de
-revue qu'un validateur joint (REQ-016-11). La règle `kube.connector.direct` (un membre
-d'un groupe de connecteur n'écrit que par `kube.sync`) les lit : `touched` et `objects`
-disent ce qui est écrit, pas qui l'a demandé, et un plan de `kube.sync` crée ou clôt des
-adresses et des réseaux comme le ferait une opération envoyée à la main. L'auteur se lit
-par `ModuleTx::actors` (amendement 3). Source : `crates/kartenn-service/src/module.rs`
-(`CheckContext`), `crates/kartenn-service/src/pipeline.rs` (`check_modules`). Le
-contrat REST, le schéma et les opérations ne changent pas. Tests : `kartenn-kube`
-`clusters::connector_direct_operation_refused`.
+Un ajout additif, des champs de contexte comme ceux de l'amendement 1 (tâche 019-5a),
+ratifié par l'utilisateur (019/Q-019-18) :
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `CheckContext::operations` : les opérations que l'auteur a écrites, dans leur ordre ; ni celles que les modules ajoutent (`ModulePlan::core`, mises à nul), ni les opérations de revue qu'un validateur joint (REQ-016-11) | 7 | `touched` et `objects` disent ce qui est écrit, pas qui l'a demandé : un plan de `kube.sync` crée ou clôt des adresses et des réseaux comme le ferait une opération envoyée à la main ; `kube.connector.direct` (un membre d'un groupe de connecteur n'écrit que par `kube.sync`) et le refus d'un `Close` à la main d'un miroir (`kube.object.managed`) les lisent |
+| `CheckContext::author` : l'auteur tel que le RBAC résout ses droits, son émetteur et les groupes de sa session (ou de l'instantané d'un changeset en attente) | 7 | Q-019-18 : `kube.connector.direct` reconnaît un membre par un groupe d'émetteur, par `kartenn_member_of` comme le RBAC ; `ModuleTx::actors` (amendement 3) ne porte que l'identifiant |
+
+Source : `crates/kartenn-service/src/module.rs` (`CheckContext`),
+`crates/kartenn-service/src/pipeline.rs` (`check_modules`). Le contrat REST, le schéma et
+les opérations ne changent pas. Tests : `kartenn-kube`
+`clusters::connector_direct_operation_refused`, `clusters::mirror_closed_by_hand_refused`.
 
 ## Alternatives
 
