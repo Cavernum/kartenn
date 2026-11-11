@@ -8,8 +8,10 @@ import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // the valid targets only, never shown at its new place before the answer; and a property
 // test: a fixed seed, 200 steps of changes of the values of prefixes and ranges, through
 // the draft or applied at once, accepted or refused — each row of the tree rendered within
-// the row of its parent, its parent the one the API gives. Each test writes in a domain of
-// its own (RFC 5737, TEST-NET-2 and TEST-NET-3).
+// the row of its parent, its parent the one the API gives; and its twin on a tree whose
+// parent is declared, the hosting of the machines: 200 moves of hosts, accepted or refused,
+// each row under the host the API gives, a host that may hold it. Each test writes in a
+// domain or under a tag of its own (RFC 5737, TEST-NET-2 and TEST-NET-3).
 
 /**
  * A call of the API by the page itself, under its session (same origin: CSRF); a 429 (the
@@ -253,6 +255,41 @@ function expectContained(lines: readonly Line[]): void {
       `${line.label} shown under ${line.parent}, which does not contain it`,
     ).toBe(true);
   }
+}
+
+/**
+ * One changeset of `operations` for a property test, at once or through a draft of its
+ * own (not the active draft of the tab): whether it was applied.
+ */
+async function submit(page: Page, operations: object[], viaDraft: boolean): Promise<boolean> {
+  if (!viaDraft) {
+    const direct = await call(page, "POST", "/v1/changesets?approval=self", {
+      motive: "property test",
+      operations,
+    });
+    expect([201, 422], JSON.stringify(direct.body)).toContain(direct.status);
+    return direct.status === 201;
+  }
+  const draft = await call(page, "POST", "/v1/drafts", {
+    title: "property test",
+    reason: { summary: "property test" },
+    operations,
+  });
+  expect(draft.status, JSON.stringify(draft.body)).toBe(201);
+  const id = (draft.body as { id: string }).id;
+  const submitted = await call(
+    page,
+    "POST",
+    `/v1/drafts/${id}/submission?approval=self`,
+    {},
+    { "If-Match": draft.etag! },
+  );
+  expect([201, 422], JSON.stringify(submitted.body)).toContain(submitted.status);
+  if (submitted.status === 201) return true;
+  // Refused, the draft stays: taken out, so that none accumulates.
+  const left = await call(page, "GET", `/v1/drafts/${id}`);
+  await call(page, "DELETE", `/v1/drafts/${id}`, undefined, { "If-Match": left.etag! });
+  return false;
 }
 
 /** A generator of numbers in [0, 1), from a fixed seed (mulberry32). */
@@ -826,6 +863,190 @@ test.describe("the host of a machine", () => {
       host: { machine: { id: host } },
     });
   });
+
+  test("property: 200 moves of hosts, accepted or refused, and every row under the host the API gives", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    // One browser is enough: the server's answers, not the engine's, make the trees.
+    test.skip(browserName !== "chromium", "property test: one browser");
+    test.setTimeout(600_000);
+    await login("alice");
+    const tag = unique("hostprop", browserName);
+    const entity = (
+      (await call(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
+        items: { id: string }[];
+      }
+    ).items[0]!.id;
+    // Two clusters, and machines of each kind: the physical ones host, the virtual ones
+    // host containers, the containers and the appliance host nothing (009 M5). No site: the
+    // moves raise no `machines.host.site_mismatch` (a warning, shown by the journeys above).
+    const kinds = {
+      p1: "physical",
+      p2: "physical",
+      v1: "virtual",
+      v2: "virtual",
+      v3: "virtual",
+      c1: "container",
+      c2: "container",
+      c3: "container",
+      a1: "appliance",
+    } as const;
+    type Kind = (typeof kinds)[keyof typeof kinds] | "cluster";
+    const created = await call(page, "POST", "/v1/changesets?approval=self", {
+      motive: "end-to-end hosting property",
+      operations: [
+        { op: "machines.create_cluster", local: 0, slug: `${tag}-k1`, owner: { id: entity } },
+        { op: "machines.create_cluster", slug: `${tag}-k2`, owner: { id: entity } },
+        ...Object.entries(kinds).map(([suffix, kind], i) => ({
+          op: "machines.create_machine",
+          local: i + 1,
+          name: `${tag}-${suffix}`,
+          kind,
+          owner: { id: entity },
+          // A first hosting: v1 on p1, c1 on v1, v2 on the first cluster.
+          ...(suffix === "v1" ? { host: { machine: { local: 1 } } } : {}),
+          ...(suffix === "c1" ? { host: { machine: { local: 3 } } } : {}),
+          ...(suffix === "v2" ? { host: { cluster: { local: 0 } } } : {}),
+        })),
+      ],
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+
+    type Served = {
+      id: string;
+      name: string;
+      kind: Kind;
+      host?: { machine?: { id: string }; cluster?: { id: string } } | null;
+    };
+    const mine = async (): Promise<Served[]> =>
+      (
+        (await call(page, "GET", `/v1/machines?name_prefix=${encodeURIComponent(`${tag}-`)}`))
+          .body as { items: Served[] }
+      ).items;
+    const clusters = await Promise.all(
+      ["k1", "k2"].map(async (suffix) => {
+        const read = (await call(page, "GET", `/v1/clusters?slug=${tag}-${suffix}`)).body as {
+          items: { id: string; slug: string }[];
+        };
+        return { id: read.items[0]!.id, label: read.items[0]!.slug, kind: "cluster" as const };
+      }),
+    );
+    const machines = (await mine()).map((m) => ({ id: m.id, label: m.name, kind: m.kind }));
+    expect(machines).toHaveLength(Object.keys(kinds).length);
+    const nodes = [...clusters, ...machines];
+    const kindOf = new Map(nodes.map((n) => [n.label, n.kind]));
+
+    /** The hosting as the API gives it: each node of the run, its level and its host. */
+    async function servedHosting(): Promise<Line[]> {
+      const labelOf = new Map(nodes.map((n) => [n.id, n.label]));
+      const hostOf = new Map<string, string | null>(clusters.map((c) => [c.label, null]));
+      for (const m of await mine()) {
+        const host = m.host?.machine?.id ?? m.host?.cluster?.id;
+        hostOf.set(m.name, host ? labelOf.get(host)! : null);
+      }
+      const levelOf = (label: string): number => {
+        const host = hostOf.get(label);
+        return host ? levelOf(host) + 1 : 1;
+      };
+      return [...hostOf].map(([label, parent]) => ({ level: levelOf(label), label, parent }));
+    }
+
+    await page.goto("/x/machines/clusters");
+    const { tree, row } = hostingTree(page);
+    await expect(row(`${tag}-k1`)).toBeVisible();
+    /**
+     * The tree rendered, every node of the run opened: each row of the run with its visual
+     * parent (the row of level − 1 above it); the rows of the other journeys, sharing the
+     * first level, walked but left out, as the rows of a preview.
+     */
+    async function renderedHosting(): Promise<Line[]> {
+      for (let i = 0; i < 100; i++) {
+        await expect(tree.locator("[aria-busy='true']")).toHaveCount(0);
+        const more = tree.locator("[role='row'][data-more]").first();
+        if ((await more.count()) > 0) {
+          await more.click();
+          continue;
+        }
+        const closed = tree
+          .locator("[role='row'][aria-expanded='false']")
+          .filter({ has: page.locator(".k-tree-grid__label", { hasText: `${tag}-` }) })
+          .first();
+        if ((await closed.count()) === 0) break;
+        await closed.locator(".k-tree-grid__twisty").click();
+      }
+      const rows = await tree
+        .locator(
+          "[role='row'][data-node]:not([data-node^='preview:']):not([data-more]):not(.k-tree-grid__notice)",
+        )
+        .evaluateAll((all) =>
+          all.map((r) => ({
+            level: Number(r.getAttribute("aria-level")),
+            label: r.querySelector(".k-tree-grid__label")?.textContent?.trim() ?? "",
+          })),
+        );
+      const stack: string[] = [];
+      return rows
+        .map(({ level, label }) => {
+          stack.length = level - 1;
+          const parent = level === 1 ? null : (stack[level - 2] ?? null);
+          stack[level - 1] = label;
+          return { level, label, parent };
+        })
+        .filter((line) => line.label.startsWith(`${tag}-`));
+    }
+    const sorted = (lines: Line[]) =>
+      [...lines].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+    /** REQ-021-34: each row under a parent that may host it (009 M5), as the server says. */
+    const mayHost = (guest: Kind, host: Kind) =>
+      (guest === "virtual" && (host === "physical" || host === "cluster")) ||
+      (guest === "container" && (host === "physical" || host === "virtual" || host === "cluster"));
+    function expectSupported(lines: readonly Line[]): void {
+      for (const line of lines) {
+        if (line.parent === null) continue;
+        const [guest, host] = [kindOf.get(line.label)!, kindOf.get(line.parent)!];
+        expect(
+          mayHost(guest, host),
+          `${line.label} (${guest}) shown under ${line.parent} (${host})`,
+        ).toBe(true);
+      }
+    }
+
+    const random = seeded(0x2124);
+    const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!;
+    const outcomes = { applied: 0, refused: 0 };
+    for (let step = 1; step <= 200; step++) {
+      const guest = pick(machines);
+      // Any target, of a kind that may host or not, itself among them; or none.
+      const target = random() < 0.15 ? null : pick(nodes);
+      const host =
+        target === null
+          ? null
+          : target.kind === "cluster"
+            ? { cluster: { id: target.id } }
+            : { machine: { id: target.id } };
+      const operations = [{ op: "machines.update_machine", id: { id: guest.id }, host }];
+      if (await submit(page, operations, random() < 0.5)) outcomes.applied += 1;
+      else outcomes.refused += 1;
+      // Within the quotas of the instance, as the property test of the values.
+      await page.waitForTimeout(400);
+
+      if (step % 10 === 0) {
+        const expected = sorted(await servedHosting());
+        expectSupported(expected);
+        await expect
+          .poll(async () => sorted(await renderedHosting()), {
+            message: `step ${step}: the tree rendered is the API's`,
+            timeout: 20_000,
+          })
+          .toEqual(expected);
+        expectSupported(await renderedHosting());
+      }
+    }
+    expect(outcomes.applied).toBeGreaterThan(20);
+    expect(outcomes.refused).toBeGreaterThan(20);
+  });
 });
 
 test("property: 200 changes of values, accepted or refused, and every row within its parent", async ({
@@ -875,38 +1096,6 @@ test("property: 200 changes of values, accepted or refused, and every row within
     };
   };
 
-  /** One changeset of `operations`, at once or through a draft: whether it was applied. */
-  async function submit(operations: object[], viaDraft: boolean): Promise<boolean> {
-    if (!viaDraft) {
-      const direct = await call(page, "POST", "/v1/changesets?approval=self", {
-        motive: "property test",
-        operations,
-      });
-      expect([201, 422]).toContain(direct.status);
-      return direct.status === 201;
-    }
-    const draft = await call(page, "POST", "/v1/drafts", {
-      title: "property test",
-      reason: { summary: "property test" },
-      operations,
-    });
-    expect(draft.status, JSON.stringify(draft.body)).toBe(201);
-    const id = (draft.body as { id: string }).id;
-    const submitted = await call(
-      page,
-      "POST",
-      `/v1/drafts/${id}/submission?approval=self`,
-      {},
-      { "If-Match": draft.etag! },
-    );
-    expect([201, 422]).toContain(submitted.status);
-    if (submitted.status === 201) return true;
-    // Refused, the draft stays: taken out, so that none accumulates.
-    const left = await call(page, "GET", `/v1/drafts/${id}`);
-    await call(page, "DELETE", `/v1/drafts/${id}`, undefined, { "If-Match": left.etag! });
-    return false;
-  }
-
   await page.goto(`/topology?domain=${domain}`);
   const tree = treeOf(page, slug);
   await expect(rowOf(tree, "198.51.100.0/24")).toBeVisible();
@@ -937,7 +1126,7 @@ test("property: 200 changes of values, accepted or refused, and every row within
         },
       ];
     }
-    if (await submit(operations, viaDraft)) outcomes.applied += 1;
+    if (await submit(page, operations, viaDraft)) outcomes.applied += 1;
     else outcomes.refused += 1;
     // Within the quotas of the instance (writes 10 a second; the journeys beside this one
     // share them), the tree's own reads included.
