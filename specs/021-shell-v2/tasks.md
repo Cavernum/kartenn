@@ -3266,8 +3266,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     encore ouvert ; titre du test inchangé (`web/v2/PARITE.md` le cite, vérifié par
     `shell/test/parity.test.ts`).
 - [ ] 14l. Modifier une opération du brouillon (design 021 « Écrans », Brouillons :
-  « liste des opérations (retirer, modifier) » ; seul le retrait est là) : sa forme est à
-  confirmer par l'utilisateur avant de la lancer — recommandé : « Modifier » sur la ligne
+  « liste des opérations (retirer, modifier) » ; seul le retrait est là) : forme arbitrée
+  par l'utilisateur le 2026-11-11 (Q-021-17) — « Modifier » sur la ligne
   rouvre le panneau d'édition de la sorte (`EditPanel`, REQ-021-36) prérempli de
   l'opération, qui la remplace en place sous `If-Match` (comme `replace` de
   `shell/src/admin/draft.ts`), la simulation relancée — REQ-021-11, 36 — verify : Vitest
@@ -3400,10 +3400,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`propertyRight`, colonne `prop.<clé>`) ; schémas `*Patch.properties` de
     `specs/006-api-rest/openapi-v1.json`
   - dépend de : 12 ; 12o (arbitrage de l'utilisateur)
-- [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), à arbitrer par
-  l'utilisateur : lesquelles une liste montre (déclarations du type, choix de
-  l'utilisateur au sélecteur « Colonnes », colonnes de la maquette) ; aucune maquette ni
-  ligne du design 021 ne les dit. La règle d'éditabilité est déjà là (`fields.ts`).
+- [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), arbitrées par l'utilisateur le
+  2026-11-11 (Q-021-18) : aucune par défaut ; le sélecteur « Colonnes » propose les
+  propriétés déclarées pour le type, le choix gardé par vue et par utilisateur comme les
+  autres réglages de vue — verify : Vitest du sélecteur (propriétés déclarées proposées,
+  choix gardé) ; parcours d'une liste avec une colonne de propriété ajoutée puis éditée. La règle d'éditabilité est déjà là (`fields.ts`).
   - où : `web/v2/shell/src/views/ListView.vue`, `views/collections.ts`, `views/edit/fields.ts`
   - dépend de : 12h
 - [ ] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
@@ -3446,8 +3447,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `DataGrid/DataGrid.vue` (`markOf`, `rowState`), `shell/src/views/edit/inline.ts`
     (`rowState`) ; test voisin `ui/test/no-value-mounted.test.ts`
   - dépend de : 12e
-- [ ] 12o. Valeur héritée d'une propriété modifiée en place, à arbitrer par l'utilisateur
-  avant la 12h : modifier dans l'onglet Propriétés une valeur héritée (résolue d'un
+- [x] 12o. Valeur héritée d'une propriété modifiée en place, à arbitrer par l'utilisateur
+  avant la 12h — arbitrée le 2026-11-11 (Q-021-19) : une valeur propre de l'objet, qui
+  surcharge l'héritée, la cellule le disant avant l'envoi ; le retrait rend l'héritage. Question d'origine : modifier dans l'onglet Propriétés une valeur héritée (résolue d'un
   parent ou d'une déclaration) pose-t-il une valeur propre de l'objet, ou la cellule
   reste-t-elle sans éditeur avec un renvoi vers le porteur ? La spec 003 (résolution des
   propriétés) est à relire d'abord ; si elle ne le dit pas, à l'utilisateur.

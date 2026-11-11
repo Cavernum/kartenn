@@ -416,3 +416,30 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **Q-021-14** — Aucune couche de compatibilité ; le nouveau SDK est versionné **1.0**
   (règle de l'utilisateur : avant le gel, on casse librement, une réécriture repart à
   1.0).
+
+## Arbitrages du 2026-11-11 (utilisateur, en cours d'implémentation)
+
+- **Q-021-15 — Cadre hors session** (021-16i) : hors session, le cadre ne rend ni la barre
+  latérale, ni la pastille de date, ni le compteur du brouillon ; l'en-tête et le contenu
+  restent. Options pesées : cadre réduit, cadre complet (état d'alors). Retenu : cadre
+  réduit (la bande temporelle et le panneau droit partent avec, choix de Claude à la 16i).
+- **Q-021-16 — Ctrl+Entrée dans un arbre de plugin** (REQ-021-32, 021-24f) : un dépôt dans
+  l'arbre d'hébergement du plugin des machines peut devenir un changeset immédiat, écrit
+  par le shell pour le compte du plugin. Options pesées : amender REQ-021-32 (le changeset
+  immédiat réservé aux arbres du shell, W10 entier), ouvrir une sous-tâche qui fait passer
+  l'écriture par le shell. Retenu : la sous-tâche 24f, qui commence par une spec (W10,
+  REQ-021-32, contrat d'écriture du SDK des plugins) à faire valider avant tout code.
+- **Q-021-17 — Modifier une opération du brouillon** (021-14l) : « Modifier » sur une ligne
+  rouvre le panneau d'édition de l'objet prérempli de l'opération, qui la remplace à sa
+  place sous `If-Match`, simulation relancée. Options pesées : panneau d'édition, retirer
+  puis refaire (design amendé). Retenu : panneau d'édition.
+- **Q-021-18 — Colonnes de propriétés d'une liste** (021-12i) : aucune colonne de
+  propriété par défaut ; le sélecteur « Colonnes » propose les propriétés déclarées pour
+  le type, et le choix se garde par vue et par utilisateur comme les autres réglages de
+  vue. Options pesées : choix au sélecteur, une colonne d'office par déclaration, maquette
+  d'abord. Retenu : choix au sélecteur.
+- **Q-021-19 — Valeur héritée modifiée en place** (021-12o, spec 003) : modifier une valeur
+  héritée dans l'onglet Propriétés pose une valeur propre de l'objet, qui surcharge
+  l'héritée ; la cellule le dit avant l'envoi (« surcharge la valeur héritée de
+  <source> »), et retirer la valeur propre rend l'héritage. Options pesées : valeur
+  propre, cellule sans éditeur avec renvoi vers la source. Retenu : valeur propre.
