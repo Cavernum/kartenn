@@ -793,7 +793,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `tests/it/edges.rs` recopie les aides de `clusters.rs` ; pas de test d'une adresse à
     la fois IP de cluster et externe (une arête), de la période commune de `routes_to`
     quand les versions diffèrent, ni de `routes_to` sur un `as_of` passé.
-- [ ] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
+- [x] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
   service membre du groupe du connecteur du cluster), `kube.connector.direct` et
   `kube.cluster.connector_group`, `mark_absent`, `clear_absent`, anomalie
   `kube.object.absent`, section `kube.objects`, permissions
@@ -898,13 +898,35 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `mark_absent` lève l'absence qui suit ; `since::text` dépend du fuseau de la session ;
     les dépendants d'un namespace ne sont pas plafonnés dans le message ; le retour par la
     réouverture de la 4a d'un absent clos n'est pas testé.
-- [ ] 5c. Section de différentiel `kube.objects` et catalogue : les objets `kube.*`
+- [x] 5c. Section de différentiel `kube.objects` et catalogue : les objets `kube.*`
   écrits par un changeset listés dans sa section ; `catalogue_problems` vide pour
   `kube.*` — REQ-019-30 (règles) — verify : `section_lists_changed_objects`,
   `catalogue_problems` vide
   - où : design « Section de différentiel » ; section `machines.attachments`
     (`crates/kartenn-machines/src/handler.rs`) à imiter
   - dépend de : 5a
+  - fait : `handler.rs` (`OBJECTS_SECTION`, `diff` sur les miroirs touchés) ; `pg.rs`
+    (`MIRRORS`, l'état explicite de chaque type ; `object_changes` : versions d'avant la
+    transaction contre versions courantes, périodes agrégées une fois par miroir, une
+    ligne par portion de temps qui diffère) ; `module.rs` (test `catalogue_problems_empty`,
+    le module seul puis avec le noyau et `machines` : aucun problème, déclaration
+    inchangée) ; test `clusters::section_lists_changed_objects` (création d'un nœud et
+    d'un namespace puis d'un workload, changement de labels, même upsert sans ligne,
+    propriété sur un miroir sans ligne, `mark_absent` puis seconde `mark_absent` sans
+    ligne, `clear_absent`, clôture en cascade du cluster simulée puis appliquée : nœud,
+    namespace et workload clos ; un cluster ne fait aucune ligne).
+  - choix : miroirs seulement (nœuds, namespaces, workloads, services, ingress), pas le
+    cluster, déclaré et sans champ suivi ; `before` et `after` en JSON explicite par type
+    (Q-019-19, arbitrée par l'utilisateur à la revue : noms du design, `absent_since` en
+    RFC 3339 UTC formaté en SQL comme le rend `time`) ; une ligne par portion où l'état
+    diffère, sa période dans `period` (comme `machines.attachments`), aucune pour une
+    portion à l'état inchangé (une version identique réécrite) ; objets pris dans
+    `touched` du contexte (index par identifiant, pas de balayage sur `sys_start`) ;
+    ordre : type (nœud, namespace, workload, service, ingress), identifiant, début.
+  - reste : la section n'est pas encore lue par la 010 ni la 011 (REQ-019-36, leurs
+    amendements) ; pas de test d'une écriture bornée dans le passé (plusieurs portions)
+    ni d'un service ou d'un ingress dans la section (revue) ; le format de
+    `absent_since` n'est pas testé sous un autre fuseau de session.
 - [ ] 6. Journal d'observation et ses garde-fous : tables `observation_batch` et
   `pod_observation` partitionnée, droits PostgreSQL d'ajout seul et déclencheur, route
   de lot sous `kube.observation.record` (validation à l'entrée, refus du lot entier),

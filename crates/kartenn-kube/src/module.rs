@@ -371,4 +371,26 @@ mod tests {
         let names: Vec<&str> = registry.modules().map(|m| m.name()).collect();
         assert_eq!(names, ["machines", "kube"], "machines first");
     }
+
+    /// REQ-018-1 (R2, R5), REQ-019-30: the permissions of the module follow the naming
+    /// rule, alone and in the catalogue of the core and of the modules it depends on.
+    #[test]
+    fn catalogue_problems_empty() {
+        let module = Kube.permissions();
+        assert_eq!(
+            kartenn_core::authz::catalogue_problems(module),
+            Vec::<String>::new()
+        );
+        let catalogue: Vec<&Permission> = kartenn_core::authz::PERMISSIONS
+            .iter()
+            .copied()
+            .chain(kartenn_machines::Machines.permissions().iter().copied())
+            .chain(module.iter().copied())
+            .collect();
+        assert_eq!(
+            kartenn_core::authz::catalogue_problems(&catalogue),
+            Vec::<String>::new()
+        );
+        assert!(module.iter().all(|p| p.name.starts_with("kube.")));
+    }
 }

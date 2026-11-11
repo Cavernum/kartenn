@@ -337,9 +337,24 @@ met à nul qu'en cascade).
 
 ### Section de différentiel `kube.objects`
 
-Une ligne par objet miroir créé, modifié, clos ou passé absent : type, identité, champs
-suivis avant et après. La 010 la lit pour savoir quels workloads changent d'axe ou de
-sélection ; la 011 pour réévaluer (REQ-019-36).
+Une ligne par portion de temps sur laquelle un objet miroir est créé, modifié, clos,
+passé absent ou présent de nouveau (un objet en a plusieurs quand l'écriture couvre
+plusieurs de ses versions), comme `machines.attachments` : type, objet, période, état
+avant et après, absent pour une création (avant) ou une clôture (après). La 010 la lit
+pour savoir quels workloads changent d'axe ou de sélection ; la 011 pour réévaluer
+(REQ-019-36). Le cluster, déclaré et non reflété, n'y figure pas.
+
+L'état est un objet JSON à liste fermée de champs, aux noms stables, indépendants des
+colonnes (Q-019-19) ; les références sont des identifiants, `absent_since` un instant
+RFC 3339 en UTC (`Z`) ou `null` :
+
+| Type | Champs |
+|---|---|
+| `kube.node` | `cluster`, `name`, `uid`, `machine`, `addresses` (`[{type, value}]`), `pod_networks` (réseaux du noyau), `zone`, `absent_since` |
+| `kube.namespace` | `cluster`, `name`, `uid`, `labels`, `absent_since` |
+| `kube.workload` | `namespace`, `kind`, `name`, `uid`, `labels`, `service_account`, `ports`, `host_network`, `absent_since` |
+| `kube.service` | `namespace`, `name`, `uid`, `service_type`, `headless`, `external_name`, `ports`, `cluster_addresses`, `external_addresses`, `workloads`, `absent_since` |
+| `kube.ingress` | `namespace`, `name`, `uid`, `class`, `rules`, `tls_hosts`, `addresses` (adresses du noyau), `absent_since` |
 
 ### Port de lecture (`kartenn_kube::read`)
 

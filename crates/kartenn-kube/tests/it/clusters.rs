@@ -2718,3 +2718,158 @@ async fn absent_cleared_on_return(pool: PgPool) {
     assert!(env.workloads(payments).await.is_empty());
     assert!(!env.anomaly(web_id, "kube.object.absent").await);
 }
+
+/// A row of the section `kube.objects` of a changeset: the object, its type, before,
+/// after, and whether its period is open.
+type ObjectRow = (Uuid, String, Option<Value>, Option<Value>, bool);
+
+impl Env {
+    /// `operations` applied: the rows of `kube.objects` of their changeset, in order.
+    async fn objects_section(&self, operations: Vec<Operation>) -> Vec<ObjectRow> {
+        let outcome = self.submit(operations).await;
+        let Outcome::Applied { changeset, .. } = outcome else {
+            panic!("{outcome:?}")
+        };
+        sqlx::query_as(
+            "SELECT object_id, kind, before, after, upper_inf(period)
+               FROM changeset_diff_section
+              WHERE changeset_id = $1 AND section = 'kube.objects' ORDER BY seq",
+        )
+        .bind(changeset)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// Design « Section de différentiel », REQ-019-36: each mirror a changeset creates,
+/// changes, marks absent or present again, or closes (in cascade too) is a row of
+/// `kube.objects`, with its identity and tracked fields before and after; a cluster, a
+/// property on a mirror or an unchanged object makes none. A simulation shows it too.
+#[kartenn_testing::pg_test]
+async fn section_lists_changed_objects(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    // A cluster is declared, not mirrored.
+    let rows = env
+        .objects_section(vec![env.cluster("prod", json!({}))])
+        .await;
+    assert!(rows.is_empty(), "{rows:?}");
+    let prod = env.id("kube.cluster", "slug", "prod").await;
+    // Created: after only, with its identity.
+    let rows = env
+        .objects_section(vec![
+            sync("upsert", "namespace", prod, "payments", json!({})),
+            sync("upsert", "node", prod, "worker-1", json!({})),
+        ])
+        .await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    let worker = env.named("kube.node", prod, "worker-1").await[0];
+    let kinds: Vec<(Uuid, &str)> = rows.iter().map(|r| (r.0, r.1.as_str())).collect();
+    assert_eq!(kinds, [(worker, "kube.node"), (payments, "kube.namespace")]);
+    let rows = env.objects_section(vec![web(prod, "web")]).await;
+    let web_id = env.workloads(payments).await[0];
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!((rows[0].0, rows[0].1.as_str()), (web_id, "kube.workload"));
+    let (_, _, before, after, open) = &rows[0];
+    assert!(before.is_none() && *open, "{rows:?}");
+    let created = after.as_ref().unwrap();
+    // A closed list of fields under stable names, whatever the columns (Q-019-19).
+    assert_eq!(
+        *created,
+        json!({
+            "namespace": payments, "kind": "deployment", "name": "web", "uid": null,
+            "labels": {"app": "web"}, "service_account": null, "ports": [],
+            "host_network": false, "absent_since": null,
+        })
+    );
+    // Changed: its tracked fields before and after, from now on.
+    let rows = env.objects_section(vec![web(prod, "shop")]).await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let (object, kind, before, after, open) = &rows[0];
+    assert_eq!(
+        (*object, kind.as_str(), *open),
+        (web_id, "kube.workload", true)
+    );
+    assert_eq!(before.as_ref().unwrap()["labels"], json!({"app": "web"}));
+    assert_eq!(after.as_ref().unwrap()["labels"], json!({"app": "shop"}));
+    // The same fields again: no row.
+    assert!(
+        env.objects_section(vec![web(prod, "shop")])
+            .await
+            .is_empty()
+    );
+    // A property on a mirror: the mirror unchanged.
+    env.applied(vec![environment()]).await;
+    let property = env
+        .id("property_declaration", "key", "custom.environment")
+        .await;
+    let rows = env
+        .objects_section(vec![environment_of(web_id, property, "prod")])
+        .await;
+    assert!(rows.is_empty(), "{rows:?}");
+    // Marked absent, then present again: `absent_since` before and after.
+    let rows = env
+        .objects_section(vec![web_absence("mark_absent", prod)])
+        .await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].2.as_ref().unwrap()["absent_since"], Value::Null);
+    // RFC 3339 in UTC, whatever the time zone of the session.
+    let since = rows[0].3.as_ref().unwrap()["absent_since"]
+        .as_str()
+        .expect("an instant")
+        .to_owned();
+    assert!(
+        since.ends_with('Z') && since.as_bytes()[10] == b'T',
+        "{since}"
+    );
+    // A second observation of absence keeps the first instant: nothing changes.
+    let rows = env
+        .objects_section(vec![web_absence("mark_absent", prod)])
+        .await;
+    assert!(rows.is_empty(), "{rows:?}");
+    let rows = env
+        .objects_section(vec![web_absence("clear_absent", prod)])
+        .await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert!(rows[0].2.as_ref().unwrap()["absent_since"].is_string());
+    assert_eq!(rows[0].3.as_ref().unwrap()["absent_since"], Value::Null);
+    // Simulated, the closure in cascade of the cluster shows its mirrors closed.
+    let request = ChangesetRequest {
+        author: env.author,
+        motive: "test".into(),
+        period: None,
+        operations: vec![close_cluster(prod)],
+        simulate: true,
+        idempotency_key: None,
+        approval_self: true,
+    };
+    let simulated = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    let Outcome::Simulated { sections, .. } = &simulated else {
+        panic!("{simulated:?}")
+    };
+    let section = sections
+        .iter()
+        .find(|s| s.name == "kube.objects")
+        .expect("the section of the mirrors");
+    assert_eq!(section.count, 3, "{section:?}");
+    // Applied, the closures: before only, from now on.
+    let rows = env.objects_section(vec![close_cluster(prod)]).await;
+    let kinds: Vec<(Uuid, &str)> = rows.iter().map(|r| (r.0, r.1.as_str())).collect();
+    assert_eq!(
+        kinds,
+        [
+            (worker, "kube.node"),
+            (payments, "kube.namespace"),
+            (web_id, "kube.workload")
+        ]
+    );
+    for (_, _, before, after, open) in &rows {
+        assert!(before.is_some() && after.is_none() && *open, "{rows:?}");
+    }
+    assert_eq!(
+        rows[2].2.as_ref().unwrap()["labels"],
+        json!({"app": "shop"})
+    );
+}

@@ -302,6 +302,19 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
     la restauration qui annule un lot reste permise (X5) ; retirer un objet passe par le
     cluster, ou par la clôture du cluster en cascade.
 
+### Q-019-19 — Forme des lignes de la section `kube.objects` (revue de la tâche 5c)
+- Constat : les lignes de la section de différentiel sont lues par la 010, la 011 et par
+  l'API (`GET` des sections d'un changeset) ; une première version rendait la ligne de la
+  table sans ses colonnes de versionnement (`to_jsonb`), qui fait de chaque migration du
+  schéma `kube` un changement du contrat, et des noms de colonnes (`namespace_id`,
+  `range_ids`) et du format d'instant de la session (`absent_since`) le contrat.
+- Options : A. colonnes brutes de la table ; B. JSON explicite par type, une liste fermée
+  de champs aux noms stables.
+- Décision (l'utilisateur, 2026-11-11) : B. Chaque type (nœud, namespace, workload,
+  service, ingress) rend son identité, ses champs suivis et `absent_since` en RFC 3339
+  normalisé (UTC, comme le reste de REST), sous les noms du design « Section de
+  différentiel » ; une migration ne change plus le contrat.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
@@ -693,7 +706,8 @@ l'utilisateur le 2026-11-09 (tâche 0b).
 3. **Contrat REST** (additif, 006/H12) : collections `/v1/kube-clusters`,
    `/v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`,
    `/v1/ingresses`, identifiées par `{id}`, la clé naturelle en filtre (006/H3) ; route
-   d'observations ; extrémités nouvelles des verdicts et des flux.
+   d'observations ; extrémités nouvelles des verdicts et des flux ; lignes de la section
+   `kube.objects` en JSON explicite par type (Q-019-19, 2026-11-11).
 4. **Sécurité** : X10 (droits côté cluster, refus de démarrer, identifiants ;
    confinement côté kartenn par groupe, domaines et `kube.connector.direct`), X5
    (écriture réservée au connecteur), X7 (garde-fous du journal), X11 (labels bornés

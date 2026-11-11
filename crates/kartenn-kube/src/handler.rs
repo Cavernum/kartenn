@@ -24,8 +24,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Edge, Findings, ModuleHandler, ModuleObjectRow, ModulePlan,
-    ModuleRead, ModuleTx, Reference, Shared,
+    BoxFuture, CheckContext, DiffContext, DiffSection, Edge, Findings, ModuleHandler,
+    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -119,6 +119,10 @@ fn invalid(message: impl Into<String>) -> Violation {
 fn cluster_key(cluster: Uuid) -> String {
     format!("kube.cluster:{cluster}")
 }
+
+/// The section of the differential of the mirrors (design « Section de différentiel »):
+/// the 010 reads which workloads change, the 011 what to evaluate anew (REQ-019-36).
+pub const OBJECTS_SECTION: &str = "kube.objects";
 
 /// What [`Handler::prepare`] reads for the plan, which reads no database.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -2179,6 +2183,36 @@ impl ModuleHandler for Handler {
             (SERVICE, WORKLOAD) => Some(unselect(source, target)),
             _ => None,
         }
+    }
+
+    /// `kube.objects`: each portion of time over which the changeset creates, changes,
+    /// closes, marks absent or present again a mirror, with its identity and tracked
+    /// fields before and after (`pg::MIRRORS`). A cluster is declared, not mirrored: it has
+    /// none.
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        Box::pin(async move {
+            let ids: Vec<Uuid> = context
+                .touched
+                .iter()
+                .filter(|(kind, _)| {
+                    matches!(kind, ObjectKind::Module(m)
+                        if pg::MIRRORS.iter().any(|(name, ..)| m.as_str() == *name))
+                })
+                .map(|(_, id)| *id)
+                .collect();
+            if ids.is_empty() {
+                return Ok(None);
+            }
+            let rows = pg::object_changes(connection(tx)?, &ids).await?;
+            Ok((!rows.is_empty()).then(|| DiffSection {
+                name: OBJECTS_SECTION.into(),
+                rows,
+            }))
+        })
     }
 
     /// The rules of the module on the final state of the clusters, nodes and ingresses the
