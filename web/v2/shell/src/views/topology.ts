@@ -1,6 +1,7 @@
 import { CHILDREN_PAGES, type Operation, type Simulated } from "@kartenn/sdk";
 import type { TreeNode, TreeNodeState } from "@kartenn/ui";
 import type { CollectionId } from "./collections.ts";
+import { draftedClosures, draftedValues } from "./edit/fields.ts";
 
 // The nodes of the tree of the topography from its levels read (task 24, REQ-021-34): the
 // children of a prefix are those its own list gives, read again after a change level by
@@ -214,6 +215,21 @@ export interface Preview {
 /** The key of a row of the preview, never one of the tree served. */
 export const PREVIEW = "draft:";
 export const isPreview = (key: string): boolean => key.startsWith(PREVIEW);
+
+/**
+ * The objects of the tree the operations of a draft change, marked at their present place
+ * (REQ-021-17): those whose value an `update_*` changes; a range whose bounds the draft
+ * changes is closed then created anew (no bounds in `update_range`), the one closed marked
+ * as well, the one created shown by the preview (task 24g).
+ */
+export function inDraftOf(operations: readonly Operation[] | undefined): Set<string> {
+  return new Set([
+    ...(["prefixes", "ranges", "addresses"] as const).flatMap((c) => [
+      ...draftedValues(operations, c).keys(),
+    ]),
+    ...draftedClosures(operations, "ranges"),
+  ]);
+}
 
 /**
  * What the draft does to the row `id` (task 24d; 021 design « Après un dépôt accepté »): a

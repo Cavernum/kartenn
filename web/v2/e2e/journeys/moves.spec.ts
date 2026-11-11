@@ -431,6 +431,66 @@ test("a prefix inserted in the draft shows its future children under it before i
   ]);
 });
 
+test("a range replaced in the draft is marked at its place, the new one shown by the preview", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = unique("replaced", browserName);
+  const domain = await newDomain(page, slug, [
+    prefix("198.51.100.0/24", "network"),
+    range("198.51.100.10", "198.51.100.20"),
+  ]);
+  const ranges = (await call(page, "GET", `/v1/ranges?domain=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  // Its bounds changed by its replacement, closed then created anew (the contract has no
+  // bounds in `update_range`, and the shell no gesture for it), in a draft made active.
+  const draft = await call(page, "POST", "/v1/drafts", {
+    title: "end-to-end replaced range",
+    operations: [
+      { op: "close", kind: "range", id: { id: ranges.items[0]!.id } },
+      { ...range("198.51.100.10", "198.51.100.40"), domain: { id: domain } },
+    ],
+  });
+  expect(draft.status, JSON.stringify(draft.body)).toBe(201);
+  const id = (draft.body as { id: string }).id;
+  await page.evaluate((id) => sessionStorage.setItem("kartenn.draft.active", id), id);
+  await page.goto(`/topology?domain=${domain}`);
+  const tree = treeOf(page, slug);
+  await expect(page.getByRole("button", { name: /^Brouillon 2 opérations$/ })).toBeVisible();
+  await expect(rowOf(tree, "198.51.100.0/24")).toBeVisible();
+  await expandAll(tree);
+
+  // The range replaced: at its present place, in the draft; the one created, under the
+  // network, a row of the preview; the tree served unchanged.
+  const replaced = rowOf(tree, "198.51.100.10 – 198.51.100.20");
+  await expect(replaced).toHaveAttribute("aria-level", "2");
+  await expect(replaced).toHaveAttribute("data-state", "draft");
+  await expect(replaced).toContainText(DRAFT_WORDS);
+  const created = previewOf(tree, "198.51.100.10 – 198.51.100.40");
+  await expect(created).toHaveAttribute("aria-level", "2");
+  await expect(created).toHaveAttribute("data-state", "preview");
+  for (const [row, words] of [
+    [replaced, [MOVED_WORDS, PREVIEW_WORDS]],
+    [created, [MOVED_WORDS, DRAFT_WORDS]],
+  ] as const)
+    for (const other of words) await expect(row).not.toContainText(other);
+  expect(await rendered(tree)).toEqual(await served(page, domain));
+  await expectAccessible(page);
+
+  // Applied: the preview gone, the tree read again shows the new range in its place.
+  await applyActive(page, "end-to-end replaced range");
+  await expect(rowOf(tree, "198.51.100.10 – 198.51.100.40")).toHaveAttribute("aria-level", "2", {
+    timeout: 15_000,
+  });
+  await expect(rowOf(tree, "198.51.100.10 – 198.51.100.20")).toHaveCount(0);
+  await expect(tree.locator(PREVIEWED)).toHaveCount(0);
+  await expandAll(tree);
+  expect(await rendered(tree)).toEqual(await served(page, domain));
+});
+
 test.describe("a slowed answer", () => {
   test("an entity changes parent by its menu, the valid targets only, never before the answer", async ({
     page,

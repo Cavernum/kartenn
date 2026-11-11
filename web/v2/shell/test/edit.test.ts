@@ -22,6 +22,7 @@ import {
   approvalOf,
   changesOf,
   checkValue,
+  draftedClosures,
   draftedValues,
   editability,
   editRight,
@@ -148,6 +149,27 @@ describe("the fields of an edit", () => {
       new Map([[P1, { value: "192.0.2.0/25", nature: "container" }]]),
     );
     expect(draftedValues(operations, "domains").get(P1)).toEqual({ slug: "nord" });
+  });
+
+  it("read the objects of a collection a draft closes, a range replaced among them", () => {
+    // P1 a range replaced (closed, then created with other bounds); D1 a prefix closed; V1
+    // a range closed under another period, not the present's.
+    const operations = [
+      { op: "close", kind: "range", id: { id: P1 }, expected: V2 },
+      { op: "create_range", domain: { id: D1 }, first: "192.0.2.10", last: "192.0.2.40" },
+      { op: "close", kind: "prefix", id: { id: D1 } },
+      {
+        op: "within",
+        period: { start: "2026-12-01T00:00:00Z", end: null },
+        operation: { op: "close", kind: "range", id: { id: V1 } },
+      },
+    ] as never;
+    expect(draftedClosures(operations, "ranges")).toEqual(new Set([P1]));
+    expect(draftedClosures(operations, "prefixes")).toEqual(new Set([D1]));
+    expect(draftedClosures(operations, "addresses").size).toBe(0);
+    expect(draftedClosures(undefined, "ranges").size).toBe(0);
+    // A closure changes no value.
+    expect(draftedValues(operations, "ranges").size).toBe(0);
   });
 
   it("check a value by the types of the contract, then write only what changed", () => {
