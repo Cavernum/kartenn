@@ -315,7 +315,7 @@ sans changer le noyau. L'explication cite le porteur qui a servi.
 | workload, service, ingress | namespace | refus ; cascade : clôt |
 | nœud | machine (009) | refus ; cascade : mise à nul |
 | nœud | réseau de plage (noyau) | refus ; cascade : clôt le réseau avec le nœud (le connecteur) |
-| service, ingress | adresse `vip` (noyau) | refus ; cascade : clôt l'adresse |
+| service, ingress | adresse `vip` (noyau) | refus ; cascade : clôt l'adresse avec son dernier porteur (partagée entre les services et ingress d'un cluster, Q-019-17, ADR 0026 amendement 10) |
 | service | workload | mise à nul (retrait de la sélection) |
 | cluster | domaines, conteneurs, réseaux | refus |
 | flux (011) | workload, namespace, service | refus ; le connecteur passe l'objet absent (REQ-019-22) |

@@ -290,6 +290,53 @@ pub(crate) async fn ingress_addresses(
     .map_err(|e| store(&e))
 }
 
+/// An address a `sync` may cite without creating it (019/Q-019-17): its domain, its value
+/// and its identifier.
+pub(crate) type SharedAddress = (Uuid, String, Uuid);
+
+/// The living addresses at `at` among `wanted` (domain, value) that a living service or
+/// ingress of `cluster` cites: those a second holder cites instead of creating them. An
+/// address no object of the cluster cites (declared by hand, or of another cluster) is
+/// not among them.
+pub(crate) async fn shared_addresses(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    wanted: &[(Uuid, String)],
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<SharedAddress>, StoreError> {
+    let (domains, values): (Vec<Uuid>, Vec<String>) = wanted.iter().cloned().unzip();
+    sqlx::query_as(
+        "SELECT a.domain_id, host(a.address), a.id
+           FROM unnest($2::uuid[], $3::text[]) AS w(domain_id, address)
+           JOIN public.address a
+             ON a.domain_id = w.domain_id AND a.address = w.address::inet
+            AND a.valid_period @> coalesce($4::timestamptz, now())
+          WHERE EXISTS (
+                SELECT 1 FROM kube.service s
+                  JOIN kube.namespace n
+                    ON n.id = s.namespace_id AND n.cluster_id = $1
+                   AND n.valid_period @> coalesce($4::timestamptz, now())
+                 WHERE (s.cluster_address_ids @> ARRAY[a.id]
+                        OR s.external_address_ids @> ARRAY[a.id])
+                   AND s.valid_period @> coalesce($4::timestamptz, now()))
+             OR EXISTS (
+                SELECT 1 FROM kube.ingress i
+                  JOIN kube.namespace n
+                    ON n.id = i.namespace_id AND n.cluster_id = $1
+                   AND n.valid_period @> coalesce($4::timestamptz, now())
+                 WHERE i.address_ids @> ARRAY[a.id]
+                   AND i.valid_period @> coalesce($4::timestamptz, now()))
+          ORDER BY a.id",
+    )
+    .bind(cluster)
+    .bind(domains)
+    .bind(values)
+    .bind(at)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The workloads of `namespace` living at `at` among `wanted` (kind, name), with their
 /// identifiers: the selection a `sync` of a service names.
 pub(crate) async fn workloads_named(

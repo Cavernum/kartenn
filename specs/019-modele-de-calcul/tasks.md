@@ -664,7 +664,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (requête inutile) ; deux routes identiques vers deux services différents passent sans
     avertissement. Partage d'adresse : tâche 4e ; domaines des services et externes
     changés sous des objets vivants : tâche 4f.
-- [ ] 4e0. Créations du noyau partagées entre les plans d'un changeset (arbitrage du
+- [x] 4e0. Créations du noyau partagées entre les plans d'un changeset (arbitrage du
   2026-11-11, Q-019-17 : précision) : chaque opération `kube.sync` est préparée et
   planifiée seule, deux porteurs nouveaux d'une même IP dans un lot planifient chacun
   leur `CreateAddress` (refus `core.address.duplicate`), et une passation (A rend l'IP,
@@ -682,7 +682,26 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-service/src/pipeline.rs` (`plan`, vers la ligne 965),
     `docs/adr/0026-contrat-de-module.md` (amendements 8 et 9 à imiter)
   - dépend de : 4c
-- [ ] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
+  - choix : un crochet `ModuleHandler::shared(plan) -> Shared` plutôt qu'un champ de
+    `ModulePlan` (une trentaine de constructions dans six crates, défaut neutre comme
+    `planned`) ; `Shared::cites`, les adresses que l'objet cite une fois écrit, rend la
+    passation lisible au noyau ; la `Close` partageable se tranche dans
+    `cascade::release`, sur l'état de la transaction (un porteur hors du lot compte, un
+    porteur réécrit par un plan qui déclare ses `cites` est jugé par eux), et
+    `close_owned` lit de même ; clé de dédoublonnage (domaine, valeur lue, usage,
+    période propre) ; marque `shared` portée par `Planned::Close` ; deux clôtures
+    partageables d'une adresse n'en font qu'une
+  - choix (revue) : `Shared::scope`, la portée du partage, entre dans la clé avec le
+    module (deux clusters d'un domaine ne partagent pas) ; une création partageable ne
+    nomme pas de `local` (écrit au contrat) ; passation testée avec le module factice
+    (`update_thing` qui rend son adresse, `create_thing` qui la déclare)
+  - reste : un objet réécrit deux fois dans un lot est jugé par l'union de ses `cites` ;
+    la clôture partageable d'une adresse encore visée par une affectation de propriété
+    est retirée en silence (l'adresse reste sans porteur, le lot suivant qui la donne est
+    refusé en `core.address.duplicate`), non testée (`cascade::cited`) ; pas de test de
+    deux plans non marqués ; `cited` de `close_owned` et de `release` décidé avant les
+    verrous
+- [x] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
   d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
   partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
   et le lot entier du connecteur avec lui. Quand l'adresse existe déjà dans le domaine
@@ -697,6 +716,21 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     adresses du domaine et de leurs porteurs), `crates/kartenn-service/src/cascade.rs`
     (`cited`) ; tests voisins de la 4b et de la 4c dans `tests/it/clusters.rs`
   - dépend de : 4c, 4e0
+  - choix : `prepare` lit (`pg::shared_addresses`) les adresses vivantes des valeurs
+    données qu'un service ou un ingress vivant d'un namespace vivant du cluster cite ;
+    `vips` les cite comme les siennes ; toutes ses créations et clôtures d'adresses sont
+    partageables, et le plan déclare dans `data.cites` les adresses existantes que l'objet
+    cite une fois écrit : le noyau tranche la clôture (un porteur hors du lot la garde, la
+    passation et le départ commun se lisent sur le lot), le module ne lit pas les autres
+    porteurs ; partage borné au cluster (`data.scope`) ; une adresse citée sans être
+    créée ni tenue déjà se lit (`core.address.read` dans `reads`, contrat 009/M16, revue) ;
+    `prepare` découpé (`prepare_addresses`, limite de
+    longueur) ; doc d'`owned_columns` réécrite (retour à la ligne parasite de la 4c)
+  - reste : une adresse en partage n'est pas listée par un porteur comme « partagée » (ni
+    lecture ni avertissement) ; deux syncs du même objet dans un lot sont jugées par
+    l'union de leurs `cites` ; pas de test IPv6 ni d'un service et d'un ingress de
+    namespaces différents (même chemin) ; la cascade d'un namespace qui clôt un porteur
+    pendant qu'un autre porteur du lot rend l'adresse suit `close_owned`, non testée
 - [ ] 4f. Domaines des services et des adresses externes figés sous des objets vivants
   (revue de la 4c ; même règle que Q-019-15 pour le domaine des pods) : `update_cluster`
   qui change `service_domain_id` ou `external_domain_id` d'un cluster qui a des services

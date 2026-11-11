@@ -13,7 +13,7 @@ use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
     BoxFuture, CheckContext, EndContext, Findings, Module, ModuleHandler, ModuleMigration,
     ModuleObjectRow, ModulePlan, ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType,
-    Reference,
+    Reference, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -159,6 +159,10 @@ impl Module for Dummy {
 struct UpdateThing {
     id: Ref,
     label: String,
+    /// The address it owns and gives up, closed by a shareable closure (ADR 0026,
+    /// amendment 10).
+    #[serde(default)]
+    release: Option<Ref>,
 }
 
 /// The bounds of a period to bind: `None` start is the instant of the transaction.
@@ -190,6 +194,10 @@ struct CreateThing {
     /// An address it owns.
     #[serde(default)]
     address_ref: Option<Ref>,
+    /// Whether it declares the address it owns to the other plans (ADR 0026, amendment
+    /// 10).
+    #[serde(default)]
+    shares: bool,
     /// A domain the thing creates along, by a core operation.
     #[serde(default)]
     domain: Option<String>,
@@ -217,14 +225,35 @@ impl ModuleHandler for Handler {
                 serde_json::from_value(serde_json::Value::Object(operation.body.clone()))
                     .map_err(|e| invalid(e.to_string()))?;
             let target = resolve(update.id).ok_or_else(|| invalid("unknown thing".into()))?;
+            let release = match update.release {
+                Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown address".into()))?),
+                None => None,
+            };
+            let core = release
+                .iter()
+                .map(|id| Operation::Close {
+                    kind: kartenn_service::ObjectKind::Address,
+                    id: Ref::Id(*id),
+                    expected: None,
+                    cascade: false,
+                })
+                .collect();
+            let data = if release.is_some() {
+                serde_json::json!({
+                    "label": update.label, "update": true, "release": true,
+                    "shared_core": [0], "cites": [],
+                })
+            } else {
+                serde_json::json!({"label": update.label, "update": true})
+            };
             return Ok(ModulePlan {
                 kind: kind(),
                 object: target,
                 creates: false,
                 domains: Vec::new(),
                 keys: Vec::new(),
-                core: Vec::new(),
-                data: serde_json::json!({"label": update.label, "update": true}),
+                core,
+                data,
             });
         }
         let thing: CreateThing =
@@ -263,8 +292,17 @@ impl ModuleHandler for Handler {
                 "prefix": prefix,
                 "domain_ref": domain_ref,
                 "address_ref": address_ref,
+                "cites": thing.shares.then(|| address_ref.into_iter().collect::<Vec<_>>()),
             }),
         })
+    }
+
+    fn shared(&self, plan: &ModulePlan) -> Shared {
+        Shared {
+            core: serde_json::from_value(plan.data["shared_core"].clone()).unwrap_or_default(),
+            scope: None,
+            cites: serde_json::from_value(plan.data["cites"].clone()).unwrap_or_default(),
+        }
     }
 
     fn apply<'a>(
@@ -290,9 +328,12 @@ impl ModuleHandler for Handler {
                 .await
                 .map_err(|e| StoreError(e.to_string()))?;
             } else if plan.data["update"].as_bool() == Some(true) {
-                // Relabelled where it lives over the period (a test module: no split).
+                // Relabelled where it lives over the period (a test module: no split); the
+                // address it gives up is no longer cited.
                 let updated = sqlx::query(
-                    "UPDATE dummy.thing SET label = $2, changeset_id = $5 WHERE id = $1
+                    "UPDATE dummy.thing SET label = $2, changeset_id = $5,
+                            address_ref = CASE WHEN $6 THEN NULL ELSE address_ref END
+                      WHERE id = $1
                        AND valid_period && tstzrange(coalesce($3::timestamptz, now()), $4)",
                 )
                 .bind(plan.object)
@@ -300,6 +341,7 @@ impl ModuleHandler for Handler {
                 .bind(a)
                 .bind(b)
                 .bind(changeset)
+                .bind(plan.data["release"].as_bool() == Some(true))
                 .execute(&mut *connection(tx)?)
                 .await
                 .map_err(|e| StoreError(e.to_string()))?;

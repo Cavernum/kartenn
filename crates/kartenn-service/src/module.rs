@@ -201,6 +201,28 @@ pub struct ModulePlan {
     pub data: serde_json::Value,
 }
 
+/// What a plan shares with the other plans of its changeset (ADR 0026, amendment 10):
+/// several objects of modules may cite one address of the core, created by the first that
+/// gives it and closed with the last that lets it go (019/Q-019-17).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Shared {
+    /// The positions, in [`ModulePlan::core`], of its shareable operations: a
+    /// `CreateAddress` identical (domain, value, usage) to a shareable one an earlier plan
+    /// of the same module and the same `scope` adds is not planned again, the plan
+    /// receiving the identifier of the first in [`ModuleHandler::planned`]; a `Close` of an
+    /// address is kept only when nothing cites the address any more once the changeset
+    /// written. Ignored on another operation. A shareable creation names no `local`: one
+    /// not planned binds none.
+    pub core: Vec<usize>,
+    /// Where its creations are shared (for `kube`, the cluster of the object): only with
+    /// the plans of the same module and the same scope; `None` is a scope of its own.
+    pub scope: Option<Uuid>,
+    /// The living addresses the object of the plan cites once written, when the plan
+    /// declares them: the pipeline then judges by them, not by the state before the
+    /// changeset, whether this object still cites an address another plan lets go.
+    pub cites: Option<Vec<Uuid>>,
+}
+
 /// A version of an object of a module, registered in `module_object` (REQ-008-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModuleObjectRow {
@@ -477,6 +499,16 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
     /// nothing. Nothing by default.
     fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
         let _ = (plan, created);
+    }
+
+    /// What `plan` shares with the other plans of its changeset (ADR 0026, amendment 10):
+    /// its shareable operations of the core, and the addresses its object cites once
+    /// written. Asked once planned (`core`), then once [`ModuleHandler::planned`] has
+    /// completed it (`cites`). Nothing by default: each operation of the core is planned
+    /// as it is.
+    fn shared(&self, plan: &ModulePlan) -> Shared {
+        let _ = plan;
+        Shared::default()
     }
 
     /// The rights `plan` needs besides the right to write its object: `(permission,

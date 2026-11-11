@@ -738,6 +738,82 @@ async fn owned_policy_closes_the_target_with_its_source(pool: PgPool) {
     assert_eq!(current_label(&pool, a).await.as_deref(), Some("a"));
 }
 
+/// ADR 0026, amendment 10: a shareable closure of an address is dropped when another plan
+/// of the changeset cites it (the handover), kept when nothing cites it any more; without
+/// the declaration of the new holder, the closure stands and the changeset is refused.
+#[kartenn_testing::pg_test]
+async fn shared_closure_spares_an_address_handed_over(pool: PgPool) {
+    use kartenn_core::objects::AddressUsage;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    referenced(&store, &pool, author).await;
+    let lab: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'lab'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    applied(
+        &store,
+        author,
+        vec![
+            Operation::CreateAddress {
+                local: Some(1),
+                domain: Ref::Id(lab),
+                address: "10.0.0.8".into(),
+                usage: AddressUsage::Vip,
+            },
+            dummy::create_thing(json!({"label": "b", "address_ref": {"local": 1}})),
+        ],
+    )
+    .await;
+    let eight = living_address(&pool, "10.0.0.8").await.unwrap();
+    let b = thing(&pool, "b").await;
+    let release = |id: Uuid, label: &str| {
+        dummy::update_thing(json!({"id": {"id": id}, "label": label, "release": {"id": eight}}))
+    };
+    // Without the declaration of its new holder, `b` closes it: refused.
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            author,
+            vec![
+                release(b, "b2"),
+                dummy::create_thing(json!({"label": "c", "address_ref": {"id": eight}})),
+            ],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(subjects(&outcome, "core.object.dependents")[0], eight);
+    // The handover: `b` gives it up, `c` takes it and says so; no closure.
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            author,
+            vec![
+                release(b, "b2"),
+                dummy::create_thing(
+                    json!({"label": "c", "address_ref": {"id": eight}, "shares": true}),
+                ),
+            ],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Applied { cascaded, .. } = outcome else {
+        panic!("not applied: {outcome:?}")
+    };
+    assert!(cascaded.is_empty(), "{cascaded:?}");
+    assert_eq!(living_address(&pool, "10.0.0.8").await, Some(eight));
+    // Given up by its last holder: closed.
+    let c = thing(&pool, "c").await;
+    applied(&store, author, vec![release(c, "c2")]).await;
+    assert_eq!(living_address(&pool, "10.0.0.8").await, None);
+}
+
 #[kartenn_testing::pg_test]
 async fn nullify_policy_unassigns(pool: PgPool) {
     use kartenn_service::ObjectKind;

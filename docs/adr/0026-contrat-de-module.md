@@ -406,6 +406,37 @@ l'est pas en cascade : ses propres dépendants la font refuser comme d'habitude.
 `module_anchors::an_owned_reference_without_its_targets_fails_the_closure`,
 `kartenn-kube` `clusters::cluster_cascade_closes_node_networks`.
 
+### Amendement 10 — 2026-11-11, adresses partagées entre les plans d'un changeset (019/Q-019-17)
+
+Un ajout additif, à défaut neutre (tâche 019-4e0) : plusieurs objets de modules citent
+une même adresse du noyau, créée par le premier qui la donne et close avec le dernier qui
+la rend. Chaque opération d'un module est préparée et planifiée seule : sans cet ajout,
+deux porteurs nouveaux d'une valeur dans un lot planifiaient chacun leur création (refus
+`core.address.duplicate`), et une passation (A rend l'adresse, B la prend dans le même
+lot) la faisait clore par A avant que B la cite. Source :
+`crates/kartenn-service/src/module.rs` (`Shared`, `ModuleHandler::shared`),
+`crates/kartenn-service/src/pipeline.rs` (`plan`, `shared_address`),
+`crates/kartenn-service/src/cascade.rs` (`release`, `cited`).
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `ModuleHandler::shared(plan) -> Shared` : `core`, les positions dans `ModulePlan::core` de ses opérations partageables ; `scope`, la portée du partage (pour `kube`, le cluster) ; `cites`, les adresses vivantes que l'objet du plan cite une fois écrit, quand le plan les déclare. Par défaut, rien | 6 | le noyau ne lit pas les `data` d'un module |
+| Dans `pipeline::plan`, un `CreateAddress` partageable identique (domaine, valeur lue, usage, période propre) à un `CreateAddress` partageable qu'un plan antérieur du même module et de la même `scope` ajoute n'est pas replanifié : `planned` reçoit, à sa place dans `created`, l'identifiant du premier. Une création partageable ne nomme pas de `local` (une création non replanifiée n'en lierait aucun) | 6, amendement 8 | 019/Q-019-17 : les ingress d'une classe ont l'IP du service LoadBalancer de leur contrôleur ; deux clusters d'un même domaine ne partagent pas |
+| Une `Close` partageable d'une adresse n'est gardée, une seule fois, que si rien ne la cite une fois le changeset écrit : ni les `cites` d'un plan du changeset, ni un objet que le changeset laisse tel quel (affectation d'une propriété de référence, objet de module que nul plan ne réécrit en déclarant ses `cites`, non clos). La clôture des objets possédés (amendement 9) suit la même lecture | 12, amendement 9 | une adresse partagée se clôt avec son dernier porteur, sans qu'un porteur lise les autres plans du lot |
+
+Une marque sur une autre opération est ignorée ; une adresse qu'une autre clôture du
+changeset clôt l'est par celle-ci. Un objet réécrit par deux plans du même changeset est
+jugé par l'union de leurs `cites`. Une adresse qu'un plan cite sans la créer ni la tenir
+déjà se lit : le module la déclare dans `reads` (009/M16). Le contrat REST, le schéma des
+déclarations et les opérations du noyau ne changent pas ; une clôture partageable
+retirée ne figure pas au différentiel. Tests : `kartenn-service`
+`pipeline::tests::shared_addresses_are_created_once_per_changeset` (deux plans, une
+création, deux citations ; sans marque ou dans deux portées, deux créations) et
+`module_pipeline::shared_closure_spares_an_address_handed_over` (la passation sans
+clôture, refusée sans la déclaration du nouveau porteur, la clôture avec le dernier),
+`kartenn-kube` `clusters::vip_shared_across_holders`,
+`clusters::vip_handover_in_one_batch` et `clusters::vip_shared_read_required`.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :
