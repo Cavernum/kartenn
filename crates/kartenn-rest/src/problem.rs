@@ -59,6 +59,10 @@ pub enum ProblemKind {
     InvalidOverride,
     /// The elements of an import cannot be sorted.
     InvalidImport,
+    /// A batch written outside a changeset (a journal of observations, ADR 0043) refused
+    /// whole: its extension `code` says by what, `violations` names its lines by JSON
+    /// pointers (RFC 6901; spec 019, Q-019-21).
+    InvalidBatch,
     /// `If-Match` is missing.
     PreconditionRequired,
     /// The quota of the identity is spent.
@@ -80,7 +84,7 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -102,6 +106,7 @@ impl ProblemKind {
         Self::InvalidMember,
         Self::InvalidOverride,
         Self::InvalidImport,
+        Self::InvalidBatch,
         Self::PreconditionRequired,
         Self::RateLimited,
         Self::Unavailable,
@@ -137,6 +142,7 @@ impl ProblemKind {
             Self::InvalidMember => "invalid-member",
             Self::InvalidOverride => "invalid-override",
             Self::InvalidImport => "invalid-import",
+            Self::InvalidBatch => "invalid-batch",
             Self::PreconditionRequired => "precondition-required",
             Self::RateLimited => "rate-limited",
             Self::Unavailable => "unavailable",
@@ -173,6 +179,7 @@ impl ProblemKind {
             | Self::InvalidMember
             | Self::InvalidOverride
             | Self::InvalidImport
+            | Self::InvalidBatch
             | Self::PolicyQueryTooLarge
             | Self::DraftLimit => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
@@ -218,6 +225,7 @@ impl ProblemKind {
             Self::InvalidMember => "Un champ ne peut pas être écrit.",
             Self::InvalidOverride => "Le filtre ou sa durée est invalide.",
             Self::InvalidImport => "L'import ne peut pas être ordonné.",
+            Self::InvalidBatch => "Le lot est refusé en entier.",
             Self::PreconditionRequired => {
                 "La version lue de l'objet doit accompagner la modification."
             }
@@ -259,6 +267,7 @@ impl ProblemKind {
             Self::InvalidMember => "A field cannot be written.",
             Self::InvalidOverride => "The filter or its duration is invalid.",
             Self::InvalidImport => "The import cannot be ordered.",
+            Self::InvalidBatch => "The batch is refused whole.",
             Self::PreconditionRequired => {
                 "The version read of the object must come with the change."
             }
@@ -297,6 +306,7 @@ impl ProblemKind {
             Self::InvalidMember => "A member cannot be written",
             Self::InvalidOverride => "The filter or its duration is invalid",
             Self::InvalidImport => "The elements of the import cannot be sorted",
+            Self::InvalidBatch => "The batch is refused",
             Self::PreconditionRequired => "If-Match is required",
             Self::RateLimited => "Too many requests",
             Self::Unavailable => "The service is unavailable",

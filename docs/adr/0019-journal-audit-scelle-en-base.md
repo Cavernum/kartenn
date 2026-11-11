@@ -55,3 +55,18 @@ sans état (D9) : un chaînage strict événement par événement les sérialise
   5,8 Kio dans l'index GIN par objet ; 3,3 Gio par jour à 5 pages par seconde. Volume
   accepté, réglable : identifiants enregistrés par lecture (`audit.read_ids_max`) et
   rétention `low` (012/L25).
+
+## Amendement — 2026-11-11, écriture hors changeset auditée dans sa transaction (019/Q-019-22)
+
+Un ajout au port PostgreSQL du journal, ratifié par l'utilisateur (019/Q-019-22, option A
+contre une outbox) : `PgAuditJournal::record_in(conn, event)` inscrit un événement dans la
+transaction de l'appelant, comme `WriteTx::audit` le fait pour un changeset. Une écriture
+qui n'est pas un changeset (un lot du journal d'observations, ADR 0043, décision 5) est
+ainsi auditée dans sa transaction : l'événement est validé avec elle ou annulé avec elle,
+jamais l'un sans l'autre ; un échec de l'inscription fait échouer l'écriture (échec
+fermé). Le port `AuditJournal`, hors transaction, ne change pas : il garde les refus et
+les lectures. Le schéma `audit` et ses droits ne changent pas.
+
+Source : `crates/kartenn-store-pg/src/audit_journal.rs` (`record_in`), appelée par
+`crates/kartenn-kube/src/rest.rs` (`observation.batch.recorded`). Test : `kartenn-kube`
+`observations::route::batch_is_audited_once_with_hash`.

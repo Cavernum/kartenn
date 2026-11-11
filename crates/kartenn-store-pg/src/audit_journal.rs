@@ -5,7 +5,7 @@ use kartenn_core::audit::AuditEvent;
 use kartenn_service::StoreError;
 use kartenn_service::audit::{AuditJournal, Instance};
 use sqlx::types::time::OffsetDateTime;
-use sqlx::{PgExecutor, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool};
 
 fn store_err(e: impl std::fmt::Display) -> StoreError {
     StoreError(e.to_string())
@@ -81,6 +81,21 @@ impl PgAuditJournal {
     #[must_use]
     pub const fn instance(&self) -> &Instance {
         &self.instance
+    }
+
+    /// Records `event` in the caller's transaction `conn`, as this instance (ADR 0019,
+    /// amendment of 2026-11-11; ADR 0043, decision 5): the event commits with the write it
+    /// audits, a write outside a changeset included, or rolls back with it.
+    ///
+    /// # Errors
+    ///
+    /// The database: the caller rolls its transaction back, its write with it.
+    pub async fn record_in(
+        &self,
+        conn: &mut PgConnection,
+        event: &AuditEvent,
+    ) -> Result<(), StoreError> {
+        insert(conn, event, &self.instance).await
     }
 }
 
