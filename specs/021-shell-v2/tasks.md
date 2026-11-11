@@ -2903,7 +2903,15 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     pas le titre.
   - reste : l'erreur est dite deux fois (le focus au champ, qui la lit par
     `aria-describedby`, et la région vivante de `TextField`), comme le rejet : à juger
-    avec un vrai lecteur d'écran (`a11y-auditor`).
+    avec un vrai lecteur d'écran (`a11y-auditor`). Revue (mineurs) : course entre deux
+    renommages (A envoyé, dialogue fermé par Échap, « Renommer… » sur B : le `rename()` de
+    B rend la main sans rien dire tant que `renameBusy` tient, et la réponse de A ferme le
+    dialogue de B ou y affiche son refus) ; après un 412, `renaming` garde l'ancienne ligne
+    (titre du dialogue et test « inchangé » comparés au titre d'avant la relecture) ; ni le
+    412 dans le dialogue ni le focus rendu au menu ne sont testés en Vitest ; la borne de
+    200 caractères n'est publiée qu'en prose (`DraftChange.title`, sans `maxLength`) ; le
+    `choix :` de la 14 dit encore « sans « Renommer » » ; commentaire d'en-tête trop long
+    dans `e2e/journeys/draft.spec.ts`.
 - [ ] 14g. Opération masquée dite « masqué » (reste de la 14c) : l'onglet Opérations d'un
   changeset, comme la ligne d'opération du brouillon, montre `masked : true` et tait
   `values` (`operationLine`, `draft/operations.ts`) ; dire « masqué » comme le différentiel
