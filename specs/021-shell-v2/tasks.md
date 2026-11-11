@@ -1558,6 +1558,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     le dictionnaire la demanderait ; leurs phrases sont celles de l'espace `problem` du
     serveur. Le titre de l'encart ne dit pas le problème : la ligne du `type` porte sa
     phrase (pas `said`). Pas de capture : aucune de « À propos » n'existe.
+  - reste (revue, mineurs) : un corps 200 sans liste de plugins (`loader.ts`, `TypeError`)
+    donne la phrase `problem.client` (« erreur de l'interface… rechargez la page ») au lieu
+    d'une réponse fautive du serveur, et perd le `Request-Id` de la réponse (REQ-021-20) ;
+    le test de « À propos » (`problems.test.ts`) ne vérifie ni « Réessayer » dans l'encart
+    ni le chargement pendant la relecture (prouvé au registre seulement) ; le 403 de
+    `plugins.test.ts` est servi sans `application/problem+json` (refus non transitoire
+    avec un vrai `type` non couvert).
 - [ ] 13b. Libellés et codes, Topographie : la page suivante refusée d'un niveau de l'arbre
   dite avec son problème (phrase, `type`, `Request-Id`) et « Réessayer », au lieu de se taire
   — REQ-021-20 — verify : Vitest (`askNextPage` : un échec de page suivante exposé au
