@@ -591,7 +591,8 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   `simulate` (débrayée, 400 ms), `submit({ approvalSelf })` ; écritures avec `If-Match`, et
   sur 412 relecture puis nouvel essai de l'ajout ; le brouillon actif d'un onglet est son
   identifiant en `sessionStorage`, la période de chaque brouillon aussi (le brouillon du
-  serveur n'en a pas : la date de son premier ajout sous `valid_at` seul, ou le choix du
+  serveur n'en a pas : la date de son premier ajout sous `valid_at` seul, lue avant
+  l'envoi de cet ajout, ou le choix du
   pied ; `draftPeriod` de `@kartenn/sdk/host`, hors API des plugins), lue par sa simulation
   et sa soumission, au présent comme après un rechargement ; le stockage IndexedDB
   disparaît. `draft.add` (API des

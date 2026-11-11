@@ -2965,8 +2965,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `design.md` (`sdk.drafts`) dit la période gardée.
   - choix : la période vit en `sessionStorage`, à côté du brouillon actif (le brouillon du
     serveur n'en a pas, ajouter un champ serait un contrat ; maintenu par l'utilisateur
-    le 2026-11-09 : la période reste côté shell, sans champ au brouillon de la 024) ; elle date du premier ajout et
-    ne suit plus le `valid_at` courant ; un brouillon vidé par un retrait la garde (le choix
+    le 2026-11-09 : la période reste côté shell, sans champ au brouillon de la 024) ; elle
+    vaut pour tout le brouillon et date du premier ajout fait sous `valid_at` seul (redit
+    par la 14j : un brouillon garni au présent puis complété sous `valid_at` prend cette
+    date pour toutes ses opérations, celles d'avant comprises), puis ne suit plus le
+    `valid_at` courant ; un brouillon vidé par un retrait la garde (le choix
     du pied aussi) ; l'accès passe par `@kartenn/sdk/host`, non par `drafts` public ; un
     ajout sous `as_of` ne date rien (refusé de toute façon) ; le scénario du parcours vit
     dans `draft` (domaine propre, écritures isolées), `time` rejoué sans changement ; la
@@ -3151,7 +3154,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `badge.proposals` / `badge.proposalsMore` (`ShellFrame.vue`) n'est pas testé (le
     parcours `changesets.spec.ts` pourrait vérifier « changesets à instruire » dans le nom
     du lien) ; la relecture `a11y-auditor` n'est notée qu'en parenthèse, sans son verdict.
-- [ ] 14j. Brouillon daté, reste de la revue de la 14e : `dateAddition`
+- [x] 14j. Brouillon daté, reste de la revue de la 14e : `dateAddition`
   (`sdk/src/data/drafts.ts`) lit le contexte avant l'envoi, non après la réponse (une date
   changée pendant l'écriture date aujourd'hui le brouillon à la nouvelle) ; `replace` de
   `shell/src/admin/draft.ts` (vers la ligne 63) ne date pas le brouillon comme
@@ -3163,6 +3166,30 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/sdk/src/data/drafts.ts` (`dateAddition`, `addOperations`, `addToActive`),
     `web/v2/shell/src/admin/draft.ts`
   - dépend de : 14e
+  - fait le 2026-11-11 — SDK (`data/drafts.ts`) : `additionDate` (le `valid_at` du
+    contexte sous `valid_at` seul, sinon rien) lu avant tout envoi, `dateAddition(id, at)`
+    date le brouillon à cette date une fois l'ajout écrit ; `addOperations` passe par
+    `addAt` (la date lue à l'appel, gardée pour le nouvel essai après un 412),
+    `addToActive` lit la date une fois, pour l'ajout au brouillon actif comme pour le
+    brouillon qu'il crée, ou la reçoit (`at`, second argument facultatif, hors API des
+    plugins) ; `draft.ts` : `moveInDraft` lit la date à son appel, avant la lecture du
+    brouillon actif, et la passe aux deux branches (remplacement en place, `drafts.update` ;
+    ajout, `add(ops, at)`). `admin/draft.ts` : `replace` inchangé, son commentaire dit
+    pourquoi (l'administration n'écrit qu'au présent : `present` faux sous `valid_at` seul
+    aussi, refus `edit.why.past` de `access.ts`, `roleRefusals`, des listes). Vitest :
+    `drafts.test.ts` (« dated at the date read before the addition is sent… » : date
+    changée pendant la création puis pendant l'ajout, rien de daté pour un ajout envoyé au
+    présent), `draft-move.test.ts` (remplacé en place ou ajouté, la date changée pendant la
+    lecture du brouillon actif hors cache : daté et simulé à la date de l'appel). La ligne `choix :` de la 14e redite ; `design.md` (`sdk.drafts`) dit la
+    date lue avant l'envoi.
+  - choix : la date se lit à l'appel de l'ajout, non juste avant la requête (après la
+    lecture de l'`ETag`) : c'est la date sous laquelle l'utilisateur a agi, et le nouvel
+    essai après un 412 garde la même ; `dateAddition` prend la date en argument plutôt que
+    de la relire (une seule lecture par ajout) ; pas de Vitest de l'administration,
+    `replace` ne changeant pas de comportement.
+  - reste : relevés par la revue (mineurs) : aucun test ne prouve que le second essai après
+    un 412 garde la date lue à l'appel ; dans `drafts.test.ts`, un seul `it` tient trois cas
+    (création, ajout, ajout envoyé au présent), à scinder.
 - [ ] 14k. Brouillon supprimé dans un autre navigateur, dit dans l'onglet qui l'avait actif,
   tenu par un parcours (reste de la 14 : sous Chromium l'événement `draft` n'était pas venu
   en 20 s, avant la clôture de la tâche 5) : le toast du cadre (`drafts.gone`), le compteur

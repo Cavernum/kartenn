@@ -47,12 +47,19 @@ const violation = (rule: string, severity: string, at: number | null, subjects: 
 });
 
 /** A server holding the active draft `operations`, simulated as `simulation` answers. */
-function server(operations: unknown[], simulation: (period: unknown) => unknown) {
+function server(
+  operations: unknown[],
+  simulation: (period: unknown) => unknown,
+  read: () => void = () => undefined,
+) {
   const seen: string[] = [];
   let version = 1;
   setFetch(
     fakeFetch({
-      "GET /v1/drafts/{id}": () => body(operations, version),
+      "GET /v1/drafts/{id}": () => {
+        read();
+        return body(operations, version);
+      },
       "PATCH /v1/drafts/{id}": ({ body: change }) => {
         seen.push("PATCH");
         operations = (change as { operations: unknown[] }).operations;
@@ -145,6 +152,32 @@ describe("moveInDraft", () => {
     await moveInDraft(to("c2"), node, drafts.addToActive);
     expect(periods).toEqual([{ valid_from: at }, { valid_from: at }]);
   });
+
+  it.each([
+    ["replaced in place", [other, to("c1")], ["PATCH"]],
+    ["added", [other], ["POST operations"]],
+  ])(
+    "%s, dated at the date of the call, not one changed while the draft is read",
+    async (_, operations, writes) => {
+      const at = "2031-03-01T08:00:00Z";
+      const periods: unknown[] = [];
+      // The active draft out of the cache: its read reaches the server, the date changes.
+      const later = () => setContext({ time: { validAt: "2032-01-01T00:00:00Z", asOf: null } });
+      const s = server(
+        operations,
+        (period) => {
+          periods.push(period);
+          return simulated(true, []);
+        },
+        later,
+      );
+      setContext({ time: { validAt: at, asOf: null } });
+      await moveInDraft(to("c2"), node, drafts.addToActive);
+      expect(s.seen).toEqual(writes);
+      expect(drafts.period(D)).toEqual({ valid_from: at });
+      expect(periods).toEqual([{ valid_from: at }]);
+    },
+  );
 });
 
 describe("draft.onActive", () => {

@@ -65,9 +65,15 @@ function ownViolations(
 export async function moveInDraft(
   op: Operation,
   node: MoveSubject,
-  add: (operations: readonly Operation[]) => Promise<DraftOutcome<readonly Operation[]>>,
+  add: (
+    operations: readonly Operation[],
+    at: string | null,
+  ) => Promise<DraftOutcome<readonly Operation[]>>,
   saved?: (draft: Draft) => void,
 ): Promise<DraftMove> {
+  // The date of the move (`additionDate`), read at the call, before the read of the draft:
+  // under `valid_at` alone it dates the draft, replaced in place or added (`add` takes it).
+  const at = drafts.additionDate();
   // The member that writes the parent (`move_entity.parent` → `parent`, `MachinePatch.host`).
   const member = PARENTS[node.type]?.via.split(".").pop();
   const replaces = (operation: Operation) => {
@@ -92,10 +98,10 @@ export async function moveInDraft(
       ? await drafts.update(current!.data.id, {
           operations: operations.map((o, i) => (i === earlier ? op : o)),
         })
-      : await add([op]);
+      : await add([op], at);
   if (added.kind !== "saved") return added;
-  // A move replaced in place is an addition too: under `valid_at` alone it dates the draft.
-  if (earlier >= 0) drafts.dateAddition(added.draft.id);
+  // A move replaced in place is an addition too.
+  if (earlier >= 0) drafts.dateAddition(added.draft.id, at);
   saved?.(added.draft);
   const index = earlier >= 0 ? earlier : (added.draft.operations?.length ?? 1) - 1;
   // Simulated at the period of the draft, as its foot does: from the date of its addition.
