@@ -446,7 +446,7 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 |---|---|---|
 | B1 | objets de module porteurs de propriétés, arbre de module | ADR 0026 clauses 4, 5 (fourni) |
 | B2 | opérations du noyau planifiées par un lot (réseaux, adresses `vip`, affectations) | clause 6 (fourni) |
-| B3 | auteur du changeset lisible par une règle (`kube.object.managed`) | `CheckContext::changeset` (amendement 1, fourni) |
+| B3 | auteur du changeset et opérations qu'il a écrites, lisibles par une règle (`kube.object.managed`, `kube.connector.direct`) | `CheckContext::author` et `CheckContext::operations` (amendement 11, additif, Q-019-18, fourni par la tâche 5a) |
 | B4 | route hors changeset auditée par lot | ADR 0043 : inscription d'audit d'un lot par le noyau, `observation.batch.recorded` et `.altered` (à fournir, tâche 6) |
 | B5 | adresses d'une machine par adresse et machine par nom | 009, ajout additif |
 | B6 | porteur workload, extrémités logiques | amendements de la 010 et de la 011 (tâches 12, 13) |

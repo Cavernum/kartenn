@@ -27,6 +27,10 @@ struct Env {
     store: PgStore,
     registry: Arc<ModuleRegistry>,
     author: Uuid,
+    /// The service account of the connector, which submits the batches.
+    connector: Uuid,
+    /// The connector group of every cluster, the connector its only member.
+    group: Uuid,
     acme: Uuid,
     pods: Uuid,
     services: Uuid,
@@ -60,11 +64,14 @@ impl Env {
         .fetch_one(pool)
         .await
         .unwrap();
+        let (connector, group) = crate::support::connector(pool, "connector").await;
         let mut env = Self {
             pool: pool.clone(),
             store,
             registry,
             author,
+            connector,
+            group,
             acme: Uuid::nil(),
             pods: Uuid::nil(),
             services: Uuid::nil(),
@@ -89,9 +96,21 @@ impl Env {
         env
     }
 
+    /// `operations` submitted by the connector when they are a batch, by the author
+    /// otherwise.
     async fn submit(&self, operations: Vec<Operation>) -> Outcome {
+        let author = if crate::support::batch(&operations) {
+            self.connector
+        } else {
+            self.author
+        };
+        self.submit_by(author, operations).await
+    }
+
+    /// `operations` submitted by `author`, without RBAC.
+    async fn submit_by(&self, author: Uuid, operations: Vec<Operation>) -> Outcome {
         let request = ChangesetRequest {
-            author: self.author,
+            author,
             motive: "test".into(),
             period: None,
             operations,
@@ -102,6 +121,34 @@ impl Env {
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
             .unwrap()
+    }
+
+    /// `operations` submitted by `subject`, with its issuer and the groups of its session,
+    /// without RBAC.
+    async fn submit_in(
+        &self,
+        subject: &kartenn_service::authz::Subject,
+        operations: Vec<Operation>,
+    ) -> Outcome {
+        let request = ChangesetRequest {
+            author: subject.id,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+            approval_self: true,
+        };
+        kartenn_service::submit_in(
+            &self.store,
+            &Unrestricted,
+            &kartenn_service::expected::Sources::none(),
+            &kartenn_service::audit::RequestContext::of(subject),
+            &request,
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
     }
 
     /// `operations` submitted by `identity`, under the RBAC of the store.
@@ -122,14 +169,18 @@ impl Env {
             .unwrap()
     }
 
-    /// A new identity holding `permissions` on `acme` and what it owns.
+    /// A new service account of the connector group, holding `permissions` on `acme` and
+    /// what it owns.
     async fn granted(&self, permissions: &[&str]) -> Uuid {
         let identity: Uuid = sqlx::query_scalar(
-            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
+            "INSERT INTO person (id, display_name, kind)
+             VALUES (gen_random_uuid(), 'r-' || gen_random_uuid(), 'service_account')
+             RETURNING id",
         )
         .fetch_one(&self.pool)
         .await
         .unwrap();
+        crate::support::member(&self.pool, self.group, identity).await;
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -232,6 +283,7 @@ impl Env {
             "service_domain": {"id": self.services},
             "pod_containers": [{"id": self.container}],
             "service_networks": [{"id": self.network}],
+            "connector_group": {"id": self.group},
         });
         merge(&mut fields, extra);
         op("create_cluster", fields)
@@ -1138,7 +1190,8 @@ async fn workload_recreated_keeps_identity(pool: PgPool) {
 }
 
 /// REQ-019-8, design « Références »: a namespace with living workloads does not close
-/// alone; closed in cascade, it closes them.
+/// alone; never closed by hand, it closes with its cluster in cascade, its workloads with
+/// it.
 #[kartenn_testing::pg_test]
 async fn namespace_cascade_closes_workloads(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -1163,20 +1216,6 @@ async fn namespace_cascade_closes_workloads(pool: PgPool) {
         "core.object.dependents",
     )
     .await;
-    // In cascade, its workloads close with it.
-    env.applied(vec![Operation::Close {
-        kind: ObjectKind::from_name("kube.namespace").unwrap(),
-        id: Ref::Id(payments),
-        expected: None,
-        cascade: true,
-    }])
-    .await;
-    assert!(env.workloads(payments).await.is_empty());
-    assert!(
-        env.named("kube.namespace", prod, "payments")
-            .await
-            .is_empty()
-    );
     // Its workloads closed first, a namespace closes in the same batch.
     env.applied(vec![
         workload("close", prod, "batch", "job", "export", json!({})),
@@ -1185,6 +1224,35 @@ async fn namespace_cascade_closes_workloads(pool: PgPool) {
     .await;
     assert!(env.workloads(batch).await.is_empty());
     assert!(env.named("kube.namespace", prod, "batch").await.is_empty());
+    // Closed in cascade by hand: refused, a mirror is never closed so (Q-019-18).
+    env.refused(
+        vec![Operation::Close {
+            kind: ObjectKind::from_name("kube.namespace").unwrap(),
+            id: Ref::Id(payments),
+            expected: None,
+            cascade: true,
+        }],
+        "kube.object.managed",
+    )
+    .await;
+    // Its cluster closed in cascade: the namespace and its workloads with it.
+    env.applied(vec![close_cluster(prod)]).await;
+    assert!(env.workloads(payments).await.is_empty());
+    assert!(
+        env.named("kube.namespace", prod, "payments")
+            .await
+            .is_empty()
+    );
+}
+
+/// The closure in cascade of the cluster `id`, which takes its mirrors with it.
+fn close_cluster(id: Uuid) -> Operation {
+    Operation::Close {
+        kind: ObjectKind::from_name("kube.cluster").unwrap(),
+        id: Ref::Id(id),
+        expected: None,
+        cascade: true,
+    }
 }
 
 /// `kube.sync` of `action` on the service named `name` in the namespace `namespace` of
@@ -1459,7 +1527,7 @@ async fn external_ips_fall_back_to_service_domain(pool: PgPool) {
 }
 
 /// REQ-019-14, design « Références » (`OnClose::Owned`): a closed service closes its
-/// addresses, by `kube.sync` or in the cascade of its namespace; deleted then created
+/// addresses, by `kube.sync` or in the cascade of its cluster; deleted then created
 /// again under the same name, it is the same service (019/X3), with new addresses.
 #[kartenn_testing::pg_test]
 async fn service_closed_closes_its_addresses(pool: PgPool) {
@@ -1495,21 +1563,15 @@ async fn service_closed_closes_its_addresses(pool: PgPool) {
     assert_eq!((cluster_ips.len(), external_ips.len()), (1, 1));
     assert_eq!(env.addresses_ever(env.services).await, 2);
     assert_eq!(env.addresses_ever(external).await, 2);
-    // Its namespace closed in cascade: the service, then its addresses.
-    env.applied(vec![Operation::Close {
-        kind: ObjectKind::from_name("kube.namespace").unwrap(),
-        id: Ref::Id(payments),
-        expected: None,
-        cascade: true,
-    }])
-    .await;
+    // Its cluster closed in cascade: the service, then its addresses.
+    env.applied(vec![close_cluster(prod)]).await;
     assert!(env.services(payments, "web").await.is_empty());
     assert!(env.addresses(env.services).await.is_empty());
     assert!(env.addresses(external).await.is_empty());
 }
 
 /// REQ-019-9: a service selecting two workloads lists them, each workload lists the
-/// service; a workload closed by the connector, or in cascade, leaves the selection
+/// service; a workload closed by the connector leaves the selection
 /// (design « Références », mise à nul), a workload unknown to the namespace refuses the
 /// batch.
 #[kartenn_testing::pg_test]
@@ -1595,9 +1657,12 @@ async fn selection_lists_both_ways(pool: PgPool) {
     };
     env.refused(vec![close(false)], "core.object.dependents")
         .await;
-    // In cascade, it leaves the selection.
-    env.applied(vec![close(true)]).await;
-    assert!(env.selected(frontend).await.is_empty());
+    // In cascade by hand: refused, a mirror is never closed so (Q-019-18).
+    env.refused(vec![close(true)], "kube.object.managed").await;
+    assert_eq!(env.selected(frontend).await, [report]);
+    // With its cluster closed in cascade, the selecting services close too.
+    env.applied(vec![close_cluster(prod)]).await;
+    assert!(env.services(payments, "frontend").await.is_empty());
 }
 
 /// `kube.sync` of `action` on the ingress named `name` in the namespace `namespace` of
@@ -1762,7 +1827,7 @@ async fn ingress_backend_missing_warns(pool: PgPool) {
 /// addresses of usage `vip` of the external domain of its cluster, created and cited in the
 /// same `kube.sync`; one does not close alone while the ingress cites it; an address gone
 /// closes; a closed ingress closes its addresses, by `kube.sync` or in the cascade of its
-/// namespace; deleted then created again under the same name, it is the same ingress
+/// cluster; deleted then created again under the same name, it is the same ingress
 /// (019/X3), with new addresses.
 #[kartenn_testing::pg_test]
 async fn ingress_closed_closes_its_addresses(pool: PgPool) {
@@ -1820,14 +1885,8 @@ async fn ingress_closed_closes_its_addresses(pool: PgPool) {
     assert_eq!(env.ingresses(payments, "shop").await, ids);
     assert_eq!(env.ingress_address_ids(ids[0]).await.len(), 1);
     assert_eq!(env.addresses_ever(external).await, 3);
-    // Its namespace closed in cascade: the ingress, then its address.
-    env.applied(vec![Operation::Close {
-        kind: ObjectKind::from_name("kube.namespace").unwrap(),
-        id: Ref::Id(payments),
-        expected: None,
-        cascade: true,
-    }])
-    .await;
+    // Its cluster closed in cascade: the ingress, then its address.
+    env.applied(vec![close_cluster(prod)]).await;
     assert!(env.ingresses(payments, "shop").await.is_empty());
     assert!(env.addresses(external).await.is_empty());
 }
@@ -2121,4 +2180,304 @@ async fn vip_shared_read_required(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     let blog = env.ingresses(payments, "blog").await[0];
     assert_eq!(env.ingress_address_ids(blog).await, [vip]);
+}
+
+/// The workload `web` of `cluster`, in its namespace `payments`, labelled `app: app`.
+fn web(cluster: Uuid, app: &str) -> Operation {
+    workload(
+        "upsert",
+        cluster,
+        "payments",
+        "deployment",
+        "web",
+        json!({ "labels": {"app": app} }),
+    )
+}
+
+/// The declaration of `custom.environment`, a text the workloads carry.
+fn environment() -> Operation {
+    use kartenn_service::operations::{DeclarationInput, TypeInput};
+    Operation::DeclareProperty {
+        local: None,
+        declaration: DeclarationInput {
+            key: "custom.environment".into(),
+            value_type: TypeInput::Text {
+                min_len: 0,
+                max_len: 32,
+                pattern: None,
+            },
+            cardinality: kartenn_core::values::Cardinality::Single,
+            carriers: vec!["kube.workload".into()],
+            inherit: None,
+            module: None,
+            obligations: Vec::new(),
+            expected: None,
+            labels: None,
+        },
+    }
+}
+
+/// The value `value` of `property` set on the workload `object`.
+fn environment_of(object: Uuid, property: Uuid, value: &str) -> Operation {
+    Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::from_name("kube.workload").unwrap(),
+        property: Ref::Id(property),
+        values: vec![RawInput::Text(value.into())],
+    }
+}
+
+impl Env {
+    /// The namespace `payments` of `cluster` and its workload `web`, written by the
+    /// connector: the workload.
+    async fn web(&self, cluster: Uuid) -> Uuid {
+        self.applied(vec![sync(
+            "upsert",
+            "namespace",
+            cluster,
+            "payments",
+            json!({}),
+        )])
+        .await;
+        self.applied(vec![web(cluster, "web")]).await;
+        let payments = self.named("kube.namespace", cluster, "payments").await[0];
+        self.workloads(payments).await[0]
+    }
+
+    /// The labels of the living version of the workload `id`.
+    async fn labels(&self, id: Uuid) -> Value {
+        sqlx::query_scalar(
+            "SELECT labels FROM kube.workload WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// `operations` by `author`, refused under `rule`.
+    async fn refused_by(&self, author: Uuid, operations: Vec<Operation>, rule: &str) {
+        let outcome = self.submit_by(author, operations).await;
+        assert!(rules(&outcome).contains(&rule), "{rule}: {outcome:?}");
+    }
+}
+
+/// REQ-019-12, 30, 019/X5: the tracked fields of a mirror are written by a service account
+/// of the connector group of its cluster alone: neither by an administrator, nor by the
+/// connector of another cluster, even when both clusters share their domains.
+#[kartenn_testing::pg_test]
+async fn managed_field_refused_for_human(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.refused_by(env.author, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    // The connector of another cluster on the same domains.
+    let (other, group) = crate::support::connector(&pool, "connector-test").await;
+    env.applied(vec![
+        env.cluster("test", json!({"connector_group": {"id": group}})),
+    ])
+    .await;
+    env.refused_by(other, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+    // The connector of the cluster writes them.
+    env.applied(vec![web(prod, "shop")]).await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "shop"}));
+}
+
+/// REQ-019-12: a person added to the connector group is no service account: refused.
+#[kartenn_testing::pg_test]
+async fn managed_field_refused_for_person_in_connector_group(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    crate::support::member(&pool, env.group, env.author).await;
+    env.refused_by(env.author, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+}
+
+/// REQ-019-12: a property on a mirror is written under the ordinary rights, by its
+/// administrator, its tracked fields untouched.
+#[kartenn_testing::pg_test]
+async fn property_on_mirror_accepted(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.applied(vec![environment()]).await;
+    let property = env
+        .id("property_declaration", "key", "custom.environment")
+        .await;
+    env.applied(vec![environment_of(web_id, property, "production")])
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+}
+
+/// REQ-019-30, 019/X10, Q-019-18: the connector writes by `kube.sync` alone: an operation
+/// of the core or a closure in cascade it sends by hand is refused, alone or beside a
+/// batch, and so for a member of its group by a group of its issuer; the plans `kube.sync`
+/// adds itself (networks and addresses created and closed, a selection set to nothing)
+/// pass.
+#[kartenn_testing::pg_test]
+async fn connector_direct_operation_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.applied(vec![environment()]).await;
+    let property = env
+        .id("property_declaration", "key", "custom.environment")
+        .await;
+    let set = environment_of(web_id, property, "production");
+    env.refused_by(env.connector, vec![set.clone()], "kube.connector.direct")
+        .await;
+    // A person member of the group by a group of its issuer, as its session carries it.
+    let issuer = "https://idp.example.org";
+    let person: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, issuer) VALUES (gen_random_uuid(), 'p', $1)
+         RETURNING id",
+    )
+    .bind(issuer)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO group_member (id, group_id, member_kind, issuer, group_name, valid_period,
+                                   changeset_id)
+         VALUES (gen_random_uuid(), $1, 'idp_group', $2, 'kube-ops',
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(env.group)
+    .bind(issuer)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let subject = kartenn_service::authz::Subject {
+        id: person,
+        issuer: Some(issuer.into()),
+        groups: vec!["kube-ops".into()],
+    };
+    let outcome = env.submit_in(&subject, vec![set.clone()]).await;
+    assert!(
+        rules(&outcome).contains(&"kube.connector.direct"),
+        "{outcome:?}"
+    );
+    // Outside the group of its issuer, the same person writes it.
+    let outside = kartenn_service::authz::Subject {
+        groups: vec!["others".into()],
+        ..subject
+    };
+    let outcome = env.submit_in(&outside, vec![set.clone()]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    env.refused_by(
+        env.connector,
+        vec![web(prod, "shop"), set],
+        "kube.connector.direct",
+    )
+    .await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    env.refused_by(
+        env.connector,
+        vec![Operation::Close {
+            kind: ObjectKind::from_name("kube.namespace").unwrap(),
+            id: Ref::Id(payments),
+            expected: None,
+            cascade: true,
+        }],
+        "kube.connector.direct",
+    )
+    .await;
+    assert_eq!(env.workloads(payments).await, [web_id]);
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+    // A node and its pod range: the network created by the batch, closed with the node.
+    let node = |action: &str| {
+        sync(
+            action,
+            "node",
+            prod,
+            "worker-1",
+            json!({"pod_cidrs": ["198.51.100.0/26"]}),
+        )
+    };
+    env.applied(vec![node("upsert")]).await;
+    assert_eq!(env.pod_networks().await.len(), 1);
+    env.applied(vec![sync("close", "node", prod, "worker-1", json!({}))])
+        .await;
+    assert!(env.pod_networks().await.is_empty());
+    // A service selecting the workload, its cluster IP created by the batch; then the
+    // workload gone: its selection is set to nothing by the same batch.
+    env.applied(vec![service(
+        "upsert",
+        prod,
+        "payments",
+        "frontend",
+        json!({
+            "workloads": [{"kind": "deployment", "name": "web"}],
+            "cluster_ips": ["203.0.113.10"],
+        }),
+    )])
+    .await;
+    let frontend = env.services(payments, "frontend").await[0];
+    assert_eq!(env.selected(frontend).await, [web_id]);
+    let ips = env.addresses(env.services).await;
+    assert_eq!(ips.len(), 1, "{ips:?}");
+    assert_eq!(env.service_address_ids(frontend).await.0, [ips[0].0]);
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    assert!(env.selected(frontend).await.is_empty());
+}
+
+/// 019/X5, Q-019-18: an administrator never closes a mirror by hand; the restoration that
+/// undoes a batch passes, and so does the closure of its cluster in cascade, which takes
+/// its mirrors with it.
+#[kartenn_testing::pg_test]
+async fn mirror_closed_by_hand_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    let close = |kind: &str, id: Uuid, cascade: bool| Operation::Close {
+        kind: ObjectKind::from_name(kind).unwrap(),
+        id: Ref::Id(id),
+        expected: None,
+        cascade,
+    };
+    env.refused(
+        vec![close("kube.workload", web_id, false)],
+        "kube.object.managed",
+    )
+    .await;
+    env.refused(
+        vec![close("kube.namespace", payments, true)],
+        "kube.object.managed",
+    )
+    .await;
+    assert_eq!(env.workloads(payments).await, [web_id]);
+    // A batch undone by the administrator: its workload restored as before.
+    let Outcome::Applied { changeset, .. } = env.submit(vec![web(prod, "shop")]).await else {
+        panic!("batch not applied");
+    };
+    assert_eq!(env.labels(web_id).await, json!({"app": "shop"}));
+    let inverse = kartenn_service::undo::inverse(&env.store, changeset, env.author)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(inverse.conflicts.is_empty(), "{:?}", inverse.conflicts);
+    env.applied(inverse.request.operations).await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+    // The cluster closed in cascade: its mirrors with it.
+    env.applied(vec![close("kube.cluster", prod, true)]).await;
+    assert!(env.workloads(payments).await.is_empty());
+    assert!(
+        env.named("kube.namespace", prod, "payments")
+            .await
+            .is_empty()
+    );
 }
