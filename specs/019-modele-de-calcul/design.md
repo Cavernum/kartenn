@@ -210,16 +210,16 @@ Garde-fous tenus par le schéma et la route (REQ-019-16) :
   triée des ouvertures (toutes les colonnes sauf la borne haute) puis des fermetures
   (`pod_uid`, `ip`, borne haute), sérialisée en JSON canonique (RFC 8785). La tâche de
   fond `kube.observations.verify` (quotidienne) recalcule l'empreinte des lots dont
-  aucune ligne n'est purgée et inscrit `observation.batch.altered` en cas d'écart ;
+  aucune ligne n'est purgée (`observation_batch.earliest` après la borne de purge de
+  leur cluster, Q-019-24) et inscrit `observation.batch.altered` en cas d'écart ;
   l'empreinte de l'audit scellé fait foi, la copie de `observation_batch` ne sert qu'à
   la recherche.
-- **Purge** (tâche de fond `kube.observations.purge`, ADR 0023) : détache et supprime
-  des partitions entières dont toutes les observations sont fermées depuis plus que la
-  rétention de leur cluster ; une observation ouverte n'est jamais purgée. Le
-  partitionnement (par cluster puis par temps de fin, avec une partition des
-  observations ouvertes, ou autre) est fixé à la tâche 6 sous ces contraintes ; la purge
-  passe par une fonction du propriétaire du schéma, seule à pouvoir détacher une
-  partition.
+- **Purge** (tâche de fond `kube.observations.purge`, ADR 0023 ; Q-019-20) : par
+  cluster, une fonction du propriétaire du schéma supprime les lignes fermées depuis
+  plus que la rétention du cluster et avance sa borne de purge ; une partition de jour
+  est détachée et supprimée quand tous les clusters l'ont dépassée ; une observation
+  ouverte n'est jamais purgée. Les partitions de jours sont créées d'avance par la tâche
+  de fond. Le partitionnement est fixé par la tâche 6a (précision ci-dessous).
 
 Un pod en `hostNetwork` est noté sans `ip` (l'adresse est celle du nœud).
 
@@ -231,11 +231,18 @@ propriétaire `kube.observation_partition(jour)` quand un lot ferme dans ce jour
 fermeture déplace la ligne de la partition des ouvertes vers son jour. Une clé
 d'expression n'admet pas de clé primaire, et `ip` est nulle en `hostNetwork` : l'unicité
 porte sur les seules ouvertes (`(cluster_id, pod_uid, ip) NULLS NOT DISTINCT`), la
-validation refuse le reste. Les partitions de jours ne sont pas par cluster : un jour se
-purge quand il est hors de la rétention de chacun des clusters qui y ont des lignes ; la
-lecture rend vide, avec le motif `retention`, ce qui est hors de celle de son cluster.
-L'écriture d'un lot (`kartenn_kube::observations::record`) : lots d'un cluster
-sérialisés (verrou consultatif de transaction) ; une ouverture identique à une
+validation refuse le reste ; un index (`cluster_id`, `pod_uid`) sert ces contrôles dans
+chaque partition. `opened_batch` et `closed_batch` sont des clés étrangères vers
+`observation_batch` : aucune fin ne se pose hors d'un lot accepté. Les partitions de
+jours sont communes aux clusters ; la purge est par cluster (Q-019-20) : une fonction du
+propriétaire supprime les lignes d'un cluster passées sa rétention, sous une borne de
+purge écrite par cluster (lue par la vérification), et un jour est détaché et supprimé
+quand tous les clusters l'ont dépassé. L'écriture d'un lot
+(`kartenn_kube::observations::record`) : lots d'un cluster sérialisés (verrou
+consultatif de transaction) ; les jours des fermetures créés avant toute lecture du
+journal, pour qu'aucun lot ne tienne une lecture des fermées en attendant le verrou de
+création d'un jour (sans cycle entre deux clusters) ; une fermeture qui ne met rien à
+jour refuse le lot ; une ouverture identique à une
 observation ouverte n'écrit rien et n'est pas comptée (reprise du connecteur après un
 redémarrage), différente elle refuse le lot, comme la réouverture d'une observation
 fermée ; une fermeture doit suivre le début ; un instant à venir est ramené à celui du
@@ -297,8 +304,8 @@ objets qui portent une propriété de référence vers lui ; elle est réévalu�
 |---|---|---|
 | `kube.cluster.{read,edit,apply,approval.self}` | — | déclaration d'un cluster |
 | `kube.node.*`, `kube.namespace.*`, `kube.workload.*`, `kube.service.*`, `kube.ingress.*` (mêmes actions) | — | objets miroirs (champs suivis réservés au connecteur par `kube.object.managed`) |
-| `kube.observation.read` | — | journal d'observation, sur le périmètre du cluster |
-| `kube.observation.record` | — | lot d'observations (rôle `kube_connector` seulement) |
+| `kube.observation.read` | — | journal d'observation, sur le domaine des pods du cluster (Q-019-23) |
+| `kube.observation.record` | — | lot d'observations (rôle `kube_connector` seulement), sur le domaine des pods du cluster (Q-019-23) |
 | `kube.settings.{edit,apply,approval.self}` | oui | paramètres du module (lus sous `kube.cluster.read`) |
 
 Rôles livrés : lecteur, éditeur, approbateur reçoivent `kube.<type>.read` ;
@@ -309,7 +316,9 @@ connecteur sur les domaines désignés du cluster ; le module le déclare au reg
 
 Événements d'audit nouveaux (catalogue du noyau, ADR 0043) : `observation.batch.recorded`
 (INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`) et
-`observation.batch.altered` (ERROR, criticité haute ; `journal`, `batch`). Ils
+`observation.batch.altered` (ERROR, criticité haute ; `journal`, `batch`, `expected`,
+`found`). Le premier s'inscrit dans la transaction du lot par `record_in(tx, event)` du
+port du journal PostgreSQL ; un lot vide est audité comme les autres (Q-019-21, 22). Ils
 apparaissent dans `docs/spec/evenements-audit.md` et `evenements-audit.schema.json`,
 générés, quand le code les déclare (tâche 6).
 
@@ -452,8 +461,8 @@ refusés, objets absents, mode de repli.
 | Route | Rôle |
 |---|---|
 | `GET, POST /v1/kube-clusters` (filtre `?slug=`) ; `GET, PATCH, DELETE /v1/kube-clusters/{id}` | déclaration (`kube.cluster.*`) |
-| `POST /v1/kube-clusters/{id}/observations` | lot d'observations (`kube.observation.record`, membre du groupe du connecteur ; 201 avec l'identifiant du lot et son empreinte, 422 `kube.observation.invalid`) |
-| `GET /v1/kube-clusters/{id}/observations?ip=&at=` ; `GET /v1/workloads/{id}/observations` | journal (`kube.observation.read`, périmètre du cluster) |
+| `POST /v1/kube-clusters/{id}/observations` | lot d'observations (`kube.observation.record`, membre du groupe du connecteur ; corps `{opened, closed}`, workload et nœud en références `{id}` ; au plus `batch_max_operations` lignes ; 201 `{id, received_at, opened, closed, hash}`, empreinte en hexadécimal ; 422 `invalid-batch`, `code` `kube.observation.invalid`, `violations` à pointeurs JSON ; un lot vide est audité comme les autres ; Q-019-21) |
+| `GET /v1/kube-clusters/{id}/observations?ip=&at=` ; `GET /v1/workloads/{id}/observations` | journal (`kube.observation.read`, domaine des pods du cluster ; `ip=` une adresse ou un réseau ; hors rétention 200 avec `items: []` et `reason: "retention"` ; lectures journalisées par `record_read` ; Q-019-25) |
 | `GET /v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`, `/v1/ingresses` (+ `/{id}`) | lectures datées, filtres de REQ-019-38 (`kube.<type>.read`) |
 | `GET /v1/workloads/{id}/chain` | chaîne d'exécution |
 | `GET, POST /v1/kube-label-mappings`, `GET, PATCH, DELETE /v1/kube-label-mappings/{id}` ; `PUT /v1/kube-namespaces/{id}/admitted-values` ; `GET, PUT /v1/kube-tracked-labels` | paramètres du module (`kube.settings.*`), un changeset d'une opération (`If-Match`) |

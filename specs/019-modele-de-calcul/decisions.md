@@ -315,6 +315,64 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   normalisé (UTC, comme le reste de REST), sous les noms du design « Section de
   différentiel » ; une migration ne change plus le contrat.
 
+### Q-019-20 — Rétention du journal par cluster (revue de la tâche 6a)
+- Constat : la 6a partitionne les observations fermées par jour UTC, en partitions
+  communes à tous les clusters ; détacher un jour seulement quand chaque cluster qui y a
+  des lignes l'a dépassé garde les lignes d'un cluster à 30 jours aussi longtemps que
+  celles d'un cluster à 400, contre l'esprit de l'ADR 0043 (décision 8 : aucune donnée de
+  topologie gardée sans besoin).
+- Options : A. partitions par cluster puis par jour (création à chaque cluster,
+  partitions × clusters) ; B. partitions de jours communes, lecture seule bornée par la
+  rétention ; C. partitions de jours communes, purge par cluster.
+- Décision (l'utilisateur, 2026-11-11) : C. Une fonction du propriétaire du schéma
+  supprime les lignes d'un cluster passées sa rétention, sous une borne de purge écrite
+  par cluster (que la vérification de la 6c lit) ; une partition de jour est détachée et
+  supprimée quand tous les clusters l'ont dépassée. Le rôle de l'application n'a toujours
+  ni `DELETE` ni `TRUNCATE`.
+
+### Q-019-21 — Contrat de la route d'un lot (tâche 6b)
+- Constat : le design fixe la route, la permission, le 201 (identifiant, empreinte) et le
+  422 `kube.observation.invalid`, mais ni le corps, ni la classe du Problem Details, ni le
+  plafond d'un lot, ni le sort d'un lot vide.
+- Options (classe du 422) : A. classe générique du noyau ; B. `invalid-member` avec un
+  `code` ; C. classes déclarées par les modules.
+- Décisions (l'utilisateur, 2026-11-11, sur la recommandation) : A, classe du noyau
+  `invalid-batch` (422), extensions `code` (`kube.observation.invalid`) et `violations`
+  à pointeurs JSON (`/opened/3`) ; corps `{opened, closed}`, workload et nœud par
+  références `{id}` (006/H3) ; 201 `{id, received_at, opened, closed, hash}`, empreinte
+  en hexadécimal ; plafond = `batch_max_operations` du cluster ; un lot vide est audité
+  comme les autres (ligne `observation_batch` et événement).
+
+### Q-019-22 — Audit d'un lot dans sa transaction (tâche 6b)
+- Constat : l'inscription d'audit de REST passe aujourd'hui hors de la transaction de
+  l'écriture ; l'ADR 0043 (décision 5) veut `observation.batch.recorded` dans la
+  transaction du lot.
+- Options : A. méthode `record_in(tx, event)` du port du journal PostgreSQL ; B. outbox.
+- Décision (l'utilisateur, 2026-11-11) : A. `observation.batch.altered` porte en outre
+  `expected` et `found` (empreintes en hexadécimal).
+
+### Q-019-23 — Périmètre des droits du journal (tâche 6b)
+- Constat : le cluster n'est pas ancré dans un domaine, alors que X10 lie
+  `kube_connector` aux domaines désignés du cluster.
+- Options : A. droits évalués sur l'objet cluster (propriétaire, site) ; B. sur le
+  domaine des pods du cluster.
+- Décision (l'utilisateur, 2026-11-11) : B. `kube.observation.record` et
+  `kube.observation.read` s'évaluent sur le `pod_domain` du cluster.
+
+### Q-019-24 — Lot entier pour la vérification (tâche 6c)
+- Constat : la vérification ne recalcule que les lots dont aucune ligne n'est purgée ; une
+  ligne supprimée hors de l'application ne doit pas passer pour une purge.
+- Décision (l'utilisateur, 2026-11-11, sur la recommandation) : colonne
+  `observation_batch.earliest` (le plus petit instant du lot) et borne de purge par
+  cluster (Q-019-20) : un lot dont `earliest` suit la borne de son cluster est entier ;
+  les partitions de jours sont créées d'avance par la tâche de fond et détachées à la
+  purge.
+
+### Q-019-25 — Lectures du journal (tâche 6d)
+- Décision (l'utilisateur, 2026-11-11, sur la recommandation) : réponse 200 avec
+  `items: []` et `reason: "retention"` hors rétention ; `ip=` accepte une adresse ou un
+  réseau (REQ-019-17) ; chaque lecture est journalisée par `record_read` (REQ-012-18).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
@@ -706,7 +764,8 @@ l'utilisateur le 2026-11-09 (tâche 0b).
 3. **Contrat REST** (additif, 006/H12) : collections `/v1/kube-clusters`,
    `/v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`,
    `/v1/ingresses`, identifiées par `{id}`, la clé naturelle en filtre (006/H3) ; route
-   d'observations ; extrémités nouvelles des verdicts et des flux ; lignes de la section
+   d'observations (corps, classe `invalid-batch`, plafond : Q-019-21, 2026-11-11) ;
+   extrémités nouvelles des verdicts et des flux ; lignes de la section
    `kube.objects` en JSON explicite par type (Q-019-19, 2026-11-11).
 4. **Sécurité** : X10 (droits côté cluster, refus de démarrer, identifiants ;
    confinement côté kartenn par groupe, domaines et `kube.connector.direct`), X5
