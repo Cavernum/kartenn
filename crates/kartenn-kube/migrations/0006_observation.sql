@@ -35,9 +35,10 @@ CREATE TABLE pod_observation (
     host_network  boolean NOT NULL,
     observed      tstzrange NOT NULL CHECK (NOT isempty(observed) AND NOT lower_inf(observed)
                                             AND lower_inc(observed) AND NOT upper_inc(observed)),
-    -- The batch that opened it, the one that set its end.
-    opened_batch  uuid NOT NULL,
-    closed_batch  uuid,
+    -- The batch that opened it, the one that set its end: a batch accepted, so that no
+    -- end is set outside the fingerprint of a batch.
+    opened_batch  uuid NOT NULL REFERENCES observation_batch (id),
+    closed_batch  uuid REFERENCES observation_batch (id),
     CHECK (host_network = (ip IS NULL)),
     CHECK (upper_inf(observed) = (closed_batch IS NULL))
 ) PARTITION BY LIST (upper_inf(observed));
@@ -50,6 +51,8 @@ CREATE UNIQUE INDEX pod_observation_open_key
 -- Who had an IP at an instant; where a workload ran.
 CREATE INDEX pod_observation_by_ip ON pod_observation USING GIST (cluster_id, ip inet_ops, observed);
 CREATE INDEX pod_observation_by_workload ON pod_observation (workload_id, observed);
+-- The observations of the pods of a batch, open or closed, read by its checks.
+CREATE INDEX pod_observation_by_pod ON pod_observation (cluster_id, pod_uid);
 -- The verification of a batch reads its rows back.
 CREATE INDEX pod_observation_by_opened ON pod_observation (opened_batch);
 CREATE INDEX pod_observation_by_closed ON pod_observation (closed_batch) WHERE closed_batch IS NOT NULL;
@@ -92,7 +95,9 @@ BEGIN
     IF to_regclass(format('kube.%I', name)) IS NOT NULL THEN
         RETURN;
     END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('kube.observation_partition', 0));
+    -- A lock on the table, not an advisory one: taking it reads the invalidations of the
+    -- catalogue, so that a day another batch created meanwhile is seen.
+    LOCK TABLE ONLY kube.pod_observation_closed IN SHARE UPDATE EXCLUSIVE MODE;
     IF to_regclass(format('kube.%I', name)) IS NOT NULL THEN
         RETURN;
     END IF;

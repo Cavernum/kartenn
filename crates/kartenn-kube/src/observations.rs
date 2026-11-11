@@ -290,7 +290,8 @@ type Key = (Uuid, Option<IpAddr>);
 /// container of the cluster, in a pod range of one of its living nodes, or is an address
 /// read of one of them; a workload and a node cited are of the cluster; a closing ends an
 /// open observation of the cluster, after its start. An instant to come is the instant of
-/// the batch. Nothing enters the model, the changesets or the outbox.
+/// the batch. Nothing enters the model, the changesets or the outbox. On an error, the
+/// caller rolls its transaction back: a day created or a write begun goes with it.
 ///
 /// # Errors
 ///
@@ -347,6 +348,20 @@ pub async fn record(
             ..c.clone()
         })
         .collect();
+    // The days the closings end in, created by the owner of the schema before anything
+    // reads the journal: the creation of a missing day holds a lock common to every
+    // cluster, then waits for the readers of the closed observations; a batch that read
+    // them before asking for that lock would close a cycle with another one.
+    if !closed.is_empty() {
+        sqlx::query(
+            "SELECT kube.observation_partition(d)
+               FROM (SELECT DISTINCT (t AT TIME ZONE 'UTC')::date AS d
+                       FROM unnest($1::timestamptz[]) AS t) AS days",
+        )
+        .bind(closed.iter().map(|c| c.at).collect::<Vec<_>>())
+        .execute(&mut *conn)
+        .await?;
+    }
 
     let mut invalid = Vec::new();
     let mut seen = BTreeSet::new();
@@ -621,21 +636,13 @@ pub async fn record(
     }
     if !closed.is_empty() {
         let ends: Vec<OffsetDateTime> = closed.iter().map(|c| c.at).collect();
-        // The days of the closed observations, created by the owner of the schema.
-        sqlx::query(
-            "SELECT kube.observation_partition(d)
-               FROM (SELECT DISTINCT (t AT TIME ZONE 'UTC')::date AS d
-                       FROM unnest($1::timestamptz[]) AS t) AS days",
-        )
-        .bind(&ends)
-        .execute(&mut *conn)
-        .await?;
-        let done = sqlx::query(
+        let done: Vec<(Uuid, Option<String>)> = sqlx::query_as(
             "UPDATE kube.pod_observation o
                 SET observed = tstzrange(lower(o.observed), l.at, '[)'), closed_batch = $2
                FROM unnest($3::uuid[], $4::text[], $5::timestamptz[]) AS l (pod_uid, ip, at)
               WHERE o.cluster_id = $1 AND upper_inf(o.observed) AND o.pod_uid = l.pod_uid
-                AND o.ip IS NOT DISTINCT FROM l.ip::inet",
+                AND o.ip IS NOT DISTINCT FROM l.ip::inet
+          RETURNING o.pod_uid, host(o.ip)",
         )
         .bind(cluster)
         .bind(id)
@@ -647,10 +654,26 @@ pub async fn record(
                 .collect::<Vec<_>>(),
         )
         .bind(&ends)
-        .execute(&mut *conn)
+        .fetch_all(&mut *conn)
         .await?;
-        // Each closing found its observation: the batches of the cluster are serialised.
-        debug_assert_eq!(done.rows_affected(), closed.len() as u64);
+        // Each closing ended its observation, or the batch is refused and its transaction
+        // rolled back: a closing that wrote nothing never stands in a fingerprint.
+        let done: BTreeSet<Key> = done
+            .into_iter()
+            .map(|(pod_uid, ip)| (pod_uid, ip.and_then(|ip| ip.parse().ok())))
+            .collect();
+        let missed: Vec<Invalid> = closed
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| !done.contains(&(c.pod_uid, c.ip)))
+            .map(|(i, _)| Invalid {
+                line: Line::Closed(i),
+                reason: Reason::NotOpen,
+            })
+            .collect();
+        if !missed.is_empty() {
+            return Err(RecordError::Invalid(missed));
+        }
     }
     Ok(Recorded {
         id,

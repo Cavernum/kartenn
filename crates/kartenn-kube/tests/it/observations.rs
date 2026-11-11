@@ -509,6 +509,27 @@ async fn app_role_cannot_rewrite_or_delete(pool: PgPool) {
             .await;
         assert!(result.is_err(), "{sql}");
     }
+    // An end that only a batch accepted may set: a closing that cites no batch is refused
+    // by the database, so no end stands outside a fingerprint.
+    let mut tx = as_app(&pool).await;
+    let unknown = sqlx::query(
+        "UPDATE kube.pod_observation
+            SET observed = tstzrange(lower(observed), now(), '[)'), closed_batch = gen_random_uuid()
+          WHERE pod_uid = $1",
+    )
+    .bind(Uuid::from_u128(2))
+    .execute(&mut *tx)
+    .await
+    .expect_err("a closing of no batch");
+    assert_eq!(
+        unknown
+            .as_database_error()
+            .and_then(sqlx::error::DatabaseError::code)
+            .as_deref(),
+        Some("23503"),
+        "{unknown}"
+    );
+    drop(tx);
     // The owner of the schema is held by the trigger too.
     let reopened = sqlx::query(
         "UPDATE kube.pod_observation SET observed = tstzrange(lower(observed), NULL, '[)'),
@@ -531,6 +552,71 @@ async fn app_role_cannot_rewrite_or_delete(pool: PgPool) {
             (true, Some("198.51.100.18".into()))
         ]
     );
+}
+
+/// Two batches of two clusters that close in the same new day: the second waits for the
+/// first, which creates the day, then closes in it; neither deadlocks, one day exists.
+#[kartenn_testing::pg_test]
+async fn concurrent_batches_create_one_day(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (other, group) = crate::support::connector(&pool, "other").await;
+    let stage = env.cluster("stage", group).await;
+    let (stage_node, stage_web) = env.populated(stage, other, "198.51.100.64/26").await;
+    let day = OffsetDateTime::now_utc() - hours(72);
+    let mut ours = env.pod(1, "198.51.100.17");
+    ours.from = day - hours(24);
+    let mut theirs = env.pod(2, "198.51.100.70");
+    (theirs.workload, theirs.node, theirs.from) = (Some(stage_web), Some(stage_node), ours.from);
+    let opened = |pod| Batch {
+        opened: vec![pod],
+        closed: Vec::new(),
+    };
+    env.recorded(&opened(ours)).await;
+    env.record_by(stage, other, &opened(theirs)).await.unwrap();
+    let closing_of = |pod, ip| Batch {
+        opened: Vec::new(),
+        closed: vec![closing(pod, ip, day)],
+    };
+    // The first holds its new day until it commits.
+    let mut first = as_app(&pool).await;
+    record(
+        &mut first,
+        env.prod,
+        env.connector,
+        &closing_of(1, "198.51.100.17"),
+    )
+    .await
+    .unwrap();
+    let second = tokio::spawn({
+        let pool = pool.clone();
+        let batch = closing_of(2, "198.51.100.70");
+        async move {
+            let mut tx = as_app(&pool).await;
+            let recorded = record(&mut tx, stage, other, &batch).await;
+            if recorded.is_ok() {
+                tx.commit().await.unwrap();
+            }
+            recorded.map(|r| r.closed)
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(!second.is_finished(), "the second waits for the day");
+    first.commit().await.unwrap();
+    assert_eq!(second.await.unwrap().unwrap(), 1);
+    let days: Vec<String> = sqlx::query_scalar(
+        "SELECT c.relname::text FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+          WHERE i.inhparent = 'kube.pod_observation_closed'::regclass",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(days.len(), 1, "{days:?}");
+    let open: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM kube.pod_observation WHERE upper_inf(observed)")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(open, 0);
 }
 
 /// REQ-019-16 (séparation): a batch writes no changeset, no operation, nothing to the
