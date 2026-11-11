@@ -706,10 +706,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-kube/src/handler.rs` (`update_cluster`), `pg.rs`
     (`pod_domain_moved` à imiter) ; test `pod_domain_change_refused_with_living_objects`
   - dépend de : 4c
-- [ ] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
+- [x] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
   `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
-  module (ADR 0026 clauses 11, 12) ; chaîne d'exécution d'un workload (nœuds, machines,
-  hyperviseurs à la date) avec les arêtes de la 009 — REQ-019-11 — verify :
+  module (ADR 0026 clauses 11, 12) ; la chaîne d'exécution d'un workload (nœuds,
+  machines, hyperviseurs à la date) passe par le lien observé workload → nœud et revient
+  aux tâches 7 (`execution_chain`) et 8 (route) — REQ-019-11 (arêtes) — verify :
   `execution_chain_edges`, `GET /v1/graph/edges?object=<workload>` qui rend ses services
   - où : `crates/kartenn-kube/src/module.rs` ; arêtes de `kartenn-machines` à imiter ;
     ADR 0026 clauses 11, 12
@@ -733,8 +734,14 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - arrêtée : la chaîne « workload → nœud » n'a pas de lien dans le modèle versionné
     (design « Chaîne modélisée » : `workload ─(observé)─▶ nœud`) ; elle demande le
     journal des pods (tâche 6) et revient à `execution_chain` du port de lecture (tâche
-    7) et à `GET /v1/workloads/{id}/chain` (tâche 8). Aucun lien inventé ; à trancher :
-    cocher 4d sur les arêtes et renvoyer la chaîne à la 7.
+    7) et à `GET /v1/workloads/{id}/chain` (tâche 8). Aucun lien inventé. Tranché par
+    la session principale (2026-11-11) : 4d cochée sur les arêtes, la chaîne à la 7.
+  - reste (revue) : `edges.rs` (vers la ligne 31) recopie `pg::time` au lieu de la
+    partager ; sur un `as_of` passé, les recherches par l'extrémité cible dans les tables
+    `_history` n'ont pas d'index (à mesurer au banc) ; le second `Env` de
+    `tests/it/edges.rs` recopie les aides de `clusters.rs` ; pas de test d'une adresse à
+    la fois IP de cluster et externe (une arête), de la période commune de `routes_to`
+    quand les versions diffèrent, ni de `routes_to` sur un `as_of` passé.
 - [ ] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
   service membre du groupe du connecteur du cluster), `kube.connector.direct` et
   `kube.cluster.connector_group`, `mark_absent`, `clear_absent`, anomalie
@@ -768,17 +775,18 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - dépend de : 3
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
-  `execution_chain`, correspondances de labels, valeurs admises et labels suivis du
+  `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et
+  hyperviseurs par les arêtes de la 4d), correspondances de labels, valeurs admises et labels suivis du
   module (paramètres `kube.settings.*`, tables et opérations, `operation_permissions`)
   — REQ-019-32 à 34 (côté module), REQ-019-3 — verify :
   `axis_from_namespace_then_tree`, `axis_values_one_query`, `label_mapping_admitted`,
-  `label_mapping_needs_kube_settings`, `looks_like_pod_warns`
+  `label_mapping_needs_kube_settings`, `looks_like_pod_warns`, `execution_chain_at_date`
   - où : design « Propriétés », « Port de lecture » ;
     `crates/kartenn-machines/src/read.rs` (`machine_values_of_addresses`) ;
     `crates/kartenn-core/src/properties.rs` (`InheritTree`, un arbre par déclaration)
-  - dépend de : 4
+  - dépend de : 4, 6
 - [ ] 8. Routes REST et imports : collections du module par `{id}` (clé naturelle en
-  filtre, `?slug=`), filtres, chaîne d'exécution, paramètres (`If-Match`), permissions
+  filtre, `?slug=`), filtres, chaîne d'exécution (`GET /v1/workloads/{id}/chain`), paramètres (`If-Match`), permissions
   de lecture ajoutées aux rôles livrés (lecteur, éditeur, approbateur ; `apply` à
   l'approbateur ; pas `kube.observation.read`), types `kube.*` filtrables dans les
   événements `changes`, contrat de référence et types du SDK régénérés — REQ-019-38 à
