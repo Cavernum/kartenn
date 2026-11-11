@@ -296,6 +296,10 @@ pub struct CheckContext<'a> {
     pub objects: &'a [(ObjectKind, Uuid)],
     /// Every section of the differential.
     pub sections: &'a [DiffSection],
+    /// The operations its author wrote, in their order: neither those the modules add nor
+    /// the operations of review a validator joins (REQ-016-11). A rule on what an author
+    /// may submit reads them (`kube.connector.direct`, 019/X10).
+    pub operations: &'a [Operation],
 }
 
 /// How a pending changeset ended without being applied (REQ-016-9).

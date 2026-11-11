@@ -1594,14 +1594,13 @@ async fn assignment<T: WriteTx>(
 }
 
 /// The rules of each module on the final state, with the objects of the module the
-/// changeset wrote and the sections of the differential (ADR 0026, clause 7).
+/// changeset wrote and the sections of the differential (ADR 0026, clause 7): `shared` is
+/// the context of every module, whose `touched` each one gets its own.
 async fn check_modules<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
-    changeset: Uuid,
+    shared: crate::module::CheckContext<'_>,
     planned: &[Planned],
-    touched: &[(ObjectKind, Uuid)],
-    sections: &[crate::module::DiffSection],
     violations: &mut Vec<Violation>,
 ) -> Result<ModuleFindings, StoreError> {
     // Each module once, in the order of the registry: a module that wrote nothing may
@@ -1628,10 +1627,8 @@ async fn check_modules<T: WriteTx>(
             })
             .collect();
         let context = crate::module::CheckContext {
-            changeset,
             touched: &objects,
-            objects: touched,
-            sections,
+            ..shared
         };
         let findings = handler.check(tx.module_tx(), &context).await?;
         violations.extend(findings.violations);
@@ -1664,10 +1661,8 @@ async fn check_modules<T: WriteTx>(
             }
         }
         let context = crate::module::CheckContext {
-            changeset,
             touched: &objects,
-            objects: touched,
-            sections,
+            ..shared
         };
         let findings = handler.check(tx.module_tx(), &context).await?;
         violations.extend(findings.violations);
@@ -2599,23 +2594,26 @@ async fn stages<S: Store, A: Authorizer>(
                 return Err(e.into());
             }
         };
-    let module_findings = match check_modules(
-        &mut tx,
-        modules,
-        changeset,
-        &planned,
-        &touched,
-        &sections,
-        &mut violations,
-    )
-    .await
-    {
-        Ok(findings) => findings,
-        Err(e) => {
-            tx.rollback().await?;
-            return Err(e.into());
-        }
+    // What the author wrote, without the operations of review a validator joins.
+    let operations = match mode {
+        Mode::Validation { authored: n, .. } => &req.operations[..n.min(req.operations.len())],
+        Mode::Submission => &req.operations[..],
     };
+    let shared = crate::module::CheckContext {
+        changeset,
+        touched: &[],
+        objects: &touched,
+        sections: &sections,
+        operations,
+    };
+    let module_findings =
+        match check_modules(&mut tx, modules, shared, &planned, &mut violations).await {
+            Ok(findings) => findings,
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(e.into());
+            }
+        };
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
