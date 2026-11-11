@@ -250,3 +250,52 @@ test("an action on the type changeset: in « … » of its record, its dialog cl
   await expect(dialog).toBeHidden();
   await expect(more).toBeFocused();
 });
+
+test("an action of a plugin at the keyboard alone: its element reached by Tab, the focus back on « … »", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  const listed = (await apiCall(page, "GET", "/v1/changesets?page_size=1")).body as {
+    items: { id: string }[];
+  };
+  await page.goto(`/changesets/${listed.items[0]!.id}`);
+  const more = page
+    .getByRole("toolbar", { name: "Actions de revue" })
+    .getByRole("button", { name: "Plus d'actions" });
+  const dialog = page.getByRole("dialog", { name: "Relire les notes" });
+  // The element's own button, not the cross of the dialog: both say Fermer.
+  const close = dialog.locator("notes-review").getByRole("button", { name: "Fermer" });
+  const focused = (target: typeof close) =>
+    target.evaluate((el) => (el.getRootNode() as Document | ShadowRoot).activeElement === el);
+
+  const choose = async () => {
+    await more.press("Enter");
+    const menu = page.getByRole("menu", { name: "Plus d'actions" });
+    const entry = menu.getByRole("menuitem", { name: "Relire les notes" });
+    const entries = await menu.getByRole("menuitem").count();
+    for (let i = 0; i < entries && !(await focused(entry)); i++) {
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect(entry).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+  };
+
+  // Tab goes into the element and stays in the dialog; Entrée on its button closes it.
+  await choose();
+  for (let i = 0; i < 6 && !(await focused(close)); i++) await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(more).toBeFocused();
+
+  // Échap from inside the element closes it as well, the focus back on « … ».
+  await choose();
+  for (let i = 0; i < 6 && !(await focused(close)); i++) await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(more).toBeFocused();
+});
