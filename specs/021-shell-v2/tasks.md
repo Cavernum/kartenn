@@ -220,7 +220,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : `specs/022-evenements-sse/design.md` § « Contrat consommé par les clients »
   - dépend de : —
   - fait le 2026-10-23 avec la validation de la spec
-- [ ] 7. Préchargement : `meta.queries` des routes, `KLink` (survol 60 ms, focus), garde
+- [x] 7. Préchargement : `meta.queries` des routes, `KLink` (survol 60 ms, focus), garde
   de navigation (attente ≤ 100 ms), page suivante et enfants préchargés, modules de
   plugins au survol — REQ-021-22 — verify : parcours : navigation vers une fiche survolée
   sans squelette ; marque `k:view` ≤ 100 ms (banc, tâche 22)
@@ -269,6 +269,24 @@ aucun en parallèle sur `@kartenn/ui` (020).
     mêmes `preloadModules` et entrées des plugins préchargées au repos
     (`requestIdleCallback`, tâche 16) ; parcours « fiche survolée puis ouverte sans
     squelette » après la tâche 11 ; marque `k:view` ≤ 100 ms au banc de la tâche 22.
+  - fait le 2026-11-11 (relevé contre le code, main 1b6f0972) : le reste est livré par les
+    tâches qui l'ont repris, sans code de plus. `meta.queries` de chaque écran et de chaque
+    fiche (`views/routes.ts` : listes par `listOf` et leurs filtres, fiche `object` et
+    `properties`, Topographie `/v1/domains`, Accueil `stats` ; `admin/routes.ts`,
+    `changesets/routes.ts`), `useNextPage` sur la fenêtre de la `DataGrid`
+    (`views/list.ts`, donc listes, anomalies, journal, imports, changesets ; onglets
+    `HistoryTab`, `GroupVlansTab`, `VlanNetworksTab`), `childrenIntent` sur la Topographie
+    (`TopologyView.vue`) : tâche 11 ; `meta.modules` de `/x/:plugin/…`
+    (`frame/routes.ts`), chargeur sur les mêmes `preloadModules` et entrées préchargées
+    au repos (`plugins/loader.ts`, `requestIdleCallback`) : tâche 16 ; marque `k:view`
+    (`prefetch/viewMark.ts`) et sa mesure (`e2e/budgets/budgets.spec.ts`, navigation en
+    cache) : tâche 22a. Verify : parcours `records` « a record hovered then opened shows
+    without a skeleton » ; Vitest `shell/test/prefetch.test.ts`, `sdk/test/
+    prefetch.test.ts`, `shell/test/plugins.test.ts`.
+  - reste (banc) : marque `k:view` ≤ 100 ms (acceptation de REQ-021-22) : 131 ms au p75
+    à la passe pleine échelle de la 22b, avec des fiches non préchargées au survol ;
+    portée par la 22g. Les routes des vues de plugins ne déclarent pas de lectures (la vue
+    les fait dans son élément) : leur navigation ne gagne que les modules.
 - [x] 8. Partage et manifeste : import map étendue (framework, `@kartenn/ui`, feuille liée
   avec empreinte) ; manifeste `ui`, `framework`, `space`, `go` validés côté serveur et
   publiés dans `ui_plugins` (ajout additif) ; plages vérifiées au chargement ; adaptateur
