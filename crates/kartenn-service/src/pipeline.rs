@@ -2605,6 +2605,7 @@ async fn stages<S: Store, A: Authorizer>(
         objects: &touched,
         sections: &sections,
         operations,
+        author,
     };
     let module_findings =
         match check_modules(&mut tx, modules, shared, &planned, &mut violations).await {

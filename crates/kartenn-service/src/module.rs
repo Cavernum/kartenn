@@ -300,6 +300,10 @@ pub struct CheckContext<'a> {
     /// the operations of review a validator joins (REQ-016-11). A rule on what an author
     /// may submit reads them (`kube.connector.direct`, 019/X10).
     pub operations: &'a [Operation],
+    /// The author, as the RBAC resolves its rights: its issuer and the groups of its
+    /// session (or of the snapshot of a pending changeset), for its groups of kartenn
+    /// (`kartenn_member_of`, spec 025; 019/Q-019-18).
+    pub author: &'a crate::authz::Subject,
 }
 
 /// How a pending changeset ended without being applied (REQ-016-9).
