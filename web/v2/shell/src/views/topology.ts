@@ -11,18 +11,24 @@ import type { CollectionId } from "./collections.ts";
 
 /**
  * A level read: its items, whether pages remain to read; `capped`, pages remain beyond
- * those the tree reads (021/A34); `undefined` when not read yet.
+ * those the tree reads (021/A34); `failed`, the error of its next page refused (task
+ * 021-13b, REQ-021-20: the items read stay, its rest is still to read); `undefined` when
+ * not read yet.
  */
 export interface Level<I> {
   items: readonly I[];
   more: boolean;
   capped?: boolean;
+  failed?: unknown;
 }
 
 /** The pages of a level as the cache keeps them (`InfiniteQueryObserver`). */
 export interface LevelPages<I> {
   data?: { pages: readonly { data: { items: readonly I[] } }[] } | undefined;
   hasNextPage: boolean;
+  /** Its next page refused, and why (`error`). */
+  isFetchNextPageError?: boolean;
+  error?: unknown;
 }
 
 /**
@@ -41,6 +47,7 @@ export function levelOfPages<I>(
     items: pages.flatMap((page) => page.data.items),
     more: result.hasNextPage && !capped,
     capped,
+    ...(result.isFetchNextPageError ? { failed: result.error } : {}),
   };
 }
 
@@ -63,7 +70,8 @@ export interface LevelReader<I> {
  * as it was: the page is asked again after that read. A level whose first page failed is
  * read again (its row activated). `live`: whether the level is still the tree's (a domain
  * or dates changed start every level again). The level counts its pages up to `cap`, the
- * `maxPages` of its query (`levelOfPages`).
+ * `maxPages` of its query (`levelOfPages`). A page refused is not asked again: the level
+ * says why (`failed`), until it is asked anew (« Réessayer », the row activated).
  */
 export function askNextPage<I>(
   reader: LevelReader<I>,

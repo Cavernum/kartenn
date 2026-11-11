@@ -1,4 +1,11 @@
-import { CHILDREN_PAGES, queryClient, reads, type Operation, type Simulated } from "@kartenn/sdk";
+import {
+  ApiProblem,
+  CHILDREN_PAGES,
+  queryClient,
+  reads,
+  type Operation,
+  type Simulated,
+} from "@kartenn/sdk";
 import { setFetch } from "@kartenn/sdk/host";
 import type { TreeNode } from "@kartenn/ui";
 import { InfiniteQueryObserver } from "@tanstack/query-core";
@@ -34,6 +41,8 @@ const ID = (n: number) => `0b5e3c1a-0000-4000-8000-00000000000${n}`;
 const P = ID(1); // 198.51.100.0/24, served at the first level
 const C1 = ID(2); // 198.51.100.0/26, under P
 const C2 = ID(3); // 198.51.100.64/26, under P
+const FORBIDDEN = "urn:kartenn:problem:forbidden";
+const REQUEST_ID = "01J0000000000000000000000N";
 const Q = ID(4); // 203.0.113.0/24, served at the first level
 const TEMP = "7e000000-0000-4000-8000-000000000000"; // an identifier of the simulation alone
 const TEMP2 = "7e000000-0000-4000-8000-000000000001";
@@ -407,9 +416,10 @@ describe("a page the tree asks for, against the reads of an invalidation", () =>
   type Page = { data: { items: Child[] } };
   /**
    * 10 children by page, a `next` always, each answer held until `release`; a read aborted
-   * rejects. Each child names the read that served it; `fail` answers 404 to the first.
+   * rejects. Each child names the read that served it; `fail` answers a problem to that
+   * read (1 the first), with its `type` and `Request-Id`.
    */
-  function held(fail = false) {
+  function held(fail?: number) {
     const seen: string[] = [];
     const flying = new Map<string, number>();
     let most = 0;
@@ -427,10 +437,10 @@ describe("a page the tree asks for, against the reads of an invalidation", () =>
       } finally {
         flying.set(url, flying.get(url)! - 1);
       }
-      if (fail && read === 1)
-        return new Response(JSON.stringify({ title: "Not found", status: 404 }), {
-          status: 404,
-          headers: { "Content-Type": "application/problem+json" },
+      if (read === fail)
+        return new Response(JSON.stringify({ type: FORBIDDEN, title: "Forbidden", status: 403 }), {
+          status: 403,
+          headers: { "Content-Type": "application/problem+json", "Request-Id": REQUEST_ID },
         });
       const n = Number(new URL(url, "http://x").searchParams.get("cursor") ?? 0);
       const items = Array.from({ length: 10 }, (_, i) => ({
@@ -455,7 +465,7 @@ describe("a page the tree asks for, against the reads of an invalidation", () =>
     return { seen, of, settle, most: () => most };
   }
 
-  async function opened(fail = false) {
+  async function opened(fail?: number) {
     const net = held(fail);
     const options = queryClient.defaultQueryOptions(
       reads.subPages<Child>("prefix", P, "children") as never,
@@ -506,13 +516,34 @@ describe("a page the tree asks for, against the reads of an invalidation", () =>
   });
 
   it("reads the first page again when it failed and the row is activated", async () => {
-    const { net, stop, level, reader } = await opened(true);
+    const { net, stop, level, reader } = await opened(1);
     expect(level()).toBeUndefined();
     askNextPage(reader);
     await net.settle();
     stop();
     expect(net.of(0)).toHaveLength(2);
     expect(level()?.items).toHaveLength(10);
+  });
+
+  it("says at the level why its next page was refused, keeps its rows, reads it asked again", async () => {
+    const { net, stop, level, reader } = await opened(2);
+    askNextPage(reader);
+    await net.settle();
+    // The page refused: the rows read stay, the rest still to read, the problem at the level
+    // with its codes (task 021-13b); not asked again by itself.
+    expect(level()?.items).toHaveLength(10);
+    expect(level()?.more).toBe(true);
+    const failed = level()?.failed;
+    expect(failed).toBeInstanceOf(ApiProblem);
+    expect(failed).toMatchObject({ status: 403, type: FORBIDDEN, requestId: REQUEST_ID });
+    expect(net.of(1)).toHaveLength(1);
+    // « Réessayer »: the page read, the problem gone.
+    askNextPage(reader);
+    await net.settle();
+    stop();
+    expect(net.of(1)).toHaveLength(2);
+    expect(level()?.items).toHaveLength(20);
+    expect(level()?.failed).toBeUndefined();
   });
 });
 

@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import { atRest, DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 
 // The topography of the new shell (spec 021, task 11; REQ-021-9, 22), ported from
 // web/e2e/journeys/tree.spec.ts: the first level of the domain, the children of a node read
@@ -113,6 +113,72 @@ test("the tree reads a container of more than 10³ children to its last one", as
   await expect(row(tree, "2001:db8:3::/64")).toBeVisible();
 });
 
+test("a next page of a level refused is said with its codes, and read again", async ({
+  page,
+  login,
+}) => {
+  // Task 021-13b (REQ-021-20): the pages after the first one of the children refused, as
+  // kartenn-server words a 503 (its Request-Id a UUID v7), until « Réessayer ».
+  await login("bob");
+  const requestId = "01934f2a-7c3e-7b8a-9c1d-000000000503";
+  let refusing = true;
+  await page.route(/\/v1\/prefixes\/[0-9a-f-]{36}\/children\?(.*&)?cursor=/, (route) =>
+    refusing
+      ? route.fulfill({
+          status: 503,
+          contentType: "application/problem+json",
+          headers: { "Request-Id": requestId },
+          body: JSON.stringify({
+            type: "urn:kartenn:problem:unavailable",
+            title: "Service Unavailable",
+            status: 503,
+          }),
+        })
+      : route.fallback(),
+  );
+  const tree = await topology(page);
+  const wide = row(tree, DATA.wide.prefix);
+  await wide.click();
+  await page.keyboard.press("ArrowRight");
+  await expect(row(tree, "2001:db8:3::/64")).toBeVisible();
+
+  // To the end of the first page: its next page refused (after the retries of the cache),
+  // said above the tree with the node it belongs to, its sentence and its codes.
+  const alert = page
+    .getByRole("alert")
+    .filter({ hasText: `La suite de ${DATA.wide.prefix} n'a pas pu être lue` });
+  await expect(async () => {
+    await tree.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    await expect(alert).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(alert).toContainText("Le service est momentanément indisponible.");
+  await expect(
+    alert.getByRole("button", { name: "Copier urn:kartenn:problem:unavailable" }),
+  ).toBeVisible();
+  await expect(alert.getByRole("button", { name: `Copier ${requestId}` })).toBeVisible();
+  // The rows read stay, the rest still to read.
+  const last = async () =>
+    Math.max(
+      ...(await tree
+        .locator("[role='row'][aria-level='2'][aria-posinset]")
+        .evaluateAll((rows) => rows.map((r) => Number(r.getAttribute("aria-posinset") ?? 0)))),
+    );
+  const read = await last();
+  await expect(tree.locator("[data-more]")).toHaveCount(1);
+  await expectAccessible(page);
+
+  // « Réessayer »: the page read, the alert gone, the focus back on the tree (its cell of
+  // the focus, the node opened), the rows after it in the tree.
+  refusing = false;
+  await alert.getByRole("button", { name: "Réessayer" }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(wide.locator("[role='gridcell']").first()).toBeFocused();
+  await expect(async () => {
+    await tree.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    expect(await last()).toBeGreaterThan(read);
+  }).toPass({ timeout: 10_000 });
+});
+
 test("each prefix says its occupancy from its page, its « + » opens the panel of its kind", async ({
   page,
   login,
@@ -164,6 +230,8 @@ test("the chosen node shows its content, and the URL keeps it", async ({ page, l
   const content = page.getByRole("region", { name: DATA.prefix });
   await expect(content.getByRole("link", { name: DATA.address })).toBeVisible();
   const url = page.url();
+  // Its plugins loaded before the reload (`atRest`: Firefox and the loads cut short).
+  await atRest(page);
   await page.reload();
   await expect(page.getByRole("region", { name: DATA.prefix })).toBeVisible();
   expect(page.url()).toBe(url);
