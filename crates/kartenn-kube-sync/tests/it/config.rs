@@ -107,6 +107,75 @@ fn config_refuses_bad_values() {
     assert!(message.contains("twice"), "{message}");
 }
 
+fn with_urls(kartenn: &str, api_server: &str) -> Result<config::Config, ConfigError> {
+    let text = text("ca_file = \"/etc/kartenn/lab-ca.crt\"\ntoken_file = \"/t\"")
+        .replace("https://kartenn.example.org", kartenn)
+        .replace("https://192.0.2.10:6443", api_server);
+    config::from_toml(&text)
+}
+
+#[test]
+fn config_checks_the_kartenn_url() {
+    let api = "https://192.0.2.10:6443";
+    for url in [
+        "https://kartenn.example.org",
+        "https://kartenn.example.org:8443/base",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.2:8080/",
+        "http://[::1]:8080",
+        "http://localhost",
+        "http://LOCALHOST:8080",
+    ] {
+        assert!(with_urls(url, api).is_ok(), "{url} refused");
+    }
+    for url in [
+        "http://kartenn.example.org",
+        "http://192.0.2.20:8080",
+        "http://localhost.example.org",
+        "http://127.0.0.1.example.org",
+        // User information that hides a remote host behind a loopback prefix.
+        "http://127.0.0.1:80@kartenn.example.org/",
+        "http://localhost:x@192.0.2.20",
+        "https://user:password@kartenn.example.org",
+        "https://user@kartenn.example.org",
+        "https://kartenn.example.org/#fragment",
+        "ftp://127.0.0.1",
+        "kartenn.example.org",
+        "https://",
+    ] {
+        let Err(ConfigError::Invalid(message)) = with_urls(url, api) else {
+            panic!("{url} accepted");
+        };
+        assert!(message.contains("kartenn.url"), "{url}: {message}");
+    }
+}
+
+#[test]
+fn config_checks_the_api_server_url() {
+    let kartenn = "https://kartenn.example.org";
+    for url in [
+        "https://192.0.2.10:6443",
+        "https://[2001:db8::10]:6443",
+        "https://api.lab.example.org",
+    ] {
+        assert!(with_urls(kartenn, url).is_ok(), "{url} refused");
+    }
+    for url in [
+        "http://192.0.2.10:6443",
+        "http://127.0.0.1:6443",
+        "https://user:password@192.0.2.10:6443",
+        "https://token@192.0.2.10:6443",
+        "https://127.0.0.1:80@192.0.2.10",
+        "https://192.0.2.10:6443/#fragment",
+        "192.0.2.10:6443",
+    ] {
+        let Err(ConfigError::Invalid(message)) = with_urls(kartenn, url) else {
+            panic!("{url} accepted");
+        };
+        assert!(message.contains("api_server"), "{url}: {message}");
+    }
+}
+
 #[tokio::test]
 async fn connect_refuses_unusable_ca() {
     let dir = tempfile::tempdir().unwrap();

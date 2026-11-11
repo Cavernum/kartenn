@@ -950,9 +950,17 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     à chaque requête) plutôt que le `TokenFile` de `kube` (relu à la minute, sans test
     possible) ; la CA est lue au démarrage ; bornes de `fallback_period_s` 10 s à 24 h ;
     faux serveur dans les tests du crate, pas derrière une feature.
-  - reste : le `Debug` des erreurs de `kube` n'est couvert que par le test des logs ;
-    `rustls-native-certs` reste dans l'arbre par `tonic` (sortie OTLP de la télémétrie),
-    jamais appelé par le connecteur.
+  - correction (revue) : `kartenn.url` et `api_server` analysés par `http::Uri` (schéma,
+    hôte, ni information d'utilisateur ni fragment ; boucle locale = `localhost`,
+    127.0.0.0/8, `::1`) au lieu d'une comparaison de préfixes ; tests
+    `config_checks_the_kartenn_url`, `config_checks_the_api_server_url`.
+  - reste : le `Debug` des erreurs de `kube` n'est couvert que par le test des logs, qui
+    ne voit ni les enregistrements `log` (rustls) ni une `kube::Error::Api` ;
+    `rustls-native-certs` reste dans l'arbre par le workspace-hack, qui unifie
+    `hyper-rustls` avec la feature `native-tokio` (de `kartenn-auth`) et `tonic`
+    (`tls-native-roots`, sortie OTLP), jamais appelé par le connecteur ; pas de contrôle
+    que le certificat client et sa clé vont ensemble (`keys_match`) ; lectures de
+    fichiers bloquantes dans `resolve` du certificat client (poignée de main).
 - [ ] 10. Boucle list/watch et rapprochement : pagination, reprise, reliste sur `410`,
   projection, lots idempotents, ordre des lots, observations, dates, conduite devant une
   remontée sans workload (`OwnerChainError::ForeignController` : contrôleur de sorte

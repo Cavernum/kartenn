@@ -141,21 +141,49 @@ pub fn from_toml(text: &str) -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-/// Whether `url` is `https`, or `http` on the loopback.
-fn secure_url(url: &str) -> bool {
-    let loopback = ["http://127.0.0.1", "http://[::1]", "http://localhost"]
-        .iter()
-        .any(|base| {
-            url.strip_prefix(base)
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with([':', '/']))
-        });
-    (url.len() > "https://".len() && url.starts_with("https://")) || loopback
+/// What the checks need to know of an absolute URL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Url {
+    https: bool,
+    loopback: bool,
+}
+
+/// `url` analysed: `http` or `https`, a host, no user information (it would carry a
+/// password into the configuration and its `Debug`), no fragment; `None` otherwise.
+fn analyse(url: &str) -> Option<Url> {
+    if url.contains('#') {
+        return None;
+    }
+    let uri = url.parse::<http::Uri>().ok()?;
+    let https = match uri.scheme_str()? {
+        "https" => true,
+        "http" => false,
+        _ => return None,
+    };
+    let authority = uri.authority()?;
+    if authority.as_str().contains('@') {
+        return None;
+    }
+    let host = authority.host();
+    if host.is_empty() {
+        return None;
+    }
+    // `localhost`, 127.0.0.0/8 or `::1` (RFC 6761 §6.3, RFC 1122 §3.2.1.3, RFC 4291 §2.5.3).
+    let loopback = host.eq_ignore_ascii_case("localhost")
+        || host
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback());
+    Some(Url { https, loopback })
 }
 
 fn check(config: &Config) -> Result<(), ConfigError> {
     let invalid = |m: String| Err(ConfigError::Invalid(m));
-    if !secure_url(&config.kartenn.url) {
-        return invalid("kartenn.url: https, or http on the loopback".into());
+    if !analyse(&config.kartenn.url).is_some_and(|url| url.https || url.loopback) {
+        return invalid(
+            "kartenn.url: https, or http on the loopback, without user information".into(),
+        );
     }
     if config.clusters.is_empty() {
         return invalid("clusters: at least one cluster".into());
@@ -168,9 +196,10 @@ fn check(config: &Config) -> Result<(), ConfigError> {
         {
             return invalid(format!("{name}: the slug is given twice"));
         }
-        match cluster.api_server.parse::<http::Uri>() {
-            Ok(uri) if uri.scheme() == Some(&http::uri::Scheme::HTTPS) && uri.host().is_some() => {}
-            _ => return invalid(format!("{name}.api_server: an https URL")),
+        if !analyse(&cluster.api_server).is_some_and(|url| url.https) {
+            return invalid(format!(
+                "{name}.api_server: an https URL without user information"
+            ));
         }
         if cluster.ca_file.is_none() {
             return invalid(format!(
