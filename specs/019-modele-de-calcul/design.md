@@ -223,6 +223,25 @@ Garde-fous tenus par le schéma et la route (REQ-019-16) :
 
 Un pod en `hostNetwork` est noté sans `ip` (l'adresse est celle du nœud).
 
+Précision (2026-11-11, tâche 6a, migration `0006_observation.sql`) : `pod_observation`
+est partitionnée par liste sur `upper_inf(observed)` : une partition des observations
+ouvertes, et celle des fermées, partitionnée par intervalle sur `upper(observed)`, un
+jour UTC par partition (`pod_observation_AAAAMMJJ`), créée par la fonction du
+propriétaire `kube.observation_partition(jour)` quand un lot ferme dans ce jour ; une
+fermeture déplace la ligne de la partition des ouvertes vers son jour. Une clé
+d'expression n'admet pas de clé primaire, et `ip` est nulle en `hostNetwork` : l'unicité
+porte sur les seules ouvertes (`(cluster_id, pod_uid, ip) NULLS NOT DISTINCT`), la
+validation refuse le reste. Les partitions de jours ne sont pas par cluster : un jour se
+purge quand il est hors de la rétention de chacun des clusters qui y ont des lignes ; la
+lecture rend vide, avec le motif `retention`, ce qui est hors de celle de son cluster.
+L'écriture d'un lot (`kartenn_kube::observations::record`) : lots d'un cluster
+sérialisés (verrou consultatif de transaction) ; une ouverture identique à une
+observation ouverte n'écrit rien et n'est pas comptée (reprise du connecteur après un
+redémarrage), différente elle refuse le lot, comme la réouverture d'une observation
+fermée ; une fermeture doit suivre le début ; un instant à venir est ramené à celui du
+lot. Le contenu canonique est le tableau JSON `[ouvertures, fermetures]`, chaque liste
+triée par (`pod_uid`, `ip`), instants en RFC 3339 UTC à la microseconde.
+
 ### Opérations
 
 | `op` | Auteur, permission | Rôle |

@@ -3,7 +3,8 @@
 //! of a pod (`owner`, 019/X3), the projection of an observed object on its tracked fields
 //! (`tracked`, 019/X4), and the rules of the module (`rules`), all without database; the
 //! module as the core sees it (`module`, ADR 0026), and, with the feature `pg`, its
-//! handler in the write pipeline and its storage in PostgreSQL.
+//! handler in the write pipeline, its storage in PostgreSQL and the journal of the pods
+//! observed (`observations`, outside the model).
 
 mod labels;
 pub mod module;
@@ -19,6 +20,8 @@ mod authorship;
 mod edges;
 #[cfg(feature = "pg")]
 pub mod handler;
+#[cfg(feature = "pg")]
+pub mod observations;
 #[cfg(feature = "pg")]
 mod pg;
 

@@ -133,6 +133,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "ingress",
         sql: include_str!("../migrations/0005_ingress.sql"),
     },
+    ModuleMigration {
+        version: 6,
+        name: "observation",
+        sql: include_str!("../migrations/0006_observation.sql"),
+    },
 ];
 
 macro_rules! permissions {

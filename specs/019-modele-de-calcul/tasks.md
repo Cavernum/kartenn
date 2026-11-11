@@ -944,6 +944,103 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     module, 016/G6) ; catalogue d'audit `kartenn-core` (`audit::catalogue_markdown`,
     `docs/spec/evenements-audit.md`, `evenements-audit.schema.json`) ; ADR 0019
   - dépend de : 3
+  - découpée le 2026-11-11 en 6a à 6d (schéma et écriture en base, route et audit, tâches
+    de fond, lectures : quatre familles qui ne tiennent pas dans un contexte), cochée avec
+    la dernière. La route naît avec son audit (6b) : ADR 0043, décision 5, veut chaque lot
+    accepté audité dans sa transaction.
+- [x] 6a. Journal en base : migration suivante (`observation_batch`, `pod_observation`
+  partitionnée, partitionnement fixé sous les contraintes du design, droits d'ajout seul
+  du rôle de l'application et déclencheur, fonction du propriétaire qui crée une
+  partition) ; écriture d'un lot dans une transaction (`observations::record`) : verrou
+  par cluster, auteur compte de service membre direct du groupe du connecteur du
+  cluster, validation à l'entrée (IP dans un conteneur de plage de pods, un réseau de
+  plage d'un nœud ou parmi les adresses lues des nœuds ; workload et nœud du cluster ;
+  fermeture d'une observation ouverte du même cluster), refus du lot entier avec les
+  lignes nommées, empreinte SHA-256 du contenu canonique (RFC 8785) copiée dans
+  `observation_batch` — REQ-019-15, 16 (ajout seul, validation, séparation) — verify :
+  `batch_outside_pod_ranges_refused_whole`, `batch_from_other_cluster_connector_refused`
+  (refus de l'écriture, rien d'écrit), `app_role_cannot_rewrite_or_delete`,
+  `batch_emits_no_changes_event` (ni changeset ni outbox), `batch_hash_recomputes_from_rows`
+  - où : design « Données » (journal et garde-fous) ; ADR 0043 (décisions 3, 4, 7, 8) ;
+    `crates/kartenn-kube/src/observations.rs` (design « Crates »), `module.rs`
+    (`MIGRATIONS`), `migrations/` ; `authorship.rs::unmanaged` (membre direct du groupe
+    du connecteur) et `pg.rs::pod_containers`, `node_ranges` à imiter ;
+    `kartenn_core::audit::jcs` (JSON canonique) ; droits d'ajout seul :
+    `crates/kartenn-flow/migrations/0001_flow.sql`, test en `SET LOCAL ROLE kartenn_app`
+    de `crates/kartenn-flow/tests/it/schema.rs`
+  - dépend de : 3
+  - fait (2026-11-11) : migration `0006_observation.sql` (`observation_batch` ;
+    `pod_observation` par liste sur `upper_inf(observed)`, les fermées par jour UTC de leur
+    fin ; unicité des ouvertes `NULLS NOT DISTINCT` ; index GiST (cluster, IP, période),
+    btree (workload, période), par lot ; `INSERT` et `UPDATE (observed, closed_batch)`
+    seuls pour `kartenn_app`, déclencheur `pod_observation_append_only` ; fonction du
+    propriétaire `observation_partition`) ; `observations.rs` (`Batch`, `Opening`,
+    `Closing`, `record`, `content`, `content_hash`, `RecordError`, lignes et motifs) ;
+    `module.rs` (migration 6) ; design « Données » précisé ; tests
+    `observations::batch_outside_pod_ranges_refused_whole` (IP hors des conteneurs, des
+    plages et des adresses des nœuds, workload et nœud d'un autre cluster, IP en
+    `hostNetwork` : lignes nommées, rien d'écrit ; conteneur, adresse de nœud et
+    `hostNetwork` sans IP acceptés), `batch_from_other_cluster_connector_refused`
+    (connecteur d'un autre cluster, personne membre du groupe, inconnu, cluster inconnu),
+    `app_role_cannot_rewrite_or_delete` (réouverture et double fermeture par un lot ; en
+    SQL sous `kartenn_app` : réécriture d'IP, de workload, réouverture, borne future sans
+    lot, début déplacé, `DELETE`, `TRUNCATE`, partition directe, création de partition ;
+    propriétaire retenu par le déclencheur), `batch_emits_no_changes_event`,
+    `batch_hash_recomputes_from_rows` (empreinte recalculée des lignes, ouverture
+    identique sans écriture, différente refusée, fin avant le début refusée, fin à venir
+    ramenée à l'instant du lot) ; test unitaire du contenu canonique.
+  - choix : pas de route ici (la 6b la porte avec son audit) ; lots d'un cluster
+    sérialisés par un verrou consultatif de transaction ; membre direct du groupe et
+    compte de service, comme `kube.object.managed` ; nœuds vivants seuls pour les plages
+    et adresses, workload et nœud du cluster dans n'importe laquelle de leurs versions ;
+    adresses de nœuds lues de tout type qui se lit comme une IP ; ouverture identique à
+    une ouverte : rien d'écrit, non comptée (reprise du connecteur) ; instants à venir
+    ramenés à l'instant du lot, sans refus ; un lot vide est accepté et compté ; contenu
+    canonique `[ouvertures, fermetures]` triées par (`pod_uid`, `ip`), instants RFC 3339
+    UTC à la microseconde, sans l'identifiant du lot ; partitions de jours communes à
+    tous les clusters.
+  - reste : la création d'une partition de jour prend un verrou exclusif sur
+    `pod_observation_closed` dans la transaction du lot (la 6c les crée d'avance) ; une
+    fermeture datée d'un jour déjà purgé recrée sa partition (purgée de nouveau par la
+    6c) ; pas de plafond de lignes par lot (la route de la 6b) ; pas de contrôle d'une IP
+    par famille et par pod.
+- [ ] 6b. Route d'un lot et son audit : `POST /v1/kube-clusters/{id}/observations` sous
+  `kube.observation.record` (permission déclarée, évaluée sur le cluster, 403 hors du
+  groupe du connecteur), contrat OpenAPI (corps du lot, 201 avec l'identifiant et
+  l'empreinte, 422 `kube.observation.invalid` qui nomme les lignes), inscription d'audit
+  par le noyau dans la transaction du lot (`observation.batch.recorded` ; déclaration de
+  `observation.batch.altered`), catalogue d'audit régénéré ; refus par le chemin commun
+  (`authz.access.denied`, `abuse.input.rejected`) — REQ-019-16 (droit propre, audit par
+  lot, séparation) — verify : `batch_is_audited_once_with_hash`,
+  `batch_from_other_cluster_connector_refused` (403 par la route),
+  `batch_outside_pod_ranges_refused_whole` (422 par la route),
+  `batch_emits_no_changes_event` (aucun `changes` à un abonné)
+  - où : design « Droits, rôles et audit », « Routes » ; ADR 0043 (décisions 2, 3, 5) ;
+    feature `rest` et `rest.rs` de `crates/kartenn-machines` à imiter (et leurs tests
+    `tests/it/rest.rs`), `crates/kartenn-server/src/modules.rs::routers` ; catalogue
+    d'audit `kartenn-core` (`audit::catalogue_markdown`, `docs/spec/evenements-audit.md`,
+    `evenements-audit.schema.json`) ; ADR 0019 ; `specs/006-api-rest/openapi-v1.json` et
+    les `schema.d.ts` régénérés
+  - dépend de : 6a
+- [ ] 6c. Tâches de fond du journal : `kube.observations.verify` (quotidienne : empreinte
+  des lots dont aucune ligne n'est purgée recalculée, `observation.batch.altered` en cas
+  d'écart) et `kube.observations.purge` (partitions entières dont toutes les
+  observations sont fermées depuis plus que la rétention de leur cluster, détachées et
+  supprimées par une fonction du propriétaire ; partitions du lendemain créées d'avance)
+  — REQ-019-16 (audit par lot, rétention) — verify : `altered_batch_detected`,
+  `purge_drops_old_partitions`, `open_observation_never_purged`
+  - où : design « Données » (garde-fous) ; ADR 0023 et `crates/kartenn-server/src/jobs.rs`
+    (tâches de module, 016/G6), `Module::jobs` ; ADR 0043 (décisions 5, 8)
+  - dépend de : 6b
+- [ ] 6d. Lectures du journal : `who_had` (port de lecture) et
+  `GET /v1/kube-clusters/{id}/observations?ip=&at=`, `GET /v1/workloads/{id}/observations`
+  sous `kube.observation.read` (permission déclarée, périmètre du cluster), vides hors
+  rétention avec le motif `retention` — REQ-019-16 (lecture bornée, rétention), 17 —
+  verify : `who_had_ip_at_time`, `retention_answers_empty_with_reason`,
+  `observations_read_bounded_to_cluster`
+  - où : design « Port de lecture », « Routes » ; ADR 0043 (décisions 6, 8) ; `rest.rs`
+    de la 6b
+  - dépend de : 6b
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
   `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et
