@@ -7,7 +7,7 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
-import { bodyParts, keptIndexes } from "../src/components/internal/virtualRows.ts";
+import { bodyParts, keptIndexes, rowSlots } from "../src/components/internal/virtualRows.ts";
 import { useCellEditor, useCommitWatch } from "../src/components/internal/cellEditor.ts";
 import { nextTick, ref } from "vue";
 import type { CellRef, CellState, GridCommit } from "../src/components/DataGrid/grid.ts";
@@ -156,6 +156,38 @@ describe("DataGrid", () => {
     expect(keptIndexes([10, 11], ["z", undefined, "a", "?"], (k) => at.get(k))).toEqual([
       10, 11, 900, 3,
     ]);
+  });
+
+  it("recycles the elements of the rows that leave the window for those that come", () => {
+    const none = new Set<string>();
+    const order = ["a", "b", "c", "f"];
+    const first = rowSlots(order, { order: [], slots: new Map() }, none);
+    expect([...first]).toEqual([
+      ["a", 0],
+      ["b", 1],
+      ["c", 2],
+      ["f", 3],
+    ]);
+    // Scrolled by two rows: the rows that stay keep their slot, those that come take the
+    // slots of those that left.
+    const next = rowSlots(["c", "f", "g", "h"], { order, slots: first }, none);
+    expect([...next].sort()).toEqual([
+      ["c", 2],
+      ["f", 3],
+      ["g", 0],
+      ["h", 1],
+    ]);
+    // The row of the focus (`c`) guarded: a slot freed above it never goes below it (its
+    // element would cross the focus), one below it does; the rest get slots no row had.
+    const guarded = rowSlots(["c", "d", "e", "f"], { order, slots: first }, new Set(["c"]));
+    expect(guarded.get("c")).toBe(2);
+    expect(guarded.get("f")).toBe(3);
+    expect([guarded.get("d"), guarded.get("e")]).toEqual([4, 5]);
+    // The slot of the row of the focus that left (`f`, 3) goes to no row that comes.
+    const left = rowSlots(["a", "b", "c", "g"], { order, slots: first }, none, new Set([3]));
+    expect(left.get("g")).toBe(4);
+    // No slot twice, even for a row asked twice.
+    expect(new Set(rowSlots(["x", "x", "y"], { order, slots: first }, none).values()).size).toBe(2);
   });
 
   // The contract of in-place editing (design « Contrat d'édition »), without a DOM.

@@ -357,11 +357,15 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     );
     await expect(page.locator(":focus")).toBeInViewport();
     expect(await tree.getByRole("row").count()).toBeLessThan(300);
-    // The wheel takes it out of the window: it stays in the document, focused.
+    // The wheel takes it out of the window: it stays in the document, focused, the same
+    // element (the rows recycled around it never take it, task 021-22e).
+    await page.evaluate(() => ((document.activeElement as HTMLElement).dataset.marked = ""));
     await tree.evaluate((el) => el.scrollTo({ top: 0 }));
     await expect.poll(() => tree.evaluate((el) => el.scrollTop)).toBe(0);
     await expect(tree.locator("[data-node='v1-1']")).toBeAttached();
     expect(await focusedCell(page)).toBe("v1-500|");
+    await expect(page.locator(":focus")).toHaveAttribute("data-marked", "");
+    await expect(tree.locator("[data-marked]")).toHaveCount(1);
     await page.keyboard.press("ArrowDown");
     expect(await focusedCell(page)).toBe("v1-501|");
     await expect(page.locator(":focus")).toBeInViewport();

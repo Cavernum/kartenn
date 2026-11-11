@@ -57,6 +57,75 @@ export function keptIndexes(
   return out;
 }
 
+/** The rows rendered last by a body that recycles them: their keys in order, their slots. */
+export interface RenderedSlots {
+  order: readonly string[];
+  slots: ReadonlyMap<string, number>;
+}
+
+/**
+ * The slots of the rows of a virtualised body whose elements are recycled (task 021-22e:
+ * at each frame of a tree of 10⁴ rows scrolled, the rows that came were mounted and those
+ * that left unmounted). A row rendered before keeps its slot, so its element; a row that
+ * comes takes the slot of one that left, and its element, patched in place.
+ *
+ * The elements of the `guarded` rows (the focus, an editor, now and at the last render)
+ * are never moved: moved, an element loses the focus. A slot is therefore taken again
+ * only on the same side of each guarded row as before (otherwise its element would cross
+ * it, and the reconciliation might move the guarded one instead); and never one of
+ * `reserved`, the slot of a row guarded until now that leaves (its element may hold the
+ * focus, which another row must not inherit: it is unmounted). Otherwise a slot no row
+ * had, the smallest.
+ */
+export function rowSlots(
+  keys: readonly string[],
+  before: RenderedSlots,
+  guarded: ReadonlySet<string>,
+  reserved: ReadonlySet<number> = new Set(),
+): Map<string, number> {
+  const slots = new Map<string, number>();
+  const taken = new Set<number>(reserved);
+  for (const key of keys) {
+    const slot = before.slots.get(key);
+    if (slot !== undefined && !slots.has(key)) {
+      slots.set(key, slot);
+      taken.add(slot);
+    }
+  }
+  // The side of each row against the guarded rows that already had an element.
+  const sides = (order: readonly string[]) => {
+    const side = new Map<string, number>();
+    let passed = 0;
+    for (const key of order) {
+      if (guarded.has(key) && before.slots.has(key)) passed += 1;
+      side.set(key, passed);
+    }
+    return side;
+  };
+  const was = sides(before.order);
+  const now = sides(keys);
+  const freed = new Map<number, number[]>();
+  for (const key of before.order) {
+    const slot = before.slots.get(key)!;
+    if (slots.has(key) || taken.has(slot)) continue;
+    const side = was.get(key)!;
+    freed.set(side, [...(freed.get(side) ?? []), slot]);
+  }
+  const had = new Set(before.slots.values());
+  let fresh = 0;
+  for (const key of keys) {
+    if (slots.has(key)) continue;
+    let slot = freed.get(now.get(key)!)?.shift();
+    if (slot === undefined) {
+      while (taken.has(fresh) || had.has(fresh)) fresh += 1;
+      slot = fresh;
+    }
+    slots.set(key, slot);
+    taken.add(slot);
+  }
+  return slots;
+}
+
 /** Rows beyond which a list is virtualised (as `DiffList` and `DataGrid`, design). */
 export const VIRTUAL_ROWS = 200;
 
@@ -95,9 +164,21 @@ export function useVirtualRows(host: VirtualRowsHost) {
       scrollMargin: top(),
     })),
   );
+  /** The key each element was last measured under: a recycled row changes it. */
+  const measuredAs = new WeakMap<HTMLElement, string>();
   function measure(el: Element | ComponentPublicInstance | null): void {
     const node = el instanceof Element ? el : (el?.$el as Element | undefined);
-    if (virtual.value && node instanceof HTMLElement) virtualizer.value.measureElement(node);
+    if (!virtual.value || !(node instanceof HTMLElement)) return;
+    const v = virtualizer.value;
+    // An element shows another row now: its former key forgets it, or measuring that
+    // key's next element would stop observing this one, still in use.
+    const index = Number(node.dataset.index);
+    const key = Number.isInteger(index) ? host.keyAt(index) : undefined;
+    const before = measuredAs.get(node);
+    if (before !== undefined && before !== key && v.elementsCache.get(before) === node)
+      v.elementsCache.delete(before);
+    if (key !== undefined) measuredAs.set(node, key);
+    v.measureElement(node);
   }
   const parts = computed<BodyPart[]>(() => {
     const count = host.count();
@@ -113,13 +194,55 @@ export function useVirtualRows(host: VirtualRowsHost) {
     const end = (i: number) => sizes[i]?.end ?? at(i) + estimate.value;
     return bodyParts(keep, count, at, end, at(0));
   });
+  /** The rows rendered last and their slots (`rowSlots`), and the rows kept then. */
+  let rendered: RenderedSlots = { order: [], slots: new Map() };
+  let keptBefore: (string | undefined)[] = [];
+  /**
+   * The key of each part, for a list that recycles its rows' elements once virtualised
+   * (`rowSlots`; the gaps by their order); below, each row by its own key.
+   */
+  const keys = computed<string[]>(() => {
+    const list = parts.value;
+    if (!virtual.value) {
+      rendered = { order: [], slots: new Map() };
+      keptBefore = [];
+      return list.map((part) => ("index" in part ? host.keyAt(part.index) : part.key));
+    }
+    const order = list.flatMap((part) => ("index" in part ? [host.keyAt(part.index)] : []));
+    const now = new Set(order);
+    const kept = host.kept();
+    const guarded = new Set(
+      [...kept, ...keptBefore].filter((key): key is string => key !== undefined),
+    );
+    const reserved = new Set<number>();
+    for (const key of guarded) {
+      const slot = now.has(key) ? undefined : rendered.slots.get(key);
+      if (slot !== undefined) reserved.add(slot);
+    }
+    const slots = rowSlots(order, rendered, guarded, reserved);
+    // The gaps by their order between the guarded rows: never across one either.
+    let side = 0;
+    let gap = 0;
+    const out = list.map((part) => {
+      if ("gap" in part) return `g${side}-${gap++}`;
+      const key = host.keyAt(part.index);
+      if (guarded.has(key) && rendered.slots.has(key)) {
+        side += 1;
+        gap = 0;
+      }
+      return `r${slots.get(key)}`;
+    });
+    rendered = { order, slots };
+    keptBefore = kept;
+    return out;
+  });
   /** The row height of the density, read again when the density changes. */
   function readEstimate(): void {
     const el = host.scroller.value;
     const row = el ? parseFloat(getComputedStyle(el).getPropertyValue("--k-row-height")) : NaN;
     if (Number.isFinite(row) && row !== estimate.value) estimate.value = row;
   }
-  return { virtual, parts, measure, estimate, readEstimate };
+  return { virtual, parts, keys, measure, estimate, readEstimate };
 }
 
 /** The rows wholly in view: their indexes, from the first to the last one. */
