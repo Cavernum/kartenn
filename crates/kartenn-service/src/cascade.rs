@@ -91,13 +91,19 @@ pub(crate) async fn expand<T: WriteTx>(
     origins: Vec<usize>,
     periods: Vec<Option<Period>>,
 ) -> Result<Expanded, StoreError> {
-    // Without a cascade nor a closure of an owner, nothing to add.
+    // Without a cascade, a closure of an owner nor a shareable closure, nothing to add.
     if !planned.iter().any(|p| match p {
-        Planned::Close { kind, cascade, .. } => *cascade || !owned(tx, modules, *kind).is_empty(),
+        Planned::Close {
+            kind,
+            cascade,
+            shared,
+            ..
+        } => *cascade || *shared || !owned(tx, modules, *kind).is_empty(),
         _ => false,
     }) {
         return Ok((planned, origins, periods, Vec::new()));
     }
+    let shares = Shares::of(&planned);
     // Objects the changeset closes already, then those the cascade adds.
     let mut closed: BTreeSet<Uuid> = planned
         .iter()
@@ -160,6 +166,7 @@ pub(crate) async fn expand<T: WriteTx>(
                         id: i,
                         expected: None,
                         cascade: false,
+                        shared: false,
                     });
                     out_origins.push(origin);
                     out_periods.push(period);
@@ -171,15 +178,90 @@ pub(crate) async fn expand<T: WriteTx>(
         out_origins.push(origin);
         out_periods.push(period);
     }
-    let (out, out_origins, out_periods) = close_owned(
+    let ops = release(
         tx,
         modules,
         (out, out_origins, out_periods),
+        &shares,
         &mut closed,
-        &mut added,
     )
     .await?;
+    let (out, out_origins, out_periods) =
+        close_owned(tx, modules, ops, &shares, &mut closed, &mut added).await?;
     Ok((out, out_origins, out_periods, added))
+}
+
+/// What the plans of the modules of a changeset share (ADR 0026, amendment 10): the
+/// addresses their objects cite once written, and those objects, whose citations before the
+/// changeset no longer count.
+#[derive(Default)]
+struct Shares {
+    cites: BTreeSet<Uuid>,
+    rewritten: BTreeSet<Uuid>,
+}
+
+impl Shares {
+    fn of(planned: &[Planned]) -> Self {
+        let mut shares = Self::default();
+        for p in planned {
+            let Planned::Module { handler, plan, .. } = p else {
+                continue;
+            };
+            if let Some(cites) = handler.shared(plan).cites {
+                shares.rewritten.insert(plan.object);
+                shares.cites.extend(cites);
+            }
+        }
+        shares
+    }
+}
+
+/// The operations with each shareable closure of an address (ADR 0026, amendment 10) kept
+/// once, and only when nothing cites the address once the changeset written: neither a
+/// plan of the changeset, nor an object it leaves as it is; an address another closure of
+/// the changeset closes is closed by it.
+async fn release<T: WriteTx>(
+    tx: &mut T,
+    modules: &ModuleRegistry,
+    (planned, origins, periods): Ops,
+    shares: &Shares,
+    closed: &mut BTreeSet<Uuid>,
+) -> Result<Ops, StoreError> {
+    let firm: BTreeSet<Uuid> = planned
+        .iter()
+        .filter_map(|p| match p {
+            Planned::Close {
+                id, shared: false, ..
+            } => Some(*id),
+            _ => None,
+        })
+        .collect();
+    let mut decided: BTreeSet<Uuid> = BTreeSet::new();
+    let mut out = Vec::with_capacity(planned.len());
+    let mut out_origins = Vec::with_capacity(planned.len());
+    let mut out_periods = Vec::with_capacity(planned.len());
+    for ((p, origin), period) in planned.into_iter().zip(origins).zip(periods) {
+        if let Planned::Close {
+            kind,
+            id,
+            shared: true,
+            ..
+        } = &p
+        {
+            // Closed by another closure, or by an earlier shareable one, or kept.
+            if firm.contains(id) || !decided.insert(*id) {
+                continue;
+            }
+            if cited(tx, modules, *kind, *id, period, closed, shares).await? {
+                closed.remove(id);
+                continue;
+            }
+        }
+        out.push(p);
+        out_origins.push(origin);
+        out_periods.push(period);
+    }
+    Ok((out, out_origins, out_periods))
 }
 
 /// The references under [`OnClose::Owned`] from objects of `kind`, with the handler that
@@ -220,11 +302,12 @@ type Ops = (Vec<Planned>, Vec<usize>, Vec<Option<Period>>);
 /// The operations with, after each closure, that of the objects the closed object owns
 /// (ADR 0026, amendment 9), recursively, on the period of the closure and ascribed to its
 /// operation: those the changeset does not close already, and that no other living object
-/// cites (kept otherwise, the closure of their owner going on).
+/// cites once the changeset written (kept otherwise, the closure of their owner going on).
 async fn close_owned<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
     (planned, origins, periods): Ops,
+    shares: &Shares,
     closed: &mut BTreeSet<Uuid>,
     added: &mut Vec<(ObjectKind, Uuid)>,
 ) -> Result<Ops, StoreError> {
@@ -250,7 +333,7 @@ async fn close_owned<T: WriteTx>(
                     .await?
                 {
                     if closed.contains(&target)
-                        || cited(tx, modules, to, target, period, closed).await?
+                        || cited(tx, modules, to, target, period, closed, shares).await?
                     {
                         continue;
                     }
@@ -260,6 +343,7 @@ async fn close_owned<T: WriteTx>(
                         id: target,
                         expected: None,
                         cascade: false,
+                        shared: false,
                     });
                     out_origins.push(origin);
                     out_periods.push(period);
@@ -274,6 +358,8 @@ async fn close_owned<T: WriteTx>(
 
 /// Whether an object the changeset leaves living cites `id`, of kind `kind`, from the
 /// start of `period` on: an assignment of a reference property, or an object of a module.
+/// An object a plan of the changeset rewrites declaring what it cites (ADR 0026, amendment
+/// 10) is judged by that declaration, not by its citations before the changeset.
 async fn cited<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
@@ -281,7 +367,11 @@ async fn cited<T: WriteTx>(
     id: Uuid,
     period: Option<Period>,
     closed: &BTreeSet<Uuid>,
+    shares: &Shares,
 ) -> Result<bool, StoreError> {
+    if shares.cites.contains(&id) {
+        return Ok(true);
+    }
     if tx
         .referencing(id, period)
         .await?
@@ -293,7 +383,7 @@ async fn cited<T: WriteTx>(
     Ok(referrers(tx, modules, kind, id, period)
         .await?
         .iter()
-        .any(|(_, _, source)| !closed.contains(source)))
+        .any(|(_, _, source)| !closed.contains(source) && !shares.rewritten.contains(source)))
 }
 
 /// The dependents of `(kind, id)`, deepest first, skipping those already closed: those of

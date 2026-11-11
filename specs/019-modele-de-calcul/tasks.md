@@ -664,7 +664,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (requête inutile) ; deux routes identiques vers deux services différents passent sans
     avertissement. Partage d'adresse : tâche 4e ; domaines des services et externes
     changés sous des objets vivants : tâche 4f.
-- [ ] 4e0. Créations du noyau partagées entre les plans d'un changeset (arbitrage du
+- [x] 4e0. Créations du noyau partagées entre les plans d'un changeset (arbitrage du
   2026-11-11, Q-019-17 : précision) : chaque opération `kube.sync` est préparée et
   planifiée seule, deux porteurs nouveaux d'une même IP dans un lot planifient chacun
   leur `CreateAddress` (refus `core.address.duplicate`), et une passation (A rend l'IP,
@@ -682,6 +682,18 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-service/src/pipeline.rs` (`plan`, vers la ligne 965),
     `docs/adr/0026-contrat-de-module.md` (amendements 8 et 9 à imiter)
   - dépend de : 4c
+  - choix : un crochet `ModuleHandler::shared(plan) -> Shared` plutôt qu'un champ de
+    `ModulePlan` (une trentaine de constructions dans six crates, défaut neutre comme
+    `planned`) ; `Shared::cites`, les adresses que l'objet cite une fois écrit, rend la
+    passation lisible au noyau ; la `Close` partageable se tranche dans
+    `cascade::release`, sur l'état de la transaction (un porteur hors du lot compte, un
+    porteur réécrit par un plan qui déclare ses `cites` est jugé par eux), et
+    `close_owned` lit de même ; clé de dédoublonnage (domaine, valeur lue, usage,
+    période propre) ; marque `shared` portée par `Planned::Close` ; deux clôtures
+    partageables d'une adresse n'en font qu'une
+  - reste : la passation se vérifie dans `kartenn-kube` (4e), pas par un module de test
+    du noyau (le module factice n'a pas d'adresses partagées) ; un objet réécrit deux fois
+    dans un lot est jugé par l'union de ses `cites`
 - [ ] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
   d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
   partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
