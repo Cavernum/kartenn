@@ -3,4 +3,5 @@
 
 mod clusters;
 mod edges;
+mod observations;
 mod support;
