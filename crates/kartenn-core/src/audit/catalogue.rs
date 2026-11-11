@@ -176,9 +176,9 @@ events! {
     // Observations (ADR 0043, decision 5): a batch of a journal outside the model, inscribed
     // in its own transaction; its fingerprint, sealed, is what a later check compares.
     OBSERVATION_BATCH_RECORDED = "observation.batch.recorded", Info, Normal,
-        ["journal", "cluster", "batch", "opened", "closed", "hash"], ["REQ-019-16"],
+        ["journal", "cluster", "batch", "opened", "closed", "hash", "clamped", "skew_max"], ["REQ-019-16"],
         "API Activity 6003 / Create", "database",
-        "Un lot d'observations a été écrit au journal `journal` de la source `cluster` : son identifiant (`batch`), ses ouvertures et fermetures comptées, l'empreinte SHA-256 de son contenu canonique (`hash`, en hexadécimal). Un lot vide est inscrit comme les autres.";
+        "Un lot d'observations a été écrit au journal `journal` de la source `cluster` : son identifiant (`batch`), ses ouvertures et fermetures comptées, l'empreinte SHA-256 de son contenu canonique (`hash`, en hexadécimal), ses lignes datées après l'instant du lot et ramenées à lui (`clamped`) et leur plus grande avance (`skew_max`, en millisecondes, 0 sans elles). Un lot vide est inscrit comme les autres.";
     OBSERVATION_BATCH_ALTERED = "observation.batch.altered", Error, High,
         ["journal", "batch", "expected", "found"], ["REQ-019-16"],
         "Detection Finding 2004 / Create", "intrusion_detection",

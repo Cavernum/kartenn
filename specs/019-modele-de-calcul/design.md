@@ -315,7 +315,9 @@ connecteur sur les domaines désignés du cluster ; le module le déclare au reg
 (ajout au contrat, ADR 0044) et la synchronisation des rôles livrés le crée.
 
 Événements d'audit nouveaux (catalogue du noyau, ADR 0043) : `observation.batch.recorded`
-(INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`) et
+(INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`,
+`clamped`, `skew_max` : lignes datées après l'instant du lot et ramenées à lui, leur plus
+grande avance en millisecondes, Q-019-26) et
 `observation.batch.altered` (ERROR, criticité haute ; `journal`, `batch`, `expected`,
 `found`). Le premier s'inscrit dans la transaction du lot par `record_in(tx, event)` du
 port du journal PostgreSQL ; un lot vide est audité comme les autres (Q-019-21, 22). Ils
