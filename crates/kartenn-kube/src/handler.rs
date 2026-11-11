@@ -24,8 +24,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, Edge, Findings, ModuleHandler, ModuleObjectRow, ModulePlan,
-    ModuleRead, ModuleTx, Reference, Shared,
+    BoxFuture, CheckContext, DiffContext, DiffSection, Edge, Findings, ModuleHandler,
+    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -119,6 +119,10 @@ fn invalid(message: impl Into<String>) -> Violation {
 fn cluster_key(cluster: Uuid) -> String {
     format!("kube.cluster:{cluster}")
 }
+
+/// The section of the differential of the mirrors (design « Section de différentiel »):
+/// the 010 reads which workloads change, the 011 what to evaluate anew (REQ-019-36).
+pub const OBJECTS_SECTION: &str = "kube.objects";
 
 /// What [`Handler::prepare`] reads for the plan, which reads no database.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -2186,6 +2190,39 @@ impl ModuleHandler for Handler {
     /// service it writes; the absence of the mirrors it writes, and of the absent ones they
     /// cite (`kube.object.absent`).
     #[allow(clippy::too_many_lines)] // one block per rule of the final state
+    /// `kube.objects`: each mirror the changeset creates, changes, closes, marks absent or
+    /// present again, with its identity and tracked fields before and after, over the
+    /// period of the change. A cluster is declared, not mirrored: it has none.
+    fn diff<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a DiffContext<'a>,
+    ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
+        Box::pin(async move {
+            let mirrors = [
+                node_kind(),
+                namespace_kind(),
+                workload_kind(),
+                service_kind(),
+                ingress_kind(),
+            ];
+            let ids: Vec<Uuid> = context
+                .touched
+                .iter()
+                .filter(|(kind, _)| mirrors.iter().any(|m| *kind == ObjectKind::Module(*m)))
+                .map(|(_, id)| *id)
+                .collect();
+            if ids.is_empty() {
+                return Ok(None);
+            }
+            let rows = pg::object_changes(connection(tx)?, &ids).await?;
+            Ok((!rows.is_empty()).then(|| DiffSection {
+                name: OBJECTS_SECTION.into(),
+                rows,
+            }))
+        })
+    }
+
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,

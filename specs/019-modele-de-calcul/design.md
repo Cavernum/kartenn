@@ -339,7 +339,11 @@ met à nul qu'en cascade).
 
 Une ligne par objet miroir créé, modifié, clos ou passé absent : type, identité, champs
 suivis avant et après. La 010 la lit pour savoir quels workloads changent d'axe ou de
-sélection ; la 011 pour réévaluer (REQ-019-36).
+sélection ; la 011 pour réévaluer (REQ-019-36). Comme `machines.attachments`, une ligne
+couvre une portion de temps où l'objet diffère (sa période) ; avant et après sont la
+version de l'objet sans ses colonnes de versionnement (identité, champs suivis,
+`absent_since`), absents pour une création ou une clôture. Le cluster, déclaré et non
+reflété, n'y figure pas.
 
 ### Port de lecture (`kartenn_kube::read`)
 

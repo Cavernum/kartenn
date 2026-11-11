@@ -1059,3 +1059,86 @@ pub(crate) async fn referrers(
         .await
         .map_err(|e| store(&e))
 }
+
+/// The mirrors of the section `kube.objects`, in the order of its rows: type and table.
+const MIRRORS: [(&str, &str); 5] = [
+    ("kube.node", NODE_TABLE),
+    ("kube.namespace", NAMESPACE_TABLE),
+    ("kube.workload", WORKLOAD_TABLE),
+    ("kube.service", SERVICE_TABLE),
+    ("kube.ingress", INGRESS_TABLE),
+];
+
+/// What the mirrors among `ids` were before the current transaction and are after it, as
+/// rows of the section `kube.objects` (design « Section de différentiel »): per mirror,
+/// each portion of time where its identity, tracked fields and absence differ, created
+/// (`before` none), closed (`after` none), changed or marked absent or present again
+/// (`absent_since`). Before is read from the versions asserted before the transaction,
+/// after from the current ones, as `machines.attachments` does.
+pub(crate) async fn object_changes(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<kartenn_service::module::DiffRow>, StoreError> {
+    type Change = (Uuid, String, Option<Value>, Option<Value>, i64, Option<i64>);
+    // A version as the section shows it: its row without the columns of versioning.
+    const STATE: &str =
+        "to_jsonb(t) - ARRAY['id', 'valid_period', 'sys_start', 'sys_end', 'changeset_id']";
+    let versions = MIRRORS
+        .iter()
+        .enumerate()
+        .map(|(rank, (kind, table))| {
+            format!(
+                "SELECT {rank} AS rank, id, '{kind}' AS kind, {STATE} AS state, valid_period,
+                        sys_start < now() AS before, true AS after
+                   FROM {table} t WHERE id = ANY($1)
+                 UNION ALL
+                 SELECT {rank}, id, '{kind}', {STATE}, valid_period, true, false
+                   FROM {table}_history t
+                  WHERE id = ANY($1) AND sys_end = now() AND sys_start < now()"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" UNION ALL ");
+    let sql = format!(
+        "WITH versions AS ({versions}),
+         b AS (SELECT rank, id, kind, state, valid_period FROM versions WHERE before),
+         f AS (SELECT rank, id, kind, state, valid_period FROM versions WHERE after),
+         portions AS (
+             SELECT b.rank, b.id, b.kind, b.state AS bs, f.state AS fs,
+                    b.valid_period * f.valid_period AS period
+               FROM b JOIN f ON f.id = b.id AND f.valid_period && b.valid_period
+              WHERE b.state <> f.state
+             UNION ALL
+             SELECT b.rank, b.id, b.kind, b.state, NULL, x
+               FROM b, unnest(multirange(b.valid_period) - coalesce(
+                    (SELECT range_agg(f.valid_period) FROM f WHERE f.id = b.id),
+                    '{{}}'::tstzmultirange)) AS x
+             UNION ALL
+             SELECT f.rank, f.id, f.kind, NULL, f.state, x
+               FROM f, unnest(multirange(f.valid_period) - coalesce(
+                    (SELECT range_agg(b.valid_period) FROM b WHERE b.id = f.id),
+                    '{{}}'::tstzmultirange)) AS x)
+         SELECT id, kind, bs, fs,
+                (extract(epoch FROM lower(period)) * 1000000)::bigint,
+                (extract(epoch FROM upper(period)) * 1000000)::bigint
+           FROM portions
+          ORDER BY rank, id, lower(period)"
+    );
+    let found: Vec<Change> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(ids)
+        .fetch_all(conn)
+        .await
+        .map_err(|e| store(&e))?;
+    Ok(found
+        .into_iter()
+        .map(
+            |(object, kind, before, after, start, end)| kartenn_service::module::DiffRow {
+                object,
+                kind,
+                before,
+                after,
+                period: Period::new(Instant(start), end.map(Instant)).ok(),
+            },
+        )
+        .collect())
+}
