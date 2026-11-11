@@ -858,12 +858,46 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     un compte du connecteur (RBAC kube testé seulement sur ce chemin) ;
     `managed_field_refused_for_human` change un label au lieu de renommer (aligner sur
     l'acceptation de REQ-019-12).
-- [ ] 5b. Absence : `mark_absent` et `clear_absent` dans `kube.sync`, colonne
+- [x] 5b. Absence : `mark_absent` et `clear_absent` dans `kube.sync`, colonne
   `absent_since`, anomalie `kube.object.absent` qui nomme les dépendants, levée au
   retour d'un objet de même identité (avec la réouverture d'identité de la 4a) —
   REQ-019-22 — verify : `cited_workload_goes_absent`, `absent_cleared_on_return`
   - où : design « Règles », X9 ; `crates/kartenn-kube/src/handler.rs`, `pg.rs`, `rules.rs`
   - dépend de : 5a
+  - fait : `handler.rs` (`plan_sync` : actions `mark_absent` et `clear_absent` sur
+    l'objet vivant de l'identité, sans champ suivi ; `upsert` remet `absent_since` à nul ;
+    `apply_mirror` date l'absence ; `check` : `absences`, `absence`) ; `pg.rs` (`absent`,
+    `observed_at`, `backends_missing` qui compte un service absent comme manquant) ;
+    colonnes `absent_since` déjà posées par les migrations 0001 à 0005 ; design « Règles »
+    précisé ; tests `clusters::cited_workload_goes_absent` (sélection d'un service et
+    propriété de référence d'un autre workload nommées, objet toujours vivant et
+    sélectionné, date gardée par une seconde observation, dépendants réévalués quand le
+    service cesse de le sélectionner, refus pour un administrateur, pour un champ suivi et
+    pour un objet inconnu), `absent_cleared_on_return` (workload recréé sous un nouvel UID :
+    même identifiant, présent, anomalie close ; service absent visé par un ingress :
+    `kube.object.absent` et `kube.ingress.backend_missing`, closes par `clear_absent` ;
+    workload absent clos par `kube.sync` : anomalie close).
+  - choix : `absent_since` est le début de la période de l'opération, sinon l'instant de
+    la transaction ; une `mark_absent` d'un objet déjà absent, une `clear_absent` d'un
+    objet présent n'écrivent rien (plan `noop`, `completed.absent` lu par `prepare` ;
+    correction de revue, test dans `cited_workload_goes_absent`) ; `kube.object.absent` est levée pour tout objet absent, même sans
+    dépendant connu du module (les dépendants des autres modules, flux de la 011, ne se
+    voient pas d'ici), ses dépendants dans le message et les sujets, sans `detail`
+    structuré ; dépendants : services qui sélectionnent un workload, ingress qui routent
+    vers un service, workloads, services et ingress d'un namespace, porteurs d'une
+    propriété de référence (`property_assignment`) ; réévaluée sur les miroirs écrits et
+    les absents qu'ils citent dans une de leurs versions ; ni index ni historisation
+    propre pour `absent_since` (colonne versionnée comme les autres).
+  - reste : un nœud n'a pas encore de dépendant dans le modèle (le journal des pods, tâche
+    6) ; l'affectation ou le retrait d'une propriété de référence ne réévalue pas
+    l'anomalie de sa cible (elle se rafraîchit à la prochaine écriture de l'objet absent) ;
+    les flux de la 011 ne sont pas nommés tant qu'ils ne citent pas les objets `kube.*`
+    (amendement de la 011) ; pas de test d'une `mark_absent` datée par une période, ni
+    d'un namespace absent. Revue : `= ANY(a.v_uuids)` dans `pg::absent` contourne l'index
+    GIN (`@>` attendu, même idiome dans `kartenn-flow`) ; un `upsert` daté d'avant une
+    `mark_absent` lève l'absence qui suit ; `since::text` dépend du fuseau de la session ;
+    les dépendants d'un namespace ne sont pas plafonnés dans le message ; le retour par la
+    réouverture de la 4a d'un absent clos n'est pas testé.
 - [ ] 5c. Section de différentiel `kube.objects` et catalogue : les objets `kube.*`
   écrits par un changeset listés dans sa section ; `catalogue_problems` vide pour
   `kube.*` — REQ-019-30 (règles) — verify : `section_lists_changed_objects`,

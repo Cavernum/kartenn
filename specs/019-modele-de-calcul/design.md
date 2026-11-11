@@ -262,6 +262,16 @@ domaines touchés.
 Hors règles : `kube.observation.invalid` est le code du Problem Details (422) d'un lot
 d'observations refusé à l'entrée ; un lot ne passe pas par le pipeline des règles.
 
+Précision (2026-11-11, tâche 5b) : `mark_absent` et `clear_absent` ne portent que
+l'identité de l'objet ; `absent_since` est le début de la période de l'opération (instant
+d'observation, REQ-019-24), gardé par une seconde observation ; un `upsert` de la même
+identité lève l'absence. `kube.object.absent` vaut pour tout objet absent, ses dépendants
+connus dans son message et ses sujets : services qui sélectionnent un workload, ingress
+qui routent vers un service par son nom, workloads, services et ingress d'un namespace,
+objets qui portent une propriété de référence vers lui ; elle est réévaluée sur les objets
+écrits et les absents qu'ils citent. Un service absent manque à l'ingress qui le vise
+(`kube.ingress.backend_missing`).
+
 ### Droits, rôles et audit (X10, X16)
 
 | Permission | Global | Objet |
