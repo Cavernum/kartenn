@@ -137,6 +137,26 @@ pub(crate) async fn node_ranges(
     .map_err(|e| store(&e))
 }
 
+/// Whether the object `id` of `table`, living at `at`, is absent from its cluster then.
+pub(crate) async fn is_absent(
+    conn: &mut PgConnection,
+    table: &str,
+    id: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<bool, StoreError> {
+    let sql = format!(
+        "SELECT EXISTS (SELECT 1 FROM {table}
+                         WHERE id = $1 AND absent_since IS NOT NULL
+                           AND valid_period @> coalesce($2::timestamptz, now()))"
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(id)
+        .bind(at)
+        .fetch_one(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
 /// The object of `table` (`node` or `namespace`) named `name` in `cluster`, living at `at`:
 /// its identity in the cluster (019/X9).
 pub(crate) async fn named(

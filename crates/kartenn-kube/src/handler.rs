@@ -132,6 +132,10 @@ struct Completed {
     /// The living object of the identity a `sync` names (019/X9).
     #[serde(default)]
     existing: Option<Uuid>,
+    /// Whether the living object a `mark_absent` or a `clear_absent` names is absent: a
+    /// state unchanged writes no version (a full list repeated in fallback mode, REQ-019-25).
+    #[serde(default)]
+    absent: bool,
     /// The living namespace a `sync` of a workload or a service names, by its name in the
     /// cluster.
     #[serde(default)]
@@ -1674,6 +1678,7 @@ impl Handler {
                 let existing = completed
                     .existing
                     .ok_or_else(|| missing(kind, home, &name))?;
+                let absent = action == "mark_absent";
                 Ok(ModulePlan {
                     kind,
                     object: existing,
@@ -1681,7 +1686,12 @@ impl Handler {
                     domains: vec![anchor],
                     keys,
                     core: Vec::new(),
-                    data: json!({ "absent": action == "mark_absent" }),
+                    // Absent already, or present already: nothing to write.
+                    data: if absent == completed.absent {
+                        json!({ "noop": true })
+                    } else {
+                        json!({ "absent": absent })
+                    },
                 })
             }
             Some(other) => Err(invalid(format!("action: {other} is not an action of sync"))),
@@ -1893,6 +1903,11 @@ impl ModuleHandler for Handler {
                         }
                     } else if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;
+                    }
+                    if let (Some(table), Some(existing), Some("mark_absent" | "clear_absent")) =
+                        (table, completed.existing, text("action"))
+                    {
+                        completed.absent = pg::is_absent(conn, table, existing, at).await?;
                     }
                     if table == Some(NODE_TABLE) {
                         completed.pod_containers = pg::pod_containers(conn, cluster, at).await?;

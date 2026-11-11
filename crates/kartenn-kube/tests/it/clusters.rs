@@ -2622,9 +2622,23 @@ async fn cited_workload_goes_absent(pool: PgPool) {
         message.contains(&format!("kube.workload {api}")),
         "{message}"
     );
-    // Observed absent again: absent since the first observation.
+    // Observed absent again (a full list repeated): absent since the first observation,
+    // no version written, and no more for a present one cleared.
+    let versions = env.workload_uids(web_id).await.len();
     env.applied(vec![web_absence("mark_absent", prod)]).await;
     assert_eq!(env.absent_since("kube.workload", web_id).await, since);
+    assert_eq!(env.workload_uids(web_id).await.len(), versions);
+    assert!(env.anomaly(web_id, "kube.object.absent").await);
+    env.applied(vec![workload(
+        "clear_absent",
+        prod,
+        "payments",
+        "deployment",
+        "api",
+        json!({}),
+    )])
+    .await;
+    assert_eq!(env.workload_uids(api).await.len(), 1);
     // The service stops selecting it: its anomaly names the property's carrier alone.
     env.applied(vec![frontend(prod, &json!([]))]).await;
     let message = env.anomaly_message(web_id, "kube.object.absent").await;

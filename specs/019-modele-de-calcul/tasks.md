@@ -878,8 +878,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `kube.object.absent` et `kube.ingress.backend_missing`, closes par `clear_absent` ;
     workload absent clos par `kube.sync` : anomalie close).
   - choix : `absent_since` est le début de la période de l'opération, sinon l'instant de
-    la transaction, et une seconde `mark_absent` garde la première date (une version de
-    plus, identique) ; `kube.object.absent` est levée pour tout objet absent, même sans
+    la transaction ; une `mark_absent` d'un objet déjà absent, une `clear_absent` d'un
+    objet présent n'écrivent rien (plan `noop`, `completed.absent` lu par `prepare` ;
+    correction de revue, test dans `cited_workload_goes_absent`) ; `kube.object.absent` est levée pour tout objet absent, même sans
     dépendant connu du module (les dépendants des autres modules, flux de la 011, ne se
     voient pas d'ici), ses dépendants dans le message et les sujets, sans `detail`
     structuré ; dépendants : services qui sélectionnent un workload, ingress qui routent
@@ -892,7 +893,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     l'anomalie de sa cible (elle se rafraîchit à la prochaine écriture de l'objet absent) ;
     les flux de la 011 ne sont pas nommés tant qu'ils ne citent pas les objets `kube.*`
     (amendement de la 011) ; pas de test d'une `mark_absent` datée par une période, ni
-    d'un namespace absent.
+    d'un namespace absent. Revue : `= ANY(a.v_uuids)` dans `pg::absent` contourne l'index
+    GIN (`@>` attendu, même idiome dans `kartenn-flow`) ; un `upsert` daté d'avant une
+    `mark_absent` lève l'absence qui suit ; `since::text` dépend du fuseau de la session ;
+    les dépendants d'un namespace ne sont pas plafonnés dans le message ; le retour par la
+    réouverture de la 4a d'un absent clos n'est pas testé.
 - [ ] 5c. Section de différentiel `kube.objects` et catalogue : les objets `kube.*`
   écrits par un changeset listés dans sa section ; `catalogue_problems` vide pour
   `kube.*` — REQ-019-30 (règles) — verify : `section_lists_changed_objects`,
