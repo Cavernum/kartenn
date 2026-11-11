@@ -1823,7 +1823,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     19 : action `review-in-flow` ; 2 et 10 : action `effect` sur le type `changeset`). Sous-tâches du
     reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, faite le 2026-11-11), pied en attente
     de reprise (14h, faite le 2026-11-11), badge de la barre et segments de date (14i, `@kartenn/ui`, faite le 2026-11-11), brouillon
-    daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k), modifier une
+    daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k, faite le 2026-11-11), modifier une
     opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
     avant la soumission (contrat), composants du résultat de simulation et de la ligne
     d'opération, « Tout afficher » d'une `DiffList`, icône de l'état « en revue », contrat
@@ -3235,7 +3235,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : relevés par la revue (mineurs) : aucun test ne prouve que le second essai après
     un 412 garde la date lue à l'appel ; dans `drafts.test.ts`, un seul `it` tient trois cas
     (création, ajout, ajout envoyé au présent), à scinder.
-- [ ] 14k. Brouillon supprimé dans un autre navigateur, dit dans l'onglet qui l'avait actif,
+- [x] 14k. Brouillon supprimé dans un autre navigateur, dit dans l'onglet qui l'avait actif,
   tenu par un parcours (reste de la 14 : sous Chromium l'événement `draft` n'était pas venu
   en 20 s, avant la clôture de la tâche 5) : le toast du cadre (`drafts.gone`), le compteur
   à 0, la page des brouillons sans lui — REQ-021-11, 024/REQ-024-21 — verify : parcours
@@ -3244,6 +3244,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `choose`), `web/v2/shell/src/frame/ShellFrame.vue` (brouillon parti par l'événement),
     `web/v2/sdk/src/data/drafts.ts` (`gone`)
   - dépend de : 14, 5
+  - fait le 2026-11-11 — parcours `draft` « … resumed and deleted elsewhere » : le brouillon supprimé dans le second contexte d'Alice, le premier onglet, resté
+    sur « Mes brouillons » avec ce brouillon actif et le panneau ouvert, montre sans
+    rechargement le toast `drafts.gone` dans la région « Notifications », le compteur à
+    « Brouillon 0 opération », la ligne retirée de la grille, puis passe axe ; en-tête du
+    fichier complété. Aucun changement du shell ni du SDK : l'événement `draft` `deleted`
+    arrive depuis la tâche 5. `k-web2-e2e draft.spec.ts accessibility.spec.ts`
+    (« deleted elsewhere », « every journey runs axe ») : 4 passés ; le seul parcours
+    répété trois fois par navigateur (`--repeat-each=3`) : 6 passés.
+  - choix : l'attente du toast au délai par défaut d'`expect` (5 s), non au budget de 2 s
+    de la tâche 5 (tenu par `events.spec.ts`), les parcours des deux navigateurs écrivant
+    les brouillons d'Alice côte à côte ; les assertions dans le `try`, le second contexte
+    encore ouvert ; titre du test inchangé (`web/v2/PARITE.md` le cite, vérifié par
+    `shell/test/parity.test.ts`).
 - [ ] 14l. Modifier une opération du brouillon (design 021 « Écrans », Brouillons :
   « liste des opérations (retirer, modifier) » ; seul le retrait est là) : sa forme est à
   confirmer par l'utilisateur avant de la lancer — recommandé : « Modifier » sur la ligne
