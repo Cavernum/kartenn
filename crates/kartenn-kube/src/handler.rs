@@ -1402,12 +1402,14 @@ fn unselect_operation(service: Uuid, workload: Uuid, domain: Uuid) -> Operation 
 
 /// What [`owned_columns`] plans: the operations of the core, for each the columns that cite
 /// what it creates (`data.slots`), the positions of the shareable ones and, for a service
-/// or an ingress, the living addresses it cites once written (ADR 0026, amendment 10).
+/// or an ingress, the living addresses it cites once written (ADR 0026, amendment 10) and
+/// those it cites without holding nor creating them, which it reads.
 struct Owned {
     core: Vec<Operation>,
     slots: Vec<Value>,
     shared: Vec<usize>,
     cites: Option<Vec<Uuid>>,
+    adopted: Vec<Uuid>,
 }
 
 /// The columns of an `upsert` that cite objects the `sync` creates or reads (the pod ranges
@@ -1425,6 +1427,7 @@ fn owned_columns(
         slots: Vec::new(),
         shared: Vec::new(),
         cites: None,
+        adopted: Vec::new(),
     };
     if let Some(value) = body.get("pod_cidrs") {
         let ranges = pod_ranges(value, completed, pod_domain)?;
@@ -1442,6 +1445,14 @@ fn owned_columns(
         owned.shared.extend(start..start + vips.core.len());
         owned.core.extend(vips.core);
         owned.slots.extend(vips.slots);
+        // Those it cites without holding them already, nor creating them: read, not
+        // written (ADR 0026, `reads`).
+        owned.adopted = vips
+            .cites
+            .iter()
+            .copied()
+            .filter(|id| !completed.addresses.iter().any(|(.., held)| held == id))
+            .collect();
         owned.cites = Some(vips.cites);
     }
     if let Some(value) = body.get("workloads") {
@@ -1583,10 +1594,15 @@ impl Handler {
                     (id, true, json!({ "create": row }))
                 };
                 let mut data = data;
+                // An address another holder of the cluster cites, cited without being
+                // created: read, like an address of the core a machine cites (009/M16).
+                let mut cited = cited;
+                cited.extend(owned.adopted.iter().map(|id| ("core.address.read", *id)));
                 data["reads"] = reads(&cited);
                 data["slots"] = Value::Array(owned.slots);
-                // Read back by `shared` (ADR 0026, amendment 10).
+                // Read back by `shared` (ADR 0026, amendment 10), shared within the cluster.
                 data["shared"] = json!(owned.shared);
+                data["scope"] = json!(cluster);
                 if let Some(cites) = owned.cites {
                     data["cites"] = json!(cites);
                 }
@@ -1885,6 +1901,7 @@ impl ModuleHandler for Handler {
         }
         Shared {
             core: read(plan, "shared").unwrap_or_default(),
+            scope: read(plan, "scope"),
             cites: read(plan, "cites"),
         }
     }

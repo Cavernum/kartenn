@@ -918,13 +918,22 @@ async fn prepare_operation<T: WriteTx>(
     Ok(())
 }
 
-/// What makes two shareable creations of an address one (ADR 0026, amendment 10): its
-/// domain, value and usage.
-type SharedAddress = (Uuid, Addr, objects::AddressUsage);
+/// Where a module plan shares its creations (ADR 0026, amendment 10): its module and the
+/// scope it gives.
+type ShareScope = (String, Option<Uuid>);
 
-/// The key of `op`, a shareable operation a module adds, when it creates an address whose
-/// domain and value are known; a value that does not parse is left to its planning.
-fn shared_address(op: &Operation, ids: &HashMap<u32, Uuid>) -> Option<SharedAddress> {
+/// What makes two shareable creations of an address one (ADR 0026, amendment 10): the
+/// module and the scope of their plans, the domain, value and usage of the address.
+type SharedAddress = (ShareScope, Uuid, Addr, objects::AddressUsage);
+
+/// The key of `op`, an operation a module adds, shareable in `scope`, when it creates an
+/// address whose domain and value are known; a value that does not parse is left to its
+/// planning.
+fn shared_address(
+    op: &Operation,
+    scope: ShareScope,
+    ids: &HashMap<u32, Uuid>,
+) -> Option<SharedAddress> {
     let Operation::CreateAddress {
         domain,
         address,
@@ -939,7 +948,7 @@ fn shared_address(op: &Operation, ids: &HashMap<u32, Uuid>) -> Option<SharedAddr
         Ref::Local(n) => *ids.get(n)?,
     };
     let value = Addr::parse_any(&ALL, address).ok()?;
-    Some((domain, value, *usage))
+    Some((scope, domain, value, *usage))
 }
 
 /// Whether `op`, which defines a local name, creates an object: one of the core, or of the
@@ -1008,10 +1017,10 @@ fn plan(
         let found = violations.len();
         // The operation, then the core operations a module operation adds (ADR 0026,
         // clause 6), planned in turn under the same index; each queued with the position,
-        // in `adding`, of the module plan that adds it, and whether it is shareable
+        // in `adding`, of the module plan that adds it, and the scope it is shareable in
         // (amendment 10).
-        let mut queue: std::collections::VecDeque<(Operation, Option<usize>, bool)> =
-            std::collections::VecDeque::from([(requested.clone(), None, false)]);
+        let mut queue: std::collections::VecDeque<(Operation, Option<usize>, Option<ShareScope>)> =
+            std::collections::VecDeque::from([(requested.clone(), None, None)]);
         // The module plans that add core operations, by their position in `planned`,
         // with the identifiers drawn for those operations (amendment 8).
         let mut adding: Vec<(usize, Vec<Uuid>)> = Vec::new();
@@ -1024,7 +1033,9 @@ fn plan(
             first = false;
             // A shareable address an earlier plan creates already, on the same period: not
             // planned again, the plan citing the first (amendment 10).
-            let address = shared.then(|| shared_address(&owned, &ids)).flatten();
+            let address = shared
+                .clone()
+                .and_then(|scope| shared_address(&owned, scope, &ids));
             if let (Some(key), Some(by)) = (&address, by)
                 && let Some((_, earlier)) = shared_addresses
                     .get(key)
@@ -1081,15 +1092,15 @@ fn plan(
                             if !module_plan.core.is_empty() {
                                 let by = Some(adding.len());
                                 adding.push((planned.len(), Vec::new()));
-                                let shared = handler.shared(&module_plan).core;
-                                queue.extend(
-                                    module_plan
-                                        .core
-                                        .iter()
-                                        .cloned()
-                                        .enumerate()
-                                        .map(|(i, c)| (c, by, shared.contains(&i))),
-                                );
+                                let shared = handler.shared(&module_plan);
+                                let scope: ShareScope =
+                                    (module_plan.kind.module().to_owned(), shared.scope);
+                                queue.extend(module_plan.core.iter().cloned().enumerate().map(
+                                    |(i, c)| {
+                                        let marked = shared.core.contains(&i);
+                                        (c, by, marked.then(|| scope.clone()))
+                                    },
+                                ));
                             }
                             planned.push(Planned::Module {
                                 handler,
@@ -1157,7 +1168,7 @@ fn plan(
                         id: resolve(*target, &ids),
                         expected: *expected,
                         cascade: *cascade,
-                        shared: shared && *kind == ObjectKind::Address,
+                        shared: shared.is_some() && *kind == ObjectKind::Address,
                     });
                 }
                 Operation::Expect {
@@ -3483,7 +3494,11 @@ mod tests {
                     address,
                     usage: objects::AddressUsage::Vip,
                 }],
-                data: serde_json::json!({ "held": [], "shared": operation.body["shared"] }),
+                data: serde_json::json!({
+                    "held": [],
+                    "shared": operation.body["shared"],
+                    "scope": operation.body.get("scope"),
+                }),
             })
         }
 
@@ -3498,6 +3513,7 @@ mod tests {
                 } else {
                     Vec::new()
                 },
+                scope: serde_json::from_value(plan.data["scope"].clone()).unwrap_or_default(),
                 cites: None,
             }
         }
@@ -3551,6 +3567,25 @@ mod tests {
         // Without the mark, each plan creates its own: the duplicate is the core's to refuse.
         let (planned, _, _, _) = super::plan(
             &req(vec![hold("192.0.2.10", true), hold("192.0.2.10", false)]),
+            &modules,
+            None,
+        );
+        let [first, address, second, again] = planned.as_slice() else {
+            panic!("{planned:?}")
+        };
+        assert!(matches!(again, Planned::Address { .. }));
+        assert_eq!(cited(first), serde_json::json!([address.object()]));
+        assert_eq!(cited(second), serde_json::json!([again.object()]));
+        // Marked both, in two scopes (two clusters of one domain): two creations, not a share.
+        let scoped = |scope: Uuid| {
+            serde_json::from_value(serde_json::json!({
+                "op": "shelf.hold", "domain": domain, "address": "192.0.2.20",
+                "shared": true, "scope": scope,
+            }))
+            .unwrap()
+        };
+        let (planned, _, _, _) = super::plan(
+            &req(vec![scoped(Uuid::now_v7()), scoped(Uuid::now_v7())]),
             &modules,
             None,
         );

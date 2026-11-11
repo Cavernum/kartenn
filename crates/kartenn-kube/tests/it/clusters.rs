@@ -25,6 +25,7 @@ use sqlx::types::Uuid;
 struct Env {
     pool: PgPool,
     store: PgStore,
+    registry: Arc<ModuleRegistry>,
     author: Uuid,
     acme: Uuid,
     pods: Uuid,
@@ -62,6 +63,7 @@ impl Env {
         let mut env = Self {
             pool: pool.clone(),
             store,
+            registry,
             author,
             acme: Uuid::nil(),
             pods: Uuid::nil(),
@@ -100,6 +102,65 @@ impl Env {
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
             .unwrap()
+    }
+
+    /// `operations` submitted by `identity`, under the RBAC of the store.
+    async fn submit_as(&self, identity: Uuid, operations: Vec<Operation>) -> Outcome {
+        let request = ChangesetRequest {
+            author: identity,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+            approval_self: true,
+        };
+        let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(self.pool.clone())
+            .with_modules(self.registry.clone());
+        submit(&self.store, &authorizer, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+    }
+
+    /// A new identity holding `permissions` on `acme` and what it owns.
+    async fn granted(&self, permissions: &[&str]) -> Uuid {
+        let identity: Uuid = sqlx::query_scalar(
+            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap();
+        let role = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', 'r'),
+                     tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(format!("r_{}", role.simple()))
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        for permission in permissions {
+            sqlx::query(
+                "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+                 VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            )
+            .bind(role)
+            .bind(permission)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query(kartenn_testing::BIND_IDENTITY)
+            .bind(identity)
+            .bind(role)
+            .bind("entity")
+            .bind(self.acme)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        identity
     }
 
     async fn applied(&self, operations: Vec<Operation>) {
@@ -1853,10 +1914,17 @@ async fn vip_shared_across_holders(pool: PgPool) {
     ])
     .await;
     assert!(env.ingress_address_ids(blog).await.is_empty());
-    assert_eq!(env.addresses(external).await.len(), 1);
+    let living = async || {
+        let addresses = env.addresses(external).await;
+        (
+            addresses.into_iter().map(|a| a.0).collect::<Vec<_>>(),
+            env.addresses_ever(external).await,
+        )
+    };
+    assert_eq!(living().await, (vec![vip], 1));
     env.applied(vec![ingress("close", prod, "payments", "news", json!({}))])
         .await;
-    assert_eq!(env.addresses(external).await.len(), 1);
+    assert_eq!(living().await, (vec![vip], 1));
     // The last closes: the address with it.
     env.applied(vec![service("close", prod, "payments", "lb", json!({}))])
         .await;
@@ -1929,4 +1997,59 @@ async fn vip_handover_in_one_batch(pool: PgPool) {
         "core.address.duplicate",
     )
     .await;
+    // A new value given in one batch by two clusters of one external domain: each creates
+    // its own, not a share; the duplicate is refused.
+    env.refused(
+        vec![
+            routed(prod, "news", json!(["192.0.2.64"])),
+            routed(test, "news", json!(["192.0.2.64"])),
+        ],
+        "core.address.duplicate",
+    )
+    .await;
+}
+
+/// ADR 0026 (`reads`, 009/M16): an address another holder of the cluster cites is cited
+/// without being created, so read: a writer of the ingresses who does not read the
+/// addresses cannot attach an ingress to it.
+#[kartenn_testing::pg_test]
+async fn vip_shared_read_required(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    env.applied(vec![routed(prod, "shop", json!(["192.0.2.80"]))])
+        .await;
+    let vip = env.addresses(external).await[0].0;
+    let writer = [
+        "kube.cluster.read",
+        "kube.namespace.read",
+        "kube.service.read",
+        "kube.ingress.read",
+        "kube.ingress.edit",
+        "kube.ingress.approval.self",
+    ];
+    let blind = env.granted(&writer).await;
+    let outcome = env
+        .submit_as(blind, vec![routed(prod, "blog", json!(["192.0.2.80"]))])
+        .await;
+    let Outcome::Refused { violations, .. } = &outcome else {
+        panic!("not refused: {outcome:?}");
+    };
+    let forbidden = violations
+        .iter()
+        .find(|v| v.rule.id == "core.object.forbidden")
+        .unwrap_or_else(|| panic!("{outcome:?}"));
+    assert!(forbidden.subjects.contains(&vip), "{forbidden:?}");
+    // Reading the addresses, the same writer attaches it.
+    let reader = env
+        .granted(&[&writer[..], &["core.address.read"]].concat())
+        .await;
+    let outcome = env
+        .submit_as(reader, vec![routed(prod, "blog", json!(["192.0.2.80"]))])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let blog = env.ingresses(payments, "blog").await[0];
+    assert_eq!(env.ingress_address_ids(blog).await, [vip]);
 }

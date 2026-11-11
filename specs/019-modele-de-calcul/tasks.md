@@ -691,9 +691,16 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `close_owned` lit de même ; clé de dédoublonnage (domaine, valeur lue, usage,
     période propre) ; marque `shared` portée par `Planned::Close` ; deux clôtures
     partageables d'une adresse n'en font qu'une
-  - reste : la passation se vérifie dans `kartenn-kube` (4e), pas par un module de test
-    du noyau (le module factice n'a pas d'adresses partagées) ; un objet réécrit deux fois
-    dans un lot est jugé par l'union de ses `cites`
+  - choix (revue) : `Shared::scope`, la portée du partage, entre dans la clé avec le
+    module (deux clusters d'un domaine ne partagent pas) ; une création partageable ne
+    nomme pas de `local` (écrit au contrat) ; passation testée avec le module factice
+    (`update_thing` qui rend son adresse, `create_thing` qui la déclare)
+  - reste : un objet réécrit deux fois dans un lot est jugé par l'union de ses `cites` ;
+    la clôture partageable d'une adresse encore visée par une affectation de propriété
+    est retirée en silence (l'adresse reste sans porteur, le lot suivant qui la donne est
+    refusé en `core.address.duplicate`), non testée (`cascade::cited`) ; pas de test de
+    deux plans non marqués ; `cited` de `close_owned` et de `release` décidé avant les
+    verrous
 - [x] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
   d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
   partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
@@ -715,8 +722,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     partageables, et le plan déclare dans `data.cites` les adresses existantes que l'objet
     cite une fois écrit : le noyau tranche la clôture (un porteur hors du lot la garde, la
     passation et le départ commun se lisent sur le lot), le module ne lit pas les autres
-    porteurs ; nul droit de lecture demandé sur l'adresse citée (elle appartient au
-    cluster, écrite par son connecteur) ; `prepare` découpé (`prepare_addresses`, limite de
+    porteurs ; partage borné au cluster (`data.scope`) ; une adresse citée sans être
+    créée ni tenue déjà se lit (`core.address.read` dans `reads`, contrat 009/M16, revue) ;
+    `prepare` découpé (`prepare_addresses`, limite de
     longueur) ; doc d'`owned_columns` réécrite (retour à la ligne parasite de la 4c)
   - reste : une adresse en partage n'est pas listée par un porteur comme « partagée » (ni
     lecture ni avertissement) ; deux syncs du même objet dans un lot sont jugées par

@@ -208,11 +208,15 @@ pub struct ModulePlan {
 pub struct Shared {
     /// The positions, in [`ModulePlan::core`], of its shareable operations: a
     /// `CreateAddress` identical (domain, value, usage) to a shareable one an earlier plan
-    /// of the changeset adds is not planned again, the plan receiving the identifier of the
-    /// first in [`ModuleHandler::planned`]; a `Close` of an address is kept only when
-    /// nothing cites the address any more once the changeset written. Ignored on another
-    /// operation.
+    /// of the same module and the same `scope` adds is not planned again, the plan
+    /// receiving the identifier of the first in [`ModuleHandler::planned`]; a `Close` of an
+    /// address is kept only when nothing cites the address any more once the changeset
+    /// written. Ignored on another operation. A shareable creation names no `local`: one
+    /// not planned binds none.
     pub core: Vec<usize>,
+    /// Where its creations are shared (for `kube`, the cluster of the object): only with
+    /// the plans of the same module and the same scope; `None` is a scope of its own.
+    pub scope: Option<Uuid>,
     /// The living addresses the object of the plan cites once written, when the plan
     /// declares them: the pipeline then judges by them, not by the state before the
     /// changeset, whether this object still cites an address another plan lets go.
