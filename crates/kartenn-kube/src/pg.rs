@@ -33,6 +33,20 @@ pub(crate) fn bounds(period: Option<Period>) -> (Option<OffsetDateTime>, Option<
     period.map_or((None, None), |p| (Some(time(p.start())), p.end().map(time)))
 }
 
+/// The start of `period`, else the instant of the transaction, as JSON: the instant of
+/// observation of a write of the connector (REQ-019-24).
+pub(crate) async fn observed_at(
+    conn: &mut PgConnection,
+    period: Option<Period>,
+) -> Result<Value, StoreError> {
+    let (from, _) = bounds(period);
+    sqlx::query_scalar("SELECT to_jsonb(coalesce($1::timestamptz, now()))")
+        .bind(from)
+        .fetch_one(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
 pub(crate) fn store(e: &sqlx::Error) -> StoreError {
     StoreError(e.to_string())
 }
@@ -842,8 +856,8 @@ pub(crate) async fn ingresses_routing_to(
 }
 
 /// The routes of the ingresses among `ids`, living from now on, whose service no service
-/// of their namespace living from now on bears over their version
-/// (`kube.ingress.backend_missing`): `(ingress, service name)`.
+/// of their namespace living from now on, and present in the cluster (REQ-019-22), bears
+/// over their version (`kube.ingress.backend_missing`): `(ingress, service name)`.
 pub(crate) async fn backends_missing(
     conn: &mut PgConnection,
     ids: &[Uuid],
@@ -857,6 +871,7 @@ pub(crate) async fn backends_missing(
                 SELECT 1 FROM kube.service s
                  WHERE s.namespace_id = i.namespace_id
                    AND s.name = r.route->>'service'
+                   AND s.absent_since IS NULL
                    AND s.valid_period && i.valid_period
                    AND s.valid_period && tstzrange(now(), NULL))
           ORDER BY 1, 2",
@@ -865,6 +880,96 @@ pub(crate) async fn backends_missing(
     .fetch_all(conn)
     .await
     .map_err(|e| store(&e))
+}
+
+/// The mirror a `kube.sync` marked absent (REQ-019-22): its type, the instant of its
+/// absence and its dependents, `(type, identifier)`.
+pub(crate) type Absent = (Uuid, String, String, Vec<(String, Uuid)>);
+
+/// The mirrors among `ids` and those they cite in one of their versions (the workloads a
+/// service selects, the services an ingress routes to, the namespace of a workload, a
+/// service or an ingress), absent now, with the objects living from now on that cite them:
+/// the services that select a workload, the ingresses that route to a service by its name,
+/// the workloads, services and ingresses of a namespace, and the objects of every type that
+/// carry a reference property to it (core, 004).
+pub(crate) async fn absent(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<Absent>, StoreError> {
+    // An absent mirror, its type and instant, once per dependent (none: one row).
+    type Row = (Uuid, String, String, Option<String>, Option<Uuid>);
+    let rows: Vec<Row> = sqlx::query_as(
+        "WITH cited (id) AS (
+             SELECT unnest($1::uuid[])
+             UNION SELECT unnest(workload_ids) FROM kube.service WHERE id = ANY($1)
+             UNION SELECT s.id FROM kube.ingress i JOIN kube.service s
+                      ON s.namespace_id = i.namespace_id
+                     AND i.rules @> jsonb_build_array(jsonb_build_object('service', s.name))
+                   WHERE i.id = ANY($1)
+             UNION SELECT namespace_id FROM kube.workload WHERE id = ANY($1)
+             UNION SELECT namespace_id FROM kube.service WHERE id = ANY($1)
+             UNION SELECT namespace_id FROM kube.ingress WHERE id = ANY($1)),
+         mirror (id, kind, since, namespace_id, name) AS (
+             SELECT id, 'kube.node', absent_since, NULL::uuid, name FROM kube.node
+              WHERE id IN (SELECT id FROM cited)
+                AND valid_period @> now() AND absent_since IS NOT NULL
+             UNION ALL SELECT id, 'kube.namespace', absent_since, NULL, name FROM kube.namespace
+              WHERE id IN (SELECT id FROM cited)
+                AND valid_period @> now() AND absent_since IS NOT NULL
+             UNION ALL SELECT id, 'kube.workload', absent_since, namespace_id, name
+               FROM kube.workload
+              WHERE id IN (SELECT id FROM cited)
+                AND valid_period @> now() AND absent_since IS NOT NULL
+             UNION ALL SELECT id, 'kube.service', absent_since, namespace_id, name
+               FROM kube.service
+              WHERE id IN (SELECT id FROM cited)
+                AND valid_period @> now() AND absent_since IS NOT NULL
+             UNION ALL SELECT id, 'kube.ingress', absent_since, namespace_id, name
+               FROM kube.ingress
+              WHERE id IN (SELECT id FROM cited)
+                AND valid_period @> now() AND absent_since IS NOT NULL)
+         SELECT m.id, m.kind, m.since::text, d.kind, d.id
+           FROM mirror m
+           LEFT JOIN LATERAL (
+                SELECT 'kube.service' AS kind, s.id FROM kube.service s
+                 WHERE m.kind = 'kube.workload' AND s.workload_ids @> ARRAY[m.id]
+                   AND s.valid_period && tstzrange(now(), NULL)
+                UNION SELECT 'kube.ingress', i.id FROM kube.ingress i
+                 WHERE m.kind = 'kube.service' AND i.namespace_id = m.namespace_id
+                   AND i.rules @> jsonb_build_array(jsonb_build_object('service', m.name))
+                   AND i.valid_period && tstzrange(now(), NULL)
+                UNION SELECT 'kube.workload', w.id FROM kube.workload w
+                 WHERE m.kind = 'kube.namespace' AND w.namespace_id = m.id
+                   AND w.valid_period && tstzrange(now(), NULL)
+                UNION SELECT 'kube.service', s.id FROM kube.service s
+                 WHERE m.kind = 'kube.namespace' AND s.namespace_id = m.id
+                   AND s.valid_period && tstzrange(now(), NULL)
+                UNION SELECT 'kube.ingress', i.id FROM kube.ingress i
+                 WHERE m.kind = 'kube.namespace' AND i.namespace_id = m.id
+                   AND i.valid_period && tstzrange(now(), NULL)
+                UNION SELECT a.object_type, a.object_id FROM public.property_assignment a
+                  JOIN public.property_declaration p
+                    ON p.id = a.property_id AND p.value_type = 'ref'
+                 WHERE a.kind = 'value' AND (a.v_uuid = m.id OR m.id = ANY(a.v_uuids))
+                   AND a.valid_period && tstzrange(now(), NULL)) d ON true
+          ORDER BY m.id, d.kind, d.id",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    let mut found: Vec<Absent> = Vec::new();
+    for (id, kind, since, dependent, of) in rows {
+        if found.last().is_none_or(|(last, ..)| *last != id) {
+            found.push((id, kind, since, Vec::new()));
+        }
+        if let (Some(dependent), Some(of), Some((.., dependents))) =
+            (dependent, of, found.last_mut())
+        {
+            dependents.push((dependent, of));
+        }
+    }
+    Ok(found)
 }
 
 /// The living objects of the module that cite `target` by the reference `from` → `to`

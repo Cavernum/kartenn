@@ -2481,3 +2481,226 @@ async fn mirror_closed_by_hand_refused(pool: PgPool) {
             .is_empty()
     );
 }
+
+/// The service `frontend` of the namespace `payments` of `cluster`, selecting the
+/// workloads `selection`.
+fn frontend(cluster: Uuid, selection: &Value) -> Operation {
+    service(
+        "upsert",
+        cluster,
+        "payments",
+        "frontend",
+        json!({ "workloads": selection }),
+    )
+}
+
+/// `action` (`mark_absent`, `clear_absent`) on the workload `web` of `cluster`.
+fn web_absence(action: &str, cluster: Uuid) -> Operation {
+    workload(action, cluster, "payments", "deployment", "web", json!({}))
+}
+
+impl Env {
+    /// The instant the living version of `id` of `table` is absent since, if it is.
+    async fn absent_since(&self, table: &str, id: Uuid) -> Option<String> {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT absent_since::text FROM {table} WHERE id = $1 AND valid_period @> now()"
+        )))
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The message of the open anomaly of `rule` on `object`.
+    async fn anomaly_message(&self, object: Uuid, rule: &str) -> String {
+        sqlx::query_scalar(
+            "SELECT message FROM anomaly
+              WHERE object_id = $1 AND rule_id = $2 AND closed_at IS NULL",
+        )
+        .bind(object)
+        .bind(rule)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// REQ-019-21, 22, 019/X9: a workload gone from the cluster but cited (by the selection
+/// of a service, and by a reference property of another object, as a flow cites it) is
+/// marked absent by `kube.sync`, not closed: it stays with its dependents, absent since
+/// the instant of observation, kept by a second observation, and its anomaly names its
+/// dependents, evaluated anew when one of them stops citing it. Only the connector marks
+/// it, by its identity alone.
+#[kartenn_testing::pg_test]
+async fn cited_workload_goes_absent(pool: PgPool) {
+    use kartenn_service::operations::{DeclarationInput, TypeInput};
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    env.applied(vec![
+        frontend(prod, &json!([{"kind": "deployment", "name": "web"}])),
+        workload("upsert", prod, "payments", "deployment", "api", json!({})),
+    ])
+    .await;
+    let frontend_id = env.services(payments, "frontend").await[0];
+    let api = env.workloads(payments).await[0];
+    // A reference to the workload from another object: an administrator's property.
+    env.applied(vec![Operation::DeclareProperty {
+        local: None,
+        declaration: DeclarationInput {
+            key: "custom.backend".into(),
+            value_type: TypeInput::Ref {
+                target: "kube.workload".into(),
+            },
+            cardinality: kartenn_core::values::Cardinality::Single,
+            carriers: vec!["kube.workload".into()],
+            inherit: None,
+            module: None,
+            obligations: Vec::new(),
+            expected: None,
+            labels: None,
+        },
+    }])
+    .await;
+    let backend = env
+        .id("property_declaration", "key", "custom.backend")
+        .await;
+    env.applied(vec![Operation::AssignProperty {
+        object: Ref::Id(api),
+        kind: ObjectKind::from_name("kube.workload").unwrap(),
+        property: Ref::Id(backend),
+        values: vec![RawInput::Text(web_id.to_string())],
+    }])
+    .await;
+    // Only the connector marks a mirror absent, by its identity alone.
+    env.refused_by(
+        env.author,
+        vec![web_absence("mark_absent", prod)],
+        "kube.object.managed",
+    )
+    .await;
+    env.refused(
+        vec![workload(
+            "mark_absent",
+            prod,
+            "payments",
+            "deployment",
+            "web",
+            json!({"labels": {"app": "web"}}),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+    env.refused(
+        vec![workload(
+            "mark_absent",
+            prod,
+            "payments",
+            "deployment",
+            "gone",
+            json!({}),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+    assert_eq!(env.absent_since("kube.workload", web_id).await, None);
+    let outcome = env.submit(vec![web_absence("mark_absent", prod)]).await;
+    assert_eq!(warnings(&outcome), ["kube.object.absent"]);
+    // Absent, not closed: still living, still selected, still cited.
+    let since = env.absent_since("kube.workload", web_id).await;
+    assert!(since.is_some());
+    assert!(env.workloads(payments).await.contains(&web_id));
+    assert_eq!(env.selected(frontend_id).await, [web_id]);
+    assert!(env.anomaly(web_id, "kube.object.absent").await);
+    let message = env.anomaly_message(web_id, "kube.object.absent").await;
+    assert!(
+        message.contains(&format!("kube.service {frontend_id}")),
+        "{message}"
+    );
+    assert!(
+        message.contains(&format!("kube.workload {api}")),
+        "{message}"
+    );
+    // Observed absent again: absent since the first observation.
+    env.applied(vec![web_absence("mark_absent", prod)]).await;
+    assert_eq!(env.absent_since("kube.workload", web_id).await, since);
+    // The service stops selecting it: its anomaly names the property's carrier alone.
+    env.applied(vec![frontend(prod, &json!([]))]).await;
+    let message = env.anomaly_message(web_id, "kube.object.absent").await;
+    assert!(!message.contains(&frontend_id.to_string()), "{message}");
+    assert!(
+        message.contains(&format!("kube.workload {api}")),
+        "{message}"
+    );
+}
+
+/// REQ-019-22, 019/X3, X9: an absent workload seen again in the cluster under its identity
+/// (a new UID) is the same workload, present again, its anomaly closed; an absent service
+/// cleared by `clear_absent` is present again, its anomaly and that of the ingress that
+/// routes to it closed; an absent workload closed by `kube.sync` closes its anomaly.
+#[kartenn_testing::pg_test]
+async fn absent_cleared_on_return(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    env.applied(vec![frontend(
+        prod,
+        &json!([{"kind": "deployment", "name": "web"}]),
+    )])
+    .await;
+    let frontend_id = env.services(payments, "frontend").await[0];
+    env.applied(vec![web_absence("mark_absent", prod)]).await;
+    assert!(env.anomaly(web_id, "kube.object.absent").await);
+    // Created again in the cluster: a new UID, the same workload, present.
+    let uid = Uuid::now_v7();
+    let outcome = env
+        .submit(vec![workload(
+            "upsert",
+            prod,
+            "payments",
+            "deployment",
+            "web",
+            json!({"uid": uid, "labels": {"app": "web"}}),
+        )])
+        .await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert_eq!(env.workloads(payments).await, [web_id]);
+    assert_eq!(env.workload_uids(web_id).await.last(), Some(&Some(uid)));
+    assert_eq!(env.absent_since("kube.workload", web_id).await, None);
+    assert!(!env.anomaly(web_id, "kube.object.absent").await);
+    // A service routed to by an ingress, absent: the ingress misses its backend.
+    let outcome = env
+        .submit(vec![ingress(
+            "upsert",
+            prod,
+            "payments",
+            "shop",
+            json!({"rules": [{"service": "frontend", "port": 80}]}),
+        )])
+        .await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    let shop = env.ingresses(payments, "shop").await[0];
+    let absence = |action: &str| service(action, prod, "payments", "frontend", json!({}));
+    let mut seen = warnings(&env.submit(vec![absence("mark_absent")]).await);
+    seen.sort_unstable();
+    assert_eq!(seen, ["kube.ingress.backend_missing", "kube.object.absent"]);
+    let message = env.anomaly_message(frontend_id, "kube.object.absent").await;
+    assert!(
+        message.contains(&format!("kube.ingress {shop}")),
+        "{message}"
+    );
+    assert!(env.anomaly(shop, "kube.ingress.backend_missing").await);
+    let outcome = env.submit(vec![absence("clear_absent")]).await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert_eq!(env.absent_since("kube.service", frontend_id).await, None);
+    assert!(!env.anomaly(frontend_id, "kube.object.absent").await);
+    assert!(!env.anomaly(shop, "kube.ingress.backend_missing").await);
+    // Absent, then gone without dependent: closed by the connector, its anomaly with it.
+    env.applied(vec![web_absence("mark_absent", prod)]).await;
+    assert!(env.anomaly(web_id, "kube.object.absent").await);
+    env.applied(vec![web_absence("close", prod)]).await;
+    assert!(env.workloads(payments).await.is_empty());
+    assert!(!env.anomaly(web_id, "kube.object.absent").await);
+}

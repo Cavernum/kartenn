@@ -10,7 +10,9 @@
 //! addresses of a service and the addresses of an ingress (REQ-019-14) addresses of usage
 //! `vip` of its service and external domains, which the `sync` creates and closes as
 //! operations of the core, cited by their owner once their identifiers come back
-//! (`planned`, ADR 0026 amendment 8).
+//! (`planned`, ADR 0026 amendment 8). A cited object gone from the cluster is marked
+//! absent (`mark_absent`) rather than closed, and present again by `clear_absent` or by
+//! the `upsert` of an object of its identity (REQ-019-22).
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -42,8 +44,8 @@ use crate::pg::{
 };
 use crate::rules::{
     CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, INGRESS_BACKEND_MISSING, INGRESS_DUPLICATE,
-    NAME_INVALID, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE, OPERATION_INVALID, SERVICE_DUPLICATE,
-    WORKLOAD_DUPLICATE,
+    NAME_INVALID, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE, OBJECT_ABSENT, OPERATION_INVALID,
+    SERVICE_DUPLICATE, WORKLOAD_DUPLICATE,
 };
 use crate::tracked::{PathType, Protocol, ServiceType};
 
@@ -491,6 +493,10 @@ const INGRESS_FIELDS: &[&str] = &[
     "tls_hosts",
     "addresses",
 ];
+
+/// The fields among those of a type that name its object in its namespace, beside its
+/// name: all that `mark_absent` and `clear_absent` take.
+const IDENTITY: &[&str] = &["namespace", "kind"];
 
 /// The fields of the types `sync` takes, beside the identity.
 const ALL_FIELDS: [&[&str]; 5] = [
@@ -1530,7 +1536,9 @@ impl Handler {
     }
 
     /// `kube.sync`: `upsert` creates the object of the identity (cluster, name) or changes
-    /// the tracked fields given; `close` ends it, by the core (`Close`).
+    /// the tracked fields given; `close` ends it, by the core (`Close`); `mark_absent` and
+    /// `clear_absent` set and clear its absence (REQ-019-22).
+    #[allow(clippy::too_many_lines)] // one arm per action of sync, on one identity
     fn plan_sync(
         operation: &ModuleOperation,
         object: Uuid,
@@ -1582,6 +1590,9 @@ impl Handler {
             Some("upsert") => {
                 let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
                 let owned = owned_columns(kind, &body, &completed, domain, &mut columns)?;
+                // An object of the same identity seen again in the cluster: present again
+                // (REQ-019-22), the absent one living or closed meanwhile.
+                columns.insert("absent_since".into(), Value::Null);
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
@@ -1646,6 +1657,31 @@ impl Handler {
                     keys,
                     core,
                     data: json!({ "noop": true }),
+                })
+            }
+            // A cited object gone from the cluster stays, absent since the instant of
+            // observation, until an object of its identity comes back (REQ-019-21, 22;
+            // 019/X9): identity alone, no tracked field.
+            Some(action @ ("mark_absent" | "clear_absent")) => {
+                if let Some(field) = body
+                    .keys()
+                    .find(|k| own.contains(&k.as_str()) && !IDENTITY.contains(&k.as_str()))
+                {
+                    return Err(invalid(format!(
+                        "{action}: the field `{field}` is written by an upsert"
+                    )));
+                }
+                let existing = completed
+                    .existing
+                    .ok_or_else(|| missing(kind, home, &name))?;
+                Ok(ModulePlan {
+                    kind,
+                    object: existing,
+                    creates: false,
+                    domains: vec![anchor],
+                    keys,
+                    core: Vec::new(),
+                    data: json!({ "absent": action == "mark_absent" }),
                 })
             }
             Some(other) => Err(invalid(format!("action: {other} is not an action of sync"))),
@@ -1714,7 +1750,15 @@ async fn apply_mirror(
         let mut merged = pg::current(conn, table, id, period)
             .await?
             .ok_or(WriteError::NoVersion(id))?;
-        let patch = patch_of(plan, &merged)?;
+        let patch = match plan.data.get("absent").and_then(Value::as_bool) {
+            // Absent since its first observation of absence, kept by a second one.
+            Some(true) => match merged.get("absent_since") {
+                Some(since) if !since.is_null() => json!({ "absent_since": since }),
+                _ => json!({ "absent_since": pg::observed_at(conn, period).await? }),
+            },
+            Some(false) => json!({ "absent_since": null }),
+            None => patch_of(plan, &merged)?,
+        };
         if let (Value::Object(merged), Value::Object(patch)) = (&mut merged, &patch) {
             merged.extend(patch.clone());
         }
@@ -1735,6 +1779,50 @@ async fn apply_mirror(
         changeset,
     )
     .await
+}
+
+/// The anomaly of a mirror absent from its cluster (`kube.object.absent`, REQ-019-22): it
+/// names its dependents, its subjects after it.
+fn absence((object, kind, since, dependents): &pg::Absent) -> Violation {
+    let named = if dependents.is_empty() {
+        "no dependent known to the module".to_owned()
+    } else {
+        dependents
+            .iter()
+            .map(|(kind, id)| format!("{kind} {id}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    Violation::new(
+        &OBJECT_ABSENT,
+        format!("the {kind} {object} is absent from its cluster since {since}, cited by {named}"),
+    )
+    .with_subjects(std::iter::once(*object).chain(dependents.iter().map(|(_, id)| *id)))
+}
+
+/// The anomalies of absence of the mirrors the changeset writes and of the absent ones they
+/// cite, whose dependents it may change, pushed into `found`; those mirrors, evaluated
+/// anew: the anomaly of a mirror present again, or closed, closes.
+async fn absences(
+    conn: &mut PgConnection,
+    context: &CheckContext<'_>,
+    found: &mut Vec<Violation>,
+) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
+    let mut mirrors: Vec<Uuid> = context
+        .touched
+        .iter()
+        .filter(|(kind, _)| *kind != cluster_kind())
+        .map(|(_, id)| *id)
+        .collect();
+    if mirrors.is_empty() {
+        return Ok(Vec::new());
+    }
+    let absent = pg::absent(conn, &mirrors).await?;
+    found.extend(absent.iter().map(absence));
+    mirrors.extend(absent.iter().map(|(id, ..)| *id));
+    mirrors.sort_unstable();
+    mirrors.dedup();
+    Ok(mirrors.into_iter().map(|o| (o, OBJECT_ABSENT.id)).collect())
 }
 
 impl ModuleHandler for Handler {
@@ -2080,7 +2168,9 @@ impl ModuleHandler for Handler {
 
     /// The rules of the module on the final state of the clusters, nodes and ingresses the
     /// changeset writes, over all their versions, and of the ingresses whose routes name a
-    /// service it writes.
+    /// service it writes; the absence of the mirrors it writes, and of the absent ones they
+    /// cite (`kube.object.absent`).
+    #[allow(clippy::too_many_lines)] // one block per rule of the final state
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -2100,12 +2190,16 @@ impl ModuleHandler for Handler {
             // Who writes, whatever the changeset writes (019/X5, X10).
             let conn = connection(tx)?;
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
+            let reevaluated = absences(conn, context, &mut found).await?;
             if clusters.is_empty()
                 && nodes.is_empty()
                 && ingresses.is_empty()
                 && services.is_empty()
             {
-                return Ok(Findings::from(found));
+                return Ok(Findings {
+                    violations: found,
+                    reevaluated,
+                });
             }
             // A service written, created or closed, may be the one an ingress routes to.
             if !services.is_empty() {
@@ -2178,7 +2272,10 @@ impl ModuleHandler for Handler {
                     .with_subjects([ingress]),
                 );
             }
-            let mut findings = Findings::from(found);
+            let mut findings = Findings {
+                violations: found,
+                reevaluated,
+            };
             // A node written anew is checked anew: its anomaly closes once its ranges are
             // inside the containers; an ingress too, once its services are present.
             findings
