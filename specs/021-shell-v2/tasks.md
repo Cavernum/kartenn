@@ -1507,6 +1507,66 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     aujourd'hui en `KeyLabel`, à confirmer ou à revoir selon la décision) ; raccourci et
     position des messages passagers (`Toast` : seul l'échec de « Rester connecté » passe par
     un avis, avec son code et son `Request-Id`).
+  - relevé le 2026-11-11 contre le code (main 2dc9ecc8) : le reste ci-dessus est seul
+    ouvert, le reste de la tâche tient. SDK : `web/v2/sdk/src/data/labels.ts` (`label`,
+    `lookup`, `isDictionary`, `changed`), l'événement `labels` par
+    `sdk/src/events/apply.ts` ; Vitest `sdk/test/labels.test.ts` et `sdk/test/events.test.ts`
+    (« labels: the dictionary »). Shell : toute erreur de l'API par `shell/src/problems/` —
+    `ProblemState` dans chaque vue, celles de `admin/` comprises, `RefusalAlert`,
+    `useProblems().lines` (`ImportDetail`, `AuditView`), `NextPageAlert`, `toastCodes`
+    (`session/warning.ts`) ; les encarts des simulations montrent la règle de chaque
+    violation (`ChangesetView`, `DraftOperations`, `ClosePanel`) et `ExtensionElement` son
+    code `plugin.<raison>`. Le catalogue `admin` sorti de l'entrée par la 22h ne porte aucun
+    mot des problèmes : `labels.problem.*` (les 29 types de `ProblemKind::slug`,
+    `crates/kartenn-rest/src/problem.rs`) et `problem.*` restent dans `views/i18n`, chargé
+    avec l'entrée. Libellés à clé par `useKeyLabel` (`views/data.ts`) : `kind`, `property`,
+    `value`, `rule`, `state` (`changesets/words.ts`), `role` et `group` (`admin/RolesView`,
+    `GroupsView`), `permission` (`admin/RoleDetail`). `verify` tenu : Vitest de `label`
+    ci-dessus ; parcours `edit` (« a creation applied at once… ») : un 422 montre sous les
+    champs « Copier core.prefix.unaligned », le `type` et le `Request-Id`, la copie
+    elle-même prouvée par les scripts `e2e/components/code-badge.spec.ts` et
+    `key-label.spec.ts` (les parcours tournent aussi sous Firefox, où Playwright n'accorde
+    pas la lecture du presse-papiers). `web/v2/PARITE.md` : aucune ligne ouverte sur les
+    libellés ou les codes. Découpée en 13a (« À propos ») et 13b (Topographie) ; les deux
+    questions ci-dessus restent à l'utilisateur, et la tâche se coche avec 13b.
+  - reste (relevé du 2026-11-11) : l'attribut `lang` en repli (018, « Repris par la 021 »,
+    ligne R7, WCAG 3.1.2) n'est ni dans REQ-021-19 ni fait — un libellé servi dans la
+    langue par défaut (`fallback.keys` du dictionnaire) est montré sans `lang` ; il faudrait
+    que `label` du SDK dise la langue du libellé trouvé et que `KeyLabel` la porte : à
+    amender dans REQ-021-19 avant une tâche.
+- [x] 13a. Libellés et codes, « À propos » : capacités illisibles dites avec leur problème
+  (phrase du `type`, `type` et `Request-Id`, copiables) — REQ-021-20 — verify : Vitest
+  (`readPlugins` échoue avec le problème de la dernière réponse ; « À propos » le montre)
+  - où : `web/v2/shell/src/plugins/loader.ts` (`readPlugins`, `startPlugins`),
+    `plugins/registry.ts` (`unavailable`), `frame/AboutView.vue` ; imiter
+    `session/LoginView.vue` (`useProblems({ dictionary: false })`)
+  - dépend de : 13
+  - fait le 2026-11-11 : `readPlugins` ne rend plus `null` : sa promesse échoue avec le
+    pourquoi — `ApiProblem.from` de la dernière réponse (refus, ou 429 et 503 au bout de
+    `CAPABILITY_ATTEMPTS`), `NetworkError` sans réponse, `TypeError` pour un corps sans
+    liste de plugins ; `startPlugins` le garde au registre (`unavailable(true, error)`,
+    `usePluginsProblem()`, remis à `null` par une lecture réussie et `resetPlugins`) ;
+    « À propos » le rend sous l'encart (`InlineAlert` `items` = `useProblems().lines`).
+    Vitest : `shell/test/plugins.test.ts` (dernière réponse 503 avec son `Request-Id`,
+    réseau, corps sans liste ; 403 gardé puis effacé) et `shell/test/problems.test.ts`
+    (« À propos » : la phrase, `type` et `Request-Id` en boutons de copie ; sans réponse,
+    le réseau et aucun code). Relectures : « Réessayer » passe dans l'encart, en `size="sm"`,
+    comme `NextPageAlert` (il le suivait, hors de l'encart) ; pendant la relecture, la page
+    disait « aucun plugin » (`read` restait vrai) : `unavailable(false)` remet `read` à faux,
+    « À propos » montre le chargement jusqu'à la réponse (Vitest).
+  - choix : catalogues seuls (`dictionary: false`) — « À propos » s'ouvre sans session et
+    le dictionnaire la demanderait ; leurs phrases sont celles de l'espace `problem` du
+    serveur. Le titre de l'encart ne dit pas le problème : la ligne du `type` porte sa
+    phrase (pas `said`). Pas de capture : aucune de « À propos » n'existe.
+- [ ] 13b. Libellés et codes, Topographie : la page suivante refusée d'un niveau de l'arbre
+  dite avec son problème (phrase, `type`, `Request-Id`) et « Réessayer », au lieu de se taire
+  — REQ-021-20 — verify : Vitest (`askNextPage` : un échec de page suivante exposé au
+  niveau) ; parcours `tree` (page suivante refusée par `page.route`, dite, relue)
+  - où : `web/v2/shell/src/views/topology.ts` (`askNextPage`, `levelOfPages`, ligne d'avis
+    `capped:` à imiter), `views/TopologyView.vue` (`roots?.isError &&
+    !roots.isFetchNextPageError` vers la ligne 686), `problems/NextPageAlert.vue` ;
+    `shell/test/topology.test.ts`
+  - dépend de : 13, 24e
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
   serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours
