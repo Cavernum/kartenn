@@ -1219,7 +1219,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     trie, plafonné ; rien pour un objet hors domaine), pas de filtre par porteur ni de
     recherche par clé sur `GET /v1/property-declarations` (toutes les pages lues pour
     typer un filtre).
-- [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
+- [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
   par le panneau d'édition de la sorte (`EditPanel`, 024) ; droits manquants au survol —
@@ -1305,17 +1305,24 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     référence (domaine, parent) choisie dans la première page de sa collection ; issue
     réussie dite par un toast, refus dit sur place ; entrée de session : les écritures
     suivent un geste (`session/expiry.ts` inchangé).
-  - reste : édition en place dans l'arbre de la Topographie et dans la grille du contenu
-    d'un nœud (`TreeNode` de `roots`/`children` ne sert pas `version` : ni `expected` ni
-    `If-Match` sans lire chaque objet, ou l'ajouter au contrat 006 — à arbitrer) ; cellules
-    de propriété (`prop.<clé>`) : la règle est là, aucune liste n'a encore de colonne de
-    propriété, et l'onglet Propriétés de la fiche ne s'édite pas encore en place ; éditeur à
-    liste (`Select`) dans une cellule de grille (composant) ; motif de la réponse 202 dit
-    par le toast, pas sur la cellule (la `DataGrid` n'a qu'un état « en revue ») ; « + »
-    refusé visible avec sa permission sur un nœud du `TreeGrid` (REQ-021-37 ; le composant
-    n'a ni `forbidden` ni `reason` pour lui) ; référence (domaine, parent) choisie dans la
-    première page de sa collection seulement (au-delà, introuvable dans le panneau) ;
-    captures des vrais écrans (comme la 11 : sans API dans le projet `visual`).
+  - fait le 2026-11-11 (clôture) : le verify est tenu par le code ci-dessus, relevé contre
+    `main` (ef46d41b) — `views/edit/inline.ts` (`useInlineEdit` : brouillon, Ctrl+Entrée
+    → `write.quick` sous `If-Match`, 200, 202 « en revue », 412 saisie gardée, 422, 403),
+    `fields.ts` (`editability`), `EditPanel.vue` + `action.ts` (12b), `say.ts`,
+    `ListView.vue`, `TopologyView.vue`, `record/ContentTab.vue` — et par le parcours
+    `e2e/journeys/edit.spec.ts` (lecteur sans éditeur et pourquoi ; brouillon à 1 ;
+    politique d'approbation → « en revue », jamais « appliqué » ; deux onglets → 412 sans
+    perte ; même panneau depuis un nœud et la liste ; « Appliquer » refusé avec
+    `core.address.approval.self`), sous les deux navigateurs (12c). L'acceptation de
+    REQ-021-15 « 202 : cellule en revue avec le motif de la réponse » manquait : 12e.
+  - reste, réparti : édition en place dans l'arbre et la grille du contenu, `TreeNode.version`,
+    « + » refusé d'un nœud → 12a (faits) ; motif de la 202 sur la cellule → 12e (faite) ;
+    `TreeGrid` sans raison de cellule, 202, 422 et 403 non prouvés dans l'arbre, deux
+    `useNodeEdit` pour un même nœud → 12f ; éditeur à liste dans une cellule → 12g ; onglet
+    Propriétés édité en place → 12h ; colonnes de propriété d'une liste (à arbitrer) → 12i ;
+    référence au-delà de la première page → 12j ; `c` et `e` refusés muets au clavier
+    (12c, 12d) → 12k ; captures des vrais écrans (à arbitrer, transverse aux 11, 12, 14,
+    17) → 12l.
 - [x] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
   déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
   relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur
@@ -3300,6 +3307,107 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     ajoutée par « + » ne se voit qu'au compteur du brouillon (avec la 14e) ;
     `record/NetworkVlanTab.vue` (vers la ligne 121) refuse encore sous `valid_at` par
     « revenez au présent ».
+- [x] 12e. « En revue » avec son motif sur la cellule (acceptation de REQ-021-15, relevée à
+  la clôture de la 12) : la cellule d'une écriture retenue (202) dit pourquoi, le motif de
+  la réponse (`changeset.approval.self`, `changeset.approval.self.missing`), en
+  description et au survol, non plus par le seul toast — verify : script clavier
+  `data-grid.spec.ts` (Ctrl+Entrée → « en revue », sa raison en description et en
+  infobulle) ; Vitest de la grille et de `useInlineEdit` ; parcours `edit` (politique
+  d'approbation : la cellule décrite par le motif)
+  - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (comme `readonlyReason`),
+    `DataGrid.catalogue.ts` ; `shell/src/views/edit/{inline.ts,say.ts}`, `ListView.vue`,
+    `record/ContentTab.vue` ; tests `ui/test/`, `shell/test/edit.test.ts`,
+    `e2e/components/data-grid.spec.ts`, `e2e/journeys/edit.spec.ts`
+  - dépend de : 12
+  - fait le 2026-11-11 — `DataGrid` prend `stateReason(row, column)` : pourquoi une cellule
+    est dans son état, demandé pour une cellule à état autre qu'une erreur ; ses phrases
+    rejoignent celles de `readonlyReason` (une phrase cachée par texte distinct,
+    `aria-describedby` de la cellule, les deux jointes si une cellule a les deux) et
+    l'infobulle au survol (Échap la ferme) ; une erreur garde sa seule bulle. Catalogue :
+    `cell-states` décrit sa cellule en revue ; la démo `keyboard` retient en revue un
+    `commit` marqué `now`. Shell : `heldWords` (`say.ts`, la phrase du catalogue d'après le
+    code, sinon le message du serveur), partagé par le toast et par `useInlineEdit`, dont
+    l'entrée « en revue » garde le motif (`held`) et que `stateReason` rend ; branché dans
+    `ListView` et la grille du contenu, dont le pied (`EditHint`, `held`) dit aussi le motif
+    de la cellule de la focalisation, avant ses touches (vu au clavier, pas seulement lu :
+    relecture `a11y-auditor`). 020 design (contrat d'édition, inventaire), skill.
+    Tests : `ui/test/state-reason-mounted.test.ts` (raison d'une cellule en revue, aucune
+    sur une erreur, raison d'une cellule sans éditeur gardée), `shell/test/edit.test.ts`
+    (202 : `stateReason` = `edit.reason.held` sur la cellule, rien sur une autre), script
+    `data-grid.spec.ts`, parcours `edit` (description de la cellule en revue).
+  - choix : propriété à part (`stateReason`) plutôt qu'une variante objet de `CellState`
+    (`{ review, reason }`) : le type est partagé par `TreeGrid`, `Tree` et
+    `ExpandableGrid`, qui lisent un objet comme une erreur ; la phrase du motif est celle
+    du toast, sans « En revue : » devant (le mot caché « (en revue) » est déjà dans le nom
+    de la cellule) ; pas de capture nouvelle (description et infobulle seulement, une
+    infobulle à délai se capture mal) ; une cellule qui a les deux phrases (en revue, puis
+    devenue sans éditeur) les montre jointes dans l'infobulle, chacune finie par son point.
+  - reste : le `TreeGrid` n'a pas `stateReason` (12f) ; `ExpandableGrid` ne transmet ni
+    `stateReason` ni `readonlyReason` (antérieur pour le second) ; une ligne en revue
+    (`rowState`) ne dit pas le motif, seule sa cellule ; relevés de l'`a11y-auditor`,
+    antérieurs et communs à `readonlyReason` : l'infobulle ne s'ouvre ni au focus ni au
+    toucher (le pied le dit au clavier dans le shell, rien au toucher), et elle se ferme
+    quand le pointeur quitte la cellule (non survolable, WCAG 1.4.13).
+- [ ] 12f. Édition en place dans l'arbre, reste de la 12a : `TreeGrid` prend
+  `readonlyReason` et `stateReason` (description d'une cellule sans éditeur ou en revue,
+  comme le `DataGrid`, 12e) ; 202, 422 et 403 prouvés dans l'arbre ; un seul `useNodeEdit`
+  pour l'arbre et la grille du contenu d'un même nœud (états de cellule et ligne du motif
+  partagés) ; `kindOf` de `nodes.ts` sous garde de type — REQ-021-15, 16, 37 — verify :
+  Vitest `trees-mounted.test.ts` (raisons en description), `edit.test.ts` (202, 422, 403
+  sur une cellule de l'arbre) ; script `tree-grid.spec.ts`
+  - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (imiter `reasonOf` du
+    `DataGrid`), `TreeGrid.catalogue.ts` ; `shell/src/views/edit/nodes.ts`,
+    `TopologyView.vue`, `record/ContentTab.vue`
+  - dépend de : 12a, 12e
+- [ ] 12g. Éditeur à liste dans une cellule de grille : l'emplacement `editor` du
+  `DataGrid` (et du `TreeGrid`) accueille une liste fermée (`Select` ou listbox) dont la
+  couche ne vaut pas sortie de l'éditeur (aujourd'hui le focus parti vers la couche
+  valide aussitôt) ; nature et usage s'y choisissent au lieu du texte vérifié contre la
+  liste — REQ-020-19, REQ-021-15 — verify : script clavier `data-grid.spec.ts` (Entrée
+  ouvre, flèches, Entrée valide, Échap annule, focus rendu à la cellule) ; parcours
+  `edit` (nature choisie dans la liste → brouillon à 1)
+  - où : `web/v2/ui/src/components/internal/cellEditor.ts` (`onFocusout`),
+    `DataGrid/DataGrid.vue`, `Select/` ; `shell/src/views/edit/inline.ts` (`words`),
+    `ListView.vue`
+  - dépend de : 12
+- [ ] 12h. Onglet Propriétés de la fiche édité en place : une valeur propre de
+  l'objet modifiée dans la cellule (`prop.<clé>.edit`, `X.edit`, présent), au brouillon
+  ou par Ctrl+Entrée (`properties` du patch de la sorte, sous `If-Match`), valeur
+  vérifiée par le type de sa déclaration ; une valeur héritée ou calculée sans éditeur,
+  avec pourquoi — REQ-021-15, 16, 37 ; 018 — verify : Vitest (éditabilité d'une
+  propriété, opération du brouillon, patch `properties`) ; parcours `edit` (une
+  propriété modifiée au clavier → brouillon à 1)
+  - où : `web/v2/shell/src/views/record/PropertiesTab.vue`, `views/edit/{fields.ts,inline.ts}`
+    (`propertyRight`, colonne `prop.<clé>`) ; schémas `*Patch.properties` de
+    `specs/006-api-rest/openapi-v1.json`
+  - dépend de : 12
+  - à vérifier avant de lancer : modifier une valeur héritée pose-t-elle une valeur propre
+    (spec 018) ? Si 018 ne le dit pas, c'est à l'utilisateur.
+- [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), à arbitrer par
+  l'utilisateur : lesquelles une liste montre (déclarations du type, choix de
+  l'utilisateur au sélecteur « Colonnes », colonnes de la maquette) ; aucune maquette ni
+  ligne du design 021 ne les dit. La règle d'éditabilité est déjà là (`fields.ts`).
+  - où : `web/v2/shell/src/views/ListView.vue`, `views/collections.ts`, `views/edit/fields.ts`
+  - dépend de : 12h
+- [ ] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
+  parent choisis par un `Combobox` qui interroge `q` de leur collection (`/v1/domains`,
+  `/v1/prefixes`), non plus dans la première page lue — REQ-021-36 — verify : Vitest
+  (suggestions tirées de `q`, valeur prise au-delà de la première page) ; parcours `edit`
+  (un domaine trouvé par sa saisie)
+  - où : `web/v2/shell/src/views/edit/EditPanel.vue` (`optionsOf`, `suggestTargets` de
+    « Changer de parent… »), `panel.ts`
+  - dépend de : 12
+- [ ] 12k. `c` et `e` refusés dits au clavier (relevés des 12c et 12d, `a11y-auditor`) :
+  sous `as_of`, sans le droit ou sans domaine, la touche dit sa raison par le statut poli
+  de la vue au lieu de rien ; dans l'onglet Contenu et le contenu d'un nœud, la phrase
+  d'une cellule nomme ce que « Modifier » modifie — REQ-021-37 — verify : Vitest des
+  raccourcis refusés ; parcours `time` (`e` sous `as_of` dit pourquoi)
+  - où : `web/v2/shell/src/shortcuts/view.ts` (`useViewAction`), `views/edit/EditHint.vue`
+  - dépend de : 12d
+- [ ] 12l. Captures des vrais écrans d'édition, à arbitrer : le projet `visual` n'a pas
+  d'API ; il faudrait un banc de captures à API simulée, transverse (les 11, 14 et 17
+  l'attendent aussi), plutôt qu'une tâche de la 12 — à la session principale ou à
+  l'utilisateur de le placer.
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
