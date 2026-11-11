@@ -451,6 +451,18 @@ pub trait ModuleTx: Send {
     /// the revision of the labels is incremented when the changeset is applied, and the
     /// outbox carries `org.kartenn.labels.changed`.
     fn labels_written(&mut self);
+
+    /// Records the audit event `event` with this transaction (REQ-012-11; ADR 0026,
+    /// amendment 13): it commits with what the module wrote, or not at all. A background
+    /// task records what it found this way (`observation.batch.altered`, 019-6c).
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError`] when it cannot be written: the transaction is then rolled back.
+    fn audit<'a>(
+        &'a mut self,
+        event: &'a kartenn_core::audit::AuditEvent,
+    ) -> BoxFuture<'a, Result<(), StoreError>>;
 }
 
 /// A read of the state at the dates of a request, as a module reads (ADR 0026, clauses

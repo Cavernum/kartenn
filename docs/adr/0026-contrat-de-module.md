@@ -468,6 +468,20 @@ Le contrat OpenAPI de référence gagne la route et ses schémas (ajout seul). T
 `kartenn-kube` `observations::route::batch_outside_pod_ranges_refused_whole`,
 `observations::route::batch_is_audited_once_with_hash`.
 
+### Amendement 13 — 2026-11-12, audit d'une tâche de fond de module (019-6c)
+
+Un ajout additif à `ModuleTx`, tranché en tâche (019-6c) : `ModuleTx::audit(event)`
+inscrit un événement d'audit dans la transaction du gestionnaire, comme `WriteTx::audit`
+pour le noyau. Une tâche de fond d'un module (REQ-016-16) y inscrit ce qu'elle constate,
+validé ou annulé avec elle : la vérification du journal d'observations
+(`kube.observations_verify`) inscrit ainsi `observation.batch.altered` (ADR 0043,
+décision 5). L'événement est un événement du catalogue du noyau ; aucun module ne
+déclare d'événements d'audit propres.
+
+Source : `crates/kartenn-service/src/module.rs` (`ModuleTx::audit`),
+`crates/kartenn-store-pg/src/write.rs` ; premier usage `crates/kartenn-kube/src/jobs.rs`.
+Test : `kartenn-kube` `observations::retention::altered_batch_detected`.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

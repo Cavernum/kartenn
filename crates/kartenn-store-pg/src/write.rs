@@ -91,6 +91,17 @@ impl kartenn_service::module::ModuleTx for PgTx {
         self.labels_written = true;
     }
 
+    fn audit<'a>(
+        &'a mut self,
+        event: &'a kartenn_core::audit::AuditEvent,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(crate::audit_journal::insert(
+            &mut *self.tx,
+            event,
+            &self.instance,
+        ))
+    }
+
     fn register(
         &mut self,
         row: kartenn_service::module::ModuleObjectRow,
