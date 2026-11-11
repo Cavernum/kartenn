@@ -3316,7 +3316,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     Vitest `draft-replace.test.ts` : `expected` d'origine gardé et champ bougé dit ;
     « Reprendre sur la version actuelle » ; création à référence locale remplacée ;
     `editOfOperation` et `create` d'une référence et d'une ancre locales. `design.md`
-    (Brouillons) et `decisions.md` (Q-021-20).
+    (Brouillons) et `decisions.md` (Q-021-20). Maquette E5 amendée (validée par
+    l'utilisateur, notée sous Q-021-17) : `EcranBrouillon.vue` porte le crayon avant
+    « Retirer », refusé avec sa raison pour la propriété posée (`noPanel` de
+    `DRAFT_OPERATIONS`) ; les 24 captures E5 (simulation, violations, soumission ; quatre
+    largeurs, deux modes) réécrites et relues, seules à changer parmi celles des écrans.
   - choix : une création garde son `local`
     (021/A13) ; le bouton « Modifier » montré sur chaque ligne, refusé avec sa raison plutôt
     que caché ; un `Button` primaire au lieu d'un `SplitButton` à une entrée ; l'égalité de
@@ -3327,13 +3331,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `body` pour aucune demande d'édition (`#k-surface` alors, comme un déclencheur parti) ;
     seuls les objets créés par une opération d'avant la ligne remplacée sont offerts à ses
     références (un nom local désigne un objet créé plus tôt, A13) ; Vitest dans un fichier neuf plutôt que dans
-    `changesets.test.ts` (déjà 1 000 lignes) ; maquettes E5 inchangées. Relectures : le
+    `changesets.test.ts` (déjà 1 000 lignes). Relectures : le
     retour du focus effacé aussi quand le brouillon est parti ou illisible (`a11y-auditor`) ;
     l'onglet Brouillon remontré seulement pour le brouillon actif hors de sa page (sur
     `/drafts/:id`, la ligne reprend le focus, le panneau laissé tel quel).
-  - reste : les maquettes `EcranBrouillon.vue` et `E5Brouillon.vue` ne montrent que
-    « Retirer » : leur ajouter le crayon (normal et refusé) change une maquette validée et
-    ses captures, posé à l'utilisateur ; revue (mineurs) : `returning` (`lineToReturn`)
+  - reste : revue (mineurs) : `returning` (`lineToReturn`)
     n'est pas effacé quand son brouillon n'est plus l'actif du cadre (`ShellFrame.vue`,
     vers la ligne 270 : le cadre l'ignore, aucune liste ne le consomme) ;
     `replaceOperation` (`drafts.ts`, vers la ligne 311) se replie sur l'`ETag` du cache

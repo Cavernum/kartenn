@@ -432,7 +432,11 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **Q-021-17 — Modifier une opération du brouillon** (021-14l) : « Modifier » sur une ligne
   rouvre le panneau d'édition de l'objet prérempli de l'opération, qui la remplace à sa
   place sous `If-Match`, simulation relancée. Options pesées : panneau d'édition, retirer
-  puis refaire (design amendé). Retenu : panneau d'édition.
+  puis refaire (design amendé). Retenu : panneau d'édition. *Maquette E5 amendée, validée
+  par l'utilisateur le 2026-11-11 (021-14l)* : chaque ligne d'opération du brouillon
+  (`EcranBrouillon.vue`, montré par E5) porte le crayon « Modifier » avant « Retirer » ;
+  refusé avec sa raison pour une opération qu'aucun panneau n'écrit (la propriété posée
+  de la maquette).
 - **Q-021-18 — Colonnes de propriétés d'une liste** (021-12i) : aucune colonne de
   propriété par défaut ; le sélecteur « Colonnes » propose les propriétés déclarées pour
   le type, et le choix se garde par vue et par utilisateur comme les autres réglages de
