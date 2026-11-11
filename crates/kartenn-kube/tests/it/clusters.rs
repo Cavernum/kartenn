@@ -1863,6 +1863,75 @@ async fn ingress_addresses_fall_back_to_service_domain(pool: PgPool) {
     assert_eq!(env.placed(shop).await, (Some(payments), Some(env.services)));
 }
 
+/// The `kube.sync` of a service or an ingress, as `service` and `ingress`.
+type Living = fn(&str, Uuid, &str, &str, Value) -> Operation;
+
+/// Services and ingresses are anchored in the service and external domains of their
+/// cluster: neither domain changes under living ones, setting the external domain
+/// included (Q-019-17, review of 019-4c; the rule of Q-019-15).
+#[kartenn_testing::pg_test]
+async fn service_domains_change_refused_with_living_objects(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let other = env
+        .domain("services-b", "192.0.2.0/26", Nature::Network)
+        .await;
+    let network = env.prefix(other).await;
+    let external = env
+        .domain("external", "192.0.2.64/26", Nature::Network)
+        .await;
+    let dev = env.new_cluster("dev").await;
+    let update = |fields: Value| {
+        let mut body = json!({"id": {"id": dev}});
+        merge(&mut body, fields);
+        op("update_cluster", body)
+    };
+    let services_moved =
+        || update(json!({"service_domain": {"id": other}, "service_networks": [{"id": network}]}));
+    let services_back = || {
+        update(json!({"service_domain": {"id": env.services},
+                      "service_networks": [{"id": env.network}]}))
+    };
+    let external_set = || update(json!({"external_domain": {"id": external}}));
+    let external_none = || update(json!({"external_domain": null}));
+    // Without services nor ingresses, a living namespace aside: accepted, and back.
+    env.applied(vec![sync(
+        "upsert",
+        "namespace",
+        dev,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    env.applied(vec![services_moved()]).await;
+    env.applied(vec![services_back()]).await;
+    env.applied(vec![external_set()]).await;
+    env.applied(vec![external_none()]).await;
+    let living: [(Living, &str); 2] = [(service, "web"), (ingress, "shop")];
+    for (living, name) in living {
+        env.applied(vec![living("upsert", dev, "payments", name, json!({}))])
+            .await;
+        env.refused(vec![services_moved()], "kube.operation.invalid")
+            .await;
+        env.refused(vec![external_set()], "kube.operation.invalid")
+            .await;
+        // The same domains given again are no change.
+        env.applied(vec![services_back(), external_none()]).await;
+        env.applied(vec![living("close", dev, "payments", name, json!({}))])
+            .await;
+    }
+    // Its services and ingresses closed, both domains may change.
+    env.applied(vec![services_moved(), external_set()]).await;
+    let domains: (Uuid, Option<Uuid>) = sqlx::query_as(
+        "SELECT service_domain_id, external_domain_id FROM kube.cluster
+          WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(dev)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(domains, (other, Some(external)));
+}
+
 /// An ingress `name` of `payments` in `cluster`, routed to the service `lb`, with
 /// `addresses`.
 fn routed(cluster: Uuid, name: &str, addresses: Value) -> Operation {
