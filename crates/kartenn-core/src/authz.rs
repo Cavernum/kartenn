@@ -645,16 +645,21 @@ impl BuiltinRole {
     /// Its entries in a build with the permissions `modules`: the delivered roles that
     /// read read the objects of the modules too (spec 008, REQ-008-8), and those that
     /// apply the changesets of others apply them on the objects of the modules too, as
-    /// `core.changeset.approve` did (spec 024, REQ-024-9); `*` needs nothing.
+    /// `core.changeset.approve` did (spec 024, REQ-024-9); `*` needs nothing. The
+    /// permissions of the observations of a module (`<module>.observation.<action>`) are
+    /// in none of them (ADR 0043, decision 2).
     #[must_use]
     pub fn entries_with(&self, modules: &[&'static Permission]) -> Vec<&'static str> {
+        let observation = |name: &str| name.split('.').nth(1) == Some("observation");
         let mut entries: Vec<&'static str> = self.entries.to_vec();
         for (marker, action) in [("core.entity.read", "read"), ("core.entity.apply", "apply")] {
             if self.entries.contains(&marker) {
                 entries.extend(
                     modules
                         .iter()
-                        .filter(|p| action_of(p.name) == action && !p.global_only)
+                        .filter(|p| {
+                            action_of(p.name) == action && !p.global_only && !observation(p.name)
+                        })
                         .map(|p| p.name),
                 );
             }

@@ -288,7 +288,9 @@ mod tests {
     /// names; the reader of the build reads them.
     #[test]
     fn a_module_kind_reads_under_the_short_permission() {
-        use kartenn_core::authz::{READER, type_edit_permission, type_read_permission};
+        use kartenn_core::authz::{
+            APPROVER, EDITOR, READER, type_edit_permission, type_read_permission,
+        };
         let registry = super::registry().expect("the modules of the build");
         assert_eq!(type_read_permission("machines.machine"), "machines.read");
         assert_eq!(type_edit_permission("machines.machine"), "machines.edit");
@@ -296,6 +298,12 @@ mod tests {
         let reader = READER.entries_with(&registry.permissions());
         for name in ["flow.read", "core.vlan.read", "machines.read"] {
             assert!(reader.contains(&name), "{name}");
+        }
+        // The journal of the pods observed is read by no delivered role (ADR 0043,
+        // decision 2): `*` covers it.
+        for role in [&READER, &EDITOR, &APPROVER] {
+            let entries = role.entries_with(&registry.permissions());
+            assert!(!entries.contains(&"kube.observation.read"), "{}", role.key);
         }
     }
 
