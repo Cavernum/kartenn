@@ -48,6 +48,10 @@ const states: Record<string, CellState> = {
   [`${prefixes[4]}:env`]: "review",
 };
 const cellState = (row: Row, column: GridColumn) => states[`${row.prefix}:${column.id}`];
+/** Why a cell in review is held (`stateReason`): its description and its tooltip. */
+const HELD = "Une politique d'approbation retient la modification : elle attend une revue.";
+const stateReason = (row: Row, column: GridColumn) =>
+  cellState(row, column) === "review" ? HELD : undefined;
 
 /**
  * Cells holding a widget: an environment chip and a key label, out of the tab order,
@@ -142,7 +146,8 @@ const OWNERS = ["Équipe réseau", "Équipe postes", "Exploitation"];
  * The script of the keyboard (`e2e/components/data-grid.spec.ts`): thirty rows, several
  * selectable, columns resizable, the label and the owner editable. The host of the demo
  * plays the server: a commit is pending a moment, then in the draft, or refused for an
- * owner it does not know (its code shown, the error said).
+ * owner it does not know (its code shown, the error said); one marked « apply now » is
+ * held in review by an approval policy, and the cell says why (`stateReason`).
  */
 const keyboard = defineComponent({
   setup() {
@@ -167,7 +172,9 @@ const keyboard = defineComponent({
           [key]:
             commit.column === "owner" && !OWNERS.includes(commit.value)
               ? { error: "Responsable inconnu.", code: "core.owner.unknown" }
-              : "draft",
+              : commit.now
+                ? "review"
+                : "draft",
         };
       }, 300);
     }
@@ -197,6 +204,8 @@ const keyboard = defineComponent({
               ? "Le libellé est obligatoire."
               : undefined,
           cellState: (row: Row, column: GridColumn) => states.value[`${row.prefix}:${column.id}`],
+          stateReason: (row: Row, column: GridColumn) =>
+            states.value[`${row.prefix}:${column.id}`] === "review" ? HELD : undefined,
           onCommit,
           onWindow: (next: GridWindow) => (view.value = next),
         }),
@@ -277,7 +286,8 @@ export default {
     {
       name: "cell-states",
       description: "Cellules en brouillon, en attente, en revue, invalide (motif et code)",
-      props: { ...base, cellState },
+      // The reason of the cell in review: its description, unseen in the capture.
+      props: { ...base, cellState, stateReason },
       wide: true,
     },
     {

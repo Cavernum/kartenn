@@ -109,6 +109,12 @@ const activeWhy = computed(() =>
 const applyLacks = computed(() =>
   activeRow.value && !edit.mayApply(activeRow.value) ? nodeApplyRight(activeRow.value) : null,
 );
+/** Why the cell of the focus is held in review, said under the grid too (seen, not only read). */
+const activeHeld = computed(() =>
+  active.value && activeRow.value
+    ? edit.stateReason(activeRow.value, { id: active.value.column, label: "" })
+    : undefined,
+);
 
 const columns = computed<GridColumn[]>(() => [
   { id: "value", label: t("views.record.object"), width: "fill", mono: true },
@@ -172,6 +178,7 @@ function onCancelAsk(): void {
       :readonly-reason="readonlyReason"
       :validate="edit.validate"
       :cell-state="edit.cellState"
+      :state-reason="edit.stateReason"
       :row-state="edit.rowState"
       @commit="edit.onCommit"
       @window="onWindow"
@@ -193,7 +200,7 @@ function onCancelAsk(): void {
       @confirm="onConfirm"
       @cancel="onCancelAsk"
     />
-    <EditHint v-else-if="activeRow" :why="activeWhy" :apply-lacks="applyLacks" />
+    <EditHint v-else-if="activeRow" :why="activeWhy" :apply-lacks="applyLacks" :held="activeHeld" />
     <span class="k-visually-hidden" role="status">{{ said }}</span>
   </template>
 </template>

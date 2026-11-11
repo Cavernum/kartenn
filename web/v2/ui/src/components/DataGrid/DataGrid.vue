@@ -24,7 +24,8 @@
 // cancels, Enter or Tab commits (`commit`; Ctrl+Enter commits marked `now`: apply now
 // rather than add to the draft, the host's to decide; a cell without an editor described
 // by why, `readonlyReason`), and the host renders the cell's state then
-// (pending, draft, review, error with its code, its message in a floating layer that
+// (pending, draft, review — why it is held, `stateReason`, its description and its
+// tooltip like a reason —, error with its code, its message in a floating layer that
 // never resizes the cell: `CellError`; an error that follows a commit is said by an alert).
 // Columns resizable by the keyboard (`resizable`: F2 on a header reaches its handle, a
 // Window Splitter: arrows, Home, End) and the pointer (drag, or a click for the next
@@ -130,6 +131,12 @@ const props = withDefaults(
      * a sentence, the description of the cell (REQ-021-15: it says why).
      */
     readonlyReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
+    /**
+     * Why a cell is in its state (`cellState`, any but an error, whose message says it):
+     * the reason a write that asked to apply is held in review (REQ-021-15). A sentence,
+     * the description of the cell and its tooltip under the pointer, as `readonlyReason`.
+     */
+    stateReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
     /** The local check of the text of an editor: its error, or nothing (contract types). */
     validate?: ((row: R, column: GridColumn, value: string) => string | undefined) | undefined;
     /**
@@ -156,6 +163,7 @@ const props = withDefaults(
     loadingRows: 5,
     editable: undefined,
     readonlyReason: undefined,
+    stateReason: undefined,
     validate: undefined,
     rowCount: undefined,
     rowOffset: 0,
@@ -381,21 +389,30 @@ watch(
 const uid = useId();
 const errorId = (r: number, c: number) => `k-data-grid-${uid}-error-${r}-${c}`;
 
-// Why a cell of an editable grid offers no editor (`readonlyReason`): each distinct
-// sentence of the rows in the document once, hidden, the description of its cells
-// (`aria-describedby`), never in their name.
+// Why a cell is in its state (`stateReason`: a write held in review) and why a cell of an
+// editable grid offers no editor (`readonlyReason`): each distinct sentence of the rows in
+// the document once, hidden, the description of its cells (`aria-describedby`), never in
+// their name.
 const readonlyText = (row: R, column: GridColumn) =>
   props.editable && props.readonlyReason && !canEdit(row, column)
     ? props.readonlyReason(row, column)
     : undefined;
+/** Why the cell is in its state; nothing for an error, which its message says. */
+function stateText(row: R, column: GridColumn): string | undefined {
+  if (!props.stateReason) return undefined;
+  const state = stateOf(row, column);
+  return state !== undefined && state !== "error" ? props.stateReason(row, column) : undefined;
+}
+/** The sentences a cell says of itself besides its value: its state's reason, then why not. */
+const notesOf = (row: R, column: GridColumn): string[] =>
+  [stateText(row, column), readonlyText(row, column)].filter((text): text is string => !!text);
 const reasons = computed<string[]>(() => {
-  if (!props.editable || !props.readonlyReason) return [];
+  if (!(props.editable && props.readonlyReason) && !props.stateReason) return [];
   const found = new Set<string>();
   for (const part of parts.value) {
     if (!("index" in part)) continue;
     for (const column of shown.value) {
-      const text = readonlyText(part.row, column);
-      if (text) found.add(text);
+      for (const text of notesOf(part.row, column)) found.add(text);
     }
   }
   return [...found];
@@ -415,9 +432,11 @@ watch(reasonTip.open, (now) =>
 );
 onBeforeUnmount(() => window.removeEventListener("keydown", closeTip, { capture: true }));
 function reasonOf(row: R, column: GridColumn): string | undefined {
-  const text = readonlyText(row, column);
-  const at = text ? reasons.value.indexOf(text) : -1;
-  return at >= 0 ? reasonId(at) : undefined;
+  const ids = notesOf(row, column)
+    .map((text) => reasons.value.indexOf(text))
+    .filter((at) => at >= 0)
+    .map(reasonId);
+  return ids.length ? ids.join(" ") : undefined;
 }
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
@@ -453,8 +472,9 @@ const cellElement = (cell: CellRef) =>
 function onCellEnter(row: R, column: GridColumn, event: PointerEvent): void {
   errors.enter(cellKey(keyOf(row), column.id), event);
   // A cell without an editor says why under the pointer too (REQ-021-37: hover and focus;
-  // the focus has its description), after the delay of a tooltip.
-  const text = readonlyText(row, column);
+  // the focus has its description), after the delay of a tooltip; a cell held in review,
+  // why it is.
+  const text = notesOf(row, column).join(" ");
   if (text && event.pointerType !== "touch") {
     tipText.value = text;
     reasonTip.show(event.currentTarget as HTMLElement, true);
@@ -1312,7 +1332,9 @@ onBeforeUnmount(() => observer?.disconnect());
     <div v-if="reasons.length" hidden>
       <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
     </div>
-    <Tooltip v-if="props.readonlyReason" :control="reasonTip" decorative>{{ tipText }}</Tooltip>
+    <Tooltip v-if="props.readonlyReason || props.stateReason" :control="reasonTip" decorative>{{
+      tipText
+    }}</Tooltip>
   </div>
 </template>
 

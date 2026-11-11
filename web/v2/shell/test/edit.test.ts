@@ -437,6 +437,10 @@ describe("a list edited in place", () => {
     expect(patch.body).toEqual({ nature: "container", motive: "bout en bout" });
     expect(edit().cellState(ROW, column("nature"))).toBe("review");
     expect(edit().rowState(ROW)).toBe("review");
+    // The cell says why it is held (REQ-021-15; the catalog's sentence, its key here), the
+    // other cells nothing.
+    expect(edit().stateReason(ROW, column("nature"))).toBe("edit.reason.held");
+    expect(edit().stateReason(ROW, column("value"))).toBeUndefined();
     // The value read stays: the one proposed is not the object's.
     expect(edit().shownRows.value[0]!.nature).toBe("network");
     expect(said.applied).toEqual([]);

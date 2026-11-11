@@ -161,6 +161,15 @@ test("under an approval policy, Ctrl+Enter with its motive: « en revue », neve
   const proposed = page.getByRole("status").filter({ hasText: "Proposé, en revue" }).first();
   await expect(proposed).toBeVisible();
   await expect(cellOf(page, "nature")).toHaveAttribute("data-state", "review");
+  // The cell says why it is held, the reason of the answer (REQ-021-15).
+  await expect(cellOf(page, "nature")).toHaveAccessibleDescription(
+    "Une politique d'approbation retient la modification : elle attend une revue.",
+  );
+  // Seen too: the foot of the list says it for the cell of the focus, back on it.
+  await expect(cellOf(page, "nature")).toBeFocused();
+  await expect(
+    page.locator(".k-keyboard-hint").filter({ hasText: "Une politique d'approbation retient" }),
+  ).toBeVisible();
   // The value read stays in the cell: the one proposed is not the object's yet.
   await expect(cellOf(page, "nature")).toContainText("Réseau");
   await expect(page.getByText(/Appliqué :/)).toHaveCount(0);

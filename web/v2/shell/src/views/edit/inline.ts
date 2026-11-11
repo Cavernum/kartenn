@@ -31,6 +31,7 @@ import {
   type NotEditable,
   type Values,
 } from "./fields.ts";
+import { heldWords } from "./say.ts";
 
 // In-place editing of a list of the referential (REQ-021-15, 16; design 021 « Édition en
 // place »): the cells the user may edit (rights, present, contract), checked by the types
@@ -38,8 +39,9 @@ import {
 // `expected`) and the cell shows « en brouillon » from the draft itself; Ctrl+Enter asks
 // for a motive in line (prefilled) and applies by `write.quick` (`?approval=self`) — the
 // value shown before the answer (present only), then: 200 applied, 202 « en revue » (never
-// applied), 412 the object read again with the input kept beside its current value, 422
-// the violations on the cell with their codes, 403 a refusal, the input kept. Without
+// applied; why, the description of the cell: `stateReason`), 412 the object read again
+// with the input kept beside its current value, 422 the violations on the cell with their
+// codes, 403 a refusal, the input kept. Without
 // `X.approval.self`, Ctrl+Enter goes to the draft and says why. Rows of several kinds (the
 // nodes of the topography, task 12a) give the collection of each row and the field each of
 // their columns edits; a word of a closed list typed stands for its key.
@@ -73,6 +75,8 @@ interface Shown {
   value: string | boolean;
   /** The version of the row when it was written: the entry goes once the row changes. */
   version: string | null;
+  /** Held in review (202): why, as the cell says it (REQ-021-15). */
+  held?: string | undefined;
 }
 
 /** What the view says of an outcome (the toasts of the frame, a polite status). */
@@ -226,6 +230,13 @@ export function useInlineEdit({
     if (entry?.state !== undefined) return entry.state;
     if (entry) return undefined;
     return drafted.value.get(String(row.id))?.[name] !== undefined ? "draft" : undefined;
+  }
+  /** Why a cell is held in review (the reason of its 202): its description and tooltip. */
+  function stateReason(row: Item, column: GridColumn): string | undefined {
+    const name = fieldName(row, column.id);
+    if (name === undefined) return undefined;
+    const entry = shown.get(keyOf(String(row.id), name));
+    return entry?.state === "review" ? entry.held : undefined;
   }
   function rowState(row: Item): RowState | undefined {
     const id = String(row.id);
@@ -392,7 +403,12 @@ export function useInlineEdit({
       return true;
     }
     if (outcome.kind === "proposed") {
-      shown.set(key, { state: "review", value, version: ask.version });
+      shown.set(key, {
+        state: "review",
+        value,
+        version: ask.version,
+        held: heldWords(t, outcome.reason),
+      });
       asking.value = null;
       say.proposed(words, outcome.changeset, outcome.reason);
       return true;
@@ -439,6 +455,7 @@ export function useInlineEdit({
   return {
     shownRows,
     cellState,
+    stateReason,
     rowState,
     editable,
     validate,

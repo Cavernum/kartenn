@@ -180,6 +180,13 @@ const kindWords = computed(() => t(`labels.kind.${props.collection.type}`));
 const activeWhy = computed(() =>
   active.value && active.value.row !== "" ? edit.why(active.value.column) : null,
 );
+/** Why the cell of the focus is held in review, said at the foot too (seen, not only read). */
+const activeHeld = computed(() => {
+  const cell = active.value;
+  if (!cell || cell.row === "") return undefined;
+  const row = edit.shownRows.value.find((item) => String(item.id) === cell.row);
+  return row ? edit.stateReason(row, { id: cell.column, label: "" }) : undefined;
+});
 /** The same reason as one sentence: the description of a cell without an editor. */
 function readonlyReason(_row: Item, column: GridColumn): string | undefined {
   return whyWords(edit.why(column.id), t);
@@ -297,6 +304,7 @@ function clearFilters(): void {
       :readonly-reason="readonlyReason"
       :validate="edit.validate"
       :cell-state="edit.cellState"
+      :state-reason="edit.stateReason"
       :row-state="edit.rowState"
       @filter="onColumnFilter"
       @activate="onActivate"
@@ -356,6 +364,7 @@ function clearFilters(): void {
           v-if="active && active.row !== ''"
           :why="activeWhy"
           :apply-lacks="edit.canApply.value ? null : applyRight(props.collection.type)"
+          :held="activeHeld"
         />
       </template>
       <span role="status">{{ restarted ? t("views.list.restarted") : said }}</span>
