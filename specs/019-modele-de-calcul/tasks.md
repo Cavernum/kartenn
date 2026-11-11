@@ -694,7 +694,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - reste : la passation se vérifie dans `kartenn-kube` (4e), pas par un module de test
     du noyau (le module factice n'a pas d'adresses partagées) ; un objet réécrit deux fois
     dans un lot est jugé par l'union de ses `cites`
-- [ ] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
+- [x] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
   d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
   partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
   et le lot entier du connecteur avec lui. Quand l'adresse existe déjà dans le domaine
@@ -709,6 +709,20 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     adresses du domaine et de leurs porteurs), `crates/kartenn-service/src/cascade.rs`
     (`cited`) ; tests voisins de la 4b et de la 4c dans `tests/it/clusters.rs`
   - dépend de : 4c, 4e0
+  - choix : `prepare` lit (`pg::shared_addresses`) les adresses vivantes des valeurs
+    données qu'un service ou un ingress vivant d'un namespace vivant du cluster cite ;
+    `vips` les cite comme les siennes ; toutes ses créations et clôtures d'adresses sont
+    partageables, et le plan déclare dans `data.cites` les adresses existantes que l'objet
+    cite une fois écrit : le noyau tranche la clôture (un porteur hors du lot la garde, la
+    passation et le départ commun se lisent sur le lot), le module ne lit pas les autres
+    porteurs ; nul droit de lecture demandé sur l'adresse citée (elle appartient au
+    cluster, écrite par son connecteur) ; `prepare` découpé (`prepare_addresses`, limite de
+    longueur) ; doc d'`owned_columns` réécrite (retour à la ligne parasite de la 4c)
+  - reste : une adresse en partage n'est pas listée par un porteur comme « partagée » (ni
+    lecture ni avertissement) ; deux syncs du même objet dans un lot sont jugées par
+    l'union de leurs `cites` ; pas de test IPv6 ni d'un service et d'un ingress de
+    namespaces différents (même chemin) ; la cascade d'un namespace qui clôt un porteur
+    pendant qu'un autre porteur du lot rend l'adresse suit `close_owned`, non testée
 - [ ] 4f. Domaines des services et des adresses externes figés sous des objets vivants
   (revue de la 4c ; même règle que Q-019-15 pour le domaine des pods) : `update_cluster`
   qui change `service_domain_id` ou `external_domain_id` d'un cluster qui a des services

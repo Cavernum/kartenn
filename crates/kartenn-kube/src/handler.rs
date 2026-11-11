@@ -23,7 +23,7 @@ use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, Edge, Findings, ModuleHandler, ModuleObjectRow, ModulePlan,
-    ModuleRead, ModuleTx, Reference,
+    ModuleRead, ModuleTx, Reference, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -149,6 +149,10 @@ struct Completed {
     /// The living addresses the service or the ingress of a `sync` cites.
     #[serde(default)]
     addresses: Vec<pg::HeldAddress>,
+    /// The living addresses among those the service or the ingress of a `sync` gives that
+    /// another service or ingress of the cluster cites: cited, not created (019/Q-019-17).
+    #[serde(default)]
+    shared: Vec<pg::SharedAddress>,
     /// The living services that select the workload a `sync` closes: it leaves their
     /// selection in the same batch (design « Références »).
     #[serde(default)]
@@ -826,20 +830,81 @@ fn sorts(kind: ModuleKind, completed: &Completed) -> Vec<Sort> {
     }
 }
 
+/// The addresses a `sync` gives in the fields of `sorts` (domain, canonical value), read
+/// before the plan; a value that does not parse is left to it.
+fn given(body: &Map<String, Value>, sorts: &[Sort]) -> Vec<(Uuid, String)> {
+    let mut found = BTreeSet::new();
+    for sort in sorts {
+        let (Some(domain), Some(Value::Array(texts))) = (sort.domain, body.get(sort.field)) else {
+            continue;
+        };
+        for text in texts.iter().filter_map(Value::as_str) {
+            if let Ok(value) = Addr::parse_any(&family::ALL, text) {
+                found.insert((domain, value.to_string()));
+            }
+        }
+    }
+    found.into_iter().collect()
+}
+
+/// What [`Handler::prepare`] reads for the addresses of a `sync` of a service or an ingress
+/// (`table`): the domains of its cluster, the addresses it cites, and those among the ones
+/// it gives that another service or ingress of the cluster cites (019/Q-019-17).
+async fn prepare_addresses(
+    conn: &mut PgConnection,
+    table: &str,
+    cluster: Uuid,
+    body: &Map<String, Value>,
+    completed: &mut Completed,
+    at: Option<sqlx::types::time::OffsetDateTime>,
+) -> Result<(), StoreError> {
+    if let Some((service, external)) = pg::service_domains(conn, cluster, at).await? {
+        completed.service_domain = Some(service);
+        completed.external_domain = external;
+    }
+    let kind = if table == SERVICE_TABLE {
+        service_kind()
+    } else {
+        ingress_kind()
+    };
+    if let Some(object) = completed.existing {
+        completed.addresses = if kind == service_kind() {
+            pg::service_addresses(conn, object, at).await?
+        } else {
+            pg::ingress_addresses(conn, object, at).await?
+        };
+    }
+    let wanted = given(body, &sorts(kind, completed));
+    if !wanted.is_empty() {
+        completed.shared = pg::shared_addresses(conn, cluster, &wanted, at).await?;
+    }
+    Ok(())
+}
+
+/// What [`vips`] plans: the operations of the core, for each the columns that cite what it
+/// creates (`data.slots`), and the living addresses the object cites once written.
+struct Vips {
+    core: Vec<Operation>,
+    slots: Vec<Value>,
+    cites: Vec<Uuid>,
+}
+
 /// What a `sync` does to the addresses of a service or an ingress, into `columns`: the
 /// addresses of each of its `sorts` it gives (`cluster_ips`, `external_ips`, `addresses`,
 /// lists of IP) against those the object cites (`completed.addresses`). A value unchanged
-/// creates nothing; a new value gets one address of usage `vip` in the domain of its
-/// sort, cited by every sort that gives it (a cluster IP that is also an external address,
-/// when the two domains are one, is one address); an address no sort cites any more
-/// closes. Returns the operations of the core and, for each, the columns that cite what it
-/// creates (`data.slots`).
+/// creates nothing; a value another service or ingress of the cluster cites already is
+/// cited (`completed.shared`, 019/Q-019-17); a new value gets one address of usage `vip`
+/// in the domain of its sort, cited by every sort that gives it (a cluster IP that is also
+/// an external address, when the two domains are one, is one address); an address no sort
+/// cites any more closes. Its creations and closures are shareable (ADR 0026, amendment
+/// 10): a value two holders of the changeset give is created once, an address closes with
+/// its last holder.
 fn vips(
     body: &Map<String, Value>,
     completed: &Completed,
     sorts: &[Sort],
     columns: &mut Map<String, Value>,
-) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
+) -> Result<Vips, Violation> {
     let held: Vec<Held> = completed
         .addresses
         .iter()
@@ -853,10 +918,23 @@ fn vips(
             })
         })
         .collect();
+    let shared: Vec<(Uuid, Addr, Uuid)> = completed
+        .shared
+        .iter()
+        .filter_map(|(domain, text, id)| {
+            Some((*domain, Addr::parse_any(&family::ALL, text).ok()?, *id))
+        })
+        .collect();
     let found = |key: &(Uuid, Addr)| {
         held.iter()
             .find(|h| (h.domain, h.value) == *key)
             .map(|h| h.id)
+            .or_else(|| {
+                shared
+                    .iter()
+                    .find(|(domain, value, _)| (*domain, *value) == *key)
+                    .map(|(.., id)| *id)
+            })
     };
     // The (domain, value) each sort cites after the write: those it gives, or those it
     // cites already.
@@ -918,7 +996,10 @@ fn vips(
         core.push(close_core(ObjectKind::Address, h.id));
         slots.push(Value::Null);
     }
-    Ok((core, slots))
+    let mut cites: Vec<Uuid> = all.iter().filter_map(found).collect();
+    cites.sort_unstable();
+    cites.dedup();
+    Ok(Vips { core, slots, cites })
 }
 
 /// The columns of the object of a plan that cite what `operation` creates, if it creates
@@ -1319,37 +1400,54 @@ fn unselect_operation(service: Uuid, workload: Uuid, domain: Uuid) -> Operation 
     })
 }
 
+/// What [`owned_columns`] plans: the operations of the core, for each the columns that cite
+/// what it creates (`data.slots`), the positions of the shareable ones and, for a service
+/// or an ingress, the living addresses it cites once written (ADR 0026, amendment 10).
+struct Owned {
+    core: Vec<Operation>,
+    slots: Vec<Value>,
+    shared: Vec<usize>,
+    cites: Option<Vec<Uuid>>,
+}
+
 /// The columns of an `upsert` that cite objects the `sync` creates or reads (the pod ranges
 /// of a node, the addresses and the selection of a service, the addresses of an ingress),
-/// into `columns`; the
-/// operations of the core it adds, and for each the columns that cite what it creates
-/// (`data.slots`).
+/// into `columns`, and the operations of the core it adds.
 fn owned_columns(
     kind: ModuleKind,
     body: &Map<String, Value>,
     completed: &Completed,
     pod_domain: Uuid,
     columns: &mut Map<String, Value>,
-) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
-    let mut core = Vec::new();
-    let mut slots = Vec::new();
+) -> Result<Owned, Violation> {
+    let mut owned = Owned {
+        core: Vec::new(),
+        slots: Vec::new(),
+        shared: Vec::new(),
+        cites: None,
+    };
     if let Some(value) = body.get("pod_cidrs") {
         let ranges = pod_ranges(value, completed, pod_domain)?;
         columns.insert("pod_cidrs".into(), json!(ranges.cidrs));
         columns.insert("range_ids".into(), json!(ranges.kept));
-        slots.extend(ranges.core.iter().map(|op| slot(op, &["range_ids"])));
-        core.extend(ranges.core);
+        owned
+            .slots
+            .extend(ranges.core.iter().map(|op| slot(op, &["range_ids"])));
+        owned.core.extend(ranges.core);
     }
     let sorts = sorts(kind, completed);
     if !sorts.is_empty() {
-        let (vips, cited) = vips(body, completed, &sorts, columns)?;
-        core.extend(vips);
-        slots.extend(cited);
+        let vips = vips(body, completed, &sorts, columns)?;
+        let start = owned.core.len();
+        owned.shared.extend(start..start + vips.core.len());
+        owned.core.extend(vips.core);
+        owned.slots.extend(vips.slots);
+        owned.cites = Some(vips.cites);
     }
     if let Some(value) = body.get("workloads") {
         columns.insert("workload_ids".into(), json!(selection(value, completed)?));
     }
-    Ok((core, slots))
+    Ok(owned)
 }
 
 impl Handler {
@@ -1472,7 +1570,7 @@ impl Handler {
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
                 let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
-                let (core, slots) = owned_columns(kind, &body, &completed, domain, &mut columns)?;
+                let owned = owned_columns(kind, &body, &completed, domain, &mut columns)?;
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
@@ -1486,14 +1584,19 @@ impl Handler {
                 };
                 let mut data = data;
                 data["reads"] = reads(&cited);
-                data["slots"] = Value::Array(slots);
+                data["slots"] = Value::Array(owned.slots);
+                // Read back by `shared` (ADR 0026, amendment 10).
+                data["shared"] = json!(owned.shared);
+                if let Some(cites) = owned.cites {
+                    data["cites"] = json!(cites);
+                }
                 Ok(ModulePlan {
                     kind,
                     object: target,
                     creates,
                     domains: vec![anchor],
                     keys,
-                    core,
+                    core: owned.core,
                     data,
                 })
             }
@@ -1693,22 +1796,16 @@ impl ModuleHandler for Handler {
                             completed.ranges = pg::node_ranges(conn, node, at).await?;
                         }
                     }
-                    // The domains of the addresses of a service or an ingress, and those it
-                    // cites.
                     if let Some(addressed @ (SERVICE_TABLE | INGRESS_TABLE)) = table {
-                        if let Some((service, external)) =
-                            pg::service_domains(conn, cluster, at).await?
-                        {
-                            completed.service_domain = Some(service);
-                            completed.external_domain = external;
-                        }
-                        if let Some(object) = completed.existing {
-                            completed.addresses = if addressed == SERVICE_TABLE {
-                                pg::service_addresses(conn, object, at).await?
-                            } else {
-                                pg::ingress_addresses(conn, object, at).await?
-                            };
-                        }
+                        prepare_addresses(
+                            conn,
+                            addressed,
+                            cluster,
+                            &operation.body,
+                            &mut completed,
+                            at,
+                        )
+                        .await?;
                     }
                     if table == Some(SERVICE_TABLE) {
                         // The workloads it selects, by kind and name in its namespace.
@@ -1776,6 +1873,19 @@ impl ModuleHandler for Handler {
                 all.dedup();
                 *ids = json!(all);
             }
+        }
+    }
+
+    /// The creations and closures of the addresses of a service or an ingress are
+    /// shareable; the plan declares the living addresses its object cites once written
+    /// (ADR 0026, amendment 10; 019/Q-019-17).
+    fn shared(&self, plan: &ModulePlan) -> Shared {
+        fn read<T: serde::de::DeserializeOwned>(plan: &ModulePlan, key: &str) -> Option<T> {
+            serde_json::from_value(plan.data.get(key)?.clone()).ok()
+        }
+        Shared {
+            core: read(plan, "shared").unwrap_or_default(),
+            cites: read(plan, "cites"),
         }
     }
 

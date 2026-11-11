@@ -1801,3 +1801,132 @@ async fn ingress_addresses_fall_back_to_service_domain(pool: PgPool) {
     assert_eq!(env.ingress_address_ids(shop).await, [addresses[0].0]);
     assert_eq!(env.placed(shop).await, (Some(payments), Some(env.services)));
 }
+
+/// An ingress `name` of `payments` in `cluster`, routed to the service `lb`, with
+/// `addresses`.
+fn routed(cluster: Uuid, name: &str, addresses: Value) -> Operation {
+    let mut fields = json!({"rules": [{"service": "lb", "port": 80}]});
+    fields["addresses"] = addresses;
+    ingress("upsert", cluster, "payments", name, fields)
+}
+
+/// Q-019-17 (task 019-4e): the ingresses of a class have the IP of the `LoadBalancer` service
+/// of their controller. Given by three holders of one batch, the address is created once;
+/// a later holder cites it; it outlives the holders that close or give it up, and closes
+/// with the last.
+#[kartenn_testing::pg_test]
+async fn vip_shared_across_holders(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    let lb = |extra: Value| service("upsert", prod, "payments", "lb", extra);
+    env.applied(vec![
+        lb(json!({"service_type": "load_balancer", "external_ips": ["192.0.2.50"]})),
+        routed(prod, "shop", json!(["192.0.2.50"])),
+        routed(prod, "blog", json!(["192.0.2.50"])),
+    ])
+    .await;
+    let living = env.addresses(external).await;
+    assert_eq!(living.len(), 1, "{living:?}");
+    assert_eq!(env.addresses_ever(external).await, 1);
+    let vip = living[0].0;
+    let balancer = env.services(payments, "lb").await[0];
+    let (shop, blog) = (
+        env.ingresses(payments, "shop").await[0],
+        env.ingresses(payments, "blog").await[0],
+    );
+    assert_eq!(env.service_address_ids(balancer).await.1, [vip]);
+    assert_eq!(env.ingress_address_ids(shop).await, [vip]);
+    assert_eq!(env.ingress_address_ids(blog).await, [vip]);
+    // A holder of a later batch cites it.
+    env.applied(vec![routed(prod, "news", json!(["192.0.2.50"]))])
+        .await;
+    let news = env.ingresses(payments, "news").await[0];
+    assert_eq!(env.ingress_address_ids(news).await, [vip]);
+    assert_eq!(env.addresses_ever(external).await, 1);
+    // One holder closes, another gives it up: the others hold it still.
+    env.applied(vec![
+        ingress("close", prod, "payments", "shop", json!({})),
+        routed(prod, "blog", json!([])),
+    ])
+    .await;
+    assert!(env.ingress_address_ids(blog).await.is_empty());
+    assert_eq!(env.addresses(external).await.len(), 1);
+    env.applied(vec![ingress("close", prod, "payments", "news", json!({}))])
+        .await;
+    assert_eq!(env.addresses(external).await.len(), 1);
+    // The last closes: the address with it.
+    env.applied(vec![service("close", prod, "payments", "lb", json!({}))])
+        .await;
+    assert!(env.addresses(external).await.is_empty());
+}
+
+/// Q-019-17 (tasks 019-4e0, 4e): within one batch, an address one holder gives up and
+/// another takes stays open; two holders moving from one address to another together close
+/// the first and create the second once. An address no object of the cluster holds,
+/// declared by hand or held in another cluster, is never adopted: refused as a duplicate.
+#[kartenn_testing::pg_test]
+async fn vip_handover_in_one_batch(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    env.applied(vec![routed(prod, "shop", json!(["192.0.2.60"]))])
+        .await;
+    let first = env.addresses(external).await[0].0;
+    // The handover: `shop` gives `.60` up for `.61`, `blog` takes it.
+    env.applied(vec![
+        routed(prod, "shop", json!(["192.0.2.61"])),
+        routed(prod, "blog", json!(["192.0.2.60"])),
+    ])
+    .await;
+    let (shop, blog) = (
+        env.ingresses(payments, "shop").await[0],
+        env.ingresses(payments, "blog").await[0],
+    );
+    assert_eq!(env.ingress_address_ids(blog).await, [first]);
+    let living = env.addresses(external).await;
+    assert_eq!(
+        living.iter().map(|a| a.1.as_str()).collect::<Vec<_>>(),
+        ["192.0.2.60", "192.0.2.61"]
+    );
+    assert_eq!(env.addresses_ever(external).await, 2);
+    // Both move to `.62` together, then to `.63`: one creation each time, the address they
+    // leave closes.
+    for (step, value) in [(3, "192.0.2.62"), (4, "192.0.2.63")] {
+        env.applied(vec![
+            routed(prod, "shop", json!([value])),
+            routed(prod, "blog", json!([value])),
+        ])
+        .await;
+        let living = env.addresses(external).await;
+        assert_eq!(living.len(), 1, "{living:?}");
+        assert_eq!(living[0].1, value);
+        assert_eq!(env.ingress_address_ids(shop).await, [living[0].0]);
+        assert_eq!(env.ingress_address_ids(blog).await, [living[0].0]);
+        assert_eq!(env.addresses_ever(external).await, step);
+    }
+    // Declared by hand: not adopted.
+    env.applied(vec![Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(external),
+        address: "192.0.2.70".into(),
+        usage: kartenn_core::objects::AddressUsage::Vip,
+    }])
+    .await;
+    env.refused(
+        vec![routed(prod, "news", json!(["192.0.2.70"]))],
+        "core.address.duplicate",
+    )
+    .await;
+    // Held in another cluster: not adopted either.
+    let (test, _) = env.service_cluster("test", external).await;
+    env.refused(
+        vec![routed(test, "shop", json!(["192.0.2.63"]))],
+        "core.address.duplicate",
+    )
+    .await;
+}
