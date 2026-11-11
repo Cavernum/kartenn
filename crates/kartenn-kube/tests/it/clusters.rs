@@ -2773,12 +2773,15 @@ async fn section_lists_changed_objects(pool: PgPool) {
     let (_, _, before, after, open) = &rows[0];
     assert!(before.is_none() && *open, "{rows:?}");
     let created = after.as_ref().unwrap();
-    assert_eq!(created["namespace_id"], json!(payments));
-    assert_eq!(created["kind"], json!("deployment"));
-    assert_eq!(created["name"], json!("web"));
-    assert_eq!(created["labels"], json!({"app": "web"}));
-    assert_eq!(created["absent_since"], Value::Null);
-    assert!(created.get("valid_period").is_none(), "{created}");
+    // A closed list of fields under stable names, whatever the columns (Q-019-19).
+    assert_eq!(
+        *created,
+        json!({
+            "namespace": payments, "kind": "deployment", "name": "web", "uid": null,
+            "labels": {"app": "web"}, "service_account": null, "ports": [],
+            "host_network": false, "absent_since": null,
+        })
+    );
     // Changed: its tracked fields before and after, from now on.
     let rows = env.objects_section(vec![web(prod, "shop")]).await;
     assert_eq!(rows.len(), 1, "{rows:?}");
@@ -2810,7 +2813,15 @@ async fn section_lists_changed_objects(pool: PgPool) {
         .await;
     assert_eq!(rows.len(), 1, "{rows:?}");
     assert_eq!(rows[0].2.as_ref().unwrap()["absent_since"], Value::Null);
-    assert!(rows[0].3.as_ref().unwrap()["absent_since"].is_string());
+    // RFC 3339 in UTC, whatever the time zone of the session.
+    let since = rows[0].3.as_ref().unwrap()["absent_since"]
+        .as_str()
+        .expect("an instant")
+        .to_owned();
+    assert!(
+        since.ends_with('Z') && since.as_bytes()[10] == b'T',
+        "{since}"
+    );
     // A second observation of absence keeps the first instant: nothing changes.
     let rows = env
         .objects_section(vec![web_absence("mark_absent", prod)])

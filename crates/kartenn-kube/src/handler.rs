@@ -2185,31 +2185,23 @@ impl ModuleHandler for Handler {
         }
     }
 
-    /// The rules of the module on the final state of the clusters, nodes and ingresses the
-    /// changeset writes, over all their versions, and of the ingresses whose routes name a
-    /// service it writes; the absence of the mirrors it writes, and of the absent ones they
-    /// cite (`kube.object.absent`).
-    #[allow(clippy::too_many_lines)] // one block per rule of the final state
-    /// `kube.objects`: each mirror the changeset creates, changes, closes, marks absent or
-    /// present again, with its identity and tracked fields before and after, over the
-    /// period of the change. A cluster is declared, not mirrored: it has none.
+    /// `kube.objects`: each portion of time over which the changeset creates, changes,
+    /// closes, marks absent or present again a mirror, with its identity and tracked
+    /// fields before and after (`pg::MIRRORS`). A cluster is declared, not mirrored: it has
+    /// none.
     fn diff<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
         context: &'a DiffContext<'a>,
     ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
         Box::pin(async move {
-            let mirrors = [
-                node_kind(),
-                namespace_kind(),
-                workload_kind(),
-                service_kind(),
-                ingress_kind(),
-            ];
             let ids: Vec<Uuid> = context
                 .touched
                 .iter()
-                .filter(|(kind, _)| mirrors.iter().any(|m| *kind == ObjectKind::Module(*m)))
+                .filter(|(kind, _)| {
+                    matches!(kind, ObjectKind::Module(m)
+                        if pg::MIRRORS.iter().any(|(name, ..)| m.as_str() == *name))
+                })
                 .map(|(_, id)| *id)
                 .collect();
             if ids.is_empty() {
@@ -2223,6 +2215,11 @@ impl ModuleHandler for Handler {
         })
     }
 
+    /// The rules of the module on the final state of the clusters, nodes and ingresses the
+    /// changeset writes, over all their versions, and of the ingresses whose routes name a
+    /// service it writes; the absence of the mirrors it writes, and of the absent ones they
+    /// cite (`kube.object.absent`).
+    #[allow(clippy::too_many_lines)] // one block per rule of the final state
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
