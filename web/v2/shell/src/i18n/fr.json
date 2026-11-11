@@ -47,6 +47,10 @@
     "audit": "Audit",
     "observability": "Observabilité"
   },
+  "badge": {
+    "proposals": "{n} changeset à instruire | {n} changesets à instruire",
+    "proposalsMore": "plus de {n} changesets à instruire"
+  },
   "palette": {
     "navigation": "Navigation",
     "commands": "Commandes",

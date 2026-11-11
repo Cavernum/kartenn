@@ -260,12 +260,23 @@ describe("the review of a changeset", () => {
     );
   });
 
-  it("counts « À instruire » in the sidebar, nothing shown at zero", () => {
+  it("counts « À instruire » in the sidebar with its unit, nothing shown at zero", () => {
     const rights = new Rights(["core.changeset.read"]);
-    const entries = (badges: Record<string, number>) =>
-      sidebarGroups(rights, (k) => k, undefined, badges).find((g) => g.id === "changes")!.entries;
-    expect(entries({ proposals: 3 }).find((e) => e.id === "proposals")?.badge).toBe(3);
-    expect(entries({ proposals: 0 }).find((e) => e.id === "proposals")).not.toHaveProperty("badge");
+    const proposals = (count: number | string, label: string) =>
+      sidebarGroups(rights, (k) => k, undefined, { proposals: { count, label } })
+        .find((g) => g.id === "changes")!
+        .entries.find((e) => e.id === "proposals");
+    expect(proposals(3, "3 changesets à instruire")).toMatchObject({
+      badge: 3,
+      badgeLabel: "3 changesets à instruire",
+    });
+    expect(proposals(0, "0 changeset à instruire")).not.toHaveProperty("badge");
+    expect(proposals(0, "0 changeset à instruire")).not.toHaveProperty("badgeLabel");
+    // The words of the catalogs: one, several, a bound.
+    const { t } = createShellI18n("fr").global;
+    expect(t("badge.proposals", 1)).toBe("1 changeset à instruire");
+    expect(t("badge.proposals", 3)).toBe("3 changesets à instruire");
+    expect(t("badge.proposalsMore", { n: 100 })).toBe("plus de 100 changesets à instruire");
   });
 });
 

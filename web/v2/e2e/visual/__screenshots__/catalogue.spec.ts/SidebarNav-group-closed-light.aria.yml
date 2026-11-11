@@ -27,7 +27,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets"
         - button "Administration" [expanded]

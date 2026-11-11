@@ -27,7 +27,7 @@
             - link "Adresses":
               - /url: /addresses
           - listitem:
-            - link "Anomalies 4":
+            - link "Anomalies 4 anomalies ouvertes":
               - /url: /anomalies
         - button "Changesets" [expanded]
         - list:
@@ -35,7 +35,7 @@
             - link "Changesets":
               - /url: /changesets
           - listitem:
-            - link "À instruire 2":
+            - link "À instruire 2 changesets à instruire":
               - /url: /proposals
           - listitem:
             - link "Brouillon":

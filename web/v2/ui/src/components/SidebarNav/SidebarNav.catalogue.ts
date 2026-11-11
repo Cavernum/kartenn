@@ -20,7 +20,14 @@ const groups: SidebarGroup[] = [
       { id: "domains", label: "Domaines", icon: "domain", to: "/domains" },
       { id: "prefixes", label: "Préfixes", icon: "prefix", to: "/prefixes" },
       { id: "addresses", label: "Adresses", icon: "address", to: "/addresses" },
-      { id: "anomalies", label: "Anomalies", icon: "triangle-alert", to: "/anomalies", badge: 4 },
+      {
+        id: "anomalies",
+        label: "Anomalies",
+        icon: "triangle-alert",
+        to: "/anomalies",
+        badge: 4,
+        badgeLabel: "4 anomalies ouvertes",
+      },
     ],
   },
   {
@@ -34,6 +41,7 @@ const groups: SidebarGroup[] = [
         icon: "git-pull-request",
         to: "/proposals",
         badge: 2,
+        badgeLabel: "2 changesets à instruire",
       },
       { id: "draft", label: "Brouillon", icon: "draft", to: "/draft" },
     ],
