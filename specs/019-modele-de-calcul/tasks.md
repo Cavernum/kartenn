@@ -785,11 +785,35 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   `managed_field_refused_for_person_in_connector_group`,
   `property_on_mirror_accepted`, `connector_direct_operation_refused`,
   `cited_workload_goes_absent`, `absent_cleared_on_return`,
-  `section_lists_changed_objects`, `catalogue_problems` vide pour `kube.*`
-  - où : design « Règles », « Section de différentiel » ; `CheckContext::changeset`
-    (`crates/kartenn-service/src/module.rs`) ; section `machines.attachments`
+  `section_lists_changed_objects`, `catalogue_problems` vide pour `kube.*` ; découpée
+  le 2026-11-11 en 5a à 5c (permissions déjà déclarées par les tâches 3b à 4c), cochée
+  avec la dernière.
+- [ ] 5a. Objets miroirs : règles `kube.object.managed` (un champ suivi écrit par un
+  auteur qui n'est pas un compte de service membre du groupe du connecteur du cluster :
+  refus ; une propriété sur un miroir reste écrite sous les droits ordinaires),
+  `kube.connector.direct` (le connecteur n'écrit que par `kube.sync`, pas d'opération du
+  noyau ni de `Close` en cascade à la main ; les plans que `kube.sync` ajoute lui-même,
+  mise à nul `unselect` de la 4b, adresses et réseaux, passent) et
+  `kube.cluster.connector_group` appliquées — REQ-019-5, 12 — verify :
+  `managed_field_refused_for_human`,
+  `managed_field_refused_for_person_in_connector_group`, `property_on_mirror_accepted`,
+  `connector_direct_operation_refused`
+  - où : design « Règles » ; `crates/kartenn-kube/src/rules.rs`, `handler.rs` (`check`) ;
+    `CheckContext::changeset` (`crates/kartenn-service/src/module.rs`)
+  - dépend de : 4c
+- [ ] 5b. Absence : `mark_absent` et `clear_absent` dans `kube.sync`, colonne
+  `absent_since`, anomalie `kube.object.absent` qui nomme les dépendants, levée au
+  retour d'un objet de même identité (avec la réouverture d'identité de la 4a) —
+  REQ-019-22 — verify : `cited_workload_goes_absent`, `absent_cleared_on_return`
+  - où : design « Règles », X9 ; `crates/kartenn-kube/src/handler.rs`, `pg.rs`, `rules.rs`
+  - dépend de : 5a
+- [ ] 5c. Section de différentiel `kube.objects` et catalogue : les objets `kube.*`
+  écrits par un changeset listés dans sa section ; `catalogue_problems` vide pour
+  `kube.*` — REQ-019-30 (règles) — verify : `section_lists_changed_objects`,
+  `catalogue_problems` vide
+  - où : design « Section de différentiel » ; section `machines.attachments`
     (`crates/kartenn-machines/src/handler.rs`) à imiter
-  - dépend de : 4
+  - dépend de : 5a
 - [ ] 6. Journal d'observation et ses garde-fous : tables `observation_batch` et
   `pod_observation` partitionnée, droits PostgreSQL d'ajout seul et déclencheur, route
   de lot sous `kube.observation.record` (validation à l'entrée, refus du lot entier),
