@@ -8,7 +8,7 @@ import DraftOperations from "../src/draft/DraftOperations.vue";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import EditPanel from "../src/views/edit/EditPanel.vue";
-import { editOfOperation } from "../src/views/edit/fields.ts";
+import { draftedCreations, EDITS, editOfOperation } from "../src/views/edit/fields.ts";
 import { closeEdit, editRequest, lineToReturn } from "../src/views/edit/panel.ts";
 
 // « Modifier » of an operation of a draft (task 021-14l, Q-021-17; REQ-021-11, 36): the
@@ -70,6 +70,39 @@ describe("the form an operation of a draft is made by", () => {
       collection: "vlan-groups",
       values: { anchor: `site:${P2}`, vid_max: "200" },
     });
+  });
+
+  it("keeps a reference to an object of the draft by its local name, written back as such", () => {
+    const entity = editOfOperation({
+      op: "create_entity",
+      slug: "nord",
+      parent: { local: 0 },
+    } as Operation)!;
+    expect(entity.values).toEqual({ slug: "nord", parent: "local:0" });
+    expect(EDITS.entities.create(entity.values)).toEqual({
+      op: "create_entity",
+      slug: "nord",
+      parent: { local: 0 },
+    });
+    const group = editOfOperation({
+      op: "create_vlan_group",
+      slug: "g",
+      anchor: { entity: { local: 1 } },
+    } as Operation)!;
+    expect(group.values.anchor).toBe("entity:local:1");
+    expect(EDITS["vlan-groups"].create(group.values)).toMatchObject({
+      anchor: { entity: { local: 1 } },
+    });
+    // The objects a reference of the third operation may name: those created before it.
+    const operations = [
+      { op: "create_domain", slug: "labo", local: 0 },
+      { op: "create_entity", slug: "nord", local: 1 },
+      { op: "create_site", slug: "sud", local: 2 },
+    ] as Operation[];
+    expect(draftedCreations(operations, 2).map((d) => [d.collection, d.local, d.index])).toEqual([
+      ["domains", 0, 0],
+      ["entities", 1, 1],
+    ]);
   });
 
   it("none for an operation no panel writes: a closure, a move, under within", () => {
@@ -180,7 +213,8 @@ describe("« Modifier » of an operation of a draft", () => {
       history: createMemoryHistory(),
       routes: [
         { path: "/", component: Host },
-        { path: "/drafts", component: { render: () => null } },
+        // The link to « Mes brouillons » of the tab, never followed here.
+        { path: "/drafts", redirect: "/" },
       ],
     });
     await router.push("/");
@@ -213,13 +247,24 @@ describe("« Modifier » of an operation of a draft", () => {
     [...root.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
       b.textContent?.includes("Remplacer dans le brouillon"),
     )!;
-  const status = (root: HTMLElement) => root.querySelector("[role='status']")?.textContent ?? "";
+  const status = (root: HTMLElement) =>
+    root.querySelector(".k-edit-panel__notice")?.textContent ?? "";
+  /** The prefix read now (version 7), and its history: version 6 had another value. */
+  const prefixRead = (call: Seen) => {
+    if (call.url.startsWith(`/v1/prefixes/${P1}/history`)) {
+      const then = { ...PREFIX, value: "192.0.2.0/23", version: "6" };
+      return { body: { items: [{ object: PREFIX }, { object: then }] } };
+    }
+    if (call.url.startsWith(`/v1/prefixes/${P1}`)) return { body: PREFIX, etag: `"${V1}"` };
+    return undefined;
+  };
 
   it("replaces a modification at its place under If-Match, simulated again, the focus back on its line", async () => {
     const operations: unknown[] = [CREATE, UPDATE, CLOSE];
     const { root, seen } = await mounted((call, version) => {
       if (call.url.endsWith("/simulation")) return { body: valid };
-      if (call.url.startsWith(`/v1/prefixes/${P1}`)) return { body: PREFIX, etag: `"${V1}"` };
+      const read = prefixRead(call);
+      if (read) return read;
       if (call.method === "PATCH") {
         operations.splice(0, 3, ...(call.body!.operations as unknown[]));
       }
@@ -239,6 +284,11 @@ describe("« Modifier » of an operation of a draft", () => {
     // Prefilled: the operation's own values over the object read.
     expect(field(root, "Valeur").value).toBe("192.0.2.0/24");
     expect(root.querySelector("form")!.textContent).toContain("Conteneur");
+    // Written on version 6, the object read at 7: said, with the field that moved since.
+    await expect
+      .poll(() => root.textContent)
+      .toContain("Valeur : 192.0.2.0/23 alors, 192.0.2.0/24 maintenant");
+    expect(root.textContent).toContain("L'objet a changé depuis cette opération");
     // Nothing typed: said, nothing sent.
     replaceButton(root).click();
     await expect.poll(() => status(root)).toContain("Rien n'a changé");
@@ -251,7 +301,7 @@ describe("« Modifier » of an operation of a draft", () => {
     const patch = seen.find((s) => s.method === "PATCH")!;
     expect(patch.url).toBe(`/v1/drafts/${D1}`);
     expect(patch.ifMatch).toBe('"1"');
-    // At its place, the others kept; over the object read now (its version as `expected`).
+    // At its place, the others kept; still on the version it was written on (Q-021-20).
     expect(patch.body).toEqual({
       operations: [
         CREATE,
@@ -260,7 +310,7 @@ describe("« Modifier » of an operation of a draft", () => {
           id: { id: P1 },
           prefix: "192.0.2.0/25",
           nature: "container",
-          expected: V1,
+          expected: "6",
         },
         CLOSE,
       ],
@@ -315,5 +365,67 @@ describe("« Modifier » of an operation of a draft", () => {
     // Read again once; its place holds another operation: not tried again.
     expect(seen.filter((s) => s.method === "PATCH")).toHaveLength(2);
     expect(editRequest().value).not.toBeNull();
+  });
+
+  it("« Reprendre sur la version actuelle » writes the operation on the version read now", async () => {
+    const operations: unknown[] = [CREATE, UPDATE, CLOSE];
+    const { root, seen } = await mounted((call, version) => {
+      if (call.url.endsWith("/simulation")) return { body: valid };
+      const read = prefixRead(call);
+      if (read) return read;
+      if (call.method === "PATCH") {
+        operations.splice(0, 3, ...(call.body!.operations as unknown[]));
+      }
+      return { body: draft(operations, version), etag: `"${version}"` };
+    });
+    modify(root, 1).click();
+    const rebase = () =>
+      [...root.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
+        b.textContent?.includes("Reprendre sur la version actuelle"),
+      );
+    await expect.poll(rebase).toBeDefined();
+    rebase()!.click();
+    await expect.poll(() => status(root)).toContain("Reprise sur la version 7");
+    expect(rebase()).toBeUndefined();
+    // Nothing typed: taken up all the same, what differs from the object as it is.
+    replaceButton(root).click();
+    await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);
+    expect(seen.find((s) => s.method === "PATCH")!.body).toEqual({
+      operations: [
+        CREATE,
+        { op: "update_prefix", id: { id: P1 }, nature: "container", expected: V1 },
+        CLOSE,
+      ],
+    });
+  });
+
+  it("replaces a creation naming an object of the draft: its local name kept, others offered", async () => {
+    const prefix = {
+      op: "create_prefix",
+      domain: { local: 0 },
+      prefix: "198.51.100.0/24",
+      nature: "network",
+      point_to_point: false,
+      anycast: false,
+    };
+    const operations: unknown[] = [CREATE, prefix, CLOSE];
+    const { root, seen } = await mounted((call, version) => {
+      if (call.url.endsWith("/simulation")) return { body: valid };
+      if (call.url.startsWith("/v1/domains")) return { body: { items: [] } };
+      if (call.method === "PATCH") {
+        operations.splice(0, 3, ...(call.body!.operations as unknown[]));
+      }
+      return { body: draft(operations, version), etag: `"${version}"` };
+    });
+    modify(root, 1).click();
+    await expect.poll(() => root.querySelector("form")).not.toBeNull();
+    // The domain shown by what its operation names, never empty.
+    await expect.poll(() => root.querySelector("form")!.textContent).toContain("labo");
+    await type(field(root, "Valeur"), "198.51.100.0/25");
+    replaceButton(root).click();
+    await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);
+    expect(seen.find((s) => s.method === "PATCH")!.body).toEqual({
+      operations: [CREATE, { ...prefix, prefix: "198.51.100.0/25" }, CLOSE],
+    });
   });
 });

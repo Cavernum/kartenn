@@ -407,7 +407,14 @@
       "done": "Operation {n} replaced: {what}.",
       "same": "The object already has these values: remove the operation from the draft instead.",
       "changedText": "Nothing is replaced: the operation is no longer at its place. Open it again from the draft.",
-      "goneText": "Nothing is replaced: the draft left this tab (deleted, submitted or taken over elsewhere)."
+      "goneText": "Nothing is replaced: the draft left this tab (deleted, submitted or taken over elsewhere).",
+      "drafted": "operation {n} of the draft",
+      "draftedOf": "{kind}, operation {n} of the draft",
+      "stale": "The object changed since this operation",
+      "staleText": "It stays written on version {then} (read: {now}): the simulation refuses it until it is taken up at the current version.",
+      "movedField": "{field}: {then} then, {now} now",
+      "rebase": "Take up at the current version",
+      "rebased": "Taken up at version {version}: only what differs from it will be written."
     },
     "unsent": "Nothing sent: it takes {permission}.",
     "readError": "{kind}: the object to change could not be read.",

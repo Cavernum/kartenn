@@ -88,12 +88,25 @@ export type FixedReason = "immutable" | "computed" | "creation" | "moved" | "ref
 export type Values = Record<string, string | boolean>;
 
 const text = (values: Values, name: string) => String(values[name] ?? "");
-const ref = (id: string) => ({ id });
+/**
+ * A reference of the form to an object created earlier in the same draft, by its local
+ * name (021/A13): `local:<n>` (task 14l), written back `{ local: n }`.
+ */
+const LOCAL = /^local:(\d+)$/;
+/** The text of the form for the local name `n`. */
+export const localText = (n: number) => `local:${n}`;
+const ref = (id: string): Schemas["Ref"] => {
+  const local = LOCAL.exec(id);
+  return local ? { local: Number(local[1]) } : { id };
+};
 /** A whole number of the form (`"105"` → 105). */
 const integer = (values: Values, name: string) => Number(text(values, name));
 /** The anchor of the form (`entity:<id>`) as the contract writes it (`{entity: {id}}`). */
 function anchor(value: string): Schemas["VlanAnchor"] {
-  const [kind, id = ""] = value.split(":") as [AnchorKind, string?];
+  // Split at the first colon only: the object may be a local name (`entity:local:0`).
+  const at = value.indexOf(":");
+  const kind = (at < 0 ? value : value.slice(0, at)) as AnchorKind;
+  const id = at < 0 ? "" : value.slice(at + 1);
   if (kind === "site") return { site: ref(id) };
   if (kind === "domain") return { domain: ref(id) };
   return { entity: ref(id) };
@@ -523,8 +536,21 @@ export function textOf(value: unknown): string {
   if (typeof value === "object" && value !== null && typeof (value as Item).id === "string") {
     return String((value as Item).id);
   }
+  // A local name of the draft, alone or anchored (`{entity: {local: 0}}`), task 14l.
+  const local = localOf(value);
+  if (local !== null) return localText(local);
+  const members = typeof value === "object" && value !== null ? Object.entries(value) : [];
+  const anchoredLocal = members.length === 1 ? localOf(members[0]![1]) : null;
+  if (anchoredLocal !== null) return `${members[0]![0]}:${localText(anchoredLocal)}`;
   const anchored = anchorOf(value);
   return anchored ? `${anchored.kind}:${anchored.id}` : "";
+}
+
+/** The local name `{ local: n }` names, if it is one. */
+function localOf(value: unknown): number | null {
+  if (typeof value !== "object" || value === null) return null;
+  const local = (value as { local?: unknown }).local;
+  return typeof local === "number" && Object.keys(value).length === 1 ? local : null;
 }
 
 /**
@@ -613,6 +639,24 @@ const CREATION_OF: Readonly<Record<string, CollectionId>> = {
   create_vlan_group: "vlan-groups",
   create_vlan: "vlans",
 };
+
+/**
+ * The objects the operations of a draft before `before` create under a local name (021/A13):
+ * what a reference of an operation replaced at `before` may name (task 14l), each with its
+ * collection, its local name and the index of its operation.
+ */
+export function draftedCreations(
+  operations: readonly Operation[],
+  before: number,
+): { collection: CollectionId; local: number; index: number; operation: Operation }[] {
+  return operations.slice(0, before).flatMap((operation, index) => {
+    const op = operation as Record<string, unknown>;
+    const collection = CREATION_OF[String(op.op ?? "")];
+    return collection && typeof op.local === "number"
+      ? [{ collection, local: op.local, index, operation }]
+      : [];
+  });
+}
 
 /** An operation of a draft as the edit panel writes it again (task 14l): its form. */
 export interface DraftedEdit {

@@ -407,7 +407,14 @@
       "done": "Opération {n} remplacée : {what}.",
       "same": "L'objet a déjà ces valeurs : retirez plutôt l'opération du brouillon.",
       "changedText": "Rien n'est remplacé : l'opération n'est plus à sa place. Rouvrez-la depuis le brouillon.",
-      "goneText": "Rien n'est remplacé : le brouillon a quitté cet onglet (supprimé, soumis ou repris ailleurs)."
+      "goneText": "Rien n'est remplacé : le brouillon a quitté cet onglet (supprimé, soumis ou repris ailleurs).",
+      "drafted": "opération {n} du brouillon",
+      "draftedOf": "{kind}, opération {n} du brouillon",
+      "stale": "L'objet a changé depuis cette opération",
+      "staleText": "Elle reste écrite sur la version {then} (lue : {now}) : la simulation la refuse tant qu'elle n'est pas reprise sur la version actuelle.",
+      "movedField": "{field} : {then} alors, {now} maintenant",
+      "rebase": "Reprendre sur la version actuelle",
+      "rebased": "Reprise sur la version {version} : seul ce qui en diffère sera écrit."
     },
     "unsent": "Rien n'est envoyé : il faut {permission}.",
     "readError": "{kind} : l'objet à modifier n'a pas pu être lu.",
