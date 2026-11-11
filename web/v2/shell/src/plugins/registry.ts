@@ -42,6 +42,8 @@ export function reasonCode(reason: Reason | "element"): string {
 const plugins: ShallowRef<readonly Loaded[]> = shallowRef([]);
 const failed: ShallowRef<boolean> = shallowRef(false);
 const read: ShallowRef<boolean> = shallowRef(false);
+/** Why the last reading of the capabilities failed: its problem, `null` when it did not. */
+const why: ShallowRef<unknown> = shallowRef(null);
 /** The `g` letters refused to each plugin, by name: the letter and who holds it. */
 const refused: ShallowRef<ReadonlyMap<string, readonly RefusedLetter[]>> = shallowRef(new Map());
 
@@ -59,6 +61,14 @@ export function usePlugins(): Readonly<ShallowRef<readonly Loaded[]>> {
 /** Whether the last reading of the capabilities failed: the plugins are then unknown. */
 export function usePluginsUnavailable(): Readonly<ShallowRef<boolean>> {
   return failed;
+}
+
+/**
+ * Why the capabilities could not be read (REQ-021-20): an `ApiProblem` (its `type` and
+ * `Request-Id` said by « À propos »), a `NetworkError`, or a body that is no list of plugins.
+ */
+export function usePluginsProblem(): Readonly<ShallowRef<unknown>> {
+  return why;
 }
 
 /** The letters refused to the plugins, reactive (« À propos » says them). */
@@ -80,10 +90,14 @@ export function serverVersion(version: string | null): void {
   server.value = version;
 }
 
-/** Records whether the capabilities could be read. */
-export function unavailable(value: boolean): void {
+/**
+ * Records whether the capabilities could be read, and why not. `false` begins a reading:
+ * not read again until it ends (« À propos » shows it loading, never « no plugin »).
+ */
+export function unavailable(value: boolean, error: unknown = null): void {
   failed.value = value;
-  if (value) read.value = true;
+  why.value = value ? error : null;
+  read.value = value;
 }
 
 /**
@@ -116,6 +130,7 @@ export function refuseLetters(byPlugin: ReadonlyMap<string, readonly RefusedLett
 export function resetPlugins(): void {
   plugins.value = [];
   failed.value = false;
+  why.value = null;
   read.value = false;
   refused.value = new Map();
 }

@@ -25,10 +25,12 @@ import {
   reasonCode,
   useCapabilitiesRead,
   usePlugins,
+  usePluginsProblem,
   usePluginsUnavailable,
   useRefusedLetters,
   useServerVersion,
 } from "../plugins/registry.ts";
+import { useProblems } from "../problems/index.ts";
 import { useSession } from "../rights/index.ts";
 
 const { t } = useI18n();
@@ -36,6 +38,10 @@ const session = useSession();
 const read = useCapabilitiesRead();
 const plugins = usePlugins();
 const unavailable = usePluginsUnavailable();
+const problem = usePluginsProblem();
+// Open without a session: the catalogs alone, as the login (their sentences are those of
+// the dictionary's space `problem`).
+const { lines } = useProblems({ dictionary: false });
 const refused = useRefusedLetters();
 const server = useServerVersion();
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -76,11 +82,17 @@ function retry(): void {
         <h2 id="k-about-plugins" ref="pluginsHeading" class="k-about__heading" tabindex="-1">
           {{ t("about.plugins") }}
         </h2>
-        <!-- The capabilities could not be read: the plugins are unknown, not absent. -->
-        <Stack v-if="unavailable" gap="2" align="start">
-          <InlineAlert tone="warn" :title="t('about.pluginsUnavailable')" />
-          <Button icon="refresh-cw" @click="retry">{{ t("about.retry") }}</Button>
-        </Stack>
+        <!-- The capabilities could not be read: the plugins are unknown, not absent; why,
+             with the type of the problem and the Request-Id, copyable (REQ-021-20); « Réessayer »
+             in the alert, as `NextPageAlert`. While it reads again, the loading below. -->
+        <InlineAlert
+          v-if="unavailable"
+          tone="warn"
+          :title="t('about.pluginsUnavailable')"
+          :items="lines(problem)"
+        >
+          <Button size="sm" icon="refresh-cw" @click="retry">{{ t("about.retry") }}</Button>
+        </InlineAlert>
         <!-- Not read yet: the capabilities ask for a session; signed in, they come. -->
         <InlineAlert v-else-if="!read && !session.me" :title="t('about.signedOut')" />
         <Stack v-else-if="!read" gap="2" aria-busy="true">

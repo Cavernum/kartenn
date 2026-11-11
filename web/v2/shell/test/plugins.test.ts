@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { definePlugin, label, type ObjectRef } from "@kartenn/sdk";
+import { ApiProblem, definePlugin, label, NetworkError, type ObjectRef } from "@kartenn/sdk";
 import { announcePlugin } from "@kartenn/sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, ref, type App } from "vue";
@@ -34,6 +34,7 @@ import {
   settle,
   useCapabilitiesRead,
   usePlugins,
+  usePluginsProblem,
   usePluginsUnavailable,
   useServerVersion,
   widgetsOf,
@@ -369,20 +370,50 @@ describe("the loader (REQ-007-9, 10; REQ-021-26)", () => {
     expect(useServerVersion().value).toBe("0.4.0");
   });
 
-  it("gives up after its attempts, and takes a body without plugins for a failure", async () => {
-    const answers = Array.from({ length: CAPABILITY_ATTEMPTS }, () => json(503, {}));
-    expect(await readPlugins(answering(...answers).fetcher, noWait)).toBeNull();
-    expect(await readPlugins(answering(json(200, { modules: [] })).fetcher, noWait)).toBeNull();
+  it("gives up after its attempts with the last problem; a body without plugins fails", async () => {
+    const unavailable = {
+      type: "urn:kartenn:problem:unavailable",
+      title: "Unavailable",
+      status: 503,
+    };
+    const answers = Array.from({ length: CAPABILITY_ATTEMPTS }, (_, i) =>
+      json(503, unavailable, { "content-type": "application/problem+json", "request-id": `r${i}` }),
+    );
+    const last = `r${CAPABILITY_ATTEMPTS - 1}`;
+    await expect(readPlugins(answering(...answers).fetcher, noWait)).rejects.toMatchObject({
+      type: "urn:kartenn:problem:unavailable",
+      requestId: last,
+    });
+    const lost = Array.from({ length: CAPABILITY_ATTEMPTS }, () => new TypeError("network"));
+    await expect(readPlugins(answering(...lost).fetcher, noWait)).rejects.toBeInstanceOf(
+      NetworkError,
+    );
+    await expect(
+      readPlugins(answering(json(200, { modules: [] })).fetcher, noWait),
+    ).rejects.toBeInstanceOf(TypeError);
   });
 
-  it("says the plugins unknown when the capabilities cannot be read, then read", async () => {
+  it("says the plugins unknown when the capabilities cannot be read, and why, then read", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(useCapabilitiesRead().value).toBe(false);
-    await startPlugins(["fr"], () => {}, answering(json(500, {})).fetcher);
+    const forbidden = { type: "urn:kartenn:problem:forbidden", title: "Forbidden", status: 403 };
+    await startPlugins(
+      ["fr"],
+      () => {},
+      answering(json(403, forbidden, { "request-id": "req-1" })).fetcher,
+    );
     expect(usePluginsUnavailable().value).toBe(true);
+    expect(usePluginsProblem().value).toBeInstanceOf(ApiProblem);
+    expect(usePluginsProblem().value).toMatchObject({ status: 403, requestId: "req-1" });
     expect(useCapabilitiesRead().value).toBe(true);
-    await startPlugins(["fr"], () => {}, answering(json(200, { ui_plugins: [] })).fetcher);
+    // Read again (« Réessayer »): unread until it ends, never « no plugin » meanwhile.
+    const again = startPlugins(["fr"], () => {}, answering(json(200, { ui_plugins: [] })).fetcher);
+    expect(useCapabilitiesRead().value).toBe(false);
     expect(usePluginsUnavailable().value).toBe(false);
+    await again;
+    expect(useCapabilitiesRead().value).toBe(true);
+    expect(usePluginsUnavailable().value).toBe(false);
+    expect(usePluginsProblem().value).toBeNull();
   });
 
   it("sets aside, before fetching anything, a plugin whose ranges the shell misses", async () => {
