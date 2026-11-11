@@ -34,6 +34,7 @@
       "invalid-member": "A field cannot be written.",
       "invalid-override": "The filter or its duration is invalid.",
       "invalid-import": "The import cannot be ordered.",
+      "invalid-batch": "The batch is refused whole.",
       "precondition-required": "The version read of the object must come with the change.",
       "rate-limited": "Too many requests: wait a moment.",
       "unavailable": "The service is unavailable for the moment.",

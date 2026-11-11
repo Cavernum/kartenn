@@ -34,6 +34,7 @@
       "invalid-member": "Un champ ne peut pas être écrit.",
       "invalid-override": "Le filtre ou sa durée est invalide.",
       "invalid-import": "L'import ne peut pas être ordonné.",
+      "invalid-batch": "Le lot est refusé en entier.",
       "precondition-required": "La version lue de l'objet doit accompagner la modification.",
       "rate-limited": "Trop de requêtes : patientez un instant.",
       "unavailable": "Le service est momentanément indisponible.",

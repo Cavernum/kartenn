@@ -409,6 +409,52 @@ impl IntoResponse for Problem {
     }
 }
 
+/// A line of a batch refused by `invalid-batch` (spec 019, Q-019-21): not a violation of
+/// a rule of a changeset, which `changeset-refused` serves.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct BatchViolation {
+    /// The line in the body, a JSON pointer (RFC 6901): `/opened/3`; `""` for the body
+    /// whole.
+    pub pointer: String,
+    /// Why it refuses the batch.
+    pub detail: String,
+}
+
+/// The problem `invalid-batch` as served: the members of RFC 9457 and its extensions.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct InvalidBatchProblem {
+    /// `urn:kartenn:problem:invalid-batch`.
+    #[serde(rename = "type")]
+    type_: String,
+    /// The title of the class.
+    title: String,
+    /// 422.
+    status: u16,
+    /// This occurrence, explained.
+    detail: Option<String>,
+    /// The identifier of the request, `urn:uuid:…`.
+    instance: Option<String>,
+    /// The code of the module that refuses the batch (`kube.observation.invalid`).
+    code: String,
+    /// The lines that refuse it, in the order of the body.
+    violations: Vec<BatchViolation>,
+}
+
+impl Problem {
+    /// 422 `invalid-batch` for a batch refused whole by `violations`, under the `code`
+    /// of the module (spec 019, Q-019-21).
+    #[must_use]
+    pub fn invalid_batch(code: &str, violations: &[BatchViolation]) -> Self {
+        Self::new(ProblemKind::InvalidBatch)
+            .detail("the batch is refused whole, by its violations")
+            .extension("code", serde_json::Value::from(code))
+            .extension(
+                "violations",
+                serde_json::to_value(violations).unwrap_or_default(),
+            )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;

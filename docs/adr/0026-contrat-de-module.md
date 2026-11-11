@@ -459,7 +459,7 @@ Deux ajouts additifs du noyau pour les routes d'un module qui écrivent hors cha
 
 | Ajout | Clause | Raison |
 |---|---|---|
-| Classe de problème générique `invalid-batch` (422, `kit::ProblemKind::InvalidBatch`) : un lot refusé en entier ; extensions `code` (le code du module, `kube.observation.invalid`) et `violations`, chacune `{pointer, detail}` (pointeur JSON, RFC 6901, vers la ligne du corps, `/opened/3`, ou `""` pour le corps entier) | 9 | `changeset-refused` dit des règles d'un changeset, `invalid-member` un membre d'une écriture ; une classe par module multiplierait les `type` pour un même sens (Q-019-21, options B et C écartées) |
+| Classe de problème générique `invalid-batch` (422, `kit::ProblemKind::InvalidBatch`) : un lot refusé en entier ; extensions `code` (le code du module, `kube.observation.invalid`) et `violations`, chacune `{pointer, detail}` (pointeur JSON, RFC 6901, vers la ligne du corps, `/opened/3`, ou `""` pour le corps entier) ; schémas `BatchViolation` et `InvalidBatchProblem`, réponse 422 documentée par `Op::refuses_batches`, problème construit par `Problem::invalid_batch` | 9 | `changeset-refused` dit des règles d'un changeset, `invalid-member` un membre d'une écriture ; une classe par module multiplierait les `type` pour un même sens (Q-019-21, options B et C écartées) |
 | `Api::journal.record_in(tx, event)` (ADR 0019, amendement du 2026-11-11) : l'événement d'audit d'une écriture hors changeset inscrit dans sa transaction | 9 | ADR 0043, décision 5 : chaque lot accepté audité dans sa transaction (Q-019-22) |
 
 Source : `crates/kartenn-rest/src/problem.rs`, `crates/kartenn-store-pg/src/audit_journal.rs` ;

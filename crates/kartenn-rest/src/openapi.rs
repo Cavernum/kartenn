@@ -316,6 +316,10 @@ fn finish(document: &mut OpenApi) {
     components
         .schemas
         .insert("Problem".to_owned(), Problem::schema());
+    // The class `invalid-batch` and its lines, which [`Op::refuses_batches`] names.
+    let mut batch = Vec::new();
+    schemas_of::<crate::problem::InvalidBatchProblem>(&mut batch);
+    components.schemas.extend(batch);
     components.add_security_scheme(
         "session",
         SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new(
@@ -682,6 +686,26 @@ impl Op {
                         "application/json",
                         ContentBuilder::new()
                             .schema(Some(Ref::from_schema_name(schema)))
+                            .build(),
+                    )
+                    .build(),
+            ),
+        )
+    }
+
+    /// The answer 422 `invalid-batch` of a write of a batch outside a changeset (spec 019,
+    /// Q-019-21): the schema `InvalidBatchProblem`, its lines `BatchViolation`.
+    #[must_use]
+    pub fn refuses_batches(self, description: &str) -> Self {
+        Self(
+            self.0.response(
+                "422",
+                ResponseBuilder::new()
+                    .description(description)
+                    .content(
+                        PROBLEM_TYPE,
+                        ContentBuilder::new()
+                            .schema(Some(Ref::from_schema_name("InvalidBatchProblem")))
                             .build(),
                     )
                     .build(),
