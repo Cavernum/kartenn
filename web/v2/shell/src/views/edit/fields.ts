@@ -1,7 +1,7 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { Rights } from "../../rights/permissions.ts";
 import type { Writes } from "../../time/index.ts";
-import { anchorOf, type CollectionId, type Item } from "../collections.ts";
+import { anchorOf, collectionById, type CollectionId, type Item } from "../collections.ts";
 
 // What an edit of an object of the referential writes (REQ-021-15, 36; design 021 « Édition
 // en place », « Panneau d'édition par sorte »): by collection, the fields of its creation
@@ -365,6 +365,27 @@ export function draftedValues(
       if (typeof value === "number") values[field] = String(value);
     }
     out.set(id, values);
+  }
+  return out;
+}
+
+/**
+ * The objects of a collection the operations of a draft close, by identifier (task 24g): a
+ * range changes its bounds by its replacement, closed then created anew, the contract
+ * having none in `update_range`. A closure under `within` is of another period, not the
+ * present's.
+ */
+export function draftedClosures(
+  operations: readonly Operation[] | undefined,
+  collection: CollectionId,
+): Set<string> {
+  const kind = collectionById(collection)?.kind;
+  const out = new Set<string>();
+  for (const operation of operations ?? []) {
+    const op = operation as Record<string, unknown>;
+    if (op.op !== "close" || op.kind !== kind) continue;
+    const id = (op.id as { id?: unknown } | undefined)?.id;
+    if (typeof id === "string") out.add(id);
   }
   return out;
 }

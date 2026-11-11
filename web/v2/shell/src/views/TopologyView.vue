@@ -61,7 +61,7 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime, writesOf } from "../time/index.ts";
 import { collectionById, pageOfObject, type Item } from "./collections.ts";
-import { draftedValues, editRight } from "./edit/fields.ts";
+import { editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
 import { whyWords } from "./edit/inline.ts";
 import { NODE_COLLECTIONS, nodeApplyRight, useNodeEdit, useNodeWords } from "./edit/nodes.ts";
@@ -80,6 +80,7 @@ import {
   kindsIn,
   restOf,
   draftStateOf,
+  inDraftOf,
   isCapped,
   isPreview,
   levelOfPages,
@@ -364,14 +365,7 @@ const active = ref<string | null>(drafts.active());
 const stopActive = drafts.onActive((id) => (active.value = id));
 onBeforeUnmount(stopActive);
 const activeDraft = useDraftQueries(active);
-const inDraft = computed(() => {
-  const operations = activeDraft.operations.value;
-  return new Set(
-    (["prefixes", "ranges", "addresses"] as const).flatMap((c) => [
-      ...draftedValues(operations, c).keys(),
-    ]),
-  );
-});
+const inDraft = computed(() => inDraftOf(activeDraft.operations.value));
 // The preview of the draft (task 24b, 021/A12): from its valid simulation at the present,
 // the one last answered kept while the next is to come (the operations it simulated with
 // it), gone with the draft. A simulation with errors shows none: it cannot be applied.

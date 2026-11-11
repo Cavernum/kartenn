@@ -17,6 +17,7 @@ import {
   cappedKey,
   cappedParent,
   draftStateOf,
+  inDraftOf,
   isCapped,
   levelOfPages,
   nodesOf,
@@ -190,6 +191,41 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     // C1 keeps its parent: at its present place in the draft only; its copy, a preview row.
     expect(draftStateOf(C1, inDraft, preview)).toBe("draft");
     expect(draftStateOf(`draft:${C1}`, inDraft, preview)).toBe("preview");
+  });
+
+  it("marks a range replaced in the draft at its place, the one created a row of the preview", () => {
+    // R, a range under P, replaced by one of other bounds (no bounds in `update_range`):
+    // closed, then created. A prefix closed is not marked (no state says a removal).
+    const R = ID(5);
+    const OTHER_RANGE = ID(6);
+    const operations = [
+      { op: "close", kind: "range", id: { id: R } },
+      {
+        op: "create_range",
+        domain: { id: DOMAIN },
+        first: "198.51.100.10",
+        last: "198.51.100.40",
+        usage: "dhcp",
+      },
+      { op: "close", kind: "prefix", id: { id: Q } },
+      update(C1, "198.51.100.0/27"),
+    ] as unknown as Operation[];
+    const inDraft = inDraftOf(operations);
+    expect(inDraft).toEqual(new Set([C1, R]));
+    // The one closed is not placed (it leaves the tree); the one created is, under P.
+    const preview = previewOf(
+      simulated([{ object: TEMP, kind: "range", before: null, after: P, operation: 1 }]),
+      operations,
+      (id) => known(id) || id === R || id === OTHER_RANGE,
+      DOMAIN,
+    );
+    expect(preview.shifts.map((s) => [s.key, s.parent, s.creation?.label])).toEqual([
+      ["draft:1", P, "198.51.100.10 – 198.51.100.40"],
+    ]);
+    expect(draftStateOf(R, inDraft, preview)).toBe("draft");
+    expect(draftStateOf("draft:1", inDraft, preview)).toBe("preview");
+    expect(draftStateOf(OTHER_RANGE, inDraft, preview)).toBeUndefined();
+    expect(draftStateOf(Q, inDraft, preview)).toBeUndefined();
   });
 
   it("keeps the key of a creation from one simulation to the next", () => {
