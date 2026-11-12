@@ -11,10 +11,11 @@
 // opens and goes to the first one (once they are there), Up and Down move; Alt+Down opens
 // without moving; Enter takes the highlighted one (`select`), or else is the host's
 // (`submit`, a search); Escape closes, and a second Escape is the layer's around it (a
-// popover, a dialog); Home and End stay in the text. What the list holds (count, loading,
-// nothing, failure) is said by a polite region present before it, and shown in the list
-// when it has no option. In a `FormField`: label, error then help by `aria-describedby`.
-// No ComboboxViewport: it injects a <style> (REQ-020-33). The list has the look of the one
+// popover, a dialog, a panel: closed, the field keeps nothing of it); Home and End stay
+// in the text. What the list holds (count, loading, nothing, failure) is said by a polite
+// region present before it, and shown in the list when it has no option. In a
+// `FormField`: label, error then help by `aria-describedby`. No ComboboxViewport: it
+// injects a <style> (REQ-020-33). The list has the look of the one
 // of `Select` (Select/options.css).
 import {
   ComboboxAnchor,

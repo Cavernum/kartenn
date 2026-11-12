@@ -18,13 +18,14 @@
 // « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
 // current one checked (`menuitemradio`). The line of the handle is the outline of the
 // panel (`.k-panel-handle`, components/shared.css). Escape closes it and gives the focus
-// back to what opened it. Closed, it leaves nothing behind. On a narrow window the host
-// sets `cover`: the panel takes the whole width of its container, over it, without handle
-// (spec 021, « Cadre » : at 768 px the panel covers the surface). With `rail`, the closed
-// panel leaves a strip in the flow at the end of its container (the same `auto` track): a
-// chevron button, « Ouvrir le panneau », reopens it on its last tab and moves the focus
-// there; closing it from inside gives the focus back to the strip. The footer shows only
-// when the host fills it for the tab in front: no empty band under a tab without actions.
+// back to what opened it; an open popup or a field typed in keeps it (`ownsEscape`).
+// Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
+// takes the whole width of its container, over it, without handle (spec 021, « Cadre » :
+// at 768 px the panel covers the surface). With `rail`, the closed panel leaves a strip
+// in the flow at the end of its container (the same `auto` track): a chevron button,
+// « Ouvrir le panneau », reopens it on its last tab and moves the focus there; closing it
+// from inside gives the focus back to the strip. The footer shows only when the host
+// fills it for the tab in front: no empty band under a tab without actions.
 // With `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole
 // window, a back button at its start instead of the cross, and takes the focus when it
 // opens.
@@ -188,7 +189,7 @@ async function reopen(): Promise<void> {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event.target)) {
+  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event)) {
     event.preventDefault();
     void close();
   }

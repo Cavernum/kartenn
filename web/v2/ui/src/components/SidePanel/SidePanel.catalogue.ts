@@ -7,16 +7,20 @@ import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoFrame from "../../demo/DemoFrame.vue";
 import { prefixes } from "../../fixtures/index.ts";
 import Cluster from "../Cluster/Cluster.vue";
+import Combobox from "../Combobox/Combobox.vue";
+import { filterOptions } from "../Combobox/combobox.ts";
 import CommitForm from "../CommitForm/CommitForm.vue";
 import DataGrid from "../DataGrid/DataGrid.vue";
 import type { GridColumn } from "../DataGrid/grid.ts";
 import DraftCounter from "../DraftCounter/DraftCounter.vue";
 import InlineAlert from "../InlineAlert/InlineAlert.vue";
+import type { ListOption } from "../Select/select.ts";
 import SplitButton from "../SplitButton/SplitButton.vue";
 import type { SplitAction } from "../SplitButton/split.ts";
 import Stack from "../Stack/Stack.vue";
 import StatusBadge from "../StatusBadge/StatusBadge.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
+import TextField from "../TextField/TextField.vue";
 import SidePanel from "./SidePanel.vue";
 
 const PANEL = "k-demo-panel";
@@ -35,6 +39,10 @@ const rows = prefixes.slice(0, 6).map((prefix, i) => ({
   label: LABELS[i]!,
   used: `${[91, 45, 12, 38, 100, 7][i]} %`,
 }));
+/** The domains a reference field suggests (a read of the API). */
+const domains: ListOption[] = ["production", "supervision", "recette", "laboratoire"].map(
+  (key) => ({ value: key, label: key, mono: true }),
+);
 const draftActions: SplitAction[] = [
   { id: "apply", label: "Appliquer", icon: "circle-check" },
   { id: "review", label: "Soumettre en revue", icon: "send" },
@@ -54,6 +62,8 @@ const demo = defineComponent({
     cover: Boolean,
     sheet: Boolean,
     long: Boolean,
+    /** Fields in the detail tab (a reference by `Combobox`, a `TextField`): whose Escape. */
+    fields: Boolean,
     /** The host's shortcut (`]` in the shell). */
     shortcut: { type: Array as () => string[] | undefined, default: undefined },
   },
@@ -62,6 +72,8 @@ const demo = defineComponent({
     const tab = ref(props.tab);
     const width = ref(props.width);
     const summary = ref("Maintenance du référentiel");
+    const domain = ref("");
+    const label = ref("Supervision");
     const action = ref("apply");
     function toggle(): void {
       if (open.value) open.value = false;
@@ -111,6 +123,26 @@ const demo = defineComponent({
                     h("p", { class: "k-mono" }, "192.0.2.64/26"),
                     h("p", "Supervision · Production"),
                     h("p", "Occupation : 45 %"),
+                    // Fields (`fields`): Escape closes the list of the reference, then the
+                    // panel; the text field keeps it (task 021-12p). Spaced as the
+                    // fields of the shell's edit panel.
+                    ...(props.fields
+                      ? [
+                          h(Stack, { gap: "3" }, () => [
+                            h(Combobox, {
+                              label: "Domaine",
+                              suggest: async (query: string) => filterOptions(domains, query),
+                              modelValue: domain.value,
+                              "onUpdate:modelValue": (v: string) => (domain.value = v),
+                            }),
+                            h(TextField, {
+                              label: "Libellé",
+                              modelValue: label.value,
+                              "onUpdate:modelValue": (v: string) => (label.value = v),
+                            }),
+                          ]),
+                        ]
+                      : []),
                     // Longer (`long`): the tab scrolls, an encart crosses its bottom edge
                     // and the shade lies over it, not under it.
                     ...(props.long
@@ -198,6 +230,14 @@ export default {
       description:
         "Contenu plus long que l'onglet : l'ombre du bord bas passe au-dessus du contenu, encart compris, et disparaît en fin de défilement",
       props: { open: true, tab: "detail", long: true },
+      demo,
+      wide: true,
+    },
+    {
+      name: "fields",
+      description:
+        "Champs dans l'onglet Détail : une référence (Combobox) et un texte ; dans la référence, Échap ferme la liste ouverte, puis le panneau ; le champ texte garde Échap",
+      props: { open: true, tab: "detail", fields: true },
       demo,
       wide: true,
     },

@@ -16,7 +16,8 @@
 // menu « Hauteur du panneau » beside the close button: « Basse » (the lower bound),
 // « Standard » (320 px), « Haute » (the upper bound), the current one checked. The line of
 // the handle is the outline of the panel (`.k-panel-handle`, components/shared.css).
-// Escape closes it and gives the focus back to what opened it; closed, it leaves nothing
+// Escape closes it and gives the focus back to what opened it; an open popup or a field
+// typed in keeps it (`ownsEscape`); closed, it leaves nothing
 // behind (the host reopens it, from a selection). The footer shows only when the host
 // fills it for the tab in front. With `sheet` (compact frame), it is the same sheet as the
 // side panel: the whole window, a back button at its start, a modal dialog that takes the
@@ -159,7 +160,7 @@ watch(
 onBeforeUnmount(() => stopCue?.());
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event.target)) {
+  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event)) {
     event.preventDefault();
     void close();
   }
