@@ -15,8 +15,8 @@ use crate::pg::{INGRESS_TABLE, NODE_TABLE, SERVICE_TABLE, store};
 
 /// The versions of `table` valid at `$1`, as asserted at `$2` (now when null): the current
 /// rows, or the history for a past `$2` (as `kartenn_machines::read`). `table` and `cols`
-/// are constants of this module.
-fn snapshot(table: &str, cols: &str) -> String {
+/// are constants of this crate (or of the core's tables).
+pub(crate) fn snapshot(table: &str, cols: &str) -> String {
     format!(
         "(SELECT {cols} FROM {table}
            WHERE valid_period @> $1::timestamptz
@@ -28,7 +28,8 @@ fn snapshot(table: &str, cols: &str) -> String {
     )
 }
 
-fn time(i: Instant) -> OffsetDateTime {
+/// An instant as PostgreSQL reads it.
+pub(crate) fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")
 }
 

@@ -1261,6 +1261,100 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-machines/src/read.rs` (`machine_values_of_addresses`) ;
     `crates/kartenn-core/src/properties.rs` (`InheritTree`, un arbre par déclaration)
   - dépend de : 4, 6
+  - découpée (2026-11-12) en 7a à 7d : une brique du port, une famille de vérification
+    chacune.
+- [x] 7a. Workloads et leurs axes : `workloads_of(namespace | service | cluster,
+  valid_at, as_of)` et `axis_values(workloads, keys, valid_at, as_of)` dans
+  `kartenn_kube::read`, une requête pour le lot : par workload et clé, la valeur
+  résolue le long de l'arbre du module (workload, namespace, cluster : origines du
+  noyau), sinon la valeur de l'arbre d'adressage sur les conteneurs de plages de pods du
+  cluster, avec le porteur source et l'objet qui la tient ; porteurs `kube.cluster`,
+  `kube.namespace`, `kube.workload`, `kube.service` admis par une déclaration —
+  REQ-019-32 (côté module) — verify : `axis_from_namespace_then_tree`,
+  `axis_values_one_query`
+  - où : design « Propriétés », « Port de lecture » ;
+    `crates/kartenn-machines/src/read.rs` (`machine_values_of_addresses`, valeur et
+    origine) ; `crates/kartenn-kube/src/edges.rs` (`snapshot`) ;
+    `crates/kartenn-kube/tests/it/edges.rs` (`Env`, à imiter)
+  - dépend de : 4
+  - fait (2026-11-12) : `kartenn-kube` `read.rs` (`Scope`, `Workload`, `workloads_of`,
+    `Source`, `Sourced`, `AxisValues`, `axis_values`) ; `edges.rs` (`snapshot`, `time`
+    partagés dans le crate) ; design (« Propriétés », « Port de lecture ») ; tests
+    `axes::axis_from_namespace_then_tree` (aucune valeur, domaine des pods hérité par
+    deux conteneurs, conteneur à valeur propre, namespace `{prod}`, workload `{rec}`
+    (D26), cluster pour un namespace sans valeur, affectation sur un service, lectures
+    datées par `as_of`), `axis_values_one_query` (`workloads_of` d'un namespace, d'un
+    service, d'un cluster, avant les workloads et sur un objet d'une autre sorte ; lot de
+    512 dans l'ordre, workload inconnu sans axe, clé non déclarée absente, clé sans
+    valeur vide, lot daté d'avant les workloads).
+  - correction de revue (2026-11-12) : un cluster sans conteneur de plages de pods lit
+    l'arbre sur son domaine des pods (`pod_domain_id`) ; arbitrage Q-019-30 consigné
+    (`decisions.md`, design « Propriétés »). Tests : `axis_from_namespace_then_tree`
+    complété (« sans valeur » sur le workload, puis sur le namespace : l'arbre sert),
+    `axis_tree_from_pod_domain_and_plain_property` (cluster sans conteneur ; propriété
+    non héritable : ni le namespace ni le domaine ne la donnent, le conteneur et le
+    workload la donnent chacun pour soi).
+  - choix : dernier niveau de la composition sur les **conteneurs de plages de pods** du
+    cluster (`pod_container_ids` à la date), pas sur les plages des nœuds où tournent les
+    pods (connues par le journal seul, hors référentiel et sous `kube.observation.read`) ;
+    arbitré depuis (Q-019-30) ;
+    une valeur par conteneur qui en a une, dans l'ordre du cluster, l'union au lecteur
+    (comme REQ-010-31) ; les trois premiers niveaux lus dans `property_origin` (héritage
+    le long de l'arbre du module, REQ-008-6), le workload seul pour une propriété non
+    héritable ; une affectation `cleared` (« sans valeur ») arrête l'héritage le long de
+    l'arbre du module et laisse servir l'arbre d'adressage, comme
+    `machine_values_of_addresses` laisse servir l'arbre ; un workload qui ne vit pas à la
+    date n'a aucun axe ; `workloads_of` sans contrôle de sorte (un objet d'une autre
+    sorte ne liste rien), workloads absents (`absent_since`) compris ; « une requête »
+    tenue par construction (lot de 512), sans compteur de requêtes.
+  - reste : aucun `EXPLAIN` de `axis_values` à l'échelle (banc de la 16) ; la
+    lecture des workloads d'un cluster parcourt ses namespaces par l'index d'exclusion
+    (`cluster_id`, `name`), non mesurée ; `wanted` ne filtre pas les porteurs de la
+    déclaration (une clé non portée par `kube.workload` se lit quand même) ; le
+    rassemblement des lignes cherche chaque workload dans la liste (quadratique), et un
+    identifiant donné deux fois laisse sa seconde entrée vide ; une valeur posée sur la
+    plage d'un nœud n'est pas vue par cette lecture (conteneurs seuls) ; le commit
+    05c532e7 mêle le découpage de la 7 et la fonctionnalité.
+- [ ] 7b. Chaîne d'exécution et trace d'un inventaire antérieur :
+  `execution_chain(workload, valid_at, reader)` (nœuds par le journal,
+  `read::of_workload` de la 6d, puis machines par `kube.runs_on`, hyperviseurs et
+  clusters de virtualisation par les arêtes de la 009), encadrée comme `who_had`
+  (Q-019-31) : `kube.observation.read` sur le `pod_domain` du cluster, motif `retention`
+  au-delà de la rétention, `closed` pour un objet clos, chaîne vide et motif
+  `unobserved` pour un workload jamais observé, lecture journalisée (`record_read`) ;
+  règle `kube.machine.looks_like_pod` (déjà déclarée, REQ-019-3) évaluée par le module
+  kube sur les opérations de machines du changeset (`CheckContext::operations`, aucun
+  crochet dans machines), observations ouvertes seules, le pod nommé seulement à un
+  auteur qui tient `kube.observation.read`, sinon « ressemble à un pod d'un cluster »
+  (Q-019-32) — REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
+  - où : design « Port de lecture », « Règles », chaîne modélisée (« Vue d'ensemble ») ;
+    `decisions.md` Q-019-31, 32 ; `rest.rs` (`allowed`, `record_read` des lectures de la
+    6d) ;
+    `crates/kartenn-kube/src/read.rs` (`of_workload`), `edges.rs`, `rules.rs` ;
+    `crates/kartenn-machines/src/read.rs` (`hosted_by`, `members_of`, `edges_of`) ;
+    test voisin `tests/it/edges.rs` (`execution_chain_edges`)
+  - dépend de : 6d, 4d
+- [ ] 7c. Paramètres du module : correspondances (clé, valeur de label) → valeur d'axe,
+  valeurs d'axe admises par namespace, labels suivis du module (X4) ; tables
+  `kube.label_mapping`, `kube.admitted_value` et `kube.tracked_label` (migration
+  suivante), opérations `kube.set_label_mapping`, `kube.set_admitted_values` et
+  `kube.set_tracked_labels`, permission `kube.settings.edit` (`apply`, `approval.self`)
+  par `operation_permissions` — REQ-019-34 (paramètres) — verify :
+  `label_mapping_needs_kube_settings`
+  - où : design « Données » (tables des paramètres), « Opérations » ; `decisions.md`
+    X4, X11 ; spec 027 (P4, P5, REQ-027-5, 6) ;
+    `crates/kartenn-policy/src/module.rs` (`SETTINGS_EDIT`, `typed`) ;
+    `crates/kartenn-service/src/module.rs` (`operation_permissions`)
+  - dépend de : 4
+- [ ] 7d. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
+  `kube`) posé sur chaque workload, et valeurs d'axe des labels correspondants admises
+  dans son namespace, provenance « connecteur, label `<clé>` », sinon ignorées avec
+  `kube.label.not_admitted` — REQ-019-33, 34 (pose) — verify : `label_mapping_admitted`
+  (avec la valeur de `kube.namespace`)
+  - où : design « Propriétés », « Règles » ; `decisions.md` X11 ;
+    `crates/kartenn-kube/src/handler.rs` (upsert d'un workload) ;
+    `crates/kartenn-machines/src/module.rs` (`declarations`)
+  - dépend de : 7c
 - [ ] 8. Routes REST et imports : collections du module par `{id}` (clé naturelle en
   filtre, `?slug=`), filtres, chaîne d'exécution (`GET /v1/workloads/{id}/chain`), paramètres (`If-Match`), permissions
   de lecture ajoutées aux rôles livrés (lecteur, éditeur, approbateur ; `apply` à

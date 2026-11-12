@@ -312,7 +312,7 @@ domaines touchés.
 | `kube.object.absent` | avertissement | objet cité disparu du cluster |
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
 | `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace |
-| `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) |
+| `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; le pod n'est nommé qu'à un auteur qui tient `kube.observation.read`, sinon « ressemble à un pod d'un cluster » (Q-019-32) |
 | `kube.sync.stale` | avertissement | cluster sans lot ni signet depuis 10 min (connecteur arrêté) |
 
 Hors règles : `kube.observation.invalid` est le code du Problem Details (422) d'un lot
@@ -375,7 +375,17 @@ que le long d'**un** arbre (`Declaration::inherit`, `kartenn-core/src/properties
 composition « workload, sinon namespace, sinon cluster, sinon arbre d'adressage sur la
 plage de pods » est donc faite par la **lecture** (`kartenn_kube::read::axis_values`),
 comme la 010 compose déjà valeur de machine et valeur de l'arbre (010/S27, REQ-010-31),
-sans changer le noyau. L'explication cite le porteur qui a servi.
+sans changer le noyau. L'explication cite le porteur qui a servi. Les trois premiers
+niveaux sont les origines que le noyau tient pour une propriété héritable (un objet de
+module hérite le long de l'arbre de son module, REQ-008-6), le workload seul pour une
+propriété qui ne l'est pas. Le dernier lit la valeur de l'arbre d'adressage sur chaque
+**conteneur de plages de pods** du cluster (`pod_container_ids`) à la date : la plage
+d'un pod n'est connue que par le journal, hors du référentiel et sous
+`kube.observation.read` ; les plages des nœuds sont sous ces conteneurs et en héritent.
+Chaque conteneur qui a une valeur en donne une ; leur union, comme celle des machines
+d'une adresse (REQ-010-31), est au lecteur. Un cluster sans conteneur déclaré lit le
+domaine des pods (`pod_domain_id`). Jamais les plages observées par le journal (Q-019-30,
+tâche 7a).
 
 ### Références (D33)
 
@@ -420,9 +430,9 @@ RFC 3339 en UTC (`Z`) ou `null` :
 
 | Fonction | Rend |
 |---|---|
-| `workloads_of(namespace | service | cluster, valid_at, as_of)` | workloads |
-| `axis_values(workloads, keys, valid_at, as_of)` | par workload et clé : valeurs, porteur source, explication (une requête pour le lot) |
-| `execution_chain(workload, valid_at)` | nœuds observés, machines, hyperviseurs, clusters de virtualisation |
+| `workloads_of(namespace | service | cluster, valid_at, as_of)` | workloads (identifiant, namespace, cluster, sorte, nom), par nom de namespace puis nom et sorte |
+| `axis_values(workloads, keys, valid_at, as_of)` | par workload et clé : valeurs, porteur source (`workload`, `namespace`, `cluster`, `tree`), objet qui tient l'affectation et objet pour lequel elle est résolue (le workload, ou le conteneur de plages de pods) ; une requête pour le lot (tâche 7a) |
+| `execution_chain(workload, valid_at, reader)` | nœuds observés, machines, hyperviseurs, clusters de virtualisation, encadrée comme `who_had` (Q-019-31) : `kube.observation.read` sur le `pod_domain` du cluster exigé du lecteur ; motif `retention` au-delà de la rétention, `closed` pour un objet clos, `unobserved` (chaîne vide) pour un workload jamais observé ; la lecture est journalisée (`record_read`) |
 | `who_had(ip, domain, at, reader)` | observations (pod, workload, nœud) des seuls clusters où le lecteur a `kube.observation.read` ; vide hors rétention, motif `retention` ; `ip` une adresse ou un réseau, un pod en `hostNetwork` répondu par les adresses de son nœud à `at` (tâche 6d) ; un cluster clos du domaine qui vivait à `at` ne répond rien, motif `closed`, qui l'emporte sur `retention` ; l'appelant journalise la lecture (Q-019-28) |
 | `service_addresses(service, …)` | adresses `vip` |
 
