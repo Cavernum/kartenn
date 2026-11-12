@@ -467,3 +467,14 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   brouillon ; `operation_count` des brouillons ne compte pas les gardes (serveur), la
   liste du brouillon ne les montre pas, dit leurs violations sur l'opération de leur
   objet, et retire une garde avec la dernière opération de son objet.
+- **Q-021-22 — Échap et la croix d'un panneau dont un champ est modifié** (021-12p,
+  revue ; utilisateur, 2026-11-12) : constat, la première version de la 12p rendait Échap
+  au panneau depuis un champ texte (comme depuis un combobox fermé), si bien qu'une Échap
+  dans le panneau d'édition ou le panneau du brouillon le fermait et perdait la saisie
+  sans rien demander, comme la croix. Options pesées : demander si modifié
+  (« Abandonner les modifications ? » avant de fermer un panneau dont un champ a été
+  modifié) ; un champ modifié garde Échap ; fermer sans demander. Retenu : demander si
+  modifié — Échap ou la croix sur un panneau modifié demandent d'abord « Abandonner les
+  modifications ? » (Abandonner, Continuer), comme le dialogue du secret ; un panneau
+  intact se ferme tout de suite ; un combobox fermé laisse toujours passer Échap. En
+  attendant la confirmation (021-12q), un champ texte garde Échap.

@@ -3766,30 +3766,63 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     erreur, infobulle de la 12m) et les panneaux l'ignorent ; `ownsEscape` ne répond plus
     que pour ce qui ne l'arrête pas : une popup ouverte (`role="combobox"` ou
     `aria-haspopup` autre que `false`, avec `aria-expanded="true"` : Reka la ferme depuis
-    le document, après le panneau) et une composition en cours (`isComposing`, IME). Tout
-    le reste laisse Échap au panneau, comme un dialogue : combobox fermé (sa seconde Échap,
-    que promet son en-tête), `TextField`, `textarea`, segment de `DateTimeField`, `Select`
-    fermé ; le focus rendu à l'ouvreur, sinon à la languette. 020 design (« Adaptation à
-    la largeur », inventaire 30 et 38), skill (ligne `SidePanel`), en-têtes de `SidePanel`,
-    `BottomPanel`, `Combobox`. Catalogue : état `fields` du `SidePanel` (référence
-    « Domaine » et texte « Libellé » dans l'onglet Détail). Tests : Vitest
-    `ui/test/panel-escape.test.ts` (popup ouverte gardée, combobox fermé, menu fermé,
-    divulgation, champs, composition) ; `e2e/components/side-panel.spec.ts` (Échap ferme
-    la liste, la seconde le panneau, focus à la languette ; rouvert par la languette,
-    depuis chaque champ saisi, focus rendu à l'ouvreur) ; `e2e/visual/clavier.spec.ts`
-    (Échap dans « Résumé » ferme désormais le panneau).
-  - choix : le `TextField` simple (et la zone de texte, le segment de date) ne garde plus
-    Échap : aucun ne s'en sert, et un panneau qui garde Échap dans un champ contredit le
-    combobox fermé voisin et le dialogue (APG) ; le texte saisi part avec le panneau,
-    comme par la croix ; un champ de recherche ne garde pas Échap non plus (le vidage
-    natif n'existe pas partout : il deviendrait un piège) ; la composition IME gardée ;
-    état de catalogue nouveau plutôt qu'un champ ajouté à `detail` (ses captures
-    inchangées), champs espacés comme ceux du panneau d'édition (`Stack gap="3"`).
-  - reste : le panneau d'édition (`EditPanel`) perd ses saisies à la fermeture, par Échap
-    comme par la croix, sans demander (au shell d'en décider) ; aucun script clavier du
-    `BottomPanel` ni d'un éditeur de cellule dans un panneau (Échap arrêté par l'éditeur,
-    le panneau gardé) : le prédicat seul est testé ; la fermeture dite par un lecteur
-    d'écran (NVDA, VoiceOver) non vérifiée ; IME simulée seulement (Vitest).
+    le document, après le panneau), une composition en cours (`isComposing`, et
+    `keyCode` 229 : sous WebKit la composition finit avant la touche) et un champ de
+    saisie (`TextField`, `textarea`, segment de `DateTimeField`, `select` natif), dont la
+    saisie partirait avec le panneau (Q-021-22, en attendant la 12q). Le reste laisse Échap
+    au panneau, comme un dialogue : combobox fermé (sa seconde Échap, que promet son
+    en-tête ; `Select` fermé compris), bouton, case ; le focus rendu à l'ouvreur, sinon à
+    la languette. 020 design (« Adaptation à la largeur », inventaire 30 et 38), skill
+    (ligne `SidePanel`), en-têtes de `SidePanel`, `BottomPanel`, `Combobox`. Catalogue :
+    état `fields` du `SidePanel` (référence « Domaine » et texte « Libellé » dans l'onglet
+    Détail). Tests : Vitest `ui/test/panel-escape.test.ts` (popup ouverte gardée, combobox
+    fermé, menu fermé, divulgation, champs gardés, boutons, composition et WebKit) ;
+    `e2e/components/side-panel.spec.ts` (Échap ferme la liste, la seconde le panneau,
+    focus à la languette ; rouvert par la languette : le champ texte saisi garde Échap, le
+    combobox fermé et saisi le laisse, focus rendu à l'ouvreur) ;
+    `e2e/visual/clavier.spec.ts` (Échap dans « Résumé » : le panneau reste).
+  - choix : un champ de recherche garde Échap comme les autres champs ; la composition
+    IME gardée ; état de catalogue nouveau plutôt qu'un champ ajouté à `detail` (ses
+    captures inchangées), champs espacés comme ceux du panneau d'édition
+    (`Stack gap="3"`) ; tabulation du script clavier comptée (onglet, son panneau, champ).
+  - passe de correction (revue ; arbitrage Q-021-22 de l'utilisateur, 2026-11-12) : la
+    première version rendait Échap au panneau depuis un champ texte, ce qui fermait le
+    panneau d'édition ou du brouillon et perdait la saisie sans rien demander ; la
+    confirmation « Abandonner les modifications ? » touche les deux panneaux et leurs
+    hôtes du shell, trop large pour cette passe : la règle « Échap appartient à un champ
+    de saisie » est rétablie pour les champs texte (le combobox fermé la laisse toujours)
+    et la confirmation part en 12q.
+  - reste : le combobox fermé et saisi du panneau d'édition le ferme encore sans
+    demander (12q) ; contrat d'un éditeur de cellule piloté par l'hôte (`driven()` faux :
+    il n'arrête pas Échap, qui va alors au panneau) à dire ; aucun script clavier du
+    `BottomPanel` ni d'un éditeur de cellule dans un panneau : le prédicat seul est testé ;
+    la fermeture dite par un lecteur d'écran (NVDA, VoiceOver) non vérifiée ; IME
+    simulée seulement (Vitest).
+- [ ] 12q. Panneau modifié : demander avant de fermer (Q-021-22) — Échap ou la croix
+  d'un `SidePanel` ou d'un `BottomPanel` dont l'hôte dit un champ modifié demandent
+  d'abord « Abandonner les modifications ? » (`AlertDialog` : Abandonner, Continuer,
+  focus sur Continuer, rendu au champ ou à la croix) ; intact, le panneau se ferme tout
+  de suite ; une fois la confirmation en place, Échap revient au panneau depuis un champ
+  texte (`ownsEscape` ne garde plus que popup ouverte et composition) ; branché dans le
+  panneau d'édition (`EditPanel`, `ClosePanel` : un champ changé depuis l'ouverture) et
+  dans le panneau du brouillon (`DraftSubmit`, `CommitForm` : motif saisi) ; à dire
+  aussi pour `]`, le compteur du brouillon et un changement de route qui ferment le
+  panneau — REQ-021-36 — verify : script clavier `e2e/components/side-panel.spec.ts`
+  (intact : Échap ferme ; modifié : Échap demande, Continuer garde la saisie et le focus,
+  Abandonner ferme et rend le focus à l'ouvreur) ; Vitest d'`ownsEscape` ; parcours
+  `edit` (un champ modifié, Échap demande ; abandonné, rien d'écrit)
+  - où : `web/v2/ui/src/components/internal/panel.ts` (`ownsEscape`),
+    `SidePanel/SidePanel.vue` et `BottomPanel/BottomPanel.vue` (`close`, `onKeydown`,
+    nouvelle propriété « modifié » de l'hôte : API publique, à arbitrer dans la tâche),
+    `AlertDialog/` (`cancel`, `confirm`), `SidePanel.catalogue.ts` (état `fields`) ;
+    shell : `frame/ShellFrame.vue` (`SidePanel`), `views/edit/EditPanel.vue`,
+    `views/edit/ClosePanel.vue`, `draft/DraftSubmit.vue` ; dialogue à imiter :
+    `admin/SecretDialog.vue` et `e2e/journeys/admin.spec.ts` (« Escape asks first ») ;
+    020 design (« Adaptation à la largeur », inventaire 30 et 38), ligne `SidePanel` du
+    skill. Trop large pour un contexte, à découper d'abord : bibliothèque (12qa :
+    panneaux, catalogue, script clavier), puis shell (12qb : `EditPanel`, `ClosePanel`,
+    `DraftSubmit`, parcours `edit`).
+  - dépend de : 12p
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
