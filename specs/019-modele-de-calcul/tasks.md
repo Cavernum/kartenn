@@ -1527,6 +1527,13 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     réutilisent l'ajout de valeur et la règle des libellés (R10) ; deux modules qui
     nomment une même clé : libellés du premier ; la déclaration du système `kube` par le
     module `kube` vient avec la 7d2, qui crée ses déclarations (`kube.namespace`).
+  - reste (revue, mineurs) : la doc du crochet `ModuleHandler::provenance` dit
+    `AssignProperty` alors que `plan.core[index]` peut être un `Within` qui l'enveloppe ;
+    un `ClearProperty` ajouté par un module est écrit `input` (le crochet n'est demandé que
+    pour `AssignProperty`) — à traiter en 7d2/7d3 ; le nom contrôlé est `plan.kind.module()`
+    choisi par le handler (un module du build pourrait signer pour un autre, code de
+    confiance) ; clés d'`external_systems` non validées à la construction du registre ;
+    « jamais close » et « deux modules, même clé » sans test.
 - [ ] 7d2. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
   `kube` déclaré par le module, identifiant `<id du cluster>/<nom>`, libellé
   `<slug du cluster>/<nom>`, Q-019-37) posé à l'`upsert` de chaque workload ; à chaque
@@ -1544,6 +1551,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-kube/src/handler.rs` (`plan_sync`, upsert d'un workload) ;
     `crates/kartenn-kube/src/rules.rs` ;
     `crates/kartenn-machines/src/module.rs` (`declarations`)
+  - à garder (revue de la 7d1) : le module doit lire la provenance des affectations
+    courantes pour retirer sûrement ce qu'il a posé et ne jamais toucher une valeur
+    `input` (amendement 14) — cette lecture n'est pas livrée ; le motif vient des labels
+    reçus du connecteur, jamais d'un membre libre du corps ; un « sans valeur »
+    (`ClearProperty`) posé par kube doit aussi porter sa provenance.
   - dépend de : 7c, 7d1
 - [ ] 7d3. Re-dérivation par les paramètres (Q-019-36) : le changeset qui écrit une
   correspondance ou des valeurs admises re-dérive, dans sa transaction, les affectations

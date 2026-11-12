@@ -4708,6 +4708,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
     adresses, pas aux plages.
   - repris le 2026-11-03 par la 7a : les lectures d'enfants au survol pendant un défilement
+- [ ] 13d. Provenance de module dans l'explication d'une valeur (relevé de la 019-7d1) :
+  `ExplanationBody.vue` dit « direct » pour toute valeur posée sur l'objet, quelle que soit
+  sa provenance ; une valeur dérivée par un module (`module:kube#label:<clé>`, amendement
+  14 de l'ADR 0026) se lit alors comme une saisie. L'explication la dit « tirée du label
+  `<clé>` (module kube) », la forme `source:` gardée — REQ-003-14 — verify : Vitest de
+  l'explication (trois formes : `input`, `source:`, `module:`) ; capture de la bulle mise
+  à jour si le rendu change
+  - où : `web/v2/shell/src/views/record/ExplanationBody.vue` (ou voisin), catalogues
+    `views/i18n/{fr,en}.json` ; `specs/006-api-rest/openapi-v1.json` (`Explanation.provenance`)
+  - dépend de : 019-7d1
 - [ ] 24f. Ctrl+Entrée sur un dépôt dans un arbre de plugin (REQ-021-32, reste de la 24,
   arbitré par l'utilisateur le 2026-11-11) : un déplacement dans l'arbre de l'hébergement
   des machines peut devenir un changeset immédiat par Ctrl+Entrée, l'écriture passant par
