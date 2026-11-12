@@ -414,7 +414,8 @@ pub enum Source {
     Namespace,
     /// Inherited from its cluster.
     Cluster,
-    /// The value of the addressing tree on a pod container of its cluster.
+    /// The value of the addressing tree on a pod container of its cluster, or on its pod
+    /// domain when it declares no container.
     Tree,
 }
 
@@ -442,7 +443,7 @@ pub struct Sourced {
     /// or for [`Source::Tree`] the container or one of its ancestors.
     pub origin: Uuid,
     /// The object it was resolved for: the workload, or for [`Source::Tree`] the pod
-    /// container.
+    /// container (the pod domain without one).
     pub through: Uuid,
 }
 
@@ -458,7 +459,8 @@ pub struct AxisValues {
 }
 
 /// A value of [`axis_values`] as read: workload, place (0 for the workload, then the
-/// rank of a pod container), object resolved, key, origin, value, namespace, cluster.
+/// rank of a pod container or of the pod domain), object resolved, key, origin, value,
+/// namespace, cluster.
 type AxisRow = (
     Uuid,
     i64,
@@ -474,7 +476,9 @@ type AxisRow = (
 /// (`valid_at`, `as_of`) (REQ-019-32, design « Propriétés »): the value resolved along the
 /// tree of the module (the workload, else its namespace, else its cluster, as the origins
 /// of the core give them for a heritable property; the workload alone otherwise), else
-/// the value of the addressing tree on each pod container of its cluster. A workload not
+/// the value of the addressing tree on each pod container of its cluster, or on its pod
+/// domain when it declares none: the referential, never the ranges the journal observes
+/// the pods on (Q-019-30). A workload not
 /// living then has no axis; a key not declared then is absent; a key without a value has
 /// no value. One query for the batch.
 ///
@@ -490,7 +494,7 @@ pub async fn axis_values(
 ) -> Result<Vec<(Uuid, Vec<AxisValues>)>, StoreError> {
     let workload = snapshot(WORKLOAD_TABLE, "id, namespace_id");
     let namespace = snapshot(NAMESPACE_TABLE, "id, cluster_id");
-    let cluster = snapshot(CLUSTER_TABLE, "id, pod_container_ids");
+    let cluster = snapshot(CLUSTER_TABLE, "id, pod_domain_id, pod_container_ids");
     let declaration = snapshot(
         "public.property_declaration",
         "id, key, value_type, inherit_tree",
@@ -507,10 +511,13 @@ pub async fn axis_values(
     let value = snapshot("public.property_enum_value", "id, key");
     let keys: Vec<String> = keys.iter().map(|&k| k.to_owned()).collect();
     // Place 0 is the workload itself, along the tree of the module; places 1… are the
-    // pod containers of its cluster, along the addressing tree.
+    // pod containers of its cluster, or its pod domain without one, along the addressing
+    // tree (Q-019-30).
     let rows: Vec<AxisRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH living AS (
-             SELECT w.id, w.namespace_id, n.cluster_id, c.pod_container_ids
+             SELECT w.id, w.namespace_id, n.cluster_id,
+                    CASE WHEN cardinality(c.pod_container_ids) = 0 THEN ARRAY[c.pod_domain_id]
+                         ELSE c.pod_container_ids END AS tree_ids
                FROM {workload} w
                JOIN {namespace} n ON n.id = w.namespace_id
                JOIN {cluster} c ON c.id = n.cluster_id
@@ -520,7 +527,7 @@ pub async fn axis_values(
              UNION ALL
              SELECT l.id, p.object, p.place
                FROM living l
-               CROSS JOIN LATERAL unnest(l.pod_container_ids) WITH ORDINALITY p(object, place)),
+               CROSS JOIN LATERAL unnest(l.tree_ids) WITH ORDINALITY p(object, place)),
          wanted AS (
              SELECT d.id, d.key, d.value_type = 'enum' AS closed_list, d.inherit_tree,
                     array_position($4::text[], d.key) AS rank

@@ -138,7 +138,14 @@ impl Env {
         ])
         .await;
         let domain = self.id("addressing_domain", "slug", slug).await;
-        (domain, self.id("prefix", "prefix::text", prefix).await)
+        let prefix = sqlx::query_scalar(
+            "SELECT id FROM prefix WHERE domain_id = $1 AND valid_period @> now()",
+        )
+        .bind(domain)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap();
+        (domain, prefix)
     }
 
     /// A second container `prefix` in `domain`.
@@ -221,10 +228,16 @@ impl Env {
 
     /// `custom.exposure` declared with the values `values`: its identifier.
     async fn exposure(&self, values: &[&str]) -> Uuid {
+        self.declared(EXPOSURE, values, Some("addressing")).await
+    }
+
+    /// The closed list `key` of the values `values`, carried by the four carriers of the
+    /// module and by the addressing tree, heritable along `inherit`: its identifier.
+    async fn declared(&self, key: &str, values: &[&str], inherit: Option<&str>) -> Uuid {
         let mut operations = vec![Operation::DeclareProperty {
             local: Some(1),
             declaration: DeclarationInput {
-                key: EXPOSURE.into(),
+                key: key.into(),
                 value_type: TypeInput::Enum { values_of: None },
                 cardinality: kartenn_core::values::Cardinality::Single,
                 carriers: [
@@ -238,7 +251,7 @@ impl Env {
                 .iter()
                 .map(|&c| c.to_owned())
                 .collect(),
-                inherit: Some("addressing".into()),
+                inherit: inherit.map(str::to_owned),
                 module: None,
                 obligations: Vec::new(),
                 expected: None,
@@ -252,22 +265,31 @@ impl Env {
             labels: std::collections::BTreeMap::new(),
         }));
         self.applied(operations).await;
-        self.id("property_declaration", "key", EXPOSURE).await
+        self.id("property_declaration", "key", key).await
     }
 
-    /// The values of `custom.exposure` for `workloads` now, as `(value, source, origin,
-    /// through)` per workload.
+    /// The values of `custom.exposure` for `workloads` now, per workload.
     async fn exposures(&self, workloads: &[Uuid], as_of: Option<Instant>) -> Vec<Vec<Sourced>> {
+        self.values_of(EXPOSURE, workloads, as_of).await
+    }
+
+    /// The values of `key` for `workloads` now, as asserted at `as_of`, per workload.
+    async fn values_of(
+        &self,
+        key: &str,
+        workloads: &[Uuid],
+        as_of: Option<Instant>,
+    ) -> Vec<Vec<Sourced>> {
         let now = self.now().await;
         let mut conn = self.pool.acquire().await.unwrap();
-        axis_values(&mut conn, workloads, &[EXPOSURE], now, as_of)
+        axis_values(&mut conn, workloads, &[key], now, as_of)
             .await
             .unwrap()
             .into_iter()
             .map(|(_, mut axes)| {
                 assert_eq!(axes.len(), 1, "{axes:?}");
                 let axis = axes.remove(0);
-                assert_eq!(axis.key, EXPOSURE);
+                assert_eq!(axis.key, key);
                 axis.values
             })
             .collect()
@@ -322,6 +344,15 @@ fn assign(object: Uuid, kind: ObjectKind, property: Uuid, value: &str) -> Operat
         kind,
         property: Ref::Id(property),
         values: vec![RawInput::Text(value.into())],
+    }
+}
+
+/// "No value" for `property` on `object` of `kind`, which stops the inheritance.
+fn clear(object: Uuid, kind: ObjectKind, property: Uuid) -> Operation {
+    Operation::ClearProperty {
+        object: Ref::Id(object),
+        kind,
+        property: Ref::Id(property),
     }
 }
 
@@ -434,11 +465,95 @@ async fn axis_from_namespace_then_tree(pool: PgPool) {
     // As asserted before the cluster had a value, then before the workload had one.
     assert_eq!(
         env.exposures(&[web, probe], Some(before_cluster)).await,
-        [vec![sourced("rec", Source::Workload, web, web)], both]
+        [
+            vec![sourced("rec", Source::Workload, web, web)],
+            both.clone()
+        ]
     );
     assert_eq!(
         env.exposures(&[web], Some(before_web)).await,
         [from_namespace]
+    );
+    // "No value" on the workload stops the inheritance from its namespace: the tree
+    // serves it; on the namespace, the same for its workload without a value.
+    env.applied(vec![clear(web, kube("workload"), exposure)])
+        .await;
+    assert_eq!(
+        env.exposures(&[web, api], None).await,
+        [
+            both.clone(),
+            vec![sourced("prod", Source::Namespace, payments, api)]
+        ]
+    );
+    env.applied(vec![clear(payments, kube("namespace"), exposure)])
+        .await;
+    assert_eq!(env.exposures(&[web, api], None).await, [both.clone(), both]);
+}
+
+/// REQ-019-32, Q-019-30 (review of task 019-7a): a cluster without a pod container reads
+/// the addressing tree on its pod domain; a property that is not heritable is read on the
+/// workload alone, then on each pod container alone.
+#[kartenn_testing::pg_test]
+async fn axis_tree_from_pod_domain_and_plain_property(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let exposure = env.exposure(&["prod", "dev"]).await;
+    let tier = env.declared("custom.tier", &["front", "back"], None).await;
+    let (pods, container) = env
+        .domain("pods", "198.51.100.0/24", Nature::Container)
+        .await;
+    let lab = env.cluster("lab", pods, &[]).await;
+    let prod = env.cluster("prod", pods, &[container]).await;
+    for cluster in [lab, prod] {
+        env.applied(vec![upsert("namespace", cluster, "payments", json!({}))])
+            .await;
+        env.applied(vec![deployment(cluster, "payments", "web")])
+            .await;
+    }
+    let in_lab = env
+        .child("kube.namespace", "cluster_id", lab, "payments")
+        .await;
+    let in_prod = env
+        .child("kube.namespace", "cluster_id", prod, "payments")
+        .await;
+    let lab_web = env
+        .child("kube.workload", "namespace_id", in_lab, "web")
+        .await;
+    let prod_web = env
+        .child("kube.workload", "namespace_id", in_prod, "web")
+        .await;
+    // Without a container, the pod domain itself.
+    env.applied(vec![
+        assign(pods, ObjectKind::Domain, exposure, "dev"),
+        assign(pods, ObjectKind::Domain, tier, "back"),
+    ])
+    .await;
+    assert_eq!(
+        env.exposures(&[lab_web, prod_web], None).await,
+        [
+            vec![sourced("dev", Source::Tree, pods, pods)],
+            vec![sourced("dev", Source::Tree, pods, container)],
+        ]
+    );
+    // Not heritable: the value of the domain is its own only, not its container's, and
+    // the namespace gives nothing to its workload.
+    env.applied(vec![assign(in_prod, kube("namespace"), tier, "front")])
+        .await;
+    assert_eq!(
+        env.values_of("custom.tier", &[lab_web, prod_web], None)
+            .await,
+        [vec![sourced("back", Source::Tree, pods, pods)], Vec::new()]
+    );
+    env.applied(vec![assign(container, ObjectKind::Prefix, tier, "front")])
+        .await;
+    assert_eq!(
+        env.values_of("custom.tier", &[prod_web], None).await,
+        [vec![sourced("front", Source::Tree, container, container)]]
+    );
+    env.applied(vec![assign(prod_web, kube("workload"), tier, "back")])
+        .await;
+    assert_eq!(
+        env.values_of("custom.tier", &[prod_web], None).await,
+        [vec![sourced("back", Source::Workload, prod_web, prod_web)]]
     );
 }
 

@@ -1287,20 +1287,34 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     service, d'un cluster, avant les workloads et sur un objet d'une autre sorte ; lot de
     512 dans l'ordre, workload inconnu sans axe, clé non déclarée absente, clé sans
     valeur vide, lot daté d'avant les workloads).
+  - correction de revue (2026-11-12) : un cluster sans conteneur de plages de pods lit
+    l'arbre sur son domaine des pods (`pod_domain_id`) ; arbitrage Q-019-30 consigné
+    (`decisions.md`, design « Propriétés »). Tests : `axis_from_namespace_then_tree`
+    complété (« sans valeur » sur le workload, puis sur le namespace : l'arbre sert),
+    `axis_tree_from_pod_domain_and_plain_property` (cluster sans conteneur ; propriété
+    non héritable : ni le namespace ni le domaine ne la donnent, le conteneur et le
+    workload la donnent chacun pour soi).
   - choix : dernier niveau de la composition sur les **conteneurs de plages de pods** du
     cluster (`pod_container_ids` à la date), pas sur les plages des nœuds où tournent les
     pods (connues par le journal seul, hors référentiel et sous `kube.observation.read`) ;
+    arbitré depuis (Q-019-30) ;
     une valeur par conteneur qui en a une, dans l'ordre du cluster, l'union au lecteur
     (comme REQ-010-31) ; les trois premiers niveaux lus dans `property_origin` (héritage
     le long de l'arbre du module, REQ-008-6), le workload seul pour une propriété non
-    héritable ; une affectation `cleared` ne donne pas de valeur et laisse servir le
-    niveau suivant, comme `machine_values_of_addresses` ; un workload qui ne vit pas à la
+    héritable ; une affectation `cleared` (« sans valeur ») arrête l'héritage le long de
+    l'arbre du module et laisse servir l'arbre d'adressage, comme
+    `machine_values_of_addresses` laisse servir l'arbre ; un workload qui ne vit pas à la
     date n'a aucun axe ; `workloads_of` sans contrôle de sorte (un objet d'une autre
     sorte ne liste rien), workloads absents (`absent_since`) compris ; « une requête »
     tenue par construction (lot de 512), sans compteur de requêtes.
   - reste : aucun `EXPLAIN` de `axis_values` à l'échelle (banc de la 16) ; la
     lecture des workloads d'un cluster parcourt ses namespaces par l'index d'exclusion
-    (`cluster_id`, `name`), non mesurée.
+    (`cluster_id`, `name`), non mesurée ; `wanted` ne filtre pas les porteurs de la
+    déclaration (une clé non portée par `kube.workload` se lit quand même) ; le
+    rassemblement des lignes cherche chaque workload dans la liste (quadratique), et un
+    identifiant donné deux fois laisse sa seconde entrée vide ; une valeur posée sur la
+    plage d'un nœud n'est pas vue par cette lecture (conteneurs seuls) ; le commit
+    05c532e7 mêle le découpage de la 7 et la fonctionnalité.
 - [ ] 7b. Chaîne d'exécution et trace d'un inventaire antérieur :
   `execution_chain(workload, valid_at, reader)` (nœuds par le journal,
   `read::of_workload` de la 6d, puis machines par `kube.runs_on`, hyperviseurs et
