@@ -24,6 +24,10 @@
 // leaves the tree, Shift+Tab, Escape or F2 come back); on another cell, Enter or F2 moves
 // into its first widget, else Enter activates the row. The cell of the focus is a model
 // (`active`), kept when the focus leaves, as in `DataGrid`.
+// Reasons, as `DataGrid` (`internal/cellReasons.ts`): why a cell has no editor
+// (`readonlyReason`) and why it is in its state (`stateReason`, a write held in review),
+// in its description and a tooltip (pointer after the delay, keyboard focus at once, tap;
+// hoverable; Escape closes it and does nothing else; never over an editor nor an error).
 // Direct addition (024/M10): the « + » of a node (`addLabel`) emits `add`; refused
 // (`addBlocked`: the permission missing, or another reason), it stays visible and
 // focusable, `aria-disabled`, its reason in its tooltip and description (REQ-021-37).
@@ -68,12 +72,14 @@ import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
+import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import MoveDialog from "../internal/MoveDialog.vue";
 import NoValue from "../NoValue/NoValue.vue";
 import { useTreeStates } from "../internal/treeStates.ts";
 import { rowsInView, useVirtualRows } from "../internal/virtualRows.ts";
+import Tooltip from "../Tooltip/Tooltip.vue";
 import {
   flatten,
   guardRendered,
@@ -129,6 +135,18 @@ const props = withDefaults(
      * decides it (REQ-020-19). Without it, the treegrid is read only.
      */
     editable?: ((node: TreeNode, column: GridColumn) => boolean) | undefined;
+    /**
+     * Why a cell of an editable treegrid offers no editor (a right, the past, a field
+     * fixed): a sentence, the description of the cell and its tooltip (REQ-021-15), as
+     * `DataGrid`.
+     */
+    readonlyReason?: ((node: TreeNode, column: GridColumn) => string | undefined) | undefined;
+    /**
+     * Why a cell is in its state (`cellState`, any but an error, whose message says it):
+     * the reason a write that asked to apply is held in review (REQ-021-15). A sentence,
+     * the description of the cell and its tooltip, as `readonlyReason`.
+     */
+    stateReason?: ((node: TreeNode, column: GridColumn) => string | undefined) | undefined;
     /** The local check of the text of an editor: its error, or nothing. */
     validate?:
       ((node: TreeNode, column: GridColumn, value: string) => string | undefined) | undefined;
@@ -144,6 +162,8 @@ const props = withDefaults(
     canMove: undefined,
     moveState: undefined,
     editable: undefined,
+    readonlyReason: undefined,
+    stateReason: undefined,
     validate: undefined,
     cellState: undefined,
   },
@@ -448,10 +468,70 @@ const errorShown = (node: TreeNode, column: GridColumn) =>
   !!messageOf(node, column) &&
   (isEditing(node.id, column.id) || errors.shown.value === cellKey(node.id, column.id));
 /** The pointer leaves a cell, unless for its message (adjacent). */
-const onCellLeave = (row: number, column: string, event: PointerEvent) =>
+function onCellLeave(row: number, column: string, event: PointerEvent): void {
   errors.leave(event, document.getElementById(errorId(row, column)));
+  cellReasons.leave(event);
+}
 function errorAnchor(node: TreeNode, column: GridColumn): HTMLElement | null {
   return errorShown(node, column) ? cellElement({ row: node.id, column: column.id }) : null;
+}
+
+// ——— Reasons of cells ———
+
+// Why a cell is in its state (`stateReason`) and why a cell of an editable treegrid has
+// no editor (`readonlyReason`), as `DataGrid` (`internal/cellReasons.ts`): hidden
+// sentences outside the rows, the description of the cell, one tooltip for the tree.
+const readonlyText = (node: TreeNode, column: GridColumn) =>
+  props.editable && props.readonlyReason && !canEdit(node, column)
+    ? props.readonlyReason(node, column)
+    : undefined;
+/** Why the cell is in its state; nothing for an error, which its message says. */
+function stateText(node: TreeNode, column: GridColumn): string | undefined {
+  const state = props.stateReason ? stateOf(node, column) : undefined;
+  return state !== undefined && state !== "error" ? props.stateReason!(node, column) : undefined;
+}
+const hasReasons = computed(
+  () => !!(props.editable && props.readonlyReason) || !!props.stateReason,
+);
+/** Its state's reason, then why not, each once. */
+const notesOf = (node: TreeNode, column: GridColumn): string[] =>
+  notesOfTexts([stateText(node, column), readonlyText(node, column)]);
+const cellReasons = useCellReasons<TreeNode>({
+  enabled: () => hasReasons.value,
+  notesOf,
+  rendered: function* () {
+    for (const part of parts.value)
+      if ("row" in part && part.row.kind === "node") yield part.row.node;
+  },
+  columns: () => [treeColumn.value, ...shown.value],
+  // A notice is a row of one cell, never edited: it says no reason.
+  rowOf: (key) => {
+    const node = nodeOf(key);
+    return node && !node.notice ? node : undefined;
+  },
+  columnOf,
+  quiet: (node, column) => isEditing(node.id, column.id) || !!messageOf(node, column),
+  focused: errors.focused,
+  editing,
+  grid,
+  idPrefix: `k-tree-grid-${uid}`,
+  widgets: ".k-tree-grid__editor, a, button, input",
+});
+const { reasons, reasonId, reasonOf } = cellReasons;
+/**
+ * The node cell takes the width of the tree: its tooltip stands under its label, the text
+ * it speaks of, not in the middle of the row; the cell keeps the focus and the hover.
+ */
+const tipPlace = (cell: HTMLElement) =>
+  cell.dataset.column === ""
+    ? (cell.querySelector<HTMLElement>(".k-tree-grid__label") ?? cell)
+    : cell;
+/** The description of a cell: its error, else its reasons. */
+const describedBy = (node: TreeNode, column: GridColumn, index: number) =>
+  messageOf(node, column) ? errorId(index, column.id) : reasonOf(node, column);
+function onCellEnter(node: TreeNode, column: GridColumn, event: PointerEvent): void {
+  errors.enter(cellKey(node.id, column.id), event);
+  cellReasons.enter(node, column, event);
 }
 
 // ——— Events ———
@@ -611,6 +691,8 @@ function onFocusout(event: FocusEvent): void {
 /** A click on a row selects it; on its chevron, opens or closes it; on a notice, activates it. */
 function onRowClick(row: TreeRow, event: MouseEvent): void {
   const target = event.target as HTMLElement;
+  // A tap (or a click) on a cell with a reason says it at once (`cellReasons.pin`).
+  cellReasons.pin(target);
   if (target.closest(".k-tree-grid__editor, button, a, input")) return;
   if (row.kind === "more") {
     pages.request(row.parent, true);
@@ -852,14 +934,13 @@ onBeforeUnmount(() => observer?.disconnect());
                 props.editable && !canEdit(part.row.node, treeColumn) ? 'true' : undefined
               "
               :aria-invalid="messageOf(part.row.node, treeColumn) ? 'true' : undefined"
-              :aria-describedby="
-                messageOf(part.row.node, treeColumn) ? errorId(part.index, '') : undefined
-              "
+              :aria-describedby="describedBy(part.row.node, treeColumn, part.index)"
               :tabindex="
                 isEditing(part.row.key, '') ? undefined : isStop(part.row.key, '') ? 0 : -1
               "
               :style="depth(part.row)"
-              @pointerenter="errors.enter(cellKey(part.row.key, ''), $event)"
+              @pointerenter="onCellEnter(part.row.node, treeColumn, $event)"
+              @pointerover="cellReasons.over($event)"
               @pointerleave="onCellLeave(part.index, '', $event)"
             >
               <span class="k-tree-grid__twisty" aria-hidden="true">
@@ -980,9 +1061,7 @@ onBeforeUnmount(() => observer?.disconnect());
               "
               :aria-busy="stateOf(part.row.node, column) === 'pending' ? 'true' : undefined"
               :aria-invalid="messageOf(part.row.node, column) ? 'true' : undefined"
-              :aria-describedby="
-                messageOf(part.row.node, column) ? errorId(part.index, column.id) : undefined
-              "
+              :aria-describedby="describedBy(part.row.node, column, part.index)"
               :tabindex="
                 isEditing(part.row.key, column.id)
                   ? undefined
@@ -990,7 +1069,7 @@ onBeforeUnmount(() => observer?.disconnect());
                     ? 0
                     : -1
               "
-              @pointerenter="errors.enter(cellKey(part.row.key, column.id), $event)"
+              @pointerenter="onCellEnter(part.row.node, column, $event)"
               @pointerleave="onCellLeave(part.index, column.id, $event)"
             >
               <div
@@ -1060,6 +1139,12 @@ onBeforeUnmount(() => observer?.disconnect());
     </div>
     <div class="k-visually-hidden" role="status">{{ status.text.value }}</div>
     <div class="k-visually-hidden" role="alert">{{ alerts.text.value }}</div>
+    <div v-if="reasons.length" hidden>
+      <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
+    </div>
+    <Tooltip v-if="hasReasons" :control="cellReasons.tip" :place-at="tipPlace" decorative>{{
+      cellReasons.text.value
+    }}</Tooltip>
     <MoveDialog
       v-if="declared"
       v-model:open="movingOpen"

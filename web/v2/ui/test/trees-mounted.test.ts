@@ -6,6 +6,7 @@
 import { createApp, h, nextTick, shallowReactive, type App, type Component } from "vue";
 import { afterEach, describe, expect, it } from "vitest";
 import Tree from "../src/components/Tree/Tree.vue";
+import type { CellState, GridColumn } from "../src/components/DataGrid/grid.ts";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
 import {
   indexNodes,
@@ -513,5 +514,96 @@ describe.each(components)("%s mounted: the notice of a level capped (task 32)", 
     await nextTick();
     const said = root.querySelector("[role='status']")!.textContent;
     expect(said).toBe("2 éléments de plus chargés. La suite dans la liste");
+  });
+});
+
+describe("TreeGrid: why a cell has no editor, why it is in its state (task 021-12f)", () => {
+  const columns: GridColumn[] = [
+    { id: "env", label: "Environnement" },
+    { id: "used", label: "Occupation" },
+  ];
+  const nodes: TreeNode[] = [
+    { id: "a", label: "192.0.2.0/24", cells: { env: "production", used: "12 %" } },
+    { id: "b", label: "198.51.100.0/24", cells: { env: "recette", used: "40 %" } },
+    { id: "c", label: "203.0.113.0/24", cells: { env: "production", used: "3 %" } },
+  ];
+  const HELD = "Une politique d'approbation retient la modification : elle attend une revue.";
+  const WHY = "L'occupation est calculée par le serveur.";
+  const ROOT = "Le préfixe se change dans sa fiche.";
+  const states: Record<string, CellState> = {
+    "a:env": "review",
+    "b:env": { error: "Environnement refusé.", code: "core.env.invalid" },
+    // Cells without an editor and with a state: two sentences, or the same one twice.
+    "c:used": "review",
+    "b:used": "draft",
+  };
+  /** The tree mounted, the environment editable, the others said why not. */
+  function mounted(extra: Record<string, unknown> = {}) {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const app = createApp({
+      render: () =>
+        h(TreeGrid, {
+          label: "Arbre",
+          treeLabel: "Préfixe",
+          nodes,
+          columns,
+          editable: (_: TreeNode, column: GridColumn) => column.id === "env",
+          readonlyReason: (_: TreeNode, column: GridColumn) =>
+            column.id === "used" ? WHY : column.id === "" ? ROOT : undefined,
+          cellState: (node: TreeNode, column: GridColumn) => states[`${node.id}:${column.id}`],
+          // Asked of every cell: the tree keeps it to the cells with a state, not an error.
+          stateReason: (node: TreeNode, column: GridColumn) =>
+            states[`${node.id}:${column.id}`] === "draft" ? WHY : HELD,
+          ...extra,
+        }),
+    });
+    apps.push(app);
+    app.mount(root);
+    return root;
+  }
+  const cell = (root: HTMLElement, row: string, column: string) =>
+    root.querySelector<HTMLElement>(`[data-row="${row}"][data-column="${column}"]`)!;
+  const description = (el: HTMLElement) =>
+    (el.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .filter(Boolean)
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(" | ");
+
+  it("describes a cell without an editor by why, one in review by its reason, an error by its message", async () => {
+    const root = mounted();
+    await nextTick();
+    expect(description(cell(root, "a", "used"))).toBe(WHY);
+    expect(description(cell(root, "a", "env"))).toBe(HELD);
+    // The node cell, without an editor, says why too; an editable cell without a state, nothing.
+    expect(description(cell(root, "a", ""))).toBe(ROOT);
+    expect(cell(root, "c", "env").getAttribute("aria-describedby")).toBeNull();
+    // An error is described by its message, never by a state's reason.
+    expect(description(cell(root, "b", "env"))).toContain("Environnement refusé.");
+    expect(description(cell(root, "b", "env"))).not.toContain(HELD);
+    // Each sentence once in the document, hidden, out of the rows.
+    const hidden = root.querySelector<HTMLElement>("div[hidden]")!;
+    expect(hidden.closest("[role='row']")).toBeNull();
+    expect([...hidden.children].map((el) => el.textContent)).toEqual([ROOT, HELD, WHY]);
+  });
+
+  it("says both sentences of a cell, its state's reason first, and the same one once", async () => {
+    const root = mounted();
+    await nextTick();
+    const both = cell(root, "c", "used");
+    expect(both.getAttribute("aria-describedby")!.split(" ")).toHaveLength(2);
+    expect(description(both)).toBe(`${HELD} | ${WHY}`);
+    const same = cell(root, "b", "used");
+    expect(same.getAttribute("aria-describedby")!.split(" ")).toHaveLength(1);
+    expect(description(same)).toBe(WHY);
+  });
+
+  it("a read-only tree says no reason why not, only why a cell is in its state", async () => {
+    const root = mounted({ editable: undefined });
+    await nextTick();
+    expect(cell(root, "a", "used").getAttribute("aria-describedby")).toBeNull();
+    expect(cell(root, "a", "").getAttribute("aria-describedby")).toBeNull();
+    expect(description(cell(root, "a", "env"))).toBe(HELD);
   });
 });

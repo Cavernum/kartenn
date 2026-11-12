@@ -158,6 +158,73 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     await expect(page.locator("[data-demo='commit']")).toHaveText(/sud \(appliquer maintenant\)$/);
   });
 
+  test("the reason of a cell: held in review, without an editor; at the focus, under the pointer, Escape closes it and does nothing else", async ({
+    page,
+  }) => {
+    await openState(page, "TreeGrid", "keyboard");
+    const tree = page.getByRole("treegrid", { name: "Entités" });
+    const held = "Une politique d'approbation retient la modification : elle attend une revue.";
+    const heldTip = page.locator(".k-tooltip").filter({ hasText: "politique d'approbation" });
+    const rootTip = page.locator(".k-tooltip").filter({ hasText: "entité racine" });
+    // Escape reaching past the tree (a panel, a dialog around it) is counted.
+    await page.evaluate(() => {
+      const w = window as unknown as { escapes: number };
+      w.escapes = 0;
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") w.escapes += 1;
+      });
+    });
+    const escapes = () => page.evaluate(() => (window as unknown as { escapes: number }).escapes);
+    await tabIn(page, 2);
+    await page.keyboard.press("ArrowRight");
+    expect(await focusedCell(page)).toBe("n12|owner");
+    const owner = tree.locator('[data-row="n12"][data-column="owner"]');
+    // Committed « apply now », held in review by the host: the cell says why, as its
+    // description (`stateReason`), and in a tooltip as the reason comes under the focus.
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("Équipe sud");
+    await page.keyboard.press("Control+Enter");
+    await expect(owner).toBeFocused();
+    await expect(owner).toHaveAttribute("data-state", "review");
+    await expect(owner).toHaveAccessibleName(/\(en revue\)/);
+    await expect(owner).toHaveAccessibleDescription(held);
+    await expect(heldTip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(heldTip).toBeHidden();
+    await expect(owner).toBeFocused();
+    expect(await escapes()).toBe(0);
+    // A cell without an editor says why (`readonlyReason`), at the focus at once.
+    await page.keyboard.press("Control+Home");
+    const root = tree.locator('[data-row="n1"][data-column=""]');
+    await expect(root).toBeFocused();
+    await expect(root).toHaveAttribute("aria-readonly", "true");
+    await expect(root).toHaveAccessibleDescription(
+      "Le nom d'une entité racine se change dans sa fiche.",
+    );
+    await expect(rootTip).toBeVisible();
+    // Under its label, not in the middle of the node cell, as wide as the tree.
+    const label = await root.locator(".k-tree-grid__label").boundingBox();
+    const bubble = await rootTip.boundingBox();
+    expect(bubble!.x).toBeLessThan(label!.x + label!.width);
+    await page.keyboard.press("Escape");
+    await expect(rootTip).toBeHidden();
+    await expect(root).toBeFocused();
+    expect(await escapes()).toBe(0);
+    // Under the pointer too, after the delay; the pointer gone, it closes.
+    await owner.hover();
+    await expect(heldTip).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(heldTip).toBeHidden();
+    // Another cell without a reason closes it; leaving the tree closes it.
+    await page.keyboard.press("ArrowDown");
+    await expect(rootTip).toBeHidden();
+    await page.keyboard.press("ArrowUp");
+    await expect(rootTip).toBeVisible();
+    await page.keyboard.press("Shift+Tab");
+    await expect(rootTip).toBeHidden();
+  });
+
   test("editing: Enter or F2 opens, Escape cancels, Enter or Tab commits; the host's states", async ({
     page,
   }) => {

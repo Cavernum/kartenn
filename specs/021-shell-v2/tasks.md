@@ -3450,6 +3450,71 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `DataGrid`), `TreeGrid.catalogue.ts` ; `shell/src/views/edit/nodes.ts`,
     `TopologyView.vue`, `record/ContentTab.vue`
   - dépend de : 12a, 12e
+  - découpée le 2026-11-12 (un composant de `web/v2/ui`, puis un écran du shell) : le
+    `TreeGrid` en 12f1, le branchement du shell et ses preuves en 12f2.
+  - [x] 12f1. `TreeGrid` prend `readonlyReason` et `stateReason`, mêmes noms et même
+    comportement que le `DataGrid` (12e, 12m) — verify : Vitest `trees-mounted.test.ts`
+    (raisons en description) ; script `tree-grid.spec.ts`
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue`, `TreeGrid.catalogue.ts`,
+      `DataGrid/DataGrid.vue` (`reasonOf`, `reasonTip`)
+    - fait le 2026-11-12 — `internal/cellReasons.ts` (`useCellReasons`, `notesOfTexts`) :
+      les phrases distinctes des lignes rendues, cachées hors des lignes (`reasons`,
+      `reasonOf` → `aria-describedby`), et l'infobulle unique de la grille (survol après
+      le délai, focus clavier aussitôt, appui épinglé, survolable, Échap arrêté, fermée à
+      l'ouverture d'un éditeur, texte qui suit sa cellule), tirées du `DataGrid`, qui s'en
+      sert désormais (comportement inchangé, scripts `data-grid.spec.ts` et
+      `touch.spec.ts` verts). `TreeGrid` : props `readonlyReason`, `stateReason` (sur la
+      cellule du nœud, colonne `""`, comme sur les autres ; rien sur un avis ni sur la
+      ligne « Afficher la suite »), description d'une cellule = son erreur, sinon ses
+      raisons (`describedBy`), infobulle (`onCellEnter`, `onCellLeave`, épinglage dans
+      `onRowClick`). Catalogue : `editing` (occupation sans éditeur et pourquoi ; la
+      cellule en revue dit ses deux phrases), `keyboard` (nom de l'entité racine sans
+      éditeur et pourquoi ; Ctrl+Entrée retenu en revue avec son motif). 020 design
+      (inventaire 21, contrat d'édition), skill (ligne `TreeGrid`, `Tree`). Tests :
+      `ui/test/trees-mounted.test.ts` (sans éditeur, en revue, erreur seule ; deux
+      phrases jointes, la même une fois ; arbre en lecture seule sans `readonlyReason` ;
+      phrases hors des lignes), `e2e/components/tree-grid.spec.ts` (Ctrl+Entrée → en
+      revue, motif en description et en infobulle au focus ; cellule du nœud sans éditeur
+      au focus ; Échap ferme sans autre effet ; survol ; autre cellule et sortie de
+      l'arbre la ferment).
+    - choix : composable partagé plutôt qu'une copie dans `TreeGrid` (un seul contrat,
+      un seul comportement) ; `notesOf` reste à chaque grille (le `DataGrid` y ajoute
+      `rowReason`, que le `TreeGrid` n'a pas faute de `rowState`) ; Échap annule aussi
+      la bascule en cours vers une autre cellule (`switching`, mineur de la revue de la
+      12m) ; les phrases restent hors des lignes recyclées (invariant de
+      `virtualRows.ts` intact, l'éditeur ouvert reste une ligne gardée) ; pas de capture
+      nouvelle (description et infobulle seulement) ; captures `TreeGrid` `editing` (clair,
+      sombre) et confortables réécrites : la légende de l'état, plus longue, va à la
+      ligne (rendu de l'arbre inchangé), et l'arbre ARIA des confortables gagne les états
+      ajoutés depuis la 020-26 (`capped`, `moved-preview`, `drop-*-preview`).
+    - corrections des relectures : l'infobulle de la cellule du nœud, large comme l'arbre,
+      se place sous son libellé et non au milieu de la ligne (`Tooltip` prend `placeAt`,
+      facultatif : ce contre quoi la bulle se place dans son ancre, qui garde focus,
+      survol et appui ; `ui-reviewer`, éprouvé par `tree-grid.spec.ts`) ; le pointeur sur
+      le « + » du nœud ferme l'infobulle de la cellule, le bouton ayant la sienne
+      (`cellReasons.over`, `a11y-auditor` : jamais deux infobulles).
+    - reste : la cellule du nœud ne rend pas d'état de cellule (`cellState` sur la
+      colonne `""` : ni marque ni mot caché, seulement sa raison) — sans effet tant que
+      l'arbre de la Topographie n'édite pas la valeur d'un nœud (12a). Relectures
+      (mineurs) : `cellReasons.over` sans test (survol du « + » d'un nœud qui a une
+      raison : aucun état de catalogue ne les réunit) et branché sur la cellule du nœud
+      seule (une cellule de `DataGrid` à widget et à raison ferait voir deux infobulles) ;
+      le pointeur revenu du « + » sur la cellule ne rouvre l'infobulle qu'en y rentrant ;
+      les identifiants des phrases cachées suivent la fenêtre rendue (recalculés avec les
+      cellules) ; restitution par un vrai lecteur d'écran non éprouvée.
+  - [ ] 12f2. Le shell branche les raisons de l'arbre et partage son édition : la
+    Topographie passe `readonlyReason` et `stateReason` à son `TreeGrid` (le pourquoi
+    d'une cellule de l'arbre en description, plus seulement par le statut de la vue) ;
+    202, 422 et 403 prouvés sur une cellule de l'arbre ; un seul `useNodeEdit` pour
+    l'arbre et la grille du contenu d'un même nœud (états de cellule et ligne du motif
+    partagés) ; `kindOf` de `nodes.ts` sous garde de type — REQ-021-15, 16, 37 — verify :
+    `shell/test/edit.test.ts` (202 : `stateReason` sur la cellule de l'arbre ; 422 et 403
+    sur une cellule de l'arbre) ; parcours `tree` et `edit`
+    (`accessibility.spec.ts -g "every journey runs axe"`)
+    - où : `web/v2/shell/src/views/edit/nodes.ts` (`useNodeEdit`, `kindOf`),
+      `views/edit/inline.ts` (`stateReason`, `whyWords`), `TopologyView.vue`,
+      `record/ContentTab.vue` ; test voisin `shell/test/edit.test.ts`
+    - dépend de : 12f1
 - [ ] 12g. Éditeur à liste dans une cellule de grille : l'emplacement `editor` du
   `DataGrid` (et du `TreeGrid`) accueille une liste fermée (`Select` ou listbox) dont la
   couche ne vaut pas sortie de l'éditeur (aujourd'hui le focus parti vers la couche

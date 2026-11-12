@@ -64,10 +64,10 @@ import ColumnChooser from "../internal/ColumnChooser.vue";
 import NoValue from "../NoValue/NoValue.vue";
 import CellError from "./CellError.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
+import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
-import { TOOLTIP_DELAY, useTooltip } from "../Tooltip/tooltip.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import {
   columnTemplates,
@@ -428,64 +428,8 @@ const hasReasons = computed(
  * its state's reason, then why not, each once (the same text twice is one sentence, one
  * description, one tooltip line).
  */
-const notesOf = (row: R, column: GridColumn): string[] => [
-  ...new Set(
-    [...rowTexts(row, column), stateText(row, column), readonlyText(row, column)].filter(
-      (text): text is string => !!text,
-    ),
-  ),
-];
-const reasons = computed<string[]>(() => {
-  if (!hasReasons.value) return [];
-  const found = new Set<string>();
-  for (const part of parts.value) {
-    if (!("index" in part)) continue;
-    for (const column of shown.value) {
-      for (const text of notesOf(part.row, column)) found.add(text);
-    }
-  }
-  return [...found];
-});
-const reasonId = (i: number) => `k-data-grid-${uid}-reason-${i}`;
-/**
- * The reason of a cell in a tooltip, one for the grid, decorative (the description says
- * it): under the pointer after the delay, at the keyboard focus at once, on a tap or a
- * click until a press elsewhere; hoverable, never over an editor nor beside an error's
- * bubble (WCAG 1.4.13, REQ-021-37).
- */
-const reasonTip = useTooltip();
-const tipText = ref("");
-/** The tooltip moving to the cell the pointer entered, its delay running (`onCellEnter`). */
-let switching: ReturnType<typeof setTimeout> | undefined;
-/**
- * Escape closes it, wherever the focus is, and does nothing else (WCAG 1.4.13): neither
- * the grid nor a layer around it hears the key (heard first, window, capture), even
- * under the cell's focus: no `passEscape`, the grid's Escape being its own (an error's
- * bubble, an editor).
- */
-const closeTip = (event: KeyboardEvent) => {
-  if (event.key !== "Escape" || !reasonTip.open.value) return;
-  event.stopPropagation();
-  event.preventDefault();
-  reasonTip.hide();
-};
-watch(reasonTip.open, (now) =>
-  now
-    ? window.addEventListener("keydown", closeTip, { capture: true })
-    : window.removeEventListener("keydown", closeTip, { capture: true }),
-);
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", closeTip, { capture: true });
-  clearTimeout(switching);
-});
-function reasonOf(row: R, column: GridColumn): string | undefined {
-  // One id per sentence: the same twice (its state's reason, why not) is one (`notesOf`).
-  const ids = notesOf(row, column)
-    .map((text) => reasons.value.indexOf(text))
-    .filter((at) => at >= 0)
-    .map(reasonId);
-  return ids.length ? ids.join(" ") : undefined;
-}
+const notesOf = (row: R, column: GridColumn): string[] =>
+  notesOfTexts([...rowTexts(row, column), stateText(row, column), readonlyText(row, column)]);
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
 function errorAt(k: string): boolean {
@@ -517,106 +461,40 @@ const cellElement = (cell: CellRef) =>
   grid.value?.querySelector<HTMLElement>(
     `[data-row="${CSS.escape(cell.row)}"][data-column="${CSS.escape(cell.column)}"]`,
   ) ?? null;
-/**
- * What the tooltip of a cell says: why it is in its state, why it has no editor. Nothing
- * while its editor is open (it would cover it) nor beside an error (its message's bubble).
- */
-const tipOf = (row: R, column: GridColumn): string =>
-  isEditing(row, column) || hasError(row, column) ? "" : notesOf(row, column).join(" ");
+// The reasons of the cells: hidden sentences, their description, and one tooltip
+// (`internal/cellReasons.ts`, as `TreeGrid`). Quiet while a cell's editor is open (it
+// would cover it) or beside an error (its message's bubble).
+const cellReasons = useCellReasons<R>({
+  enabled: () => hasReasons.value,
+  notesOf,
+  rendered: function* () {
+    for (const part of parts.value) if ("index" in part) yield part.row;
+  },
+  columns: () => shown.value,
+  rowOf,
+  columnOf,
+  quiet: (row, column) => isEditing(row, column) || hasError(row, column),
+  focused,
+  editing,
+  grid,
+  idPrefix: `k-data-grid-${uid}`,
+  widgets: ".k-data-grid__editor, a, button, input",
+});
+const { reasons, reasonId, reasonOf } = cellReasons;
+const reasonTip = cellReasons.tip;
+const tipText = cellReasons.text;
+const pinTip = cellReasons.pin;
 function onCellEnter(row: R, column: GridColumn, event: PointerEvent): void {
   errors.enter(cellKey(keyOf(row), column.id), event);
   // A cell without an editor says why under the pointer too (REQ-021-37: hover and focus),
   // after the delay of a tooltip; a cell held in review, why it is.
-  if (event.pointerType === "touch" || !tipOf(row, column)) return;
-  const el = event.currentTarget as HTMLElement;
-  const show = (delayed: boolean) => {
-    const text = tipOf(row, column);
-    if (!text) return;
-    tipText.value = text;
-    reasonTip.show(el, delayed);
-  };
-  // Open on another cell, it stays there and moves after the delay, the pointer still
-  // here: on its way to the bubble, the pointer crosses the cells under it (1.4.13,
-  // hoverable).
-  clearTimeout(switching);
-  if (reasonTip.open.value && reasonTip.anchor.value !== el) {
-    reasonTip.hold();
-    switching = setTimeout(() => {
-      if (el.matches(":hover")) show(false);
-    }, TOOLTIP_DELAY);
-  } else show(true);
+  cellReasons.enter(row, column, event);
 }
-/**
- * What the open tooltip says follows its cell: a reason that changes (a write held, then
- * applied) or goes (an error instead) changes or closes it, whatever opened it.
- */
-const anchorTip = computed(() => {
-  const at = reasonTip.anchor.value;
-  const row = at?.dataset.row === undefined ? undefined : rowOf(at.dataset.row);
-  const column = at?.dataset.column === undefined ? undefined : columnOf(at.dataset.column);
-  return row && column ? tipOf(row, column) : "";
-});
-watch(anchorTip, (text) => {
-  if (!reasonTip.open.value) return;
-  if (text) tipText.value = text;
-  else reasonTip.hide();
-});
 /** Onto its message (adjacent): still hovered. */
 function onCellLeave(r: number, c: number, event: PointerEvent): void {
   errors.leave(event, document.getElementById(errorId(r, c)));
-  clearTimeout(switching);
-  // A finger leaves its cell as it lifts, before the click that pins the tooltip.
-  if (event.pointerType !== "touch") reasonTip.hide(true);
+  cellReasons.leave(event);
 }
-/** A tap (or a click) on a cell says why at once, until a press elsewhere. */
-function pinTip(target: HTMLElement): void {
-  const el = target.closest<HTMLElement>("[data-column]");
-  if (!el || el.dataset.row === undefined) return;
-  if (target.closest(".k-data-grid__editor, a, button, input")) return;
-  const row = rowOf(el.dataset.row);
-  const column = columnOf(el.dataset.column!);
-  const text = row && column ? tipOf(row, column) : "";
-  if (!text) return;
-  tipText.value = text;
-  reasonTip.pin(el);
-}
-// The keyboard focus on a cell shows its reason at once (`:focus-visible`: a click
-// focuses without it), as its reason comes (a write held after its commit); the focus
-// gone from the cell of the tooltip, it closes, unless the pointer keeps it.
-const focusTip = computed(() => {
-  const [r, c] = focused.value?.split("\n") ?? [];
-  const row = r === undefined ? undefined : rowOf(r);
-  const column = c === undefined ? undefined : columnOf(c);
-  return row && column ? tipOf(row, column) : "";
-});
-watch(
-  [focused, focusTip],
-  ([key, text]) => {
-    const el = document.activeElement as HTMLElement | null;
-    const cell =
-      key && el?.matches("[data-column]:focus-visible") && grid.value?.contains(el) ? el : null;
-    if (cell && text) {
-      clearTimeout(switching);
-      tipText.value = text;
-      reasonTip.show(cell);
-      return;
-    }
-    const at = reasonTip.anchor.value;
-    if (!at || !reasonTip.open.value) return;
-    const bubble = document.getElementById(reasonTip.id);
-    const hovered = at.matches(":hover") || !!bubble?.matches(":hover");
-    // Its reason gone under the focus (an error came instead), or the focus gone elsewhere.
-    if (at === cell || (at !== el && !hovered)) reasonTip.hide();
-  },
-  { flush: "post" },
-);
-// Its editor opening (Enter, F2, a double click), the cell's tooltip leaves: the pointer
-// over it would keep it above the editor.
-watch(editing, (cell) => {
-  if (!cell) return;
-  clearTimeout(switching);
-  reasonTip.hide();
-});
 function onFocusout(event: FocusEvent): void {
   const to = event.relatedTarget as HTMLElement | null;
   // Into the message of the cell (its copy button, by Enter or F2): still focused.

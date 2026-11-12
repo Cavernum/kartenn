@@ -20,8 +20,13 @@ const props = withDefaults(
     side?: "block-end" | "inline-end";
     /** The anchor says the same thing otherwise: the bubble is hidden from the tree. */
     decorative?: boolean;
+    /**
+     * What the bubble stands against, inside its anchor (a wide cell: its text), the
+     * anchor keeping the focus, the hover and the press; by default the anchor itself.
+     */
+    placeAt?: ((anchor: HTMLElement) => HTMLElement) | undefined;
   }>(),
-  { side: "block-end" },
+  { side: "block-end", placeAt: undefined },
 );
 const portal = injectPortalTarget();
 const bubble = ref<HTMLElement | null>(null);
@@ -32,7 +37,7 @@ function place(): void {
   const el = bubble.value;
   const anchor = props.control.anchor.value;
   if (!el || !anchor) return;
-  const a = anchor.getBoundingClientRect();
+  const a = (props.placeAt?.(anchor) ?? anchor).getBoundingClientRect();
   const b = el.getBoundingClientRect();
   const gap = parseFloat(getComputedStyle(el).getPropertyValue("--k-tooltip-gap")) || 0;
   const width = document.documentElement.clientWidth;
