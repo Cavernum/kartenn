@@ -441,9 +441,15 @@ pub(crate) fn derive(
     derived
 }
 
-/// The object and the property of `operation`, an assignment, a "no value" or a removal
-/// written by the author, alone or within a period of its own.
-fn assigned(operation: &Operation) -> Option<(&Ref, &Ref)> {
+/// The object (`None` for a local name) and the property of `operation`, an assignment,
+/// a "no value", a removal or the restoration of an assignment (an inverse changeset
+/// rewrites it) written by the author, alone or within a period of its own; `None` for
+/// another operation, or a property created in the changeset.
+fn assigned(operation: &Operation) -> Option<(Option<Uuid>, Uuid)> {
+    let id = |r: &Ref| match r {
+        Ref::Id(id) => Some(*id),
+        Ref::Local(_) => None,
+    };
     match operation {
         Operation::Within { operation, .. } => assigned(operation),
         Operation::AssignProperty {
@@ -454,13 +460,19 @@ fn assigned(operation: &Operation) -> Option<(&Ref, &Ref)> {
         }
         | Operation::UnassignProperty {
             object, property, ..
-        } => Some((object, property)),
+        } => Some((id(object), id(property)?)),
+        Operation::Restore {
+            id: object,
+            property: Some(property),
+            ..
+        } => Some((id(object), *property)),
         _ => None,
     }
 }
 
-/// `kube.namespace.managed` (Q-019-39): an assignment or a removal of `kube.namespace`
-/// the author writes, the operations `kube.sync` plans not being among the author's.
+/// `kube.namespace.managed` (Q-019-39): an assignment, a removal or a restoration of
+/// `kube.namespace` the author writes, the operations `kube.sync` plans not being among
+/// the author's.
 async fn managed(
     conn: &mut PgConnection,
     context: &CheckContext<'_>,
@@ -470,16 +482,7 @@ async fn managed(
         .operations
         .iter()
         .enumerate()
-        .filter_map(|(i, o)| match assigned(o) {
-            Some((object, Ref::Id(property))) => {
-                let object = match object {
-                    Ref::Id(id) => Some(*id),
-                    Ref::Local(_) => None,
-                };
-                Some((i, object, *property))
-            }
-            _ => None,
-        })
+        .filter_map(|(i, o)| assigned(o).map(|(object, property)| (i, object, property)))
         .collect();
     if properties.is_empty() {
         return Ok(());

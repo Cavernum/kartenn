@@ -583,6 +583,9 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Décision (l'utilisateur, 2026-11-12) : règle d'erreur `kube.namespace.managed` : toute
   affectation ou tout retrait de `kube.namespace` autre que ceux que planifie `kube.sync`
   est refusé (lu par `CheckContext::operations`, amendement 11).
+- Précision (session principale, 2026-11-12, application de la décision) : la
+  restauration d'une affectation de `kube.namespace` par un auteur (`Restore`, changeset
+  inverse) réécrit l'affectation : refusée de même.
 
 ### Q-019-40 — Deux labels vers un même axe (tâche 7d2, revue)
 - Constat : deux labels d'un workload peuvent, par deux correspondances, donner chacun
@@ -604,6 +607,8 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Décision (l'utilisateur, 2026-11-12) : B. Seul un label dont la clé est suivie
   (`kube.tracked_label`) donne une valeur d'axe (Q-019-33, X4) ; un label non suivi
   n'agit pas, et ne lève pas `kube.label.not_admitted`.
+- Précision (session principale, 2026-11-12, application de X4) : les clés suivies sont
+  celles de `kube.tracked_label` et celles que le cluster ajoute (`tracked_label_keys`).
 
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,

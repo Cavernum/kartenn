@@ -1604,13 +1604,15 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     gagne `set`. Tests `derivation::labels_union_or_nothing` (union sur `custom.zones`,
     conflit sur `custom.exposure`, lot répété sans nouvelle version, conflit levé au
     départ d'un label), `derivation::untracked_label_ignored`, unitaires `union_or_nothing`,
-    `typed_wins_derived_removed`, `ignored`.
+    `typed_wins_derived_removed`, `ignored`. Puis (précisions de Q-019-39 et Q-019-41) :
+    clés suivies du module et du cluster gardées ; la restauration (`Restore`) d'une
+    affectation de `kube.namespace` par un auteur est refusée par
+    `kube.namespace.managed` (`derivation::assigned`) ; test
+    `namespace_axis_managed` complété (restauration refusée ; après renommage du cluster,
+    l'`upsert` du connecteur repose l'axe au nouveau libellé).
   - reste : `kube.label.not_admitted`, `kube.label.conflict` et `kube.namespace.managed`
     lisent l'état à `now()`, pas à la période du changeset (comme `held_namespaces`), et
-    `managed` lit `property_declaration` sans borne de période ; un `Restore` d'une
-    affectation de `kube.namespace` (changeset inverse d'un administrateur) n'est pas une
-    affectation : la règle ne le voit pas, il passe, ni bloqué ni contrôlé (à trancher) ;
-    les labels du corps sont décodés deux fois (`prepare`, puis le plan) ; `prepare` fait
+    `managed` lit `property_declaration` sans borne de période ; les labels du corps sont décodés deux fois (`prepare`, puis le plan) ; `prepare` fait
     7 + A lectures par workload d'un lot (A axes distincts) sans mémoire par lot du slug,
     des clés suivies, des déclarations et des valeurs admises par namespace (le handler
     n'a pas d'état par changeset : à reprendre avec les budgets de la 16 ; aucun banc

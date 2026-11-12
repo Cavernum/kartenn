@@ -549,9 +549,42 @@ async fn namespace_axis_managed(pool: PgPool) {
     ] {
         env.refused(vec![operation], "kube.namespace.managed").await;
     }
+    // A restoration rewrites the assignment: refused too.
+    let restore = Operation::Restore {
+        kind,
+        id: object,
+        property: Some(env.id("property_declaration", "key", NAMESPACE).await),
+        before: set.changeset,
+    };
+    match env.submit(vec![restore]).await {
+        Outcome::Refused { violations, .. } => assert!(
+            violations
+                .iter()
+                .any(|v| v.rule.id == "kube.namespace.managed"),
+            "{violations:?}"
+        ),
+        other => panic!("not refused: {other:?}"),
+    }
     let kept = env.assignment(ledger, NAMESPACE).await.expect("kept");
     assert_eq!(kept.external, set.external);
     assert_eq!(kept.changeset, set.changeset);
+    // What `kube.sync` plans still passes: the cluster renamed, its next upsert labels the
+    // namespace anew.
+    env.applied(vec![op(
+        "update_cluster",
+        json!({"id": {"id": env.cluster}, "slug": "prod-new"}),
+    )])
+    .await;
+    env.applied(vec![deployment(env.cluster, "payments", "ledger", None)])
+        .await;
+    let renamed = env.assignment(ledger, NAMESPACE).await.expect("set");
+    assert_eq!(
+        renamed
+            .external
+            .and_then(|e| e["label"].as_str().map(str::to_owned)),
+        Some("prod-new/payments".to_owned())
+    );
+    assert_eq!(renamed.provenance, "module:kube#namespace");
 }
 
 /// Q-019-40: two tracked labels on one axis. On the set `custom.zones`, the union of
