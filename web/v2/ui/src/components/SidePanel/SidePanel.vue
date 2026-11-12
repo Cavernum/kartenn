@@ -18,7 +18,7 @@
 // « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
 // current one checked (`menuitemradio`). The line of the handle is the outline of the
 // panel (`.k-panel-handle`, components/shared.css). Escape closes it and gives the focus
-// back to what opened it, from a field too; an open popup keeps it (`ownsEscape`).
+// back to what opened it; an open popup or a field typed in keeps it (`ownsEscape`).
 // Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
 // takes the whole width of its container, over it, without handle (spec 021, « Cadre » :
 // at 768 px the panel covers the surface). With `rail`, the closed panel leaves a strip

@@ -27,19 +27,32 @@ export function filled(nodes: VNodeArrayChildren): boolean {
  * editor that cancels, an error or a tooltip that closes), and the panel leaves a prevented
  * Escape alone; this answers for what does not: a popup its control opened and still shows
  * (a combobox's list, a menu button's menu: Reka closes them from the document, after the
- * panel heard the key), and a composition in progress (an IME, whose Escape cancels it).
- * Anything else lets it go, as a dialog does: a closed combobox (its second Escape, which
- * its header promises to the layer around), a text field, a text area, a segment of a date.
+ * panel heard the key), a composition in progress (an IME, whose Escape cancels it; under
+ * WebKit the composition ends before the keydown, which keeps its `keyCode` 229), and a
+ * field typed in (text field, text area, segment of a date): what it holds would go with
+ * the panel, until the panel asks first (Q-021-22, task 021-12q). A closed combobox lets
+ * it go (its second Escape, which its header promises to the layer around), as does
+ * anything else, as in a dialog.
  */
 export function ownsEscape(event: KeyboardEvent): boolean {
-  if (event.isComposing) return true;
+  // `keyCode` is deprecated, but the only trace of a composition WebKit has just ended.
+  if (event.isComposing || event.keyCode === 229) return true;
   const target = event.target;
   if (!(target instanceof HTMLElement)) return false;
   // A disclosure (`aria-expanded` without a popup) shows its content in place: not a popup.
   const haspopup = target.getAttribute("aria-haspopup");
-  const popup =
-    target.getAttribute("role") === "combobox" || (haspopup !== null && haspopup !== "false");
-  return popup && target.getAttribute("aria-expanded") === "true";
+  const combobox = target.getAttribute("role") === "combobox";
+  const popup = combobox || (haspopup !== null && haspopup !== "false");
+  if (popup && target.getAttribute("aria-expanded") === "true") return true;
+  if (combobox) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return (
+    target instanceof HTMLInputElement &&
+    !["button", "checkbox", "radio", "submit", "reset", "range", "color", "file"].includes(
+      target.type,
+    )
+  );
 }
 
 /**

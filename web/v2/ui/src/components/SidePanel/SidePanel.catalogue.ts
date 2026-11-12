@@ -124,7 +124,7 @@ const demo = defineComponent({
                     h("p", "Supervision · Production"),
                     h("p", "Occupation : 45 %"),
                     // Fields (`fields`): Escape closes the list of the reference, then the
-                    // panel; from the text field, the panel (task 021-12p). Spaced as the
+                    // panel; the text field keeps it (task 021-12p). Spaced as the
                     // fields of the shell's edit panel.
                     ...(props.fields
                       ? [
@@ -236,7 +236,7 @@ export default {
     {
       name: "fields",
       description:
-        "Champs dans l'onglet Détail : une référence (Combobox) et un texte ; Échap ferme la liste ouverte, puis le panneau, depuis tout champ",
+        "Champs dans l'onglet Détail : une référence (Combobox) et un texte ; dans la référence, Échap ferme la liste ouverte, puis le panneau ; le champ texte garde Échap",
       props: { open: true, tab: "detail", fields: true },
       demo,
       wide: true,

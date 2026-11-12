@@ -7,9 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ownsEscape } from "../src/components/internal/panel.ts";
 
 // Whose is an Escape heard by a panel (`SidePanel`, `BottomPanel`; task 021-12p): an open
-// popup's, or a composition's; a closed combobox, a text field, a text area and a segment
-// of a date let it go to the panel, as in a dialog. The panels' keyboard is played in the
-// browser (e2e/components/side-panel.spec.ts, e2e/visual/clavier.spec.ts).
+// popup's, a composition's, a field's that is typed in (until the panel asks first,
+// Q-021-22, task 021-12q); a closed combobox and the rest let it go to the panel, as in a
+// dialog. The panels' keyboard is played in the browser (e2e/components/side-panel.spec.ts,
+// e2e/visual/clavier.spec.ts).
 
 /** What `ownsEscape` says of an Escape pressed on `el` (its target, as the panel hears it). */
 function owns(el: Element, init: KeyboardEventInit = {}): boolean {
@@ -48,7 +49,7 @@ describe("ownsEscape (SidePanel, BottomPanel)", () => {
     expect(owns(make('<button aria-haspopup="false" aria-expanded="true"></button>'))).toBe(false);
   });
 
-  it("a text field, a search, a text area, a select and a segment let it go", () => {
+  it("a field typed in keeps it: text, search, text area, select, segment of a date", () => {
     for (const html of [
       '<input type="text" value="Serveurs">',
       '<input type="search" value="192.0.2.0">',
@@ -56,16 +57,24 @@ describe("ownsEscape (SidePanel, BottomPanel)", () => {
       "<textarea>Maintenance</textarea>",
       "<select><option>A</option></select>",
       '<span role="spinbutton" contenteditable="true">2026</span>',
+    ])
+      expect(owns(make(html)), html).toBe(true);
+  });
+
+  it("a button, a check box, a closed select-only combobox let it go", () => {
+    for (const html of [
       "<button>Fermer</button>",
+      '<input type="checkbox">',
+      '<button role="combobox" aria-expanded="false">Nature</button>',
     ])
       expect(owns(make(html)), html).toBe(false);
   });
 
-  it("a composition in progress keeps it, whatever the field", () => {
+  it("a composition in progress keeps it, whatever the field, also once WebKit ended it", () => {
     expect(owns(make('<input type="text">'), { isComposing: true })).toBe(true);
-    expect(owns(make('<input role="combobox" aria-expanded="false">'), { isComposing: true })).toBe(
-      true,
-    );
+    const closed = '<input role="combobox" aria-expanded="false">';
+    expect(owns(make(closed), { isComposing: true })).toBe(true);
+    expect(owns(make(closed), { keyCode: 229 })).toBe(true);
   });
 
   it("an Escape without an element for target is the panel's", () => {
