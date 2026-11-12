@@ -79,3 +79,54 @@ export function operationLine(operation: Operation | Record<string, unknown>): O
   if (masked) members.push({ name: "values", value: null, masked: true });
   return { op: String(op.op ?? "—"), subject, members };
 }
+
+type AnyOperation = Operation | Record<string, unknown>;
+
+/** Whether an operation is a guard (`expect`): kept with the one it guards, never listed. */
+export const isGuard = (operation: AnyOperation): boolean =>
+  (operation as Record<string, unknown>).op === "expect";
+
+/** The object an operation writes or guards, by identifier (`id`, else `object`). */
+export function objectOf(operation: AnyOperation): string | null {
+  const op = operation as Record<string, unknown>;
+  const ref = (op.id ?? op.object) as { id?: unknown } | undefined;
+  return typeof ref?.id === "string" ? ref.id : null;
+}
+
+/**
+ * The operations of a draft as its list shows them, guards left out (Q-021-21): each with
+ * its index in the draft and the indexes of the guards it carries — those of its object no
+ * earlier operation listed carries (their violations are said on it).
+ */
+export function listedOperations<T extends AnyOperation>(
+  operations: readonly T[],
+): { operation: T; index: number; guards: number[] }[] {
+  const out: { operation: T; index: number; guards: number[] }[] = [];
+  const carried = new Set<number>();
+  operations.forEach((operation, index) => {
+    if (isGuard(operation)) return;
+    const object = objectOf(operation);
+    const guards: number[] = [];
+    operations.forEach((other, at) => {
+      if (object !== null && isGuard(other) && !carried.has(at) && objectOf(other) === object) {
+        guards.push(at);
+        carried.add(at);
+      }
+    });
+    out.push({ operation, index, guards });
+  });
+  return out;
+}
+
+/**
+ * The operations of a draft without the one at `index`, and without a guard left with no
+ * operation on its object (Q-021-21: a guard goes with what it guards).
+ */
+export function withoutOperation<T extends AnyOperation>(
+  operations: readonly T[],
+  index: number,
+): T[] {
+  const kept = operations.filter((_, at) => at !== index);
+  const written = new Set(kept.filter((op) => !isGuard(op)).map(objectOf));
+  return kept.filter((op) => !isGuard(op) || written.has(objectOf(op)));
+}

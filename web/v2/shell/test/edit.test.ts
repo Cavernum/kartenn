@@ -104,12 +104,19 @@ describe("the fields of an edit", () => {
     expect(editability(author, NOW, PREFIXES, "id")).toMatchObject({ why: { kind: "none" } });
   });
 
-  it("ask `prop.<key>.edit` too for a property", () => {
+  it("ask `prop.<key>.edit` for a property, apart from the right to modify the object", () => {
     // The rule (a list offers no editor until it writes properties: `useInlineEdit.why`).
     expect(editability(author, NOW, PREFIXES, "prop.core.owner")).toEqual({ editable: true });
     expect(editability(author, NOW, PREFIXES, "prop.dns.ttl")).toEqual({
       editable: false,
       why: { kind: "forbidden", permission: "prop.dns.ttl.edit" },
+    });
+    // REQ-003-17: the assignment asks the property's permission, not `X.edit` of the object.
+    const owner = new Rights(["prop.core.owner.edit"]);
+    expect(editability(owner, NOW, PREFIXES, "prop.core.owner")).toEqual({ editable: true });
+    expect(editability(owner, NOW, PREFIXES, "value")).toEqual({
+      editable: false,
+      why: { kind: "forbidden", permission: "core.prefix.edit" },
     });
   });
 

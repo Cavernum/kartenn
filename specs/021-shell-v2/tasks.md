@@ -3461,11 +3461,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `DataGrid/DataGrid.vue`, `Select/` ; `shell/src/views/edit/inline.ts` (`words`),
     `ListView.vue`
   - dépend de : 12
-- [ ] 12h. Onglet Propriétés de la fiche édité en place : une valeur propre de
-  l'objet modifiée dans la cellule (`prop.<clé>.edit`, `X.edit`, présent), au brouillon
-  ou par Ctrl+Entrée (`properties` du patch de la sorte, sous `If-Match`), valeur
-  vérifiée par le type de sa déclaration ; une valeur héritée ou calculée sans éditeur,
-  avec pourquoi — REQ-021-15, 16, 37 ; 003 (propriétés), 018 (permissions) — verify :
+- [x] 12h. Onglet Propriétés de la fiche édité en place : une valeur de l'objet modifiée
+  dans la cellule (`prop.<clé>.edit`, présent), au brouillon (gardée par un `expect` de la
+  version lue, hors compteur, Q-021-21) ou par Ctrl+Entrée (`properties` du patch de la
+  sorte, sous `If-Match`), valeur vérifiée par le type de sa déclaration, jamais plus
+  strictement que le serveur ; une valeur héritée s'édite et devient valeur propre qui la
+  surcharge, dit avant l'envoi, vider une valeur propre rend l'héritage (Q-021-19) ; une
+  valeur calculée ou masquée sans éditeur, avec pourquoi — REQ-021-15, 16, 37 ; 003
+  (propriétés), 018 (permissions) — verify :
   Vitest (éditabilité d'une
   propriété, opération du brouillon, patch `properties`) ; parcours `edit` (une
   propriété modifiée au clavier → brouillon à 1)
@@ -3473,6 +3476,56 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`propertyRight`, colonne `prop.<clé>`) ; schémas `*Patch.properties` de
     `specs/006-api-rest/openapi-v1.json`
   - dépend de : 12 ; 12o (arbitrage de l'utilisateur)
+  - fait le 2026-11-11 — la clause « héritée sans éditeur » lue selon Q-021-19 (spec 003
+    concordante : REQ-003-12 remplacement, `null` du patch rend l'héritage) : une valeur
+    héritée s'édite et devient valeur propre qui la surcharge ; le pied de la grille le dit
+    avant l'envoi (« Une valeur saisie ici surcharge la valeur héritée de <source>. »,
+    origine lue dans l'explication, source nommée), le statut poli à l'ouverture de
+    l'éditeur, et la cellule de la focalisation dans son nom ; vider une valeur propre la
+    retire (`unassign_property`, `properties: {<clé>: null}`), vider une héritée est refusé.
+    `edit/properties.ts` (nouveau, `usePropertyEdit`) : brouillon `assign_property`,
+    Ctrl+Entrée `write.quick` de `properties` sous `If-Match` (version de la fiche), 200,
+    202 « en revue » et son motif (`stateReason`), 412 saisie gardée et valeur relue, 422,
+    403 ; valeur vérifiée par le type (`text` longueur, motif, contrôle ; `int` bornes ;
+    `bool` ; `date` ; `fqdn` ; `enum` contre la liste entière lue) ; sans éditeur, avec
+    pourquoi : masquée, calculée (inférée), référence ou ensemble (`typed`), sorte dont le
+    `PATCH` n'a pas `properties` (`PROPERTIES_PATCHED` vérifié contre les `*Patch` du
+    contrat : VLAN, groupe), déclaration non lue, sans `prop.<clé>.edit`. `PropertiesTab.vue`
+    (props `collection`, `version` depuis `RecordView.vue`), `EditHint` (`note`),
+    `QuickApply` (`label`, `check`, `note` de la `QuickAsk`), `fields.ts` (`FixedReason`),
+    catalogues fr/en, design 021 « Édition en place ». Tests : `shell/test/properties-edit.test.ts`
+    (types, opérations, patch, brouillon, origine ; onglet monté : pourquoi, surcharge
+    dite, brouillon, Ctrl+Entrée sous `If-Match` → en revue), `edit.test.ts`
+    (`prop.<clé>.edit` seul), parcours `edit` (« a property inherited… » : surcharge dite,
+    modifiée au clavier → brouillon à 1, axe), sous les deux navigateurs.
+  - choix : une propriété demande `prop.<clé>.edit` seul, non plus aussi `X.edit` (design
+    « X.edit du type ou prop.<clé>.edit », REQ-003-17 ; le serveur ne demande que celle de
+    la propriété pour une affectation, `rights.rs` `written`) — vaut aussi pour les
+    colonnes `prop.<clé>` de la 12i ; Ctrl+Entrée demande `prop.<clé>.approval.self` ;
+    composable
+    à part plutôt qu'un `useInlineEdit` généralisé (lignes = propriétés d'un seul objet) ;
+    origine lue à la focalisation (explication, même cache que le popover), non pour
+    toutes les lignes d'avance ; « calculée » = sans origine avec une provenance (ce que
+    l'explication dit « inférée ») ; `bool` saisi `true`/`false` comme la cellule le montre.
+  - reste : le pied et le nom de cellule ne disent la surcharge qu'à la focalisation (le
+    `DataGrid` ne décrit une cellule éditable que par son état) ; la note de `QuickApply`
+    n'est pas liée au champ du motif par `aria-describedby` ; une propriété déclarée sans
+    valeur n'a pas de ligne (rien à poser depuis l'onglet) ; `confirm` double celui de
+    `useInlineEdit` (~150 lignes), à factoriser si la 12i y touche ; `bool` et `enum` en
+    texte, une liste viendra avec la 12g. Mineurs de la revue : le texte saisi est rogné
+    de ses espaces sans le dire (le serveur ne rogne pas) ; l'origine inconnue si
+    l'explication échoue (vider passe alors au serveur) ; « l'héritage reprend » dit même
+    sans héritage déclaré ; aucune capture de l'onglet en édition, relectures UI et a11y
+    sans rendu (12l).
+  - corrections de la revue (2026-11-11) : garde `expect` au brouillon (Q-021-21 :
+    `guarded` de `edit/properties.ts`, une par objet ; `operation_count` sans les gardes,
+    `kartenn-store-pg` `drafts.rs` et contrat ; `draft/operations.ts` `listedOperations`,
+    `withoutOperation`, `DraftOperations.vue` : gardes hors liste, leurs violations sur
+    l'opération de leur objet, retirées avec la dernière) ; vérification locale jamais plus
+    stricte que le serveur (`text` compté en NFC, motif laissé au serveur, `fqdn` plus lâche
+    qu'UTS #46 avec ses points, années 0 à 99). Tests : `properties-edit.test.ts` (garde,
+    liste, retrait ; `हिन्दी.example`, « café » décomposé sous `max_len: 4`,
+    `0050-01-01`), `kartenn-rest` `drafts.rs` (garde gardée, non comptée).
 - [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), arbitrées par l'utilisateur le
   2026-11-11 (Q-021-18) : aucune par défaut ; le sélecteur « Colonnes » propose les
   propriétés déclarées pour le type, le choix gardé par vue et par utilisateur comme les

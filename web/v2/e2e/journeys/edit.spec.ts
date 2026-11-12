@@ -237,6 +237,69 @@ test("a refusal of the server (403) keeps the input and says the alert", async (
   await expectAccessible(page);
 });
 
+test("a property inherited, said overridden before it is sent, edited at the keyboard to the draft", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = await newDomain(page, unique(browserName));
+  const domains = (await call(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  const listed = (await call(page, "GET", `/v1/prefixes?domain=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  // A text of the test's own (one per browser: both run at once), inherited along the
+  // addressing from the domain, where it is set (task 12h, Q-021-19).
+  const key = `custom.zone_${browserName}_${Date.now().toString(36)}`;
+  const declared = await call(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end property edited in place",
+    operations: [
+      {
+        op: "declare_property",
+        local: 0,
+        key,
+        type: "text",
+        max_len: 16,
+        cardinality: "single",
+        carriers: ["domain", "prefix"],
+        inherit: "addressing",
+      },
+      {
+        op: "assign_property",
+        object: { id: domains.items[0]!.id },
+        kind: "domain",
+        property: { local: 0 },
+        values: ["ouest"],
+      },
+    ],
+  });
+  expect(declared.status, JSON.stringify(declared.body)).toBe(201);
+
+  await page.goto(`/prefixes/${listed.items[0]!.id}`);
+  const grid = page.getByRole("grid", { name: "Propriétés résolues de 198.51.100.0/24" });
+  const cell = grid
+    .getByRole("row", { name: new RegExp(key.replace(/\./g, "\\.")) })
+    .locator('[role="gridcell"][data-column="value"]');
+  await expect(cell).toContainText("ouest");
+  await cell.click();
+  // Before anything is sent: the value typed will be the prefix's own, over the domain's.
+  await expect(page.locator(".k-keyboard-hint")).toContainText(
+    `Une valeur saisie ici surcharge la valeur héritée de ${slug}.`,
+  );
+  await page.keyboard.press("Enter");
+  const editor = grid.getByRole("textbox");
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("est");
+  await page.keyboard.press("Enter");
+  await expect(cell).toHaveAttribute("data-state", "draft");
+  await expect(cell).toContainText("est");
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
+  await expectAccessible(page);
+});
+
 test("two tabs on the same prefix: the second gets 412 and keeps its input, then applies", async ({
   page,
   login,

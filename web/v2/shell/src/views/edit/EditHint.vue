@@ -15,6 +15,8 @@ const props = defineProps<{
   applyLacks: string | null;
   /** Why the cell is held in review (the reason of its 202), seen as well as read. */
   held?: string | undefined;
+  /** What an edit of the cell writes, said before it is sent (a value over an inherited one). */
+  note?: string | undefined;
 }>();
 const { t } = useI18n();
 </script>
@@ -22,6 +24,7 @@ const { t } = useI18n();
 <template>
   <span v-if="props.why === null" class="k-keyboard-hint">
     <template v-if="props.held">{{ props.held }} · </template>
+    <template v-if="props.note">{{ props.note }} · </template>
     <Kbd :keys="['Enter']" /> {{ t("edit.hintDraft") }} ·
     <template v-if="props.applyLacks === null">
       <Kbd :keys="['Control', 'Enter']" /> {{ t("edit.hintApply") }}

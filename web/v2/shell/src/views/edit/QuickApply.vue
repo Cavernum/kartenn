@@ -19,7 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{ confirm: [motive: string, value: string]; cancel: [] }>();
 const { t } = useI18n();
 
-const fieldLabel = computed(() => t(`views.field.${props.ask.field.name}`));
+const fieldLabel = computed(() => props.ask.label ?? t(`views.field.${props.ask.field.name}`));
 const title = computed(() => t("edit.applyNow", { field: fieldLabel.value, name: props.ask.name }));
 const value = ref(props.ask.value);
 const motive = ref(t("edit.motiveQuick", { field: fieldLabel.value, name: props.ask.name }));
@@ -45,10 +45,13 @@ const changed = computed(() =>
 const invalid = ref<string | undefined>();
 function submit(): void {
   if (props.ask.busy) return;
-  const refused = checkValue(props.ask.field, valueOf(props.ask.field, value.value));
-  invalid.value = refused
-    ? t(refused, { values: (props.ask.field.options ?? []).join(", "), field: fieldLabel.value })
-    : undefined;
+  if (props.ask.check) invalid.value = props.ask.check(value.value);
+  else {
+    const refused = checkValue(props.ask.field, valueOf(props.ask.field, value.value));
+    invalid.value = refused
+      ? t(refused, { values: (props.ask.field.options ?? []).join(", "), field: fieldLabel.value })
+      : undefined;
+  }
   missing.value = motive.value.trim() === "" ? t("edit.motiveMissing") : undefined;
   if (invalid.value || missing.value) {
     void nextTick(() => root.value?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
@@ -92,6 +95,7 @@ onMounted(async () => {
     @keydown="onKeydown"
   >
     <p class="k-quick-apply__title">{{ title }}</p>
+    <p v-if="props.ask.note" class="k-quick-apply__note">{{ props.ask.note }}</p>
     <Cluster gap="2" align="end" class="k-quick-apply__fields">
       <Select
         v-if="props.ask.field.kind === 'choice'"
@@ -156,6 +160,10 @@ onMounted(async () => {
 
   .k-quick-apply__title {
     font-weight: var(--k-weight-semibold);
+  }
+
+  .k-quick-apply__note {
+    color: var(--k-text-muted);
   }
 
   .k-quick-apply__motive {

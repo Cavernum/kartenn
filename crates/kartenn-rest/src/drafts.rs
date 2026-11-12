@@ -99,7 +99,8 @@ struct SummaryDto {
     author: Uuid,
     /// Title.
     title: String,
-    /// The number of its operations.
+    /// The number of its operations, its guards (`expect`) left out: a guard goes with the
+    /// operation it guards (021, Q-021-21).
     operation_count: i64,
     /// Version, its entity tag.
     version: i64,

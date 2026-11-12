@@ -314,7 +314,12 @@ const linkOf = (field: string) => {
       <Skeleton v-if="record.isPending.value" variant="rows" :rows="6" />
       <Tabs v-else v-model="tab" :tabs="tabs" :label="t('views.record.sections')">
         <template #properties>
-          <PropertiesTab :id="props.id" :kind="props.collection.kind" :name="name" />
+          <PropertiesTab
+            :id="props.id"
+            :collection="props.collection"
+            :name="name"
+            :version="typeof item?.version === 'string' ? item.version : null"
+          />
         </template>
         <template v-if="hasContent" #content>
           <ContentTab v-if="contentKind" :id="props.id" :kind="contentKind" :name="name" />
