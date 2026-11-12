@@ -288,9 +288,7 @@ mod tests {
     /// names; the reader of the build reads them.
     #[test]
     fn a_module_kind_reads_under_the_short_permission() {
-        use kartenn_core::authz::{
-            APPROVER, EDITOR, READER, type_edit_permission, type_read_permission,
-        };
+        use kartenn_core::authz::{READER, type_edit_permission, type_read_permission};
         let registry = super::registry().expect("the modules of the build");
         assert_eq!(type_read_permission("machines.machine"), "machines.read");
         assert_eq!(type_edit_permission("machines.machine"), "machines.edit");
@@ -299,11 +297,30 @@ mod tests {
         for name in ["flow.read", "core.vlan.read", "machines.read"] {
             assert!(reader.contains(&name), "{name}");
         }
-        // The journal of the pods observed is read by no delivered role (ADR 0043,
-        // decision 2): `*` covers it.
+    }
+
+    /// ADR 0043, decision 2: no delivered role of the reader, the editor or the approver
+    /// holds a right of the observations of a module (`kube.observation.read`,
+    /// `kube.observation.record`); `*` covers them.
+    #[test]
+    fn no_delivered_role_holds_an_observation_permission() {
+        use kartenn_core::authz::{APPROVER, EDITOR, READER};
+        let registry = super::registry().expect("the modules of the build");
+        let permissions = registry.permissions();
+        let observations: Vec<&str> = permissions
+            .iter()
+            .map(|p| p.name)
+            .filter(|name| name.split('.').nth(1) == Some("observation"))
+            .collect();
+        assert!(
+            observations.contains(&"kube.observation.read"),
+            "{observations:?}"
+        );
         for role in [&READER, &EDITOR, &APPROVER] {
-            let entries = role.entries_with(&registry.permissions());
-            assert!(!entries.contains(&"kube.observation.read"), "{}", role.key);
+            let entries = role.entries_with(&permissions);
+            for name in &observations {
+                assert!(!entries.contains(name), "{}: {name}", role.key);
+            }
         }
     }
 

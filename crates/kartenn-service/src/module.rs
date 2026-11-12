@@ -905,6 +905,15 @@ pub enum RegistryError {
         /// The type.
         kind: String,
     },
+    /// A type of object named `<module>.observation`: its permissions would be those of the
+    /// observations of the module, which no delivered role holds (ADR 0043, decision 2).
+    #[error("module `{module}`: type `{kind}` is reserved for the observations of the module")]
+    ReservedKind {
+        /// The module.
+        module: String,
+        /// The type.
+        kind: String,
+    },
     /// A permission or a rule outside the namespace of its module, or taken already.
     #[error("module `{module}`: `{name}` must be named `{module}.<…>` and be new")]
     ForeignName {
@@ -1108,6 +1117,18 @@ impl ModuleRegistry {
                     .is_none_or(|(m, t)| m != module.name() || t.is_empty())
                 {
                     return Err(RegistryError::ForeignKind {
+                        module: module.name().to_owned(),
+                        kind: ty.kind.to_owned(),
+                    });
+                }
+                // `<module>.observation.*` are the rights of its observations, outside the
+                // model and the delivered roles (ADR 0043, decisions 1, 2).
+                if ty
+                    .kind
+                    .split_once('.')
+                    .is_some_and(|(_, t)| t == "observation")
+                {
+                    return Err(RegistryError::ReservedKind {
                         module: module.name().to_owned(),
                         kind: ty.kind.to_owned(),
                     });
@@ -1519,6 +1540,26 @@ mod tests {
             ModuleRegistry::new(vec![fake("a", &["b"]), fake("b", &["a"]), fake("c", &[])])
                 .unwrap_err(),
             RegistryError::Cycle(vec!["a".into(), "b".into()])
+        );
+    }
+
+    /// ADR 0043, decision 2: a type `<module>.observation` would read under
+    /// `<module>.observation.read`, the right of the observations, which no delivered role
+    /// holds; the registry refuses it.
+    #[test]
+    fn registry_refuses_a_type_named_observation() {
+        static OBSERVATIONS: &[ObjectType] = &[ty("shelf.observation", "shelf-observations")];
+        let module: Arc<dyn Module> = Arc::new(Fake {
+            name: "shelf",
+            depends_on: &[],
+            types: OBSERVATIONS,
+        });
+        assert_eq!(
+            ModuleRegistry::new(vec![module]).unwrap_err(),
+            RegistryError::ReservedKind {
+                module: "shelf".into(),
+                kind: "shelf.observation".into()
+            }
         );
     }
 
