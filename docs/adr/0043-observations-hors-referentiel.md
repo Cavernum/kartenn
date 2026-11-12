@@ -82,7 +82,7 @@ retenue par l'utilisateur (Q-019-4, A, 2026-11-09) l'est donc **avec garde-fous*
    vide avec le motif `retention`, et l'audit ne garde que la trace du lot (empreinte et
    nombres), pas son contenu.
 
-## Amendement — 2026-11-12, purge par cluster sous une borne (019/Q-019-20, Q-019-24, Q-019-27)
+## Amendement — 2026-11-12, purge par cluster sous une borne (019/Q-019-20, Q-019-24, Q-019-29)
 
 Les décisions 4 et 8 disaient la purge « par partition entière, sans `DELETE` de masse ».
 Les partitions de jours de la tâche 019-6a sont communes aux clusters : n'en supprimer une
@@ -100,28 +100,31 @@ décisions 4 et 8 la purge par partition entière :
   toujours ni `DELETE` ni `TRUNCATE`. Il peut appeler la fonction, mais elle ne supprime
   que selon la rétention, et une borne qu'elle avance sans l'événement scellé de la
   tâche est signalée par la vérification.
-- **Rétention baissée** (Q-019-27) : elle ne s'applique qu'une fois l'ancienne écoulée ;
+- **Rétention baissée** (Q-019-29) : elle ne s'applique qu'une fois l'ancienne écoulée ;
   la purge prend la plus grande rétention des versions du cluster, en temps valide et en
   temps système (historique), en vigueur dans la fenêtre de leur propre rétention.
 - **Partition supprimée quand tous l'ont dépassée.** Un jour est supprimé (`DROP` de la
   partition, qui la détache) quand la borne de chaque cluster a dépassé sa fin ; les jours
   de la semaine à venir sont créés d'avance par la même tâche.
-- **Purge scellée** (Q-019-27) : chaque borne avancée est inscrite dans la transaction de
+- **Purge scellée** (Q-019-29) : chaque borne avancée est inscrite dans la transaction de
   la tâche (`observation.journal.purged` : cluster, borne avant et après, lignes
   supprimées, jours supprimés).
 - **Vérification des lots entiers** (Q-019-24, décision 5) : `observation_batch.earliest`
   (le plus petit instant du lot, scellé dans `observation.batch.recorded`) ; un lot dont
   `earliest` n'est pas avant la borne scellée de son cluster n'a perdu aucune ligne à la
   purge et voit son empreinte recalculée ; une ligne supprimée hors de la purge l'altère.
-- **Rôle applicatif compromis** (Q-019-27) : le journal tient contre lui. L'empreinte
+- **Rôle applicatif compromis** (Q-019-29) : le journal tient contre lui. L'empreinte
   attendue est celle de l'unique événement scellé du lot, retrouvé par son identifiant ;
   un second événement, un événement manquant hors d'un mois purgé par l'audit, un
   instant ou un `earliest` qui diffèrent du scellé, une borne qui ne suit pas la
   dernière purge scellée sont des altérations (`reason`). Un déclencheur refuse une
   ligne ouverte ou fermée sous un lot qui n'est pas écrit par la même transaction, et un
   lot reçu à un autre instant que celui de sa transaction.
-- Inchangé : une observation ouverte n'est jamais purgée, la rétention court depuis la
-  fin de l'observation.
+- **Cluster clos** (019-6d) : purgé à sa rétention, celle de sa dernière version ; une
+  fois sa clôture passée sous sa borne, ses observations encore ouvertes, qu'aucun
+  connecteur ne fermera plus, sont supprimées avec les autres.
+- Inchangé : une observation ouverte d'un cluster vivant n'est jamais purgée, la
+  rétention court depuis la fin de l'observation.
 
 Source : `crates/kartenn-kube/migrations/0007_observation_retention.sql`,
 `crates/kartenn-kube/src/jobs.rs` (tâches `kube.observations_verify` et

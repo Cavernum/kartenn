@@ -227,13 +227,13 @@ de tâches de module sont `[a-z][a-z0-9_]*` (REQ-016-16), d'où `observations_ve
 posée par le lot, l'instant du lot s'il n'écrit rien ; la borne de purge d'un cluster
 (`kube.observation_purge_bound.purged_before`) dit que toute observation fermée du
 cluster finie avant elle est supprimée : un lot est entier si `earliest` n'est pas avant
-la borne scellée. Le journal tient contre un rôle applicatif compromis (Q-019-27). La
+la borne scellée. Le journal tient contre un rôle applicatif compromis (Q-019-29). La
 fonction `kube.observation_purge()` (propriétaire, `SECURITY DEFINER`, à l'instant de sa
 transaction, sans paramètre : le rôle de l'application la déclenche sans choisir la date)
 avance la borne de chaque cluster selon la plus grande rétention de ses versions, en
 temps valide et en temps système (`kube.cluster_history`), en vigueur dans la fenêtre de
 leur propre rétention (sinon la dernière version), jamais en arrière, supprime ses
-fermées finies avant elle, crée les jours d'aujourd'hui à sept jours, puis supprime
+fermées finies avant elle (et ses ouvertes, pour un cluster clos avant elle), crée les jours d'aujourd'hui à sept jours, puis supprime
 (`DROP`) les jours dont la fin précède la plus petite borne ; créations et suppressions
 viennent en dernier, leur verrou sur `pod_observation_closed` n'étant tenu que jusqu'à la
 validation. Elle rend une ligne par cluster, que la tâche scelle

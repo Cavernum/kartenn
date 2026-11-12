@@ -1097,7 +1097,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   partitions de jours créées d'avance) — REQ-019-16 (audit par lot, rétention) —
   verify : `altered_batch_detected`, `purge_drops_old_partitions`,
   `open_observation_never_purged`, `lowered_retention_waits_for_the_former`,
-  `row_cites_batch_of_its_transaction` (correction Q-019-27)
+  `row_cites_batch_of_its_transaction` (correction Q-019-29)
   - où : design « Données » (garde-fous) ; ADR 0023 et `crates/kartenn-server/src/jobs.rs`
     (tâches de module, 016/G6), `Module::jobs` ; ADR 0043 (décisions 5, 8 : la décision 8
     dit encore « sans DELETE de masse » — l'amender selon Q-019-20, purge par cluster par
@@ -1135,7 +1135,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     copie fait l'empreinte attendue ; `Outcome::Failure`, cible le cluster ; un lot altéré
     est signalé à chaque passage ; audit par `ModuleTx::audit` plutôt que par `Findings`
     ou un chemin propre au serveur.
-  - correction de revue (Q-019-27, le journal tient contre un rôle `kartenn_app`
+  - correction de revue (Q-019-29, le journal tient contre un rôle `kartenn_app`
     compromis) : l'empreinte attendue est celle de l'unique événement scellé du lot,
     retrouvé par le détail `batch` (plus par `recorded_at`), la copie seulement pour un
     mois purgé par l'audit (`audit.purge`) ; `earliest` scellé (détail de
@@ -1150,7 +1150,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     fenêtre de leur propre rétention ; déclencheurs `pod_observation_of_its_batch`
     (lot de la même transaction, par `xmin`) et `observation_batch_received_now` ;
     `Recorded::earliest`, `observations::rfc3339` public ; ADR 0043 (amendement complété,
-    décision 5), ADR 0026 (amendement 13 ratifié), `decisions.md` (Q-019-27), design.
+    décision 5), ADR 0026 (amendement 13 ratifié), `decisions.md` (Q-019-29), design.
     Tests : `altered_batch_detected` (ligne supprimée, événement manquant puis mois purgé
     par l'audit, événement dupliqué, `received_at` décalé, `earliest` baissé, copie
     seule réécrite sans effet), `purge_drops_old_partitions` (purges scellées ; fonction
@@ -1166,7 +1166,10 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `observation.batch.altered` sans `batch` ; détails scellés lus avec
     `pg_input_is_valid`, pour qu'un événement forgé illisible ne bloque pas la
     vérification ; mois purgé de l'audit jugé sur `date_trunc('month', received_at)` comme
-    la purge de l'audit.
+    la purge de l'audit ; cluster clos (reste de la 6d) : purgé à la rétention de sa
+    dernière version, ses observations ouvertes supprimées une fois sa clôture passée sous
+    sa borne (test `closed_cluster_purged_at_its_retention`) ; décision numérotée
+    Q-019-29, après la Q-019-28 de la 6d.
   - reste : toute la rétention relue chaque jour dans une seule transaction et une seule
     requête (jusqu'à 400 jours ; non mesuré, aucun banc) ; un cluster retiré de
     `kube.cluster` fige la borne minimale et retient la suppression des jours ; une ligne
@@ -1243,8 +1246,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `lower(observed)` sans index propre ; `cluster_id = ANY(…)` de `who_had` sur l'index
     GiST non mesuré (aucun `EXPLAIN`) ; le port n'a pas de borne (`0.0.0.0/0` charge
     tout le journal des clusters du domaine) ; le gel de l'instant de la première page
-    par le curseur n'est pas testé ; la purge des clusters clos est à vérifier avec la
-    6c ; un 410 n'est pas journalisé (ni lecture ni refus).
+    par le curseur n'est pas testé ; la purge des clusters clos, vérifiée par la 6c
+    (`closed_cluster_purged_at_its_retention`) ; un 410 n'est pas journalisé (ni lecture
+    ni refus).
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
   `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et
