@@ -3557,8 +3557,21 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       démonté fermée (`a11y-auditor` : sinon ni montrée ni fermable, et toute autre
       Ctrl+Entrée refusée) ; noms de grilles et filtre de la ligne partagés (`askOf`),
       `heldOf` au lieu d'une colonne factice, région de statut du contenu partagé retirée,
-      pourquoi changé sous le focus redit par le statut.
-    - reste : si un hôte édite un jour la valeur d'un nœud, le `TreeGrid` devra rendre l'état
+      pourquoi changé sous le focus redit par le statut. Revue (une passe) : la durée de vie
+      d'une cellule écrite (en revue, appliquée, refusée, en attente) se juge sur la ligne de
+      la grille d'où elle a été écrite (`Shown.grid`, `rowIn`), plus sur la première lue de
+      l'union (un 202 ou un 200 depuis le contenu, l'arbre tenant le nœud à une autre
+      version, s'effaçait à la première relecture de l'arbre ; test `edit.test.ts` : 202 puis
+      200 depuis le contenu, tenus jusqu'à la relecture du contenu) ; `shownRow` sans
+      transtypage ; `shownById` de l'arbre sur ses seuls nœuds ; `useSay` du contenu créé
+      seulement sans hôte ; commentaire de `focusWhy` corrigé. Vérifié : parcours `tree` et
+      `edit` (34 réussis), `accessibility.spec.ts -g "every journey runs axe"` (2 réussis),
+      `k-web2-check --base main` (1050 Vitest, ciblé : 0 capture sur 2734).
+    - reste : branche « écriture en cours, puis grille partie » de `share` sans test (le
+      faux `fetch` du test répond aussitôt), son `scope.run` sur une portée d'hôte déjà
+      arrêtée et un contenu remonté avant la réponse non traités ; `said` du contenu
+      partagé créé sans servir. Si un hôte édite un jour la valeur d'un nœud, le `TreeGrid`
+      devra rendre l'état
       de la cellule du nœud (marque et mot caché) ; une Ctrl+Entrée d'une grille remplace la
       ligne ouverte non occupée de l'autre sans effacer l'erreur de sa cellule (comme dans
       une seule grille) ; focus après une écriture en cours dont la grille est partie : au
