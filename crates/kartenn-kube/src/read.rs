@@ -278,6 +278,33 @@ pub async fn of_workload(
     Ok(rows.into_iter().map(observation).collect())
 }
 
+/// The observations of the workload `workload` that held at `at`, in the order of
+/// [`Key`]: the index `(workload_id, observed)` of each partition finds the rows of the
+/// workload, filtered on their period. Such an observation ends after `at`: when `at` is
+/// within the retention of the cluster, so is it. The retention is the caller's to check
+/// ([`within_retention`]).
+///
+/// # Errors
+///
+/// The database.
+pub async fn workload_at(
+    conn: &mut PgConnection,
+    workload: Uuid,
+    at: OffsetDateTime,
+) -> Result<Vec<Observation>, sqlx::Error> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM kube.pod_observation o
+          WHERE o.workload_id = $1 AND o.observed @> $2::timestamptz
+          ORDER BY lower(o.observed), o.pod_uid, coalesce(host(o.ip), '')"
+    );
+    let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(workload)
+        .bind(at)
+        .fetch_all(conn)
+        .await?;
+    Ok(rows.into_iter().map(observation).collect())
+}
+
 /// Who had an address of `network` at `at` among the clusters whose pod domain is
 /// `domain` (design « Port de lecture »): the observations of those clusters, provided
 /// `reader` holds `kube.observation.read` on that domain (Q-019-23; ADR 0043, decision 6),
@@ -360,7 +387,8 @@ pub struct Framed {
 }
 
 /// The frame of the reads of the journal of the workload `workload` (see [`Framed`]);
-/// `None` for a workload never begun.
+/// `None` for a workload never begun. It reads under no right: the caller authorizes the
+/// read on [`Framed::pod_domain`], and answers nothing of the frame before.
 ///
 /// # Errors
 ///
@@ -476,17 +504,28 @@ pub async fn execution_chain(
         }));
     }
     let (pods, chain) = if within_retention(valid_at, frame.now, frame.retention_days) {
-        let seen = of_workload(conn, workload, frame.now, frame.retention_days, None, None)
-            .await
-            .map_err(|e| store(&e))?;
-        if seen.is_empty() {
+        // Whether the journal saw it at all within the retention: one row is enough.
+        let any = of_workload(
+            conn,
+            workload,
+            frame.now,
+            frame.retention_days,
+            None,
+            Some(1),
+        )
+        .await
+        .map_err(|e| store(&e))?;
+        if any.is_empty() {
             let chain = Chain {
                 links: Vec::new(),
                 reason: Some(Cut::Unobserved),
             };
             (Vec::new(), chain)
         } else {
-            linked(conn, &seen, valid_at).await?
+            let held = workload_at(conn, workload, valid_at)
+                .await
+                .map_err(|e| store(&e))?;
+            linked(conn, &held, valid_at).await?
         }
     } else {
         let chain = Chain {
@@ -509,17 +548,13 @@ pub async fn execution_chain(
     Ok(Some(chain))
 }
 
-/// The links of the observations `seen` that held at `valid_at`, and the pods they come
-/// from, sorted.
+/// The links of the observations `held` at `valid_at`, and the pods they come from,
+/// sorted: a pod seen without a node counts among the pods read, but makes no link.
 async fn linked(
     conn: &mut PgConnection,
-    seen: &[Observation],
+    held: &[Observation],
     valid_at: OffsetDateTime,
 ) -> Result<(Vec<Uuid>, Chain), StoreError> {
-    let held: Vec<&Observation> = seen
-        .iter()
-        .filter(|o| o.from <= valid_at && o.until.is_none_or(|until| valid_at < until))
-        .collect();
     let mut pods: Vec<Uuid> = held.iter().map(|o| o.pod_uid).collect();
     pods.sort_unstable();
     pods.dedup();

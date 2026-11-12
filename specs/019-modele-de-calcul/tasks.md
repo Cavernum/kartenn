@@ -1359,7 +1359,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `{read: "kube.execution_chain", workload, valid_at}` ; un maillon par nœud (tri par
     identifiant), sa machine et son hôte lus par `edges::of` puis
     `kartenn_machines::read::edges_of` à la date, `as_of` courant ; « à la date » :
-    les observations dont la période contient `valid_at` ; la règle : déclenchée par un
+    les observations dont la période contient `valid_at`, filtrées en SQL
+    (`read::workload_at`, index `(workload_id, observed)` de chaque partition : le
+    workload par la clé de tête, la période en filtre), « jamais observé » par
+    `of_workload` limité à une ligne ; un pod vu sans nœud compte parmi les pods
+    journalisés mais ne donne pas de maillon ; la règle : déclenchée par un
     `machines.create_machine` ou `update_machine` parmi les opérations de l'auteur
     (`Within` compris), sur les machines `machines.machine` de `CheckContext::objects`,
     vivantes à partir de maintenant, de sorte `container`, hébergées par la machine d'un
