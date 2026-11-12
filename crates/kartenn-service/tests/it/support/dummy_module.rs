@@ -7,6 +7,7 @@
 //! address, closed with it by the core (task 019-3d).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
@@ -231,7 +232,47 @@ fn kind() -> ModuleKind {
     ModuleKind::parse("dummy.thing").expect("a valid kind")
 }
 
+/// The calls of [`ModuleHandler::prepare_changeset`] in this process (one test per process
+/// under nextest).
+#[allow(dead_code)] // not every test binary counts them
+pub(crate) static CHANGESETS_PREPARED: AtomicUsize = AtomicUsize::new(0);
+
+/// The label that [`ModuleHandler::prepare_changeset`] replaces with what it sees: the
+/// labels of the operations of the module in the changeset, in their order, and the
+/// number of living things before the changeset.
+pub(crate) const SEEN: &str = "$seen";
+
 impl ModuleHandler for Handler {
+    fn prepare_changeset<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operations: &'a mut [&'a mut ModuleOperation],
+        _period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            CHANGESETS_PREPARED.fetch_add(1, Ordering::SeqCst);
+            let labels: Vec<String> = operations
+                .iter()
+                .map(|o| o.body["label"].as_str().unwrap_or_default().to_owned())
+                .collect();
+            if !labels.iter().any(|l| l == SEEN) {
+                return Ok(());
+            }
+            let living: i64 =
+                sqlx::query_scalar("SELECT count(*) FROM dummy.thing WHERE valid_period @> now()")
+                    .fetch_one(connection(tx)?)
+                    .await
+                    .map_err(|e| StoreError(e.to_string()))?;
+            let seen = format!("{}|{living}", labels.join("+"));
+            for operation in operations.iter_mut() {
+                if operation.body["label"] == SEEN {
+                    operation.body.insert("label".into(), seen.clone().into());
+                }
+            }
+            Ok(())
+        })
+    }
+
     fn plan(
         &self,
         operation: &ModuleOperation,

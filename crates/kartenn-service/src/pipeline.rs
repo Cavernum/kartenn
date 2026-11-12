@@ -902,7 +902,40 @@ async fn prepare<'r, T: WriteTx>(
     for op in &mut prepared.operations {
         prepare_operation(tx, op, modules, core.as_ref(), period).await?;
     }
+    prepare_changeset(tx, &mut prepared.operations, modules, core.as_ref(), period).await?;
     Ok(std::borrow::Cow::Owned(prepared))
+}
+
+/// Lets each module with operations in the changeset complete them together, in their
+/// order, once each is prepared ([`ModuleHandler::prepare_changeset`], ADR 0026,
+/// amendment 16): the modules in the order of their first operation.
+async fn prepare_changeset<T: WriteTx>(
+    tx: &mut T,
+    operations: &mut [Operation],
+    modules: &ModuleRegistry,
+    core: Option<&Arc<dyn ModuleHandler>>,
+    period: Option<Period>,
+) -> Result<(), StoreError> {
+    let mut by_module: Vec<(Arc<dyn ModuleHandler>, Vec<&mut ModuleOperation>)> = Vec::new();
+    for op in operations {
+        if let Operation::Module(operation) = op.inner_mut()
+            && let Some(handler) = handler_of(modules, core, operation)
+        {
+            match by_module
+                .iter_mut()
+                .find(|(_, ops)| ops[0].module == operation.module)
+            {
+                Some((_, ops)) => ops.push(operation),
+                None => by_module.push((handler, vec![operation])),
+            }
+        }
+    }
+    for (handler, mut ops) in by_module {
+        handler
+            .prepare_changeset(tx.module_tx(), &mut ops, period)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Completes `op`, if an operation of a module, on the state of the transaction.

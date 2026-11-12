@@ -1632,7 +1632,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - dépend de : 7d2
   - découpée (2026-11-12, arbitrage Q-019-42 : crochet par changeset, amendement 16 de
     l'ADR 0026) en 7d3a (noyau) et 7d3b (`kube`).
-- [ ] 7d3a. Crochet `prepare_changeset` (amendement 16 de l'ADR 0026, Q-019-42) :
+- [x] 7d3a. Crochet `prepare_changeset` (amendement 16 de l'ADR 0026, Q-019-42) :
   `ModuleHandler::prepare_changeset(tx, operations, period)`, sans effet par défaut,
   appelé une fois par module qui a au moins une opération dans le changeset, après les
   `prepare` par opération et avant `plan`, avec ses opérations dans l'ordre (celles d'un
@@ -1646,6 +1646,16 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     module de test voisin dans `crates/kartenn-service/tests/it/` (handler de test qui
     implémente `prepare`) ; ADR 0026 amendement 16
   - dépend de : 7d2
+  - fait (2026-11-12) : `kartenn-service` `module.rs` (`ModuleHandler::prepare_changeset`,
+    sans effet par défaut), `pipeline.rs` (`prepare_changeset` après les `prepare` par
+    opération, modules dans l'ordre de leur première opération) ; module de test
+    `dummy` (`prepare_changeset` : compte ses appels, remplace le libellé `$seen` par les
+    libellés de ses opérations et le nombre d'objets vivants) ; test
+    `module_pipeline::module_prepares_changeset` (pas d'appel sans opération du module ;
+    un appel par changeset ; opérations dans l'ordre, celle d'un `within` comprise ; état
+    d'avant le changeset).
+  - choix : les modules sont appelés dans l'ordre de leur première opération ; le
+    crochet reçoit la période du changeset (chaque opération garde la sienne).
 - [ ] 7d3b. Re-dérivation par les paramètres (Q-019-36, 42) : dans `prepare_changeset`,
   les workloads concernés par toutes les opérations de paramètres du changeset
   (correspondances, valeurs admises, labels suivis ; labels stockés, index GIN
