@@ -28,7 +28,7 @@ fn is_sync(operation: &Operation) -> bool {
 }
 
 /// The mirror `operation` closes by hand: a `Close` of an object of the module but a
-/// cluster.
+/// cluster or a setting (Q-019-35).
 fn closed_mirror(operation: &Operation, cluster: ModuleKind) -> Option<&Ref> {
     match operation {
         Operation::Within { operation, .. } => closed_mirror(operation, cluster),
@@ -36,7 +36,12 @@ fn closed_mirror(operation: &Operation, cluster: ModuleKind) -> Option<&Ref> {
             kind: ObjectKind::Module(kind),
             id,
             ..
-        } if kind.module() == "kube" && *kind != cluster => Some(id),
+        } if kind.module() == "kube"
+            && *kind != cluster
+            && crate::settings::table(*kind).is_none() =>
+        {
+            Some(id)
+        }
         _ => None,
     }
 }

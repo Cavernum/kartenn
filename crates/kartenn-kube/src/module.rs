@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use kartenn_core::authz::Permission;
+use kartenn_core::authz::{Permission, TypePermissions};
 use kartenn_core::rules::Rule;
 use kartenn_service::module::{
     EdgeType, JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType,
@@ -26,6 +26,12 @@ pub const WORKLOAD: &str = "kube.workload";
 pub const SERVICE: &str = "kube.service";
 /// The qualified type of an ingress.
 pub const INGRESS: &str = "kube.ingress";
+/// The qualified type of a mapping of a label to a value of an axis (Q-019-35).
+pub const LABEL_MAPPING: &str = "kube.label_mapping";
+/// The qualified type of the admitted values of an axis in a namespace (Q-019-35).
+pub const ADMITTED_VALUES: &str = "kube.admitted_values";
+/// The qualified type of a label key tracked in every cluster (Q-019-35, 019/X4).
+pub const TRACKED_LABEL: &str = "kube.tracked_label";
 /// A machine of the 009, as a reference names it.
 pub const MACHINE: &str = "machines.machine";
 /// An addressing domain of the core.
@@ -89,7 +95,40 @@ static TYPES: &[ObjectType] = &[
         carries_site: false,
         domain_anchored: true,
     },
+    global(LABEL_MAPPING, "kube-label-mappings"),
+    global(ADMITTED_VALUES, "kube-admitted-values"),
+    global(TRACKED_LABEL, "kube-tracked-labels"),
 ];
+
+/// A setting of the module (Q-019-35): no anchor, no parent, written under the global
+/// `kube.settings.edit`.
+const fn global(kind: &'static str, collection: &'static str) -> ObjectType {
+    ObjectType {
+        kind,
+        collection,
+        parent: None,
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: false,
+    }
+}
+
+/// The settings of the module are read with the clusters, which the connector reads, and
+/// written under the settings of the module (spec 027, P4, P5; Q-019-35): no
+/// `kube.settings.read` (019/X16).
+static TYPE_PERMISSIONS: &[TypePermissions] = &[
+    settings(LABEL_MAPPING),
+    settings(ADMITTED_VALUES),
+    settings(TRACKED_LABEL),
+];
+
+const fn settings(kind: &'static str) -> TypePermissions {
+    TypePermissions {
+        kind,
+        read: CLUSTER_READ.name,
+        edit: SETTINGS_EDIT.name,
+    }
+}
 
 static OPERATIONS: &[OperationType] = &[
     OperationType {
@@ -104,6 +143,20 @@ static OPERATIONS: &[OperationType] = &[
     // or closed by its identity in the cluster (019/X9).
     OperationType {
         name: "sync",
+        defines: None,
+    },
+    // The settings of the module (Q-019-35): a mapping created, changed or closed; the
+    // admitted values of an axis in a namespace, replaced; the tracked labels, replaced.
+    OperationType {
+        name: "set_label_mapping",
+        defines: None,
+    },
+    OperationType {
+        name: "set_admitted_values",
+        defines: None,
+    },
+    OperationType {
+        name: "set_tracked_labels",
         defines: None,
     },
 ];
@@ -144,15 +197,30 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "observation_retention",
         sql: include_str!("../migrations/0007_observation_retention.sql"),
     },
+    ModuleMigration {
+        version: 8,
+        name: "settings",
+        sql: include_str!("../migrations/0008_settings.sql"),
+    },
 ];
 
+/// Whether a permission marked `[global]` is: granted at the global scope only.
+macro_rules! global_only {
+    () => {
+        false
+    };
+    (global) => {
+        true
+    };
+}
+
 macro_rules! permissions {
-    ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {
+    ($list:ident; $($([$global:ident])? $name:ident = $id:literal, $summary:literal;)*) => {
         $(
             static $name: Permission = Permission {
                 name: $id,
                 summary: $summary,
-                global_only: false,
+                global_only: global_only!($($global)?),
             };
         )*
         static $list: &[&Permission] = &[$(&$name),*];
@@ -191,6 +259,11 @@ permissions! {
     // evaluated on the pod domain of the cluster (Q-019-23), in no delivered role.
     OBSERVATION_RECORD = "kube.observation.record", "Écrire un lot d'observations au journal des pods d'un cluster Kubernetes (son connecteur seulement).";
     OBSERVATION_READ = "kube.observation.read", "Lire le journal des pods observés d'un cluster Kubernetes : quel pod avait une adresse, où un workload a tourné.";
+    // The settings of the module (spec 027, P4, P5; Q-019-35): global, for its three
+    // types of settings; read under `kube.cluster.read`.
+    [global] SETTINGS_EDIT = "kube.settings.edit", "Modifier dans un changeset et soumettre les paramètres du module Kubernetes : correspondances de labels vers des valeurs d'axe, valeurs admises par namespace, labels suivis.";
+    [global] SETTINGS_APPLY = "kube.settings.apply", "Appliquer ou rejeter le changeset d'un autre qui touche les paramètres du module Kubernetes.";
+    [global] SETTINGS_APPROVAL_SELF = "kube.settings.approval.self", "Appliquer son propre changeset qui touche les paramètres du module Kubernetes.";
 }
 
 /// The permission of a batch of observations (`POST /v1/kube-clusters/{id}/observations`).
@@ -247,6 +320,13 @@ static REFERENCES: &[Reference] = &[
         from: INGRESS,
         to: ADDRESS,
         on_close: OnClose::Owned,
+    },
+    // The admitted values of an axis in a namespace: the namespace is not closed while they
+    // live (Q-019-35).
+    Reference {
+        from: ADMITTED_VALUES,
+        to: NAMESPACE,
+        on_close: OnClose::Refuse,
     },
     // A workload a service selects: left out of the selection.
     Reference {
@@ -344,6 +424,9 @@ impl Module for Kube {
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS
+    }
+    fn type_permissions(&self) -> &'static [TypePermissions] {
+        TYPE_PERMISSIONS
     }
     fn rules(&self) -> &'static [&'static Rule] {
         KUBE_RULES

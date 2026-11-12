@@ -5,4 +5,5 @@ mod axes;
 mod clusters;
 mod edges;
 mod observations;
+mod settings;
 mod support;

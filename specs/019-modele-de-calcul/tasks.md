@@ -1391,7 +1391,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     les arêtes nœud par nœud (deux requêtes par nœud) ; un changeset qui ne touche que le
     nœud (`kube.sync` qui désigne la machine hôte) ne réévalue pas la règle, ni un lot
     d'observations qui ouvre un pod du nom d'une machine.
-- [ ] 7c. Paramètres du module (Q-019-35) : trois types du module, globaux,
+- [x] 7c. Paramètres du module (Q-019-35) : trois types du module, globaux,
   `kube.label_mapping` (clé et valeur de label → axe et valeur, unique par clé, valeur
   de label et axe), `kube.admitted_values` (un objet par namespace et axe, l'ensemble des
   valeurs admises) et `kube.tracked_label` (une clé suivie dans tous les clusters, X4) ;
@@ -1413,6 +1413,52 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-kube/src/names.rs` (`LabelKey`, `LabelValue`) ;
     test voisin `crates/kartenn-kube/tests/it/clusters.rs`
   - dépend de : 4
+  - fait (2026-11-12) : `kartenn-kube` migration `0008_settings.sql` (tables
+    `label_mapping`, `admitted_values`, `tracked_label`, exclusions par identité) ;
+    `settings.rs` (`prepare`, `plan`, `apply` des trois opérations, `checked_axis`) ;
+    `module.rs` (types globaux, `TYPE_PERMISSIONS`, permissions `[global]`
+    `kube.settings.*`, opérations, référence `kube.admitted_values` → `kube.namespace`
+    en `Refuse`) ; `handler.rs` (aiguillage, tables) ; `authorship.rs` (un `Close` à la
+    main d'un paramètre n'est pas celui d'un miroir) ; `pg.rs` (`referrers`) ; libellés
+    français et anglais ; `docs/spec/permissions.md`, contrat de référence et types des
+    deux SDK régénérés (routes génériques `history` et `properties` des trois types,
+    ajout seul) ; tests `settings::label_mapping_needs_kube_settings` (lecture
+    `kube.cluster.read`, écriture `kube.settings.edit`, trois permissions globales, pas
+    de `kube.settings.read` ; l'équipe qui tient `core.settings.*` déclare l'axe et ses
+    valeurs mais n'écrit ni correspondance, ni valeurs admises, ni label suivi,
+    `kube.settings.edit` nommée ; l'inverse refusé, `core.settings.edit` nommée ;
+    valeurs admises sans `kube.namespace.read` refusées ; sans `approval.self`, une
+    proposition), `settings_written_by_changeset` (correspondance créée, changée en
+    place, close puis plus close ; axe `kube.namespace`, non déclaré, non porté par le
+    workload, valeur hors liste, label invalide, champ manquant, action inconnue,
+    identifiant d'un autre type, même correspondance deux fois dans un changeset ;
+    valeurs admises créées, remplacées en ensemble trié, refusées hors liste, sur un
+    objet qui n'est pas un namespace ; namespace non clos tant qu'elles vivent
+    (`core.object.dependents`) ; ensemble vide qui clôt, puis n'écrit rien ; labels
+    suivis remplacés, clé gardée par son identifiant, liste vide, clé invalide, champ
+    inconnu, opération interne refusée à un client), test unitaire
+    `settings::tests::axis_checked` (sensible, texte, porteur).
+  - choix : axe d'une correspondance ou de valeurs admises : liste fermée portée par
+    `kube.workload`, ni sensible ni `kube.namespace`, sa valeur une valeur vivante de la
+    liste au début de la période (`kube.operation.invalid` sinon, pas de règle propre) ;
+    `upsert` par (clé, valeur de label, axe), sans `id` ; `close {id}` d'une
+    correspondance vivante seulement ; `set_tracked_labels` : le plan crée la première
+    clé nouvelle, ajoute une opération interne par autre clé (`completed.create`, que
+    `prepare` remplace chez un client) et clôt les absentes par le noyau ; sans
+    changement, ni écriture ni refus (plan vide, comme des valeurs admises vides sans
+    objet) ; les valeurs admises demandent `kube.namespace.read` sur leur namespace
+    (`reads`, comme les domaines d'un cluster) ; un verrou nommé `kube.settings` ;
+    unicité vérifiée avant l'écriture (`pg::taken`) ; le test des droits prend un axe
+    `custom.*` (paramètres du noyau) : `policy.exposure` n'est pas encore porté par
+    `kube.workload` (tâche 12).
+  - reste : `close` d'un namespace (connecteur) ou d'un cluster (cascade) refusé tant
+    que des valeurs admises le citent : le connecteur le marque absent (REQ-019-22),
+    l'administrateur clôt d'abord ses valeurs admises ; aucun index propre aux lectures
+    de la dérivation (7d2) hors des exclusions ; une valeur d'axe close après coup reste
+    dans une correspondance ou des valeurs admises (la dérivation l'ignorera) ; une
+    correspondance ne se change que par son identité (route `PATCH /{id}` de la 8 à
+    tenir) ; les routes de collection (8) ; aucun test sous le RBAC de la base
+    (`Grants` seul).
 - [ ] 7d. Pose des axes par le serveur (Q-019-33, 34, 36 à 39) — découpée (2026-11-12)
   en 7d1 à 7d3 : le noyau, la pose par `kube.sync`, la re-dérivation par les paramètres ;
   une famille de vérification chacune.

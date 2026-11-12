@@ -294,7 +294,8 @@ triée par (`pod_uid`, `ip`), instants en RFC 3339 UTC à la microseconde.
 Une correspondance ne vise ni `kube.namespace` (géré par le serveur, Q-019-39) ni une
 propriété sensible ; son axe est une liste fermée portée par `kube.workload`, sa valeur
 une valeur vivante de cette liste ; les valeurs admises sont des valeurs vivantes de la
-liste de l'axe (`kube.operation.invalid` sinon). Le changeset qui écrit un paramètre
+liste de l'axe (`kube.operation.invalid` sinon) ; écrire des valeurs admises demande
+aussi `kube.namespace.read` sur leur namespace (tâche 7c). Le changeset qui écrit un paramètre
 re-dérive les affectations des workloads concernés (Q-019-36, tâche 7d3).
 
 Une écriture suit la grammaire de la 024 (M7) : `edit` crée et soumet le changeset,

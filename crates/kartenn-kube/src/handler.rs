@@ -89,7 +89,9 @@ fn ingress_kind() -> ModuleKind {
 
 /// The table of the objects of `kind`.
 fn table(kind: ModuleKind) -> &'static str {
-    if kind == node_kind() {
+    if let Some(table) = crate::settings::table(kind) {
+        table
+    } else if kind == node_kind() {
         NODE_TABLE
     } else if kind == namespace_kind() {
         NAMESPACE_TABLE
@@ -1840,6 +1842,7 @@ async fn absences(
 }
 
 impl ModuleHandler for Handler {
+    #[allow(clippy::too_many_lines)] // one block per type of object a sync reads
     fn prepare<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -1849,6 +1852,9 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let (at, _) = pg::bounds(period);
             let conn = connection(tx)?;
+            if crate::settings::is_setting(&operation.name) {
+                return crate::settings::prepare(conn, operation, at).await;
+            }
             let mut completed = Completed::default();
             if operation.name == "sync" {
                 let cluster = operation
@@ -1965,6 +1971,9 @@ impl ModuleHandler for Handler {
                 plan_unselect(operation)
             }
             "sync" => Self::plan_sync(operation, object, resolve),
+            setting if crate::settings::is_setting(setting) => {
+                crate::settings::plan(operation, object, resolve)
+            }
             other => Err(invalid(format!("kube.{other}: unknown operation"))),
         }
     }
@@ -2038,6 +2047,9 @@ impl ModuleHandler for Handler {
             // A closure: the core ends the object, then the module's rows (`close`).
             if plan.data.get("noop").is_some() {
                 return Ok(());
+            }
+            if crate::settings::table(plan.kind).is_some() {
+                return crate::settings::apply(tx, plan, period, changeset).await;
             }
             if plan.kind != cluster_kind() {
                 return apply_mirror(tx, plan, period, changeset).await;
