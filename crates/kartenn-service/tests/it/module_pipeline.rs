@@ -402,6 +402,29 @@ async fn module_provenance_only_planned(pool: PgPool) {
     ));
     applied(&store, author, vec![typed_op]).await;
     assert_eq!(provenance_of(typed).await.unwrap(), "input");
+    // A "no value" the module adds carries its provenance too (019-7d1, review).
+    let cleared = dummy::create_thing(json!({
+        "label": "d",
+        "derive": {
+            "domain": {"id": derived}, "property": {"id": property},
+            "value": "", "clear": true, "provenance": "module:dummy#label:app",
+        },
+    }));
+    applied(&store, author, vec![cleared]).await;
+    assert_eq!(
+        provenance_of(derived).await.unwrap(),
+        "module:dummy#label:app"
+    );
+    let kind: String = sqlx::query_scalar(
+        "SELECT kind FROM property_assignment
+          WHERE object_id = $1 AND property_id = $2 AND valid_period @> now()",
+    )
+    .bind(derived)
+    .bind(property)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kind, "cleared");
     // The database keeps the form too (migration 0078).
     let malformed = sqlx::query(
         "UPDATE property_assignment SET provenance = 'module:Dummy#x' WHERE object_id = $1",

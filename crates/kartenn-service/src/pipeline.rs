@@ -1242,12 +1242,14 @@ fn plan(
                 Operation::AssignProperty { .. }
                 | Operation::ClearProperty { .. }
                 | Operation::UnassignProperty { .. } => {
-                    // The provenance the module whose plan adds the assignment gives it, of
-                    // its own name (ADR 0026, amendment 14); none for the author's.
+                    // The provenance the module whose plan adds the assignment, or the "no
+                    // value", gives it, of its own name (ADR 0026, amendment 14); none for
+                    // the author's.
                     let derived = match (op, added) {
-                        (Operation::AssignProperty { .. }, Some((by, index))) => {
-                            module_provenance_of(&planned[adding[by].0], index)
-                        }
+                        (
+                            Operation::AssignProperty { .. } | Operation::ClearProperty { .. },
+                            Some((by, index)),
+                        ) => module_provenance_of(&planned[adding[by].0], index),
                         _ => Ok(None),
                     };
                     let local = |n| local_value(n, &ids, &objects);
