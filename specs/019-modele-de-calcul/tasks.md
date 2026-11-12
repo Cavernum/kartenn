@@ -1707,6 +1707,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     opération que le plan refusera est lue telle quelle (le changeset est refusé de
     toute façon) ; la période est celle du changeset ; les verrous des clusters sont pris
     par le plan de la dernière opération de paramètres.
+  - correction de revue (2026-11-12) : une opération de paramètres dans un `within` est
+    refusée (`kube.operation.invalid`, règle du changeset sur les opérations de
+    l'auteur, `settings::within`) : les paramètres s'écrivent au présent, le crochet ne
+    recevant que la période du changeset (amendement 16, design « Opérations ») ; test
+    `settings_rederive_workloads` complété (les trois opérations refusées dans un
+    `within`).
   - reste : les verrous sont pris après `prepare` et `prepare_changeset` (comme tous les
     verrous du pipeline) : un lot préparé avant la validation d'un changeset de
     paramètres dérive sur les paramètres qu'il a lus, et inversement, jusqu'au prochain

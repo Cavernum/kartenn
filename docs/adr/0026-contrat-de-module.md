@@ -564,8 +564,11 @@ Ce que le module peut y faire : lire l'état de la transaction (comme `prepare`,
 écrire) et compléter le corps de ses opérations ; les opérations complétées sont celles que
 le changeset enregistre et que `plan` reçoit, qui ne lit toujours aucune base. Il ne
 change ni leur nombre, ni leur ordre, ni leur module ou leur nom. Les opérations d'un
-module dans un `within` y figurent, comme pour `prepare` ; celles qu'un plan ajoute
-(clause 6) n'y figurent pas, n'étant pas préparées. Rejoué avec `prepare` à la validation
+module dans un `within` y figurent sans leur enveloppe, comme pour `prepare` ; celles
+qu'un plan ajoute (clause 6) n'y figurent pas, n'étant pas préparées. Le crochet reçoit la
+période du changeset, pas celle d'un `within` : un module dont l'effet calculé dépend de
+la période refuse un `within` sur ces opérations (les paramètres de `kube` s'écrivent au
+présent, `kube.operation.invalid`, revue de la 7d3). Rejoué avec `prepare` à la validation
 d'un changeset en attente (REQ-004-21).
 
 ## Alternatives

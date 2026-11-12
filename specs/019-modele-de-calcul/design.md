@@ -298,7 +298,8 @@ liste de l'axe (`kube.operation.invalid` sinon) ; écrire des valeurs admises de
 aussi `kube.namespace.read` sur leur namespace (tâche 7c). Le changeset qui écrit un paramètre
 re-dérive les affectations des workloads concernés (Q-019-36, tâche 7d3), sur l'état
 final de tous ses paramètres, une fois par workload (`prepare_changeset`, Q-019-42), sous
-les verrous de leurs clusters.
+les verrous de leurs clusters. Les paramètres s'écrivent au présent : une opération de
+paramètres dans un `within` est refusée (`kube.operation.invalid`, revue de la 7d3).
 
 Une écriture suit la grammaire de la 024 (M7) : `edit` crée et soumet le changeset,
 `approval.self` l'applique dans la même requête, `apply` applique celui d'un autre.

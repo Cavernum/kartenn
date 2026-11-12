@@ -2404,6 +2404,7 @@ impl ModuleHandler for Handler {
             // Who writes, whatever the changeset writes (019/X5, X10).
             let conn = connection(tx)?;
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
+            found.extend(crate::settings::within(context.operations));
             let mut reevaluated = absences(conn, context, &mut found).await?;
             reevaluated.extend(held(conn, context, &mut found).await?);
             // The axes the server derives (Q-019-33, 39), on the workloads written and those

@@ -174,6 +174,25 @@ pub(crate) async fn complete_changeset(
     Ok(())
 }
 
+/// The settings written over a period of their own (a `Within`) among the author's
+/// `operations`, refused: the settings are written in the present, their re-derivation
+/// reading the period of the changeset (Q-019-42).
+pub(crate) fn within(operations: &[Operation]) -> Vec<Violation> {
+    operations
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| {
+            matches!(o, Operation::Within { .. })
+                && matches!(o.inner(), Operation::Module(m) if m.module == "kube" && is_setting(&m.name))
+        })
+        .map(|(i, _)| {
+            invalid(format!(
+                "the operation at position {i} writes the settings within a period of its own: the settings are written in the present"
+            ))
+        })
+        .collect()
+}
+
 /// The workloads the settings of `operations`, prepared, re-derive: their rules of the
 /// derivation are evaluated anew (`kube.label.not_admitted`, `kube.label.conflict`).
 pub(crate) fn rederived(operations: &[Operation]) -> Vec<Uuid> {

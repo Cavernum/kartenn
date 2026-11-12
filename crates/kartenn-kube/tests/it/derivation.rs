@@ -872,6 +872,28 @@ async fn settings_rederive_workloads(pool: PgPool) {
     env.applied(vec![tracked(&["tier"])]).await;
     assert!(env.assignment(front, EXPOSURE).await.is_none());
     assert!(env.assignment(cache, EXPOSURE).await.is_some());
+    // The settings are written in the present: a period of their own is refused.
+    let start: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM now() + interval '1 day') * 1000000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    for setting in [
+        mapping("db", EXPOSURE, "interne"),
+        admitted(payments, &["interne"]),
+        tracked(&["app", "tier"]),
+    ] {
+        env.refused(
+            vec![Operation::Within {
+                period: kartenn_service::operations::PeriodSpec { start, end: None },
+                operation: Box::new(setting),
+            }],
+            "kube.operation.invalid",
+        )
+        .await;
+    }
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
 }
 
 /// Q-019-36 (precision of 2026-11-12), under the RBAC of the store: the author of the
