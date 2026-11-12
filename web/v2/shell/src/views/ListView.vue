@@ -10,6 +10,9 @@
 // Enter, applied now by Ctrl+Enter with a motive asked in line at the foot of the list;
 // the foot says the keys of the cell, or why it offers no editor. `c` creates and `e`
 // modifies the object of the row by the edit panel of the kind (REQ-021-36).
+// Columns of properties (task 12i, Q-021-18; `propertyColumns.ts`): none by default, each
+// property declared for the kind offered by « Colonnes », the choice kept by view and by
+// user; their cells edited by the rules of the record's tab.
 import {
   Button,
   DataGrid,
@@ -21,8 +24,9 @@ import {
   StatusBadge,
   type CellRef,
   type GridColumn,
+  type GridWindow,
 } from "@kartenn/ui";
-import { computed, nextTick, ref, useTemplateRef } from "vue";
+import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useSettings } from "../frame/settings.ts";
@@ -31,7 +35,7 @@ import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { applyRight, editRight } from "./edit/fields.ts";
-import { useInlineEdit, whyWords } from "./edit/inline.ts";
+import { useInlineEdit } from "./edit/inline.ts";
 import { openEdit } from "./edit/panel.ts";
 import EditHint from "./edit/EditHint.vue";
 import QuickApply from "./edit/QuickApply.vue";
@@ -47,7 +51,10 @@ import {
   type CollectionColumn,
   type Item,
 } from "./collections.ts";
+import { useDeclarations, useKeyLabel } from "./data.ts";
 import NetworkVlan from "./parts/NetworkVlan.vue";
+import PropertyCell from "./parts/PropertyCell.vue";
+import { propertyOfColumn, usePropertyColumns } from "./propertyColumns.ts";
 import ObjectName from "./record/ObjectName.vue";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
@@ -101,6 +108,7 @@ const columns = computed<GridColumn[]>(() => {
       ...(column.filter && served.has(column.filter) ? { filterable: true } : {}),
     })),
     ...gridColumns(extensions.value, (key) => t(key)),
+    ...cells.columns.value,
   ];
 });
 const elementProps = (row: Item) => ({
@@ -150,6 +158,41 @@ const edit = useInlineEdit({
   say,
 });
 const active = ref<CellRef | undefined>();
+const editing = ref<CellRef | undefined>();
+const { declarations } = useDeclarations();
+const keyLabel = useKeyLabel();
+const valueLabel = (key: string, value: string) => keyLabel("value", `${key}/${value}`);
+const cells = usePropertyColumns({
+  collection: () => props.collection,
+  rows: () => rows.value,
+  inline: edit,
+  declarations: () => declarations.value,
+  active: () => active.value,
+  // The words of its filter: the dictionary's, else the declaration's own label.
+  label: (key) => words.property(key) ?? null,
+  valueLabel,
+  t: (key, values) => t(key, values ?? {}),
+  sentence: useProblems().sentence,
+  say,
+});
+const { visibility: columnVisibility } = cells;
+watch(active, (cell) => cells.focus(cell), { immediate: true });
+// The column of the focus hidden by « Colonnes »: the focus to the key of its row, never on
+// a cell no longer shown (the foot would speak of it).
+watch(columnVisibility, (visibility) => {
+  const cell = active.value;
+  if (cell && visibility[cell.column] === false) {
+    active.value = { row: cell.row, column: props.collection.columns[0]!.id };
+  }
+});
+// Said when the editor of a property opens too, or once its origin is read: heard before
+// the value is sent, not only seen (as in the record's tab).
+watch(
+  () => (editing.value ? cells.noteOf(editing.value.column, editing.value.row) : undefined),
+  (note) => {
+    if (note) say.status(note);
+  },
+);
 const mayEdit = () => session.value.rights.has(editRight(props.collection.type));
 // `c` and `e` open the edit panel: under `valid_at` alone too, to the dated draft only
 // (REQ-021-5; `action.ts`), as « Modifier » of the record; never under `as_of`.
@@ -178,21 +221,32 @@ useViewAction("edit", {
 const kindWords = computed(() => t(`labels.kind.${props.collection.type}`));
 /** Why the cell of the focus offers no editor, said at the foot of the list. */
 const activeWhy = computed(() =>
-  active.value && active.value.row !== "" ? edit.why(active.value.column) : null,
+  active.value && active.value.row !== "" ? cells.why(active.value.column, active.value.row) : null,
 );
 /** Why the cell of the focus is held in review, said at the foot too (seen, not only read). */
 const activeHeld = computed(() => {
   const cell = active.value;
   if (!cell || cell.row === "") return undefined;
   const row = edit.shownRows.value.find((item) => String(item.id) === cell.row);
-  return row ? edit.stateReason(row, { id: cell.column, label: "" }) : undefined;
+  return row ? cells.heldOf(row, cell.column) : undefined;
 });
-/** The same reason as one sentence: the description of a cell without an editor. */
-function readonlyReason(_row: Item, column: GridColumn): string | undefined {
-  return whyWords(edit.why(column.id), t);
-}
+/** What an edit of the cell of the focus writes, said at the foot and read with the cell. */
+const activeNote = computed(() =>
+  active.value && active.value.row !== "" && activeWhy.value === null
+    ? cells.noteOf(active.value.column, active.value.row)
+    : undefined,
+);
+const noteHere = (row: Item, column: string) =>
+  active.value?.row === String(row.id) && active.value.column === column
+    ? activeNote.value
+    : undefined;
 /** The words of a key of a closed list, for the line of the motive. */
-const choiceWords = (field: string, key: string) => words.value(field, key) ?? null;
+const choiceWords = (field: string, key: string) =>
+  words.value(field, key) ?? valueLabel(field, key);
+const targetOf = (key: string) => {
+  const target = cells.declarationOf(key)?.params?.target;
+  return typeof target === "string" ? target : undefined;
+};
 /** The line of the motive closed: the focus back to its cell. */
 async function afterAsk(cell: CellRef): Promise<void> {
   active.value = cell;
@@ -204,13 +258,17 @@ async function afterAsk(cell: CellRef): Promise<void> {
     ?.focus();
 }
 async function onConfirm(motive: string, value: string): Promise<void> {
-  const ask = edit.asking.value;
-  if (ask && (await edit.confirm(motive, value))) void afterAsk(edit.cellOf(ask));
+  const cell = cells.cellOfAsk();
+  if (cell && (await cells.confirm(motive, value))) void afterAsk(cell);
 }
 function onCancelAsk(): void {
-  const ask = edit.asking.value;
-  edit.cancel();
-  if (ask) void afterAsk(edit.cellOf(ask));
+  const cell = cells.cellOfAsk();
+  cells.cancel();
+  if (cell) void afterAsk(cell);
+}
+function onGridWindow(window: GridWindow): void {
+  onWindow(window);
+  cells.onWindow(window);
 }
 
 const recordOf = (row: Item) =>
@@ -290,32 +348,42 @@ function clearFilters(): void {
     <DataGrid
       v-else
       v-model:active="active"
+      v-model:editing="editing"
+      v-model:column-visibility="columnVisibility"
       data-k-list
       :label="title"
       :columns="columns"
-      :rows="edit.shownRows.value"
+      :rows="cells.shownRows.value"
       row-key="id"
       :loading="list.isPending.value"
       :loading-rows="8"
       :filtered="filtered"
       :row-count="complete ? rows.length : undefined"
       :element-props="elementProps"
-      :editable="edit.editable"
-      :readonly-reason="readonlyReason"
-      :validate="edit.validate"
-      :cell-state="edit.cellState"
-      :state-reason="edit.stateReason"
-      :row-state="edit.rowState"
-      :row-reason="edit.rowReason"
+      :editable="cells.editable"
+      :readonly-reason="cells.readonlyReason"
+      :validate="cells.validate"
+      :cell-state="cells.cellState"
+      :state-reason="cells.stateReason"
+      :row-state="cells.rowState"
+      :row-reason="cells.rowReason"
       @filter="onColumnFilter"
       @activate="onActivate"
-      @commit="edit.onCommit"
-      @window="onWindow"
+      @commit="cells.onCommit"
+      @window="onGridWindow"
     >
       <template #cell="{ row, column, value }">
         <KLink v-if="column.id === props.collection.columns[0]!.id" :to="recordOf(row)">{{
           (columnOf(column.id)?.ownValue && fieldText(value)) || nameOf(row)
         }}</KLink>
+        <PropertyCell
+          v-else-if="propertyOfColumn(column.id) !== null"
+          :property="propertyOfColumn(column.id)!"
+          :state="cells.cellOf(row, propertyOfColumn(column.id)!)"
+          :type="cells.declarationOf(propertyOfColumn(column.id)!)?.type"
+          :target="targetOf(propertyOfColumn(column.id)!)"
+          :note="noteHere(row, column.id)"
+        />
         <StatusBadge
           v-else-if="columnOf(column.id)?.states?.[String(value)]"
           :state="columnOf(column.id)!.states![String(value)]!"
@@ -352,9 +420,9 @@ function clearFilters(): void {
     </DataGrid>
     <template #footer>
       <QuickApply
-        v-if="edit.asking.value"
-        :key="edit.asking.value.row + edit.asking.value.column"
-        :ask="edit.asking.value"
+        v-if="cells.asking.value"
+        :key="cells.asking.value.row + cells.asking.value.column"
+        :ask="cells.asking.value"
         :words="choiceWords"
         @confirm="onConfirm"
         @cancel="onCancelAsk"
@@ -364,8 +432,9 @@ function clearFilters(): void {
         <EditHint
           v-if="active && active.row !== ''"
           :why="activeWhy"
-          :apply-lacks="edit.canApply.value ? null : applyRight(props.collection.type)"
+          :apply-lacks="cells.applyLacks(active.column, applyRight(props.collection.type))"
           :held="activeHeld"
+          :note="activeNote"
         />
       </template>
       <span role="status">{{ restarted ? t("views.list.restarted") : said }}</span>

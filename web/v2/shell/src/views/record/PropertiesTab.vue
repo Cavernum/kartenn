@@ -29,6 +29,7 @@ import EditHint from "../edit/EditHint.vue";
 import { whyWords } from "../edit/inline.ts";
 import {
   propertyText,
+  recordGrid,
   usePropertyEdit,
   type Declared,
   type PropertyRow,
@@ -90,21 +91,24 @@ const say = useSay((text) => {
   said.value = "";
   void nextTick(() => (said.value = text));
 });
-const edit = usePropertyEdit({
-  collection: () => props.collection,
-  id: () => props.id,
-  name: () => props.name,
-  version: () => props.version,
-  rows: () => read.value,
-  declaration: declarationOf,
-  declarationById: (id) => (declarations.value as unknown as Declared[]).find((d) => d.id === id),
-  label: (key) => labelOf(key) ?? key,
-  valueLabel: (key, value) => keyLabel("value", `${key}/${value}`),
-  reread: () => void resolved.refetch(),
-  t: (key, values) => t(key, values ?? {}),
-  sentence: useProblems().sentence,
-  say,
-});
+const readByKey = computed(() => new Map(read.value.map((row) => [row.key, row])));
+const edit = recordGrid(
+  usePropertyEdit({
+    collection: () => props.collection,
+    objects: () => [{ id: props.id, name: props.name, version: props.version }],
+    property: (id, key) => (id === props.id ? readByKey.value.get(key) : undefined),
+    declaration: declarationOf,
+    declarationById: (id) => (declarations.value as unknown as Declared[]).find((d) => d.id === id),
+    label: (key) => labelOf(key) ?? key,
+    valueLabel: (key, value) => keyLabel("value", `${key}/${value}`),
+    reread: () => void resolved.refetch(),
+    t: (key, values) => t(key, values ?? {}),
+    sentence: useProblems().sentence,
+    say,
+  }),
+  () => props.id,
+  () => read.value,
+);
 const rows = computed(() => edit.shownRows.value);
 const readonlyReason = (row: PropertyRow, column: GridColumn) =>
   column.id === "value" ? whyWords(edit.why(row), t) : undefined;

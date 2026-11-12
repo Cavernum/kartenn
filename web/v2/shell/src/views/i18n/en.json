@@ -116,7 +116,9 @@
       "untyped": "Filter not recognised: {names}",
       "declarationsFailed": "The declared properties could not be read: {names} stays untyped",
       "notRead": "The list is not read without this filter. Remove its chip, or correct the address.",
-      "restarted": "The cursor of the list was refused: the list starts again from the top."
+      "restarted": "The cursor of the list was refused: the list starts again from the top.",
+      "propertyReading": "Reading the value",
+      "propertyUnreadable": "Unreadable"
     },
     "record": {
       "sections": "Sections of the record",
@@ -454,7 +456,9 @@
       "masked": "A masked value: without its read permission, it does not change here.",
       "typed": "A value of this type (a reference, a set) is not typed in a cell.",
       "unpatched": "The properties of this kind of object do not change in place.",
-      "undeclared": "A property whose declaration is not read: it does not change here."
+      "undeclared": "A property whose declaration is not read: it does not change here.",
+      "unread": "A value not read yet: it changes once read.",
+      "unreadable": "An unreadable value: its read was refused, read the list again to change it."
     },
     "vlan": {
       "vidProposed": "Next free VID of the group {group}.",
