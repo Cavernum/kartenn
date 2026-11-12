@@ -3647,7 +3647,13 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     motif de la cellule de la focalisation, pas celui de la ligne sur sa première
     cellule ; Échap dans l'éditeur d'une grille dans un `Dialog` éprouvé sous happy-dom
     seulement (pas de script clavier sous navigateur) ; restitution par un lecteur
-    d'écran (mot caché puis longue description) non éprouvée.
+    d'écran (mot caché puis longue description) non éprouvée. Revue (mineurs) : le test
+    d'Échap d'`expandable-reasons-mounted.test.ts` n'a pas de témoin (un Échap hors
+    éditeur qui ferme le dialogue sous happy-dom) ; `stateReason` et `readonlyReason` ne
+    sont pas prouvés dans la grille compacte (seule la grande l'est) ; le branchement de
+    `rowReason` dans `ListView` et `ContentTab` n'a pas de test monté ; une première
+    colonne à `priority` masquée par le `@container` emporte le motif avec le mot caché ;
+    aucun état éditable d'`ExpandableGrid` au catalogue.
 - [x] 12o. Valeur héritée d'une propriété modifiée en place, à arbitrer par l'utilisateur
   avant la 12h — arbitrée le 2026-11-11 (Q-021-19) : une valeur propre de l'objet, qui
   surcharge l'héritée, la cellule le disant avant l'envoi ; le retrait rend l'héritage. Question d'origine : modifier dans l'onglet Propriétés une valeur héritée (résolue d'un
