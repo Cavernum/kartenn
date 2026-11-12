@@ -195,6 +195,8 @@ pub struct Recorded {
     /// The longest advance of those lines on the instant of the batch, in milliseconds;
     /// 0 without any.
     pub skew_max_ms: u64,
+    /// Its earliest instant, sealed with it (task 019-6c, Q-019-27).
+    pub earliest: OffsetDateTime,
 }
 
 /// An instant as PostgreSQL keeps it, to the microsecond, in UTC.
@@ -205,7 +207,8 @@ fn stored(at: OffsetDateTime) -> OffsetDateTime {
 }
 
 /// An instant in its canonical text: RFC 3339, UTC, six digits of fraction.
-fn rfc3339(at: OffsetDateTime) -> String {
+#[must_use]
+pub fn rfc3339(at: OffsetDateTime) -> String {
     let at = stored(at);
     format!(
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
@@ -714,6 +717,7 @@ pub async fn record(
             .iter()
             .max()
             .map_or(0, |ms| u64::try_from(*ms).unwrap_or(u64::MAX)),
+        earliest,
     })
 }
 

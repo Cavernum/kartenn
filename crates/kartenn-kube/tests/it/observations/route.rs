@@ -283,6 +283,12 @@ async fn batch_is_audited_once_with_hash(pool: PgPool) {
             .await
             .unwrap();
     let hash = hex(&stored);
+    let earliest: OffsetDateTime =
+        sqlx::query_scalar("SELECT earliest FROM kube.observation_batch WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(answer["hash"], hash.as_str());
     assert_eq!(
         (answer["opened"].as_u64(), answer["closed"].as_u64()),
@@ -303,6 +309,7 @@ async fn batch_is_audited_once_with_hash(pool: PgPool) {
             "hash": hash,
             "clamped": 0,
             "skew_max": 0,
+            "earliest": kartenn_kube::observations::rfc3339(earliest),
         })
     );
     assert_eq!(*actor, Some(env.connector));

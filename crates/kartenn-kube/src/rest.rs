@@ -452,6 +452,7 @@ async fn record_batch(
         .and_then(|e| e.detail("hash", hash.as_str()))
         .and_then(|e| e.detail("clamped", recorded.clamped))
         .and_then(|e| e.detail("skew_max", recorded.skew_max_ms))
+        .and_then(|e| e.detail("earliest", observations::rfc3339(recorded.earliest)))
         .map_err(audited)?;
     // In the transaction of the batch (ADR 0043, decision 5): no batch without its event.
     api.journal
