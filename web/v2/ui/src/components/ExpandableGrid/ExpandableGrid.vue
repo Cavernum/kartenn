@@ -10,11 +10,13 @@
 // (Modal): focus trapped, Escape closes, the focus back on the button). Both grids are
 // `DataGrid`s over the same rows, sort and filters (the host keeps them, as for
 // `DataGrid`); the compact one may show fewer columns (`compactColumns`). It never
-// truncates silently: whatever is left out is one button away.
+// truncates silently: whatever is left out is one button away. Editable as a `DataGrid`
+// (`editable`, `validate`, `commit`), both grids say why a cell or a row is in its state
+// and why a cell offers no editor (`stateReason`, `rowReason`, `readonlyReason`).
 import { computed } from "vue";
 import { currentLocale, t } from "../../i18n.ts";
 import DataGrid from "../DataGrid/DataGrid.vue";
-import type { CellState, GridColumn, GridSort, RowState } from "../DataGrid/grid.ts";
+import type { CellState, GridColumn, GridCommit, GridSort, RowState } from "../DataGrid/grid.ts";
 import Dialog from "../Dialog/Dialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import NoValue from "../NoValue/NoValue.vue";
@@ -32,6 +34,16 @@ const props = withDefaults(
     cellState?: ((row: R, column: GridColumn) => CellState | undefined) | undefined;
     rowState?: ((row: R) => RowState | undefined) | undefined;
     filtered?: string[];
+    /** Which cells the user may edit, in both grids (as for `DataGrid`). */
+    editable?: ((row: R, column: GridColumn) => boolean) | undefined;
+    /** Why a cell of an editable grid offers no editor (as for `DataGrid`). */
+    readonlyReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
+    /** Why a cell is in its state, a write held in review (as for `DataGrid`). */
+    stateReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
+    /** Why a row is in its state, said by its first cell (as for `DataGrid`). */
+    rowReason?: ((row: R) => string | readonly string[] | undefined) | undefined;
+    /** The local check of the text of an editor (as for `DataGrid`). */
+    validate?: ((row: R, column: GridColumn, value: string) => string | undefined) | undefined;
   }>(),
   {
     compactColumns: undefined,
@@ -39,16 +51,42 @@ const props = withDefaults(
     cellState: undefined,
     rowState: undefined,
     filtered: () => [],
+    editable: undefined,
+    readonlyReason: undefined,
+    stateReason: undefined,
+    rowReason: undefined,
+    validate: undefined,
   },
 );
 /** The sort, shared by both grids. */
 const sort = defineModel<GridSort | undefined>("sort", { default: undefined });
 /** The large dialog is open. */
 const expanded = defineModel<boolean>("expanded", { default: false });
-const emit = defineEmits<{ filter: [column: string] }>();
+const emit = defineEmits<{
+  filter: [column: string];
+  /** An editor of either grid commits its text (as for `DataGrid`). */
+  commit: [commit: GridCommit];
+}>();
 defineSlots<{
   cell?: (scope: { row: R; column: GridColumn; value: unknown }) => unknown;
 }>();
+
+/**
+ * What both grids take alike: the rows, their states and why, who edits and the check.
+ * Each grid keeps its own focus and editor.
+ */
+const shared = computed(() => ({
+  rows: props.rows,
+  rowKey: props.rowKey,
+  cellState: props.cellState,
+  rowState: props.rowState,
+  filtered: props.filtered,
+  editable: props.editable,
+  readonlyReason: props.readonlyReason,
+  stateReason: props.stateReason,
+  rowReason: props.rowReason,
+  validate: props.validate,
+}));
 
 const compact = computed(() =>
   props.compactColumns
@@ -83,14 +121,11 @@ const shownCount = computed(() =>
         <DataGrid
           v-model:sort="sort"
           class="k-expandable-grid__full"
+          v-bind="shared"
           :label="props.label"
           :columns="props.columns"
-          :rows="props.rows"
-          :row-key="props.rowKey"
-          :cell-state="props.cellState"
-          :row-state="props.rowState"
-          :filtered="props.filtered"
           @filter="emit('filter', $event)"
+          @commit="emit('commit', $event)"
         >
           <template #cell="scope">
             <slot name="cell" v-bind="scope"
@@ -105,14 +140,11 @@ const shownCount = computed(() =>
     <DataGrid
       v-model:sort="sort"
       class="k-expandable-grid__compact"
+      v-bind="shared"
       :label="props.label"
       :columns="compact"
-      :rows="props.rows"
-      :row-key="props.rowKey"
-      :cell-state="props.cellState"
-      :row-state="props.rowState"
-      :filtered="props.filtered"
       @filter="emit('filter', $event)"
+      @commit="emit('commit', $event)"
     >
       <template #cell="scope">
         <slot name="cell" v-bind="scope"

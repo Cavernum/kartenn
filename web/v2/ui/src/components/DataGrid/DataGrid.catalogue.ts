@@ -322,6 +322,8 @@ export default {
               : row.prefix === prefixes[4]
                 ? "removed"
                 : undefined,
+        // The row in review says why on its first cell (`rowReason`, task 021-12n).
+        rowReason: (row: Row) => (row.prefix === prefixes[3] ? HELD : undefined),
       },
       wide: true,
     },
