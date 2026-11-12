@@ -406,7 +406,7 @@ pub(crate) async fn rederive(
     conn: &mut PgConnection,
     operations: &[&ModuleOperation],
     at: Option<OffsetDateTime>,
-) -> Result<Vec<Rederived>, StoreError> {
+) -> Result<(Vec<Rederived>, Option<Recheck>), StoreError> {
     let changes = changes(conn, operations, at).await?;
     let stored: BTreeSet<String> = crate::settings::tracked(conn, at)
         .await?
@@ -414,7 +414,7 @@ pub(crate) async fn rederive(
         .map(|(key, _)| key)
         .collect();
     let tracked = changes.tracked.clone().unwrap_or_else(|| stored.clone());
-    let keys: Vec<&String> = tracked.symmetric_difference(&stored).collect();
+    let keys: Vec<String> = tracked.symmetric_difference(&stored).cloned().collect();
     let pair = |k: &str, v: &str| Value::Object(Map::from_iter([(k.to_owned(), v.into())]));
     let mut labels: Vec<Value> = changes
         .mappings
@@ -450,12 +450,20 @@ pub(crate) async fn rederive(
         }
     }
     if labels.is_empty() && keys.is_empty() && scoped.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), None));
     }
     // Sorted already: the mappings by (label key, label value, axis), so the same label
     // of two axes comes twice in a row.
     labels.dedup();
-    let rows = concerned(conn, (&labels, &keys), (&namespaces, &scoped), at).await?;
+    let mut recheck = Recheck {
+        labels,
+        keys,
+        namespaces,
+        scoped,
+        read: Vec::new(),
+    };
+    let rows = concerned(conn, &recheck, at).await?;
+    recheck.read = rows.iter().map(|r| (r.0, r.5.0.clone())).collect();
     let mut axes = BTreeMap::new();
     let mut rederived = Vec::with_capacity(rows.len());
     for (workload, cluster, namespace, name, cluster_keys, labels) in rows {
@@ -482,7 +490,45 @@ pub(crate) async fn rederive(
             facts,
         });
     }
-    Ok(rederived)
+    Ok((rederived, Some(recheck)))
+}
+
+/// What the re-derivation of a changeset of the settings read, read again once its locks
+/// are taken: a batch that changed the labels of a workload in between has the changeset
+/// replayed (review of task 019-7d3b).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Recheck {
+    /// The labels of the mappings written, and the keys whose tracking changes.
+    labels: Vec<Value>,
+    keys: Vec<String>,
+    /// By namespace, the labels of the mappings of the axes its admitted values write.
+    namespaces: Vec<Uuid>,
+    scoped: Vec<Value>,
+    /// The workloads concerned, with the labels read.
+    read: Vec<(Uuid, BTreeMap<String, String>)>,
+}
+
+/// A workload concerned, with its labels.
+type Read = (Uuid, BTreeMap<String, String>);
+
+/// The first workload whose labels, or whose concern, changed since `recheck` was read:
+/// `None` when the re-derivation still holds.
+pub(crate) async fn changed(
+    conn: &mut PgConnection,
+    recheck: &Recheck,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<Uuid>, StoreError> {
+    let now: Vec<Read> = concerned(conn, recheck, at)
+        .await?
+        .into_iter()
+        .map(|r| (r.0, r.5.0))
+        .collect();
+    if now == recheck.read {
+        return Ok(None);
+    }
+    let differs = |a: &[Read], b: &[Read]| a.iter().find(|x| !b.contains(x)).map(|x| x.0);
+    Ok(differs(&now, &recheck.read).or_else(|| differs(&recheck.read, &now)))
 }
 
 /// A living workload a changeset of the settings concerns: its identifier, its cluster,
@@ -496,14 +542,20 @@ type Concerned = (
     sqlx::types::Json<BTreeMap<String, String>>,
 );
 
-/// The living workloads that carry one of `labels` or a label of one of `keys`, or, in
-/// `namespaces[i]`, the label `scoped[i]`.
+/// The living workloads that carry one of the labels or a label of one of the keys of
+/// `recheck`, or, in one of its namespaces, the label given with it.
 async fn concerned(
     conn: &mut PgConnection,
-    (labels, keys): (&[Value], &[&String]),
-    (namespaces, scoped): (&[Uuid], &[Value]),
+    recheck: &Recheck,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Concerned>, StoreError> {
+    let Recheck {
+        labels,
+        keys,
+        namespaces,
+        scoped,
+        ..
+    } = recheck;
     sqlx::query_as(
         // Three branches, each on an index: `workload_labels` (GIN) for the labels and
         // the keys, with `workload_by_namespace` for the labels of a namespace.

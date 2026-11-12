@@ -2197,6 +2197,8 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
+            // What a re-derivation by the settings read, checked under the locks (Q-019-36).
+            crate::settings::recheck(tx, plan, period).await?;
             // A closure: the core ends the object, then the module's rows (`close`).
             if plan.data.get("noop").is_some() {
                 return Ok(());

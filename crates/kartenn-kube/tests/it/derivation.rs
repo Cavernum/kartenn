@@ -896,6 +896,75 @@ async fn settings_rederive_workloads(pool: PgPool) {
     assert!(env.assignment(ledger, EXPOSURE).await.is_none());
 }
 
+/// Q-019-36, review of task 019-7d3b: a batch that changes the labels of a workload while
+/// a changeset of the settings waits for the lock of its cluster has the changeset
+/// replayed, which derives from the labels committed, never from those it first read.
+#[kartenn_testing::pg_test]
+async fn settings_rederive_replayed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let payments = env.namespace("payments").await;
+    env.applied(vec![admitted(payments, &["externe", "interne"])])
+        .await;
+    env.applied(vec![deployment(
+        env.cluster,
+        "payments",
+        "ledger",
+        Some(json!({"tier": "db"})),
+    )])
+    .await;
+    let ledger = env.workload("ledger").await;
+    // A batch of the cluster, its lock held, moves `ledger` from `tier=db` to `tier=cache`.
+    let key = format!("kube.cluster:{}", env.cluster);
+    let mut batch = pool.begin().await.unwrap();
+    let bucket: i32 = sqlx::query_scalar(
+        "SELECT b FROM (SELECT hashtext($2) & 1023 AS b) s, pg_advisory_xact_lock($1, s.b)",
+    )
+    .bind(0x6b61_726b_i32)
+    .bind(&key)
+    .fetch_one(&mut *batch)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE kube.workload SET labels = '{\"tier\": \"cache\"}'
+          WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(ledger)
+    .execute(&mut *batch)
+    .await
+    .unwrap();
+    let waiting = async {
+        loop {
+            let waits: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks
+                                 WHERE locktype = 'advisory' AND NOT granted
+                                   AND database = (SELECT oid FROM pg_database
+                                                    WHERE datname = current_database())
+                                   AND classid = $1::oid AND objid = $2::oid AND objsubid = 2)",
+            )
+            .bind(0x6b61_726b_i64)
+            .bind(i64::from(bucket))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if waits {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        batch.commit().await.unwrap();
+    };
+    // The mapping of `tier=db`, read on `ledger` before the lock.
+    let (outcome, ()) = tokio::join!(
+        env.submit(vec![mapping("db", EXPOSURE, "interne")]),
+        waiting
+    );
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        env.assignment(ledger, EXPOSURE).await.is_none(),
+        "derived from the labels committed"
+    );
+}
+
 /// Q-019-36 (precision of 2026-11-12), under the RBAC of the store: the author of the
 /// settings needs the rights of the property on the effect, refused without
 /// `prop.<axis>.edit`, pending without `prop.<axis>.approval.self`; the connector, under a

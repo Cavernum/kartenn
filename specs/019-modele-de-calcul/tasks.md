@@ -1717,7 +1717,14 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     temporaire de 200 000 workloads (500 valeurs de `tier`, 200 namespaces) : `labels @>
     ANY(…)` et `labels ?| …` en Bitmap Index Scan sur l'index GIN, la branche par
     namespace en BitmapAnd de l'index `namespace_id` et de l'index GIN, sous un
-    HashAggregate.
+    HashAggregate. Concurrence : ce que la re-dérivation a lu (`derivation::Recheck` : les
+    workloads concernés et leurs labels) est relu à l'application, sous les verrous
+    (`settings::recheck`, avant tout plan sans écriture) ; un écart (labels changés,
+    workload devenu concerné ou clos) fait rejouer le changeset dans une transaction
+    neuve (`STALE_VERSION`, rejeu de la 22p de la 021) ; test
+    `derivation::settings_rederive_replayed` (deux transactions : un lot qui tient le
+    verrou du cluster change les labels pendant que le changeset l'attend ; rien n'est
+    posé des labels lus d'abord ; le test échoue sans la relecture).
   - reste : les verrous sont pris après `prepare` et `prepare_changeset` (comme tous les
     verrous du pipeline) : un lot préparé avant la validation d'un changeset de
     paramètres dérive sur les paramètres qu'il a lus, et inversement, jusqu'au prochain

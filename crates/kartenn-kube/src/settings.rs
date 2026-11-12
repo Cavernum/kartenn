@@ -23,14 +23,14 @@ use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{ModuleObjectRow, ModulePlan, ModuleTx};
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
-use kartenn_service::port::{StoreError, WriteError};
+use kartenn_service::port::{STALE_VERSION, StoreError, WriteError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::derivation::Rederived;
+use crate::derivation::{Recheck, Rederived};
 use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, NAMESPACE_AXIS, TRACKED_LABEL, WORKLOAD};
 use crate::names::{LabelKey, LabelValue};
 use crate::pg::{
@@ -140,6 +140,9 @@ struct Completed {
     /// alone ([`complete_changeset`], Q-019-42).
     #[serde(default)]
     rederive: Vec<Rederived>,
+    /// What the re-derivation read, read again once the locks are taken.
+    #[serde(default)]
+    recheck: Option<Recheck>,
 }
 
 /// Completes the operations of the module in a changeset once each is prepared (ADR 0026,
@@ -158,20 +161,41 @@ pub(crate) async fn complete_changeset(
         .filter(|o| is_setting(&o.name))
         .map(|o| &**o)
         .collect();
-    let rederived = crate::derivation::rederive(conn, &settings, at).await?;
+    let (rederived, recheck) = crate::derivation::rederive(conn, &settings, at).await?;
     let operation = &mut *operations[last];
-    let mut completed: Completed = operation
-        .body
-        .get("completed")
-        .cloned()
-        .and_then(|c| serde_json::from_value(c).ok())
-        .unwrap_or_default();
+    let mut completed = completed_of(operation);
     completed.rederive = rederived;
+    completed.recheck = recheck;
     operation.body.insert(
         "completed".into(),
         serde_json::to_value(&completed).expect("a JSON object"),
     );
     Ok(())
+}
+
+/// Reads again, once the locks are taken, what the re-derivation of `plan` read: when a
+/// batch committed while this changeset waited for its locks has changed the labels of a
+/// workload, or which workloads are concerned, the changeset is replayed in a new
+/// transaction (`STALE_VERSION`, task 021-22p), which reads them anew.
+pub(crate) async fn recheck(
+    tx: &mut dyn ModuleTx,
+    plan: &ModulePlan,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    let Some(recheck) = plan.data.get("recheck") else {
+        return Ok(());
+    };
+    let recheck: Recheck =
+        serde_json::from_value(recheck.clone()).map_err(|e| StoreError(e.to_string()))?;
+    let conn = connection(tx)?;
+    let (at, _) = pg::bounds(period);
+    match crate::derivation::changed(conn, &recheck, at).await? {
+        Some(workload) => Err(StoreError(format!(
+            "{STALE_VERSION} {workload} changed while the settings waited for their locks"
+        ))
+        .into()),
+        None => Ok(()),
+    }
 }
 
 /// The settings written over a period of their own (a `Within`) among the author's
@@ -219,7 +243,11 @@ fn completed_of(operation: &ModuleOperation) -> Completed {
 /// Adds to `plan` the assignments and removals of the core the derivation of `rederived`
 /// plans (the provenances by position, read back by the handler's `provenance`), under the
 /// locks of their clusters: a batch of a cluster does not cross the re-derivation.
-fn with_rederived(mut plan: ModulePlan, rederived: &[Rederived]) -> ModulePlan {
+fn with_rederived(mut plan: ModulePlan, completed: &Completed) -> ModulePlan {
+    if let Some(recheck) = &completed.recheck {
+        plan.data["recheck"] = json!(recheck);
+    }
+    let rederived = &completed.rederive;
     if rederived.is_empty() {
         return plan;
     }
@@ -493,7 +521,7 @@ pub(crate) fn plan(
         "set_admitted_values" => plan_admitted(operation, object, resolve),
         _ => plan_tracked(operation, object),
     }?;
-    Ok(with_rederived(plan, &completed_of(operation).rederive))
+    Ok(with_rederived(plan, &completed_of(operation)))
 }
 
 /// The identifier the reference `field` of `body` names.
