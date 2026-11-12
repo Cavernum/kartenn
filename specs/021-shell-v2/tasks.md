@@ -3565,7 +3565,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     choix de colonnes perdu à la déconnexion (le garder demanderait un arbitrage) ; deux
     lignes de motif ouvertes à la fois (champ puis propriété) : la seconde attend la
     première ; la cellule illisible n'a pas de `Request-Id` sans code (comme la colonne
-    VLAN) ; `reread` après un 412 relit toute la liste ; aucune capture (12l).
+    VLAN) ; `reread` après un 412 relit toute la liste ; aucune capture (12l). Revue
+    (mineurs) : `versions` part d'une `Map` vide, si bien que le premier rechargement de la
+    liste efface les origines connues (une cellule calculée redevient éditable jusqu'à la
+    relecture, l'écriture étant refusée quand même) ; le repli `getQueryData` hors fenêtre
+    n'est pas réactif ; les deux lignes de motif (champ, propriété) ne se remplacent pas,
+    à l'inverse de la 12h ; `shownRows` recalculé à chaque lecture (~60 fois au chargement
+    d'une colonne) ; à vérifier : `aria-colindex`/`aria-colcount` comptent-ils les colonnes
+    de propriétés cachées ?
 - [ ] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
   parent choisis par un `Combobox` qui interroge `q` de leur collection (`/v1/domains`,
   `/v1/prefixes`), non plus dans la première page lue — REQ-021-36 — verify : Vitest
