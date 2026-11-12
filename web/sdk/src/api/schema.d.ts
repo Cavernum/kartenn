@@ -5217,7 +5217,8 @@ export interface components {
       id: string;
       /**
        * Format: int64
-       * @description The number of its operations.
+       * @description The number of its operations, its guards (`expect`) left out: a guard goes with the
+       *     operation it guards (021, Q-021-21).
        */
       operation_count: number;
       /** @description Title. */
