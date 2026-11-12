@@ -134,6 +134,20 @@ test("without approval.self, « Appliquer » is refused with its permission; the
     const summary = panel(carol).getByRole("textbox", { name: /^Résumé/ });
     await expect(summary).toBeFocused();
     await summary.fill("Bascule des VIP de la salle B");
+    // A motive typed (Q-021-22, task 021-12qb): Escape from it asks before the panel drops
+    // it; « Continuer la saisie » gives it back, as typed.
+    await carol.keyboard.press("Escape");
+    const ask = carol.getByRole("alertdialog", { name: "Abandonner les modifications ?" });
+    await expect(ask.getByRole("button", { name: "Continuer la saisie" })).toBeFocused();
+    await carol.keyboard.press("Enter");
+    await expect(summary).toBeFocused();
+    await expect(summary).toHaveValue("Bascule des VIP de la salle B");
+    // The Détail tab and back: the motive typed is there again.
+    await panel(carol).getByRole("tab", { name: "Détail" }).click();
+    await panel(carol)
+      .getByRole("tab", { name: /^Brouillon/ })
+      .click();
+    await expect(summary).toHaveValue("Bascule des VIP de la salle B");
     await split(carol).click();
     await expect(
       carol.getByRole("status").filter({ hasText: "Proposé, en revue" }).first(),

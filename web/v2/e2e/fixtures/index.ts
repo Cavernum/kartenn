@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type Locator, type Page } from "@playwright/test";
 
 /** The fixed instant of every capture (design « Régression visuelle »). */
 export const FIXED_TIME = new Date("2026-01-15T10:00:00+01:00");
@@ -33,6 +33,15 @@ export async function open(page: Page, path: string): Promise<void> {
 export async function openState(page: Page, component: string, name: string): Promise<void> {
   await page.goto(`/_ui/c/${component}?etat=${name}`);
   await page.locator("[data-state-name]").first().waitFor();
+}
+
+/** Shift+Tab until `target` has the focus, `max` presses at most (the keyboard only). */
+export async function shiftTabTo(page: Page, target: Locator, max = 8): Promise<void> {
+  for (let i = 0; i < max; i++) {
+    if (await target.evaluate((el) => el === document.activeElement)) return;
+    await page.keyboard.press("Shift+Tab");
+  }
+  await expect(target).toBeFocused();
 }
 
 /**

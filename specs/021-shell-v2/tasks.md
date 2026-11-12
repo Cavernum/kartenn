@@ -3798,7 +3798,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `BottomPanel` ni d'un éditeur de cellule dans un panneau : le prédicat seul est testé ;
     la fermeture dite par un lecteur d'écran (NVDA, VoiceOver) non vérifiée ; IME
     simulée seulement (Vitest).
-- [ ] 12q. Panneau modifié : demander avant de fermer (Q-021-22) — Échap ou la croix
+- [x] 12q. Panneau modifié : demander avant de fermer (Q-021-22) — Échap ou la croix
   d'un `SidePanel` ou d'un `BottomPanel` dont l'hôte dit un champ modifié demandent
   d'abord « Abandonner les modifications ? » (`AlertDialog` : Abandonner, Continuer,
   focus sur Continuer, rendu au champ ou à la croix) ; intact, le panneau se ferme tout
@@ -3819,10 +3819,114 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `views/edit/ClosePanel.vue`, `draft/DraftSubmit.vue` ; dialogue à imiter :
     `admin/SecretDialog.vue` et `e2e/journeys/admin.spec.ts` (« Escape asks first ») ;
     020 design (« Adaptation à la largeur », inventaire 30 et 38), ligne `SidePanel` du
-    skill. Trop large pour un contexte, à découper d'abord : bibliothèque (12qa :
-    panneaux, catalogue, script clavier), puis shell (12qb : `EditPanel`, `ClosePanel`,
-    `DraftSubmit`, parcours `edit`).
+    skill. Découpée en 12qa (bibliothèque : panneaux, catalogue, scripts clavier) et 12qb
+    (shell : `EditPanel`, `ClosePanel`, `DraftSubmit`, parcours `edit`).
   - dépend de : 12p
+- [x] 12qa. Panneau modifié, bibliothèque (Q-021-22 et son complément) : propriété
+  `modified` (booléen, faux par défaut) de `SidePanel` et `BottomPanel` ; modifié, Échap,
+  la croix, « Retour » et `close()` exposé demandent « Abandonner les modifications ? »
+  (`PanelLeave` : Abandonner en danger, Continuer la saisie ; focus sur Continuer la
+  saisie, rendu au champ ou au bouton, Abandonner ferme et rend le focus à l'ouvreur) ;
+  intact, fermé tout de suite ; Échap revient au panneau depuis un champ (`ownsEscape` :
+  popup ouverte et composition seules) ; `ask()` exposé pour une garde — verify : scripts clavier
+  `side-panel.spec.ts` et `bottom-panel.spec.ts` ; Vitest d'`ownsEscape` et
+  d'`usePanelClose`
+  - où : `web/v2/ui/src/components/internal/panel.ts` (`ownsEscape`, `usePanelClose`),
+    `SidePanel/SidePanel.vue`, `BottomPanel/BottomPanel.vue`, `AlertDialog/AlertDialog.vue`,
+    `i18n.ts`, catalogues (`fields`) ; 020 design (« Adaptation à la largeur »,
+    inventaire 30 et 38), ligne `SidePanel` du skill
+  - dépend de : 12p
+  - fait le 2026-11-12 — `usePanelClose` (`internal/panel.ts`) porte la fermeture des
+    deux panneaux : ouvreur noté à l'ouverture, `request` (Échap, croix, « Retour »)
+    qui demande si `modified` est vrai, `discard` (« Abandonner ») qui rend le panneau
+    partant `inert` (le retour du focus de la question ne peut s'y poser) puis ferme et
+    rend le focus à l'ouvreur, sinon à la languette ; une fermeture par le modèle de
+    l'hôte pendant la question la retire et rend le focus de même ; un clic qui n'a pas
+    pris le focus (Safari, Firefox sous macOS) le pose sur le bouton ; les répétitions
+    d'un Échap tenu ne ferment ni ne répondent (`AlertDialog` les ignore aussi).
+    `ownsEscape(event)` : popup ouverte et composition seules, un champ laisse Échap.
+    `ask()` pose la question sans fermer et dit s'il faut abandonner (une promesse par
+    question ; `modified` repassé à faux la retire) ; `close()` et `ask()` exposés par les
+    deux panneaux. Question commune `internal/PanelLeave.vue` (au lieu du bloc
+    `AlertDialog` copié). Chaînes `panelLeave*` (fr, en). Catalogue : `SidePanel` suivi
+    par l'hôte (champs de `fields` et résumé du brouillon, remis à zéro sur `close`),
+    état `fields` nouveau du `BottomPanel` (un `TextField` dans une colonne), son état
+    `sheet` avec ce champ. Tests : Vitest `ui/test/panel-escape.test.ts` (`ownsEscape` ;
+    `usePanelClose` : intact, modifié, Abandonner, Continuer la saisie, répétition sur un
+    panneau modifié, fermeture par l'hôte pendant la question et focus à l'ouvreur,
+    `modified` repassé à faux, `ask()`), `components-024.test.ts` (fragment du
+    `BottomPanel`) ; `e2e/components/side-panel.spec.ts` (référence : la liste puis le
+    panneau ; intact : Échap depuis le texte ferme ; modifié : question, Continuer la
+    saisie et Échap gardent saisie et focus, Abandonner ferme, focus à la languette,
+    saisie jetée ; Échap tenu ; référence saisie ; la croix ; « Retour » d'une feuille),
+    `e2e/components/bottom-panel.spec.ts` (nouveau : intact et modifié, focus rendu au
+    bouton qui l'a ouvert ; la croix ; « Retour » d'une feuille),
+    `e2e/visual/clavier.spec.ts` (Échap dans « Résumé » saisi : la question).
+  - choix : texte « Les modifications de ce panneau seront perdues. » (couvre une
+    référence choisie) ; logique partagée dans `internal/panel.ts` plutôt que copiée ;
+    champ de l'état `fields` du `BottomPanel` dans une `Grid` de trois colonnes ; le
+    modèle de l'hôte mis à faux ferme sans demander (sa porte de sortie : déconnexion),
+    les fermetures de l'hôte qui doivent demander passent par `close()` ; `shiftTabTo`
+    dans `e2e/fixtures/index.ts`.
+  - reste : ni capture de la question ouverte (couverte par les scripts clavier et les
+    captures d'`AlertDialog`) ; lecteurs d'écran (NVDA, VoiceOver) non vérifiés ; la
+    sortie animée (réduite dans les tests) non jouée.
+- [x] 12qb. Panneau modifié, shell (Q-021-22 et son complément) : `modified` branché
+  dans le panneau d'édition (`EditPanel`, `ClosePanel` : un champ changé depuis
+  l'ouverture) et dans le panneau du brouillon (`DraftSubmit`, `CommitForm` : motif
+  saisi), la saisie jetée sur `close` ; `]`, le compteur du brouillon et un changement de
+  route qui perdrait l'édition passent par la même question — REQ-021-36 — verify :
+  parcours `edit` (un champ modifié, Échap, le compteur et une navigation demandent ;
+  abandonné, rien d'écrit) et `draft` (Échap dans « Résumé » saisi demande) ;
+  `accessibility.spec.ts -g "every journey runs axe"`
+  - où : `web/v2/shell/src/frame/ShellFrame.vue` (`SidePanel`),
+    `views/edit/EditPanel.vue`, `views/edit/ClosePanel.vue`, `draft/DraftSubmit.vue` ;
+    dialogue à imiter : `admin/SecretDialog.vue`, `e2e/journeys/admin.spec.ts` (« Escape
+    asks first ») ; prop `modified` de `SidePanel` (12qa)
+  - dépend de : 12qa
+  - fait le 2026-11-12 — `frame/modified.ts` : chaque formulaire du panneau dit, tant
+    qu'il est monté, s'il est modifié (`reportModified`) ; le cadre en tire le `modified`
+    du `SidePanel` (`panelModified`) et, pour une édition que la page quittée perdrait
+    (`withPage`), une garde de route (`router.beforeEach`, critère de
+    `closeEditWithPage` : autre chemin, ou autre date hors du présent) qui pose la
+    question par `ask()` : Continuer la saisie reste sur la page. `]` (`togglePanel`, et
+    la commande de la palette) et le compteur (`toggleDraft`) ferment par `close()`
+    exposé, jamais par le modèle. `EditPanel` : un champ dont le texte diffère de
+    l'ouverture, ou un motif tapé ; `ClosePanel` : la cascade cochée ou un motif tapé
+    (`motiveTyped` exposé par `useWriteAction`) ; `DraftSubmit` : résumé autre que celui
+    du brouillon et que le résumé générique prérempli, ou description changée. Tests :
+    parcours `edit` (nouveau : Échap, compteur, lien de la navigation ; Continuer la
+    saisie garde la saisie et la page ; Abandonner ferme, rien d'écrit), `draft` (Échap
+    dans le résumé tapé) ; `accessibility.spec.ts` (axe dans chaque parcours).
+    La clause « `CommitForm` : motif saisi » tombe : `CommitForm` ne sert que dans les
+    maquettes ; le motif du shell est celui de `DraftSubmit`.
+  - passe de correction (revue, 2026-11-12 ; Q-021-22 : aucune perte de saisie sans
+    question) :
+    - une nouvelle demande d'édition (`c`, `e`, « Modifier », « Clore… ») qui
+      remplacerait une édition modifiée passe par `ask()` (`guardEdit` de
+      `views/edit/panel.ts`, posé par le cadre) ; « Continuer la saisie » l'écarte ;
+    - les onglets des panneaux restent montés une fois montrés (`Tabs` `keepMounted`,
+      `unmountOnHide` de Reka à faux, contenu monté à la première montre : rien n'est lu
+      plus tôt) ; un ouvreur dans un onglet caché compte pour parti (`closeEdit`), et
+      `DraftOperations` attend que son onglet se montre pour rendre le focus à sa ligne ;
+    - le motif du brouillon est gardé hors du formulaire (`draft/motive.ts`), revu sur
+      l'autre onglet comme sur la page `/drafts/:id` ; le cadre dit le panneau modifié
+      tant qu'un motif tapé est gardé hors de la page du brouillon, et le jette sur
+      `close` (« Abandonner ») ; une raison relue n'écrase plus un motif tapé ;
+    - un VID proposé pour le groupe d'un VLAN ne compte pas pour une saisie ; une
+      question de la garde retirée parce que `modified` est repassé à faux laisse la
+      navigation se faire.
+    Tests : Vitest `ui/test/tabs-keep.test.ts` ; parcours `edit` (onglet et retour, `c`
+    qui demande, « Abandonner » sur une navigation), `draft` (motif revu après l'onglet
+    Détail) ; parcours `admin` et `shortcuts` rejoués.
+  - choix : un registre de sources (`frame/modified.ts`) plutôt qu'un événement par
+    formulaire ; la garde de route ne demande que pour une édition (le motif du
+    brouillon, gardé hors du formulaire, ne se perd pas d'une page à l'autre) ; onglets
+    gardés montés plutôt qu'une question au changement d'onglet.
+  - reste : `]` au clavier non joué dans un parcours (même chemin que le compteur) ;
+    « Annuler » du formulaire d'édition ferme l'édition sans demander (hors de Q-021-22) ;
+    ni changement de date ni `ClosePanel` modifié joués dans un parcours ; le motif
+    gardé d'un brouillon abandonné ailleurs reste en mémoire jusqu'au rechargement.
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;

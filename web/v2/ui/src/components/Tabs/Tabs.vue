@@ -7,22 +7,39 @@
 // arrows move the focus, Enter or Space activates. Each panel is the slot named after the
 // tab's value. A plugin tab may be loading or failed: an icon and a hidden word say so.
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from "reka-ui";
-import { computed } from "vue";
+import { computed, reactive, watch } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import type { TabItem } from "./tabs.ts";
 
-const props = defineProps<{ tabs: TabItem[]; label: string }>();
+const props = defineProps<{
+  tabs: TabItem[];
+  label: string;
+  /**
+   * A panel, once shown, stays mounted (`hidden`) while another tab is in front: what it
+   * holds (a form typed in, Q-021-22) is there again when its tab comes back. Still
+   * mounted the first time its tab is shown, never before.
+   */
+  keepMounted?: boolean;
+}>();
 const model = defineModel<string>({ default: "" });
 /** The active tab: the model, else the first one. */
 const active = computed({
   get: () => model.value || props.tabs[0]?.value || "",
   set: (value: string) => (model.value = value),
 });
+/** The tabs shown once (`keepMounted`). */
+const shown = reactive(new Set<string>());
+watch(active, (value) => shown.add(value), { immediate: true });
 </script>
 
 <template>
-  <TabsRoot v-model="active" class="k-tabs" activation-mode="manual">
+  <TabsRoot
+    v-model="active"
+    class="k-tabs"
+    activation-mode="manual"
+    :unmount-on-hide="!props.keepMounted"
+  >
     <TabsList class="k-tabs__list" :aria-label="props.label">
       <TabsTrigger
         v-for="tab in props.tabs"
@@ -48,7 +65,7 @@ const active = computed({
       :value="tab.value"
       class="k-tabs__panel"
     >
-      <slot :name="tab.value" />
+      <slot v-if="!props.keepMounted || shown.has(tab.value)" :name="tab.value" />
     </TabsContent>
   </TabsRoot>
 </template>

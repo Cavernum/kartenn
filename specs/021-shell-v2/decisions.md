@@ -478,3 +478,13 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   modifications ? » (Abandonner, Continuer), comme le dialogue du secret ; un panneau
   intact se ferme tout de suite ; un combobox fermé laisse toujours passer Échap. En
   attendant la confirmation (021-12q), un champ texte garde Échap.
+  Complément (021-12qa, revue ; utilisateur, 2026-11-12) : la première version de la 12qa
+  gardait trois états à `modified` (absent : un champ texte gardait Échap, pour un hôte
+  pas encore branché). Retenu : pas de rétrocompatibilité, un contrat souple et le plus
+  cohérent possible — `modified` est un booléen (faux par défaut) et Échap n'a qu'une
+  règle dans un panneau : une popup ouverte ou une composition le gardent ; sinon Échap,
+  comme la croix et « Retour », ferme un panneau intact tout de suite et demande sur un
+  panneau modifié ; un champ texte ne le garde plus. Les fermetures de l'hôte (`]`,
+  compteur du brouillon) passent par la même question (`close()` exposé), un changement
+  de route qui perdrait la saisie aussi (`ask()` exposé, garde de l'hôte) ; `modified`
+  repassé à faux retire la question. Bouton d'annulation : « Continuer la saisie ».

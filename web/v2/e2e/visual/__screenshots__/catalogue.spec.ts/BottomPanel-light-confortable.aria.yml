@@ -35,6 +35,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - complementary "Panneau du bas":
         - separator "Redimensionner le panneau"
@@ -91,6 +92,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - complementary "Panneau du bas":
         - separator "Redimensionner le panneau"
@@ -139,6 +141,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - complementary "Panneau du bas":
         - separator "Redimensionner le panneau"
@@ -162,7 +165,7 @@
         - button "Fermer le panneau"
       - code: resized
       - text: ""
-    - 'figure "sheet — Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début"':
+    - 'figure "sheet — Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début ; son champ modifié, « Retour » demande d''abord"':
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -195,6 +198,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - dialog "Panneau du bas":
         - button "Retour"
@@ -202,20 +206,57 @@
           - tab "Détail" [selected]
           - tab "Historique 3"
         - tabpanel "Détail":
-          - term: Préfixe
-          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
-          - term: Libellé
-          - definition: Supervision
-          - term: Environnement
-          - definition: Production
-          - term: Occupation
-          - definition: /\d+ %/
-          - term: Propriétaire
-          - definition: Atelier Nord
-          - term: VLAN
-          - definition: /\d+/
+          - text: Libellé
+          - textbox "Libellé": Supervision
       - code: sheet
       - text: ""
+    - 'figure "fields — Un champ texte dans l''onglet Détail, suivi par l''hôte (`modified`) : intact, Échap ferme le panneau depuis le champ ; modifié, Échap ou la croix demandent d''abord « Abandonner les modifications ? »"':
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - alert
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - complementary "Panneau du bas":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Historique 3"
+        - tabpanel "Détail":
+          - text: Libellé
+          - textbox "Libellé": Supervision
+        - button "Hauteur du panneau"
+        - button "Fermer le panneau"
+      - code: fields
+      - text: "— Un champ texte dans l'onglet Détail, suivi par l'hôte (`modified`) : intact, Échap ferme le panneau depuis le champ ; modifié, Échap ou la croix demandent d'abord « Abandonner les modifications ? »"
     - 'figure "closed — Fermé : il ne laisse rien ; la surface reprend toute la hauteur"':
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
@@ -249,6 +290,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - code: closed
       - text: ""
@@ -285,6 +327,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - complementary "Panneau du bas":
         - separator "Redimensionner le panneau"

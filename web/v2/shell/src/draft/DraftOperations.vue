@@ -120,10 +120,20 @@ watch(
  * empty or gone.
  */
 const returning = lineToReturn();
+/** The frames waited for the tab to show again (the panel keeps it mounted, hidden). */
+let waited = 0;
 function giveBack(): void {
   const line = returning.value;
   // Waited while the draft is read; gone or unread, the focus to what says so, and cleared.
   if (!line || (props.id !== null && !draft.value && !query.isError.value)) return;
+  // The tab is being shown again: its panel loses `hidden` a frame later or so.
+  const shown = list.value ?? empty.value ?? none.value;
+  if (shown?.closest("[hidden]") && waited < 10) {
+    waited++;
+    requestAnimationFrame(giveBack);
+    return;
+  }
+  waited = 0;
   returning.value = null;
   const buttons = list.value?.querySelectorAll<HTMLElement>("[data-k-modify]") ?? [];
   // The line's place in the list, its guards left out of it (Q-021-21).

@@ -42,9 +42,12 @@ const portal = injectPortalTarget();
 const onCloseFocus = useOpener(open);
 
 // Escape and « Annuler » cancel (`cancel`); the confirming button says so (`confirm`), then
-// closes it. Closed by the host (its model), it says nothing.
+// closes it. Closed by the host (its model), it says nothing. The repeats of a held Escape
+// do not answer: the Escape that opened it (a panel asking before it closes, 021-12qa)
+// would cancel it as it opens.
 function onEscape(event: KeyboardEvent): void {
-  if (!event.defaultPrevented) emit("cancel");
+  if (event.repeat) event.preventDefault();
+  else if (!event.defaultPrevented) emit("cancel");
 }
 function onConfirm(): void {
   emit("confirm");

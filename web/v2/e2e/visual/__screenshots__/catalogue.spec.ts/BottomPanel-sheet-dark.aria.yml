@@ -2,7 +2,7 @@
   - region "BottomPanel":
     - heading "BottomPanel" [level=1]
     - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter horizontale ; en feuille, Dialog (Modal)"
-    - 'figure "sheet — Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début"':
+    - 'figure "sheet — Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début ; son champ modifié, « Retour » demande d''abord"':
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -35,6 +35,7 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - alert
       - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
       - dialog "Panneau du bas":
         - button "Retour"
@@ -42,17 +43,7 @@
           - tab "Détail" [selected]
           - tab "Historique 3"
         - tabpanel "Détail":
-          - term: Préfixe
-          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
-          - term: Libellé
-          - definition: Supervision
-          - term: Environnement
-          - definition: Production
-          - term: Occupation
-          - definition: /\d+ %/
-          - term: Propriétaire
-          - definition: Atelier Nord
-          - term: VLAN
-          - definition: /\d+/
+          - text: Libellé
+          - textbox "Libellé": Supervision
       - code: sheet
       - text: ""

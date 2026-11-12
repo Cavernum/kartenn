@@ -85,17 +85,18 @@ export function useWriteAction(options: WriteActionOptions) {
   const applying = computed(() => action.value === "apply" && canApply.value);
 
   const motive = ref("");
-  let motiveTyped = false;
+  /** A motive of the user's own (the panel then asks before dropping it, Q-021-22). */
+  const motiveTyped = ref(false);
   watch(
     options.motive,
     (text) => {
-      if (!motiveTyped) motive.value = text;
+      if (!motiveTyped.value) motive.value = text;
     },
     { immediate: true },
   );
   function setMotive(text: string): void {
     motive.value = text;
-    motiveTyped = true;
+    motiveTyped.value = true;
   }
 
   /**
@@ -191,6 +192,7 @@ export function useWriteAction(options: WriteActionOptions) {
     applying,
     motive,
     setMotive,
+    motiveTyped,
     idempotencyKey,
     busy,
     notice,

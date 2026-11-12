@@ -32,6 +32,7 @@ import { useKeyLabel } from "../data.ts";
 import { isConflict, useWriteAction } from "./action.ts";
 import { CASCADING, closeOperation, closeVerdict, DEPENDENTS_RULE, typeOfKind } from "./close.ts";
 import { editRight } from "./fields.ts";
+import { reportModified } from "../../frame/modified.ts";
 import { closeEdit, type CloseRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 
@@ -124,6 +125,8 @@ const {
     if (conflicted.value) void readAgain();
   },
 });
+// The cascade checked or a motive of the user's own: asked before they go (Q-021-22).
+reportModified(() => cascade.value || writing.motiveTyped.value, true);
 
 const title = computed(() => t("edit.close.title", { kind: kindWords.value, name: name.value }));
 const what = computed(() => t("edit.close.what", { kind: kindWords.value, name: name.value }));

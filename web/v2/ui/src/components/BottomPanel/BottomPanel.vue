@@ -16,9 +16,11 @@
 // menu « Hauteur du panneau » beside the close button: « Basse » (the lower bound),
 // « Standard » (320 px), « Haute » (the upper bound), the current one checked. The line of
 // the handle is the outline of the panel (`.k-panel-handle`, components/shared.css).
-// Escape closes it and gives the focus back to what opened it; an open popup or a field
-// typed in keeps it (`ownsEscape`); closed, it leaves nothing
-// behind (the host reopens it, from a selection). The footer shows only when the host
+// Escape closes it and gives the focus back to what opened it, from a field too; only an
+// open popup or a composition keeps it (`ownsEscape`). `modified`, `close()` and `ask()`
+// as on `SidePanel` (Q-021-22): a modified panel asks « Abandonner les modifications ? »
+// before it closes. Closed, it leaves nothing behind (the host reopens it, from a
+// selection). The footer shows only when the host
 // fills it for the tab in front. With `sheet` (compact frame), it is the same sheet as the
 // side panel: the whole window, a back button at its start, a modal dialog that takes the
 // focus when it opens and makes everything beside it `inert`, up to the nearest
@@ -28,7 +30,8 @@ import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { filled, ownsEscape, scrollCue } from "../internal/panel.ts";
+import { filled, scrollCue, usePanelClose } from "../internal/panel.ts";
+import PanelLeave from "../internal/PanelLeave.vue";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -61,6 +64,14 @@ const props = withDefaults(
      * Ignored with `sheet`.
      */
     besidePanel?: boolean;
+    /**
+     * Whether a field of the panel was modified since it opened, as the host tracks it
+     * (Q-021-22), as on `SidePanel`: Escape, the cross, the back button and `close()` ask
+     * « Abandonner les modifications ? » first, and `close` follows « Abandonner » (the
+     * host then drops the input); turned false during the question, the question goes.
+     * Intact (false, the default), they close it at once.
+     */
+    modified?: boolean;
   }>(),
   { id: undefined, min: 160, max: 640, step: 16 },
 );
@@ -99,26 +110,20 @@ function room(): number {
 const clamp = (value: number) =>
   Math.round(Math.max(props.min, Math.min(props.max, room(), value)));
 
-// The focus comes back to what opened the panel (WCAG 2.4.3): the element that had it
-// when the panel opened, if the focus was in the panel when it closed.
-let opener: HTMLElement | null = null;
-watch(
+// Escape, the cross, the back button: asked first when modified; the focus comes back to
+// what opened the panel (WCAG 2.4.3).
+const { asking, request, ask, answer, onKeydown } = usePanelClose({
+  panel,
   open,
-  (now) => {
-    if (typeof document === "undefined") return;
-    if (now) opener = document.activeElement as HTMLElement | null;
-  },
-  { immediate: true },
-);
-
-async function close(): Promise<void> {
-  const inside = panel.value?.contains(document.activeElement) ?? false;
-  open.value = false;
-  emit("close");
-  await nextTick();
-  if (inside && opener && opener !== document.body && opener.isConnected) opener.focus();
-  opener = null;
-}
+  modified: () => props.modified,
+  closed: () => emit("close"),
+});
+defineExpose({
+  /** Closes it as the cross does: asked first when modified. */
+  close: (): void => request(),
+  /** Asks without closing (a host's guard): true to go on and drop the input. */
+  ask,
+});
 
 const focusTab = () =>
   panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
@@ -158,13 +163,6 @@ watch(
   { flush: "post" },
 );
 onBeforeUnmount(() => stopCue?.());
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event)) {
-    event.preventDefault();
-    void close();
-  }
-}
 
 /** The handle sits at the block start: Up raises the panel, Down lowers it. */
 function onHandleKeydown(event: KeyboardEvent): void {
@@ -240,7 +238,7 @@ function onPointerup(event: PointerEvent): void {
         icon="arrow-left"
         size="sm"
         :label="t('panelBack')"
-        @click="close"
+        @click="request"
       />
       <div
         v-if="!props.sheet"
@@ -259,7 +257,14 @@ function onPointerup(event: PointerEvent): void {
         @pointerup="onPointerup"
         @pointercancel="onPointerup"
       ></div>
-      <Tabs v-model="tab" :tabs="props.tabs" :label="t('panelTabs')" class="k-bottom-panel__tabs">
+      <!-- Its tabs stay mounted once shown: a form typed in survives a change of tab. -->
+      <Tabs
+        v-model="tab"
+        :tabs="props.tabs"
+        :label="t('panelTabs')"
+        class="k-bottom-panel__tabs"
+        keep-mounted
+      >
         <template v-for="item in props.tabs" :key="item.value" #[item.value]>
           <slot :name="item.value" />
         </template>
@@ -280,7 +285,7 @@ function onPointerup(event: PointerEvent): void {
           icon="x"
           size="sm"
           :label="t('panelClose')"
-          @click="close"
+          @click="request"
         />
       </div>
       <footer v-if="footerShown()" class="k-bottom-panel__footer">
@@ -288,6 +293,8 @@ function onPointerup(event: PointerEvent): void {
       </footer>
     </component>
   </Transition>
+  <!-- A modified panel asks before it closes (Q-021-22). -->
+  <PanelLeave :open="asking" @answer="answer" />
 </template>
 
 <style>
