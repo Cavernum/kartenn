@@ -530,6 +530,11 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     if (shown.get(row.key)?.state === "review") return "review";
     return drafted.value.has(row.key) ? "draft" : undefined;
   }
+  /** Why a row is in review: the reason of its value held, said by its first cell. */
+  function rowReason(row: PropertyRow): string | undefined {
+    const entry = shown.get(row.key);
+    return entry?.state === "review" ? entry.held : undefined;
+  }
   /** Why the cell of `key` is held in review, said under the grid too. */
   const heldOf = (key: string) => {
     const entry = shown.get(key);
@@ -722,6 +727,7 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     cellState,
     stateReason,
     rowState,
+    rowReason,
     editable,
     validate,
     why,

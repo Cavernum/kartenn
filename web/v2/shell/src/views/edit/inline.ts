@@ -251,6 +251,18 @@ export function useInlineEdit({
     }
     return drafted.value.has(id) ? "draft" : undefined;
   }
+  /**
+   * Why a row is in review: the reasons of its writes held, each once, whichever column
+   * shows them (its first cell says them, beside its hidden word).
+   */
+  function rowReason(row: Item): string[] | undefined {
+    const id = String(row.id);
+    const held = new Set<string>();
+    for (const [key, entry] of shown) {
+      if (entry.state === "review" && entry.held && key.startsWith(`${id}\n`)) held.add(entry.held);
+    }
+    return held.size ? [...held] : undefined;
+  }
 
   /** Why the field `name` of an object of `of` offers no editor, or `null` when it does. */
   function whyField(of: Collection, name: string | undefined): NotEditable | null {
@@ -463,6 +475,7 @@ export function useInlineEdit({
     cellState,
     stateReason,
     rowState,
+    rowReason,
     editable,
     validate,
     why,

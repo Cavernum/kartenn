@@ -306,6 +306,7 @@ function clearFilters(): void {
       :cell-state="edit.cellState"
       :state-reason="edit.stateReason"
       :row-state="edit.rowState"
+      :row-reason="edit.rowReason"
       @filter="onColumnFilter"
       @activate="onActivate"
       @commit="edit.onCommit"
