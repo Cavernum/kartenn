@@ -323,6 +323,7 @@ domaines touchés.
 | `kube.object.absent` | avertissement | objet cité disparu du cluster |
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
 | `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace : règle du serveur, levée par la dérivation de `kube.sync` ou du changeset des paramètres (Q-019-33) |
+| `kube.label.conflict` (ajoutée à la tâche 7d2) | avertissement | deux labels suivis d'un workload donnent des valeurs admises différentes d'un axe à valeur simple : aucune n'est posée, l'avertissement nomme les labels (Q-019-40) |
 | `kube.namespace.managed` | erreur | affectation ou retrait de `kube.namespace` autre que ceux que planifie `kube.sync` (`CheckContext::operations`, Q-019-39) |
 | `kube.namespace.held` (ajoutée à la tâche 7c) | avertissement | namespace absent de son cluster que des valeurs admises gardent : le `close` du connecteur est devenu un `mark_absent` ; l'avertissement nomme les valeurs admises à retirer, son anomalie se ferme à leur retrait ou au retour du namespace (précision de Q-019-35, 2026-11-12) |
 | `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; levée seulement pour un auteur qui tient `kube.observation.read` sur le domaine des pods du cluster du nœud, sans quoi elle ferait oracle ; le pod n'est jamais nommé, l'avertissement et son anomalie disent « ressemble à un pod d'un cluster » ; réévaluée quel que soit l'auteur sur une machine qui n'y ressemble plus (close, renommée, déplacée), dont l'anomalie se ferme (Q-019-32, deux amendements) |
@@ -518,12 +519,19 @@ refusés, objets absents, mode de repli.
   propriété sur l'effet, sinon le changeset reste une proposition. Une affectation de
   provenance `input` sur le même workload l'emporte : la dérivation ne la remplace ni ne
   la retire. Le connecteur ne lit les paramètres que pour savoir quelles clés suivre
-  (X4) ; il n'envoie jamais d'affectation d'axe. Précisions de la tâche 7d2 (choix
-  réversibles) : sans valeurs admises pour un axe dans le namespace, rien n'y est admis ;
-  deux labels qui donnent un même axe : la valeur admise du label de la plus petite clé
-  l'emporte ; une correspondance dont l'axe ou la valeur n'est plus valide est ignorée sans
+  (X4) ; il n'envoie jamais d'affectation d'axe. Seul un label dont la clé est suivie
+  (`kube.tracked_label`) donne une valeur d'axe (Q-019-41). Deux labels vers un même axe
+  (Q-019-40) : axe à valeurs multiples, l'union des valeurs admises ; axe à valeur simple
+  aux valeurs différentes, aucune pose, avertissement `kube.label.conflict` qui nomme les
+  labels, et la valeur que le module avait posée est retirée. Précisions de la tâche 7d2
+  (choix réversibles) : sans valeurs admises pour un axe dans le namespace, rien n'y est
+  admis ; une correspondance dont l'axe ou la valeur n'est plus valide est ignorée sans
   avertissement ; `kube.namespace` porte la provenance `module:kube#namespace` ; un
-  `upsert` qui ne change rien n'écrit aucune affectation.
+  `upsert` qui ne change rien n'écrit aucune affectation ; la provenance nomme toutes les
+  clés des labels qui donnent la valeur, triées et séparées par une virgule
+  (`module:kube#label:app,tier`), une seule dans le cas ordinaire ; les clés suivies sont
+  celles de `kube.tracked_label` et celles que le cluster ajoute (`tracked_label_keys`,
+  X4).
 
 ### Routes
 
