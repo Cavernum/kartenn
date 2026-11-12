@@ -3439,7 +3439,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `activeHeld` de `ListView` parcourt `shownRows` (la grille du contenu lit
     `activeRow`) ; le motif `changeset.approval.self.missing` n'est pas éprouvé sur la
     cellule (seul `changeset.approval.self` l'est).
-- [ ] 12f. Édition en place dans l'arbre, reste de la 12a : `TreeGrid` prend
+- [x] 12f. Édition en place dans l'arbre, reste de la 12a : `TreeGrid` prend
   `readonlyReason` et `stateReason` (description d'une cellule sans éditeur ou en revue,
   comme le `DataGrid`, 12e) ; 202, 422 et 403 prouvés dans l'arbre ; un seul `useNodeEdit`
   pour l'arbre et la grille du contenu d'un même nœud (états de cellule et ligne du motif
@@ -3509,7 +3509,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       à régler en 12f2) ; hors périmètre : une infobulle ouverte au survol suit l'élément
       de sa cellule, qui peut être recyclé pour une autre ligne pendant un défilement
       (`anchorTip` lit `dataset.row` sans réactivité).
-  - [ ] 12f2. Le shell branche les raisons de l'arbre et partage son édition : la
+  - [x] 12f2. Le shell branche les raisons de l'arbre et partage son édition : la
     Topographie passe `readonlyReason` et `stateReason` à son `TreeGrid` (le pourquoi
     d'une cellule de l'arbre en description, plus seulement par le statut de la vue) ;
     202, 422 et 403 prouvés sur une cellule de l'arbre ; un seul `useNodeEdit` pour
@@ -3522,6 +3522,61 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `views/edit/inline.ts` (`stateReason`, `whyWords`), `TopologyView.vue`,
       `record/ContentTab.vue` ; test voisin `shell/test/edit.test.ts`
     - dépend de : 12f1
+    - fait le 2026-11-12 — `TopologyView.vue` : `readonlyReason` (`whyWords`) et
+      `stateReason` passés au `TreeGrid`, pied de l'arbre qui montre aussi le motif d'une
+      cellule en revue (`EditHint` `held`) ; `edit/nodes.ts` : `useNodeEdit` partagé par
+      l'arbre et la grille du contenu du nœud choisi (`share` : la grille jointe donne ses
+      lignes, son nom et sa relecture ; une cellule en brouillon, en attente, en revue ou
+      refusée l'est dans les deux ; une seule ligne du motif, sous la grille où Ctrl+Entrée
+      l'a demandée, `TREE_GRID`, `CONTENT_GRID` ; écrite à la version de la ligne de cette
+      grille, `rowOf` ; un 412 relit les deux ; la grille partie, sa ligne se ferme, après
+      la réponse d'une écriture en cours), `isKind` (garde de type : une ligne d'aucune sorte
+      connue n'a pas d'éditeur) ; `edit/inline.ts` : `shownRow` (une ligne de n'importe
+      quelle grille de ces objets), `heldOf`, `askOf`, `rowOf`, `QuickAsk.grid`,
+      `rereadLists` ; `record/ContentTab.vue` : prend `nodeEdit` de son hôte (la fiche garde
+      la sienne). 021 design (« Édition en place », Topographie). Tests :
+      `shell/test/edit.test.ts` (Topographie montée : pourquoi d'une cellule sans éditeur en
+      description, 202 : `stateReason` et « (en revue) » sur la cellule de l'arbre et dans le
+      contenu, rien sur la cellule du nœud ; 422 : erreur sur la cellule des deux grilles,
+      une seule ligne, sous l'arbre ; 403 : refus dans la ligne, saisie gardée, cellule
+      intacte ; composable : version de la grille d'où vient la saisie, relecture des deux,
+      ligne fermée avec sa grille, sorte inconnue sans éditeur), parcours `edit` (description
+      de la cellule de l'arbre pour un lecteur).
+    - choix : le statut de la vue ne dit plus le pourquoi à l'arrivée du focus (la
+      description le dit, deux annonces sinon), seulement quand il change sous le focus (la
+      date, les droits : une description changée en place est peu lue) ; la cellule du nœud
+      n'a ni état ni raison (sa valeur ne s'édite pas en place, A20) : le reste de la 12f1
+      (« retenue » décrite, non nommée) reste sans effet, le `TreeGrid` inchangé ; prop
+      `nodeEdit` plutôt qu'un `provide` (un seul hôte, dit au gabarit) ; partagé, le contenu
+      parle par le statut de la Topographie (sa région n'est plus rendue) ; un nœud dans les
+      deux grilles vient d'ordinaire de la même page du cache (même clé
+      `subPages("prefix", id, "children")`), mais la version écrite est celle de la grille de
+      la saisie ; pas de capture nouvelle (description, pied, rien de dessiné en plus).
+    - corrections des relectures : version d'`If-Match` tirée de la grille de la saisie et
+      non de la première lue (`ui-reviewer`, `a11y-auditor`) ; ligne du motif d'un contenu
+      démonté fermée (`a11y-auditor` : sinon ni montrée ni fermable, et toute autre
+      Ctrl+Entrée refusée) ; noms de grilles et filtre de la ligne partagés (`askOf`),
+      `heldOf` au lieu d'une colonne factice, région de statut du contenu partagé retirée,
+      pourquoi changé sous le focus redit par le statut. Revue (une passe) : la durée de vie
+      d'une cellule écrite (en revue, appliquée, refusée, en attente) se juge sur la ligne de
+      la grille d'où elle a été écrite (`Shown.grid`, `rowIn`), plus sur la première lue de
+      l'union (un 202 ou un 200 depuis le contenu, l'arbre tenant le nœud à une autre
+      version, s'effaçait à la première relecture de l'arbre ; test `edit.test.ts` : 202 puis
+      200 depuis le contenu, tenus jusqu'à la relecture du contenu) ; `shownRow` sans
+      transtypage ; `shownById` de l'arbre sur ses seuls nœuds ; `useSay` du contenu créé
+      seulement sans hôte ; commentaire de `focusWhy` corrigé. Vérifié : parcours `tree` et
+      `edit` (34 réussis), `accessibility.spec.ts -g "every journey runs axe"` (2 réussis),
+      `k-web2-check --base main` (1050 Vitest, ciblé : 0 capture sur 2734).
+    - reste : branche « écriture en cours, puis grille partie » de `share` sans test (le
+      faux `fetch` du test répond aussitôt), son `scope.run` sur une portée d'hôte déjà
+      arrêtée et un contenu remonté avant la réponse non traités ; `said` du contenu
+      partagé créé sans servir. Si un hôte édite un jour la valeur d'un nœud, le `TreeGrid`
+      devra rendre l'état
+      de la cellule du nœud (marque et mot caché) ; une Ctrl+Entrée d'une grille remplace la
+      ligne ouverte non occupée de l'autre sans effacer l'erreur de sa cellule (comme dans
+      une seule grille) ; focus après une écriture en cours dont la grille est partie : au
+      corps ; restitution par un vrai lecteur d'écran non éprouvée (description des cellules
+      de l'arbre, phrase redite par le statut).
 - [ ] 12g. Éditeur à liste dans une cellule de grille : l'emplacement `editor` du
   `DataGrid` (et du `TreeGrid`) accueille une liste fermée (`Select` ou listbox) dont la
   couche ne vaut pas sortie de l'éditeur (aujourd'hui le focus parti vers la couche

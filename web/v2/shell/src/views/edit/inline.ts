@@ -63,6 +63,11 @@ export interface QuickAsk {
   row: string;
   /** The column of the grid, where the focus goes back. */
   column: string;
+  /**
+   * The grid it was asked from, when several show the same rows (the tree of the topography
+   * and the content of its node, task 12f2): the line shows under that one alone.
+   */
+  grid?: string | undefined;
   /** The collection of the row, and the field the column edits. */
   collection: Collection;
   field: EditField;
@@ -88,8 +93,12 @@ export interface QuickAsk {
 interface Shown {
   state: CellState | undefined;
   value: string | boolean;
-  /** The version of the row when it was written: the entry goes once the row changes. */
+  /**
+   * The version of the row when it was written: the entry goes once the row changes — the
+   * row of the grid it was written from (`grid`), whose page gave that version.
+   */
   version: string | null;
+  grid?: string | undefined;
   /** Held in review (202): why, as the cell says it (REQ-021-15). */
   held?: string | undefined;
 }
@@ -108,6 +117,11 @@ export interface InlineDeps {
   /** The collection of the rows: of `row` when they mix kinds, the default one without. */
   collection: (row?: Item) => Collection;
   rows: () => readonly Item[];
+  /**
+   * The row `id` as the grid `grid` shows it, when several grids show the same objects
+   * (its version is the one of the page that grid read); among `rows` by default.
+   */
+  rowOf?: ((id: string, grid?: string) => Item | undefined) | undefined;
   /** The field the column `column` of `row` edits, none for a column of no field. */
   field?: (row: Item, column: string) => string | undefined;
   /** The words of a key of a closed list: typed in a cell, they stand for the key. */
@@ -120,6 +134,10 @@ export interface InlineDeps {
   sentence: (error: unknown) => string;
   say: InlineSay;
 }
+
+/** After a 412, the lists of the collection read again (`InlineDeps.reread` by default). */
+export const rereadLists = (_row: string, of: Collection): void =>
+  void queryClient.invalidateQueries({ queryKey: keys.allOn(of.path) });
 
 const keyOf = (row: string, column: string) => `${row}\n${column}`;
 const versionOf = (item: Item | undefined) =>
@@ -233,9 +251,10 @@ export async function quickWrite<A extends QuickAsk>(run: QuickRun<A>): Promise<
 export function useInlineEdit({
   collection,
   rows,
+  rowOf,
   field: fieldOfColumn = (_row, column) => column,
   words,
-  reread = (_row, of) => void queryClient.invalidateQueries({ queryKey: keys.allOn(of.path) }),
+  reread = rereadLists,
   t,
   sentence,
   say,
@@ -287,35 +306,40 @@ export function useInlineEdit({
   // The edits of this session not yet in the rows read: under way, applied, in review, refused.
   const shown = shallowReactive(new Map<string, Shown>());
   const rowById = computed(() => new Map(rows().map((row) => [String(row.id), row])));
-  // An entry goes once its row is read at another version: applied, the review decided, or
-  // what a refusal or a write under way was about is no longer the object read.
-  watch(rowById, (byId) => {
+  /** The row `id` as the grid `grid` shows it (its version is that grid's page's). */
+  const rowIn = (id: string, grid?: string): Item | undefined =>
+    rowOf?.(id, grid) ?? rowById.value.get(id);
+  // An entry goes once its row is read at another version — the row of the grid it was
+  // written from, at the version of that grid's page: applied, the review decided, or what
+  // a refusal or a write under way was about is no longer the object read. Any row read
+  // again changes `rowById`, whichever grid read it.
+  watch(rowById, () => {
     for (const [key, entry] of [...shown]) {
-      const row = byId.get(key.split("\n")[0]!);
+      const row = rowIn(key.split("\n")[0]!, entry.grid);
       if (!row || versionOf(row) !== entry.version) shown.delete(key);
     }
   });
 
   /**
-   * The rows as the grid shows them: the values of the draft, then those of this session
-   * under way or applied; a value in review (202) is not the object's: the cell keeps the
-   * value read, marked « en revue » (design « Édition en place »).
+   * A row as a grid shows it: the values of the draft, then those of this session under way
+   * or applied; a value in review (202) is not the object's: the cell keeps the value read,
+   * marked « en revue » (design « Édition en place »). Any row of these objects, as a grid
+   * reads it (the content of a node beside the tree, task 12f2).
    */
-  const shownRows = computed<Item[]>(() =>
-    rows().map((row) => {
-      const id = String(row.id);
-      const fromDraft = drafted.value.get(id);
-      let out: Item | null = fromDraft ? { ...row, ...fromDraft } : null;
-      for (const column of EDITS[collection(row).id].modification) {
-        const entry = shown.get(keyOf(id, column.name));
-        if (entry && (entry.state === undefined || entry.state === "pending")) {
-          out ??= { ...row };
-          out[column.name] = entry.value;
-        }
+  function shownRow<R extends Item>(row: R): R {
+    const id = String(row.id);
+    const fromDraft = drafted.value.get(id);
+    let mine: Values | null = null;
+    for (const column of EDITS[collection(row).id].modification) {
+      const entry = shown.get(keyOf(id, column.name));
+      if (entry && (entry.state === undefined || entry.state === "pending")) {
+        (mine ??= {})[column.name] = entry.value;
       }
-      return out ?? row;
-    }),
-  );
+    }
+    return fromDraft || mine ? { ...row, ...fromDraft, ...mine } : row;
+  }
+  /** The rows as the grid shows them (`shownRow`). */
+  const shownRows = computed<Item[]>(() => rows().map(shownRow));
 
   function cellState(row: Item, column: GridColumn): CellState | undefined {
     const name = fieldName(row, column.id);
@@ -325,13 +349,15 @@ export function useInlineEdit({
     if (entry) return undefined;
     return drafted.value.get(String(row.id))?.[name] !== undefined ? "draft" : undefined;
   }
-  /** Why a cell is held in review (the reason of its 202): its description and tooltip. */
-  function stateReason(row: Item, column: GridColumn): string | undefined {
-    const name = fieldName(row, column.id);
+  /** Why the cell of `column` is held in review (the reason of its 202), if it is. */
+  function heldOf(row: Item, column: string): string | undefined {
+    const name = fieldName(row, column);
     if (name === undefined) return undefined;
     const entry = shown.get(keyOf(String(row.id), name));
     return entry?.state === "review" ? entry.held : undefined;
   }
+  /** Why a cell is held in review: its description and tooltip (`heldOf`). */
+  const stateReason = (row: Item, column: GridColumn): string | undefined => heldOf(row, column.id);
   function rowState(row: Item): RowState | undefined {
     const id = String(row.id);
     for (const [key, entry] of shown) {
@@ -385,7 +411,13 @@ export function useInlineEdit({
     t("edit.what", { field: fieldWords(column), name });
 
   /** Enter: an operation added to the active draft, the cell under way until it is saved. */
-  async function toDraft(row: Item, field: EditField, text: string, note = ""): Promise<void> {
+  async function toDraft(
+    row: Item,
+    field: EditField,
+    text: string,
+    note: string,
+    grid: string | undefined,
+  ): Promise<void> {
     // Nothing written off the present, the draft included (REQ-021-5, 15).
     if (!present.value) return;
     const id = String(row.id);
@@ -393,7 +425,7 @@ export function useInlineEdit({
     const value = valueOf(field, text);
     // `expected`: the version served with the value shown (the same page, the same read).
     const version = versionOf(row);
-    shown.set(key, { state: "pending", value, version });
+    shown.set(key, { state: "pending", value, version, grid });
     const op = EDITS[collection(row).id].update(id, version, { [field.name]: value });
     const outcome = await addToActiveDraft([op]);
     if (outcome.kind === "saved") {
@@ -401,15 +433,17 @@ export function useInlineEdit({
       const drafted = t("edit.drafted", { what: what(field.name, nameOf(row)) });
       say.status(note ? `${note} ${drafted}` : drafted);
     } else {
-      shown.set(key, { state: cellErrorOf(outcome, sentence), value, version });
+      shown.set(key, { state: cellErrorOf(outcome, sentence), value, version, grid });
     }
   }
 
   /** The motive asked in line (Ctrl+Enter), `null` when none. */
   const asking = shallowRef<QuickAsk | null>(null);
 
-  function onCommit(commit: GridCommit): void {
-    const row = rowById.value.get(commit.row);
+  /** A cell committed; `grid`: the one it was typed in, when several show these rows. */
+  function onCommit(commit: GridCommit, grid?: string): void {
+    // The row of the grid it was typed in: its version is that of the value shown there.
+    const row = rowIn(commit.row, grid);
     const field = row ? fieldOf(row, commit.column) : undefined;
     if (!row || !field || why(commit.column, row) !== null) return;
     const text = parse(field, commit.value);
@@ -430,6 +464,7 @@ export function useInlineEdit({
           state: { error: refused },
           value: text,
           version: versionOf(row),
+          grid,
         });
         say.status(refused);
         return;
@@ -437,6 +472,7 @@ export function useInlineEdit({
       asking.value = {
         row: commit.row,
         column: commit.column,
+        grid,
         collection: collection(row),
         field,
         name: nameOf(row),
@@ -452,7 +488,7 @@ export function useInlineEdit({
     const note = commit.now
       ? t("edit.applyForbidden", { permission: applyRight(collection(row).type) })
       : "";
-    void toDraft(row, field, text, note);
+    void toDraft(row, field, text, note, grid);
   }
 
   /**
@@ -488,7 +524,13 @@ export function useInlineEdit({
     const value = valueOf(field, text);
     const key = keyOf(ask.row, field.name);
     const set = (state: CellState | undefined, held?: string) =>
-      void shown.set(key, { state, value, version: ask.version, ...(held ? { held } : {}) });
+      void shown.set(key, {
+        state,
+        value,
+        version: ask.version,
+        grid: ask.grid,
+        ...(held ? { held } : {}),
+      });
     return quickWrite({
       asking,
       ask,
@@ -502,11 +544,9 @@ export function useInlineEdit({
       what: what(field.name, ask.name),
       cell: {
         pending: () => set("pending"),
-        // Shown until the list is read again, unless it already is.
+        // Shown until the list is read again (the grid's it was asked from), unless it already is.
         applied: () =>
-          versionOf(rowById.value.get(ask.row)) === ask.version
-            ? set(undefined)
-            : shown.delete(key),
+          versionOf(rowIn(ask.row, ask.grid)) === ask.version ? set(undefined) : shown.delete(key),
         held: (reason) => set("review", reason),
         invalid: (error) => set(error),
         clear: () => void shown.delete(key),
@@ -541,11 +581,16 @@ export function useInlineEdit({
 
   /** The row and the column of a cell, as the grid keys it. */
   const cellOf = (ask: QuickAsk): CellRef => ({ row: ask.row, column: ask.column });
+  /** The motive asked from the grid `grid` (none: from a grid that gave none), or `null`. */
+  const askOf = (grid?: string): QuickAsk | null =>
+    asking.value?.grid === grid ? asking.value : null;
 
   return {
     shownRows,
+    shownRow,
     cellState,
     stateReason,
+    heldOf,
     rowState,
     rowReason,
     editable,
@@ -559,6 +604,7 @@ export function useInlineEdit({
     confirm,
     cancel,
     cellOf,
+    askOf,
   };
 }
 

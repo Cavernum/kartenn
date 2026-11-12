@@ -451,6 +451,14 @@ sequenceDiagram
   pour les lignes en vue et un écran autour, quelques-unes à la fois ; ses cellules
   s'éditent selon les règles de l'onglet ci-dessus (même composable), sans éditeur tant
   que la valeur n'est pas lue.
+- Topographie (tâches 12a, 12f2) : l'arbre et la grille du contenu du nœud choisi sont une
+  seule édition (`useNodeEdit`, la grille du contenu y joint ses lignes) : une cellule en
+  brouillon, en attente, en revue ou refusée l'est dans les deux, une seule ligne du motif
+  à la fois, sous la grille où Ctrl+Entrée l'a demandée (fermée si cette grille part),
+  l'écriture à la version que cette grille a lue, et un 412 relit les deux. Une
+  cellule de l'arbre dit, comme celle d'une liste, pourquoi elle n'a pas d'éditeur ou est
+  en revue (sa description et son infobulle), et le pied de l'arbre le montre ; la cellule
+  du nœud n'en a pas (sa valeur ne s'édite pas en place, 021/A20).
 
 ## Déplacements dans les arbres (REQ-021-17, 32 à 34)
 

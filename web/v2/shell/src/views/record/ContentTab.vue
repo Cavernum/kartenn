@@ -4,7 +4,9 @@
 // ranges, addresses: `children`), each a link to its record, read page by page at the
 // dates of the page; three states. Edited in place (task 12a, REQ-021-15): the nature of a
 // prefix and the usage of a range, at the version their page served (`edit/nodes.ts`);
-// Ctrl+Enter asks for its motive under the grid.
+// Ctrl+Enter asks for its motive under the grid. Beside the tree of the topography, the
+// editing of the tree (`edit`, task 12f2): one for both, its line of the motive under the
+// grid it was asked from.
 import { reads, type components } from "@kartenn/sdk";
 import {
   DataGrid,
@@ -13,6 +15,7 @@ import {
   KeyLabel,
   type CellRef,
   type GridColumn,
+  type GridCommit,
   type GridWindow,
   type IconName,
 } from "@kartenn/ui";
@@ -26,7 +29,14 @@ import { useTime } from "../../time/index.ts";
 import { pageOfHref, pageOfObject, type Item } from "../collections.ts";
 import EditHint from "../edit/EditHint.vue";
 import { whyWords } from "../edit/inline.ts";
-import { detailOf, nodeApplyRight, useNodeEdit, useNodeWords } from "../edit/nodes.ts";
+import {
+  CONTENT_GRID,
+  detailOf,
+  nodeApplyRight,
+  useNodeEdit,
+  useNodeWords,
+  type NodeEdit,
+} from "../edit/nodes.ts";
 import QuickApply from "../edit/QuickApply.vue";
 import { useSay } from "../edit/say.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
@@ -42,7 +52,13 @@ interface Row extends Record<string, unknown> {
   to: string | null;
 }
 
-const props = defineProps<{ kind: "domain" | "prefix"; id: string; name: string }>();
+const props = defineProps<{
+  kind: "domain" | "prefix";
+  id: string;
+  name: string;
+  /** The editing of the host that shows these nodes too (the tree), else its own. */
+  nodeEdit?: NodeEdit | undefined;
+}>();
 const { t, te } = useI18n();
 const time = useTime();
 const keyLabel = useKeyLabel();
@@ -80,20 +96,31 @@ const read = computed<Item[]>(() =>
 // In-place editing: the words of a closed list stand for its key in a cell.
 const words = useNodeWords();
 const said = ref("");
-const say = useSay((text) => {
-  said.value = "";
-  void nextTick(() => (said.value = text));
-});
-const edit = useNodeEdit({
-  rows: () => read.value,
-  words,
-  reread: () => void content.refetch(),
-  t: (key, values) => t(key, values ?? {}),
-  sentence: useProblems().sentence,
-  say,
-});
+const reread = () => void content.refetch();
+// Given once, by the host that mounts it (the tree beside it): never another one after.
+// Shared, the host says the outcomes (its status, its toasts): none here.
+const shared = props.nodeEdit;
+const edit =
+  shared ??
+  useNodeEdit({
+    rows: () => read.value,
+    words,
+    reread,
+    t: (key, values) => t(key, values ?? {}),
+    sentence: useProblems().sentence,
+    say: useSay((text) => {
+      said.value = "";
+      void nextTick(() => (said.value = text));
+    }),
+  });
+shared?.share({ grid: CONTENT_GRID, rows: () => read.value, reread });
+/** The motive asked here: its line under this grid (the tree's goes under the tree). */
+const asked = computed(() => edit.askOf(CONTENT_GRID));
 const rows = computed<Row[]>(() =>
-  edit.shownRows.value.map((row) => ({ ...(row as Row), detail: detailOf(row) })),
+  read.value.map((row) => {
+    const shown = edit.shownRow(row);
+    return { ...(shown as Row), detail: detailOf(shown) };
+  }),
 );
 const readonlyReason = (row: Row, column: GridColumn) => whyWords(edit.why(column.id, row), t);
 /** The cell of the focus, and what its keys do or why it has no editor, under the grid. */
@@ -111,9 +138,7 @@ const applyLacks = computed(() =>
 );
 /** Why the cell of the focus is held in review, said under the grid too (seen, not only read). */
 const activeHeld = computed(() =>
-  active.value && activeRow.value
-    ? edit.stateReason(activeRow.value, { id: active.value.column, label: "" })
-    : undefined,
+  active.value && activeRow.value ? edit.heldOf(activeRow.value, active.value.column) : undefined,
 );
 
 const columns = computed<GridColumn[]>(() => [
@@ -136,11 +161,11 @@ async function afterAsk(cell: CellRef): Promise<void> {
     ?.focus();
 }
 async function onConfirm(motive: string, value: string): Promise<void> {
-  const ask = edit.asking.value;
+  const ask = asked.value;
   if (ask && (await edit.confirm(motive, value))) void afterAsk(edit.cellOf(ask));
 }
 function onCancelAsk(): void {
-  const ask = edit.asking.value;
+  const ask = asked.value;
   edit.cancel();
   if (ask) void afterAsk(edit.cellOf(ask));
 }
@@ -181,7 +206,7 @@ function onCancelAsk(): void {
       :state-reason="edit.stateReason"
       :row-state="edit.rowState"
       :row-reason="edit.rowReason"
-      @commit="edit.onCommit"
+      @commit="(commit: GridCommit) => edit.onCommit(commit, CONTENT_GRID)"
       @window="onWindow"
     >
       <template #cell="{ row, column }">
@@ -194,14 +219,15 @@ function onCancelAsk(): void {
       </template>
     </DataGrid>
     <QuickApply
-      v-if="edit.asking.value"
-      :key="edit.asking.value.row + edit.asking.value.column"
-      :ask="edit.asking.value"
+      v-if="asked"
+      :key="asked.row + asked.column"
+      :ask="asked"
       :words="words"
       @confirm="onConfirm"
       @cancel="onCancelAsk"
     />
     <EditHint v-else-if="activeRow" :why="activeWhy" :apply-lacks="applyLacks" :held="activeHeld" />
-    <span class="k-visually-hidden" role="status">{{ said }}</span>
+    <!-- Its own sentences; shared, the host's status says them. -->
+    <span v-if="!shared" class="k-visually-hidden" role="status">{{ said }}</span>
   </template>
 </template>
