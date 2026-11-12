@@ -153,6 +153,8 @@ const say = useSay((text) => {
 const edit = useInlineEdit({
   collection: () => props.collection,
   rows: () => rows.value,
+  // The words of a closed list, its cell's list showing them (task 12g).
+  words: (field, key) => choiceWords(field, key),
   t: (key, values) => t(key, values ?? {}),
   sentence: useProblems().sentence,
   say,
@@ -371,6 +373,7 @@ function clearFilters(): void {
       :editable="cells.editable"
       :readonly-reason="cells.readonlyReason"
       :validate="cells.validate"
+      :options="cells.options"
       :cell-state="cells.cellState"
       :state-reason="cells.stateReason"
       :row-state="cells.rowState"

@@ -11,7 +11,7 @@ import Combobox from "../Combobox/Combobox.vue";
 import { filterOptions } from "../Combobox/combobox.ts";
 import CommitForm from "../CommitForm/CommitForm.vue";
 import DataGrid from "../DataGrid/DataGrid.vue";
-import type { GridColumn } from "../DataGrid/grid.ts";
+import type { GridColumn, GridCommit } from "../DataGrid/grid.ts";
 import DraftCounter from "../DraftCounter/DraftCounter.vue";
 import InlineAlert from "../InlineAlert/InlineAlert.vue";
 import type { ListOption } from "../Select/select.ts";
@@ -43,6 +43,20 @@ const rows = prefixes.slice(0, 6).map((prefix, i) => ({
 const domains: ListOption[] = ["production", "supervision", "recette", "laboratoire"].map(
   (key) => ({ value: key, label: key, mono: true }),
 );
+/** The addresses of the grid of `cells`, their usage one of a closed list. */
+const addressColumns: GridColumn[] = [
+  { id: "address", label: "Adresse", width: "md", mono: true },
+  { id: "usage", label: "Usage", width: "fill" },
+];
+interface Address {
+  address: string;
+  usage: string;
+}
+const USAGES: ListOption[] = [
+  { value: "static", label: "Statique" },
+  { value: "dhcp", label: "DHCP" },
+  { value: "reserved", label: "Réservée" },
+];
 const draftActions: SplitAction[] = [
   { id: "apply", label: "Appliquer", icon: "circle-check" },
   { id: "review", label: "Soumettre en revue", icon: "send" },
@@ -64,6 +78,8 @@ const demo = defineComponent({
     long: Boolean,
     /** Fields in the detail tab (a reference by `Combobox`, a `TextField`): whose Escape. */
     fields: Boolean,
+    /** A grid in the detail tab, its usage a closed list in the cell: whose Escape. */
+    cells: Boolean,
     /** The host's shortcut (`]` in the shell). */
     shortcut: { type: Array as () => string[] | undefined, default: undefined },
   },
@@ -74,6 +90,7 @@ const demo = defineComponent({
     const summary = ref("Maintenance du référentiel");
     const domain = ref("");
     const label = ref("Supervision");
+    const usages = ref<Record<string, string>>({ "192.0.2.10": "static", "192.0.2.11": "dhcp" });
     // The host tracks what changed since the panel opened (Q-021-22): the fields (`fields`),
     // the summary of the draft; closed (abandoned), the input goes.
     const modified = () =>
@@ -155,6 +172,37 @@ const demo = defineComponent({
                               "onUpdate:modelValue": (v: string) => (label.value = v),
                             }),
                           ]),
+                        ]
+                      : []),
+                    // A grid (`cells`), its usage chosen in the cell (task 021-12g): the
+                    // first Escape closes the list, the next cancels the edit, the panel
+                    // stays; from the cell, Escape is the panel's.
+                    ...(props.cells
+                      ? [
+                          h(
+                            DataGrid as Component,
+                            {
+                              label: "Adresses",
+                              columns: addressColumns,
+                              rows: Object.entries(usages.value).map(([address, usage]) => ({
+                                address,
+                                usage,
+                              })),
+                              rowKey: "address",
+                              editable: (_: unknown, column: GridColumn) => column.id === "usage",
+                              options: (_: unknown, column: GridColumn) =>
+                                column.id === "usage" ? USAGES : undefined,
+                              onCommit: (commit: GridCommit) =>
+                                (usages.value = { ...usages.value, [commit.row]: commit.value }),
+                            },
+                            {
+                              // The label of the usage, its key held (REQ-020-21).
+                              cell: ({ row, column }: { row: Address; column: GridColumn }) =>
+                                column.id === "usage"
+                                  ? (USAGES.find((u) => u.value === row.usage)?.label ?? row.usage)
+                                  : row.address,
+                            },
+                          ),
                         ]
                       : []),
                     // Longer (`long`): the tab scrolls, an encart crosses its bottom edge
@@ -252,6 +300,14 @@ export default {
       description:
         "Champs dans l'onglet Détail : une référence (Combobox) et un texte, suivis par l'hôte (`modified`) ; Échap ferme la liste ouverte, puis le panneau, depuis le champ texte aussi ; un champ modifié, Échap ou la croix demandent d'abord « Abandonner les modifications ? »",
       props: { open: true, tab: "detail", fields: true },
+      demo,
+      wide: true,
+    },
+    {
+      name: "cell-choice",
+      description:
+        "Grille dans l'onglet Détail, l'usage choisi dans la cellule : la première Échap ferme la liste, la seconde annule la saisie, le panneau reste ; depuis la cellule, Échap ferme le panneau",
+      props: { open: true, tab: "detail", cells: true },
       demo,
       wide: true,
     },

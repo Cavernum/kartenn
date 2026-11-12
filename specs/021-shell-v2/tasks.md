@@ -3577,7 +3577,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       une seule grille) ; focus après une écriture en cours dont la grille est partie : au
       corps ; restitution par un vrai lecteur d'écran non éprouvée (description des cellules
       de l'arbre, phrase redite par le statut).
-- [ ] 12g. Éditeur à liste dans une cellule de grille : l'emplacement `editor` du
+- [x] 12g. Éditeur à liste dans une cellule de grille : l'emplacement `editor` du
   `DataGrid` (et du `TreeGrid`) accueille une liste fermée (`Select` ou listbox) dont la
   couche ne vaut pas sortie de l'éditeur (aujourd'hui le focus parti vers la couche
   valide aussitôt) ; nature et usage s'y choisissent au lieu du texte vérifié contre la
@@ -3588,6 +3588,62 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `DataGrid/DataGrid.vue`, `Select/` ; `shell/src/views/edit/inline.ts` (`words`),
     `ListView.vue`
   - dépend de : 12
+  - fait le 2026-11-12 — `DataGrid` et `TreeGrid` prennent `options(row, column)`
+    (facultative ; même contrat, `internal/cellEditor.ts` : `optionsOf`, lue à l'ouverture
+    de l'éditeur, `choose`) : une cellule d'une liste fermée a pour éditeur
+    `internal/CellSelect.vue` (Select-Only Combobox de Reka comme `Select`, bouton dans le
+    cadre de l'éditeur, liste au calque contre ce cadre, aussi large que lui) : Entrée, F2
+    ou un double clic ouvrent l'éditeur et sa liste sur la valeur tenue ; Entrée, Espace ou
+    un clic choisissent et valident (Ctrl+Entrée : `now`) ; Tab et Maj+Tab choisissent,
+    valident et passent le long de la ligne ; Échap ferme la liste (focus au bouton,
+    éditeur ouvert), l'Échap suivant annule (focus à la cellule) ; dans un `SidePanel`,
+    aucune ne ferme le panneau (la liste est hors du panneau, la seconde est arrêtée par
+    l'éditeur), depuis la cellule Échap le ferme ; le focus parti dans la liste n'est plus
+    une sortie (`inPopup` : la cible dans l'élément d'`aria-controls` d'un contrôle de
+    l'éditeur) ; une valeur refusée garde l'éditeur ouvert, `aria-invalid` et l'alerte
+    (l'effacement de l'erreur au changement de texte est devenu synchrone, sans quoi le
+    choix refusé l'effaçait aussitôt). Shell : `useInlineEdit.choices` (nature, usage :
+    clés tenues, mots montrés ; drapeau `true`/`false`), `propertyChoices` (`bool`,
+    `enum` lu en entier ; « Aucune valeur (retirer) » pour une valeur propre), branchés
+    dans `ListView` (et ses colonnes `prop.<clé>`, `propertyColumns.ts` ; `words` passé à
+    `useInlineEdit`), la grille du contenu, l'arbre de la topographie et l'onglet
+    Propriétés. Catalogue : `DataGrid` `choice`, `choice-open`, `TreeGrid` `choice`,
+    `SidePanel` `cell-choice`. 020 design (contrat d'édition, inventaire 20 et 21), skill
+    (lignes `DataGrid`, `TreeGrid`, piège du `Select` ouvert). Tests : scripts
+    `data-grid.spec.ts` (Entrée ouvre, flèches, Entrée valide, Échap ferme puis annule,
+    Tab, Ctrl+Entrée, refus, double clic et clic, « aucune valeur »), `tree-grid.spec.ts`,
+    `side-panel.spec.ts` (deux Échap, le panneau reste ; la troisième le ferme) ; Vitest
+    `components-data.test.ts` (liste lue à l'ouverture, choix validé, refus gardé),
+    `edit.test.ts` (`choices` ; contenu et arbre choisis dans la liste),
+    `properties-edit.test.ts` (`propertyChoices`) ; parcours `edit` (nature de l'arbre
+    choisie dans la liste → brouillon à 1 ; Ctrl+Entrée de la liste ; usage par saisie dans
+    la liste, deux onglets), `accessibility.spec.ts -g "every journey runs axe"`.
+  - choix : composant interne (`CellSelect`) plutôt que `Select` dans l'emplacement
+    `editor` (sans `FormField`, Tab et Échap au contrat de la grille) ; liste ouverte dès
+    que l'éditeur prend le focus ; choix validé aussitôt (pas de second Entrée) ; options
+    figées à l'ouverture ; « aucune valeur » sous une clé privée (U+E000), Reka refusant
+    `""` ; drapeau et `bool` montrés `true`/`false` comme leur cellule ; la valeur tenue
+    hors de la liste montrée telle quelle sur le bouton ; l'emplacement `editor` reste pour
+    un éditeur de l'hôte (non utilisé) ; liste ouverte (`DataGrid` `choice-open`) montrée
+    seule (`isolated`), passée à axe avec la seule exception `aria-hidden-focus` (020-11) :
+    faux positif, Reka tient le focus dans la liste et bloque le pointeur dehors (skill,
+    piège du `Select` ouvert).
+  - passe de correction (revue, 2026-11-12) : `choice-open` isolé et vérifié par axe ;
+    `draftNature` du parcours `draft` choisit « Conteneur » dans la liste (il tapait la
+    clé, passée par la recherche à la saisie de Reka) ; un `enum` déclaré sans valeurs
+    garde l'éditeur de texte (`propertyChoices`). Vérifié : `draft.spec.ts` et
+    `edit.spec.ts` entiers sous les deux navigateurs (42 réussis),
+    `accessibility.spec.ts -g "every journey runs axe"` (2 réussis), `k-web2-check --base
+    main`.
+  - reste : une liste d'`enum` lue au focus de la cellule : Entrée avant sa réponse ouvre
+    l'éditeur de texte ; le parcours ne passe pas axe liste ouverte (`aria-hidden-focus`,
+    vérifié au catalogue) ; `update:modelValue` de Reka réécrit `draft` après la fermeture
+    de l'éditeur (sans effet : l'ouverture suivante le relit) ; après
+    un refus, la liste reste fermée (Entrée la rouvre) ; Tab sur une option désactivée
+    valide la valeur tenue ; restitution par un lecteur d'écran non éprouvée (nom du bouton
+    par `aria-label`, valeur montrée ; alerte d'un refus pendant que la liste se démonte) ;
+    anneau du cadre redéclaré dans `CellSelect.vue` au lieu de `shared.css` ; la logique
+    Tab de la liste est en deux copies (`Select.vue`, `CellSelect.vue`).
 - [x] 12h. Onglet Propriétés de la fiche édité en place : une valeur de l'objet modifiée
   dans la cellule (`prop.<clé>.edit`, présent), au brouillon (gardée par un `expect` de la
   version lue, hors compteur, Q-021-21) ou par Ctrl+Entrée (`properties` du patch de la

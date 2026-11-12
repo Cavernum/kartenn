@@ -10,7 +10,7 @@ import {
   type Operation,
   type Page,
 } from "@kartenn/sdk";
-import type { CellState, GridColumn, GridCommit, RowState } from "@kartenn/ui";
+import type { CellState, GridColumn, GridCommit, ListOption, RowState } from "@kartenn/ui";
 import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from "vue";
 import { useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
@@ -175,6 +175,29 @@ export function checkProperty(
     default:
       return undefined;
   }
+}
+
+/**
+ * The closed list of a cell of `declaration` (task 021-12g): a `bool`'s `true` and
+ * `false`, as its cell writes them; the whole list of an `enum` (`list`) once read, in its
+ * words (`words`, else the key in fixed pitch): a part, or none yet, leaves it typed. A
+ * value of the object's own (`own`) may be removed: `none` after them, the cell emptied.
+ */
+export function propertyChoices(
+  declaration: Declared,
+  list: readonly string[] | null | undefined,
+  o: { words: (value: string) => string | null; own: boolean; none: string },
+): ListOption[] | undefined {
+  const bool = declaration.type === "bool";
+  const keys = bool ? ["true", "false"] : declaration.type === "enum" ? list : null;
+  // An enum declared without values: nothing to choose, the text editor (the server says).
+  if (!keys || keys.length === 0) return undefined;
+  const options: ListOption[] = keys.map((value) => {
+    const label = bool ? null : o.words(value);
+    return { value, label: label ?? value, mono: label === null };
+  });
+  if (o.own) options.push({ value: "", label: o.none });
+  return options;
 }
 
 /** The raw value of a text typed for `declaration`; `null`, the cell emptied: removed. */
@@ -548,6 +571,16 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
         })
       : undefined;
   }
+  /** The closed list of the cell of `key` of the object `id` (`propertyChoices`). */
+  const choicesOf = (id: string, key: string): ListOption[] | undefined => {
+    const declaration = deps.declaration(key);
+    if (!declaration) return undefined;
+    return propertyChoices(declaration, choices.get(key), {
+      words: (value) => deps.valueLabel(key, value),
+      own: owned(id, key) === true,
+      none: t("edit.choice.none"),
+    });
+  };
   /**
    * What an edit of the cell of `key` writes, said before it is sent (Q-021-19): over an
    * inherited value, a value of the object's own; of its own, emptied, removed.
@@ -777,6 +810,7 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     rowState,
     rowReasons,
     validate: refusalOf,
+    choices: choicesOf,
     why,
     noteOf,
     mayApply,
@@ -813,6 +847,8 @@ export function recordGrid(
       value(column) && edit.why(id(), row.key) === null,
     validate: (row: PropertyRow, column: GridColumn, text: string) =>
       value(column) ? edit.validate(id(), row.key, text) : undefined,
+    options: (row: PropertyRow, column: GridColumn) =>
+      value(column) ? edit.choices(id(), row.key) : undefined,
     cellState: (row: PropertyRow, column: GridColumn) =>
       value(column) ? edit.cellState(id(), row.key) : undefined,
     stateReason: (row: PropertyRow, column: GridColumn) =>

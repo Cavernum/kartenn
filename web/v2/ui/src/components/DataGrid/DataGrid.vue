@@ -22,7 +22,8 @@
 // In-place editing (design « Contrat d'édition »): the host says which cells are editable
 // and checks the text (`editable`, `validate`); Enter or F2 opens the editor, Escape
 // cancels, Enter or Tab commits (`commit`; Ctrl+Enter commits marked `now`: apply now
-// rather than add to the draft, the host's to decide; a cell without an editor described
+// rather than add to the draft, the host's to decide; a cell of a closed list, `options`,
+// has a list for an editor, a choice committing; a cell without an editor described
 // by why, `readonlyReason`), and the host renders the cell's state then
 // (pending, draft, review — why it is held, `stateReason`, its description and its
 // tooltip like a reason; a row's, `rowReason`, on its first cell —, error with its code,
@@ -60,7 +61,9 @@ import {
 import { t } from "../../i18n.ts";
 import Checkbox from "../Checkbox/Checkbox.vue";
 import Icon from "../Icon/Icon.vue";
+import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import type { ListOption } from "../Select/select.ts";
 import NoValue from "../NoValue/NoValue.vue";
 import CellError from "./CellError.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
@@ -148,6 +151,13 @@ const props = withDefaults(
     /** The local check of the text of an editor: its error, or nothing (contract types). */
     validate?: ((row: R, column: GridColumn, value: string) => string | undefined) | undefined;
     /**
+     * The closed list the value of a cell is one of (a nature, a usage, a flag): its editor
+     * is a list rather than a text, opened with it (Enter, F2); an option's `value` is what
+     * the cell holds and its commit carries, its `label` what the list shows. Read as the
+     * editor opens; none (or an empty list), a text.
+     */
+    options?: ((row: R, column: GridColumn) => readonly ListOption[] | undefined) | undefined;
+    /**
      * The rows of the whole list when the grid holds only some (a paged list), the header
      * left out: `aria-rowcount` is this plus one; `-1` while unknown.
      */
@@ -174,6 +184,7 @@ const props = withDefaults(
     stateReason: undefined,
     rowReason: undefined,
     validate: undefined,
+    options: undefined,
     rowCount: undefined,
     rowOffset: 0,
     elementProps: undefined,
@@ -733,6 +744,11 @@ const editor = useCellEditor({
     const column = columnOf(cell.column);
     if (column) void announce(`${sayError(column, cell.row, { error })} ${t("editEscape")}`);
   },
+  optionsOf(cell) {
+    const row = rowOf(cell.row);
+    const column = columnOf(cell.column);
+    return row && column ? props.options?.(row, column) : undefined;
+  },
 });
 const draft = editor.draft;
 const draftError = editor.error;
@@ -1268,7 +1284,19 @@ onBeforeUnmount(() => observer?.disconnect());
                 data-size="md"
                 :data-invalid="messageOf(part.row, column) ? 'true' : undefined"
               >
+                <CellSelect
+                  v-if="editor.options.value"
+                  :options="editor.options.value"
+                  :value="draft"
+                  :label="editorLabel(part.row, column)"
+                  :mono="column.mono"
+                  :invalid="!!messageOf(part.row, column)"
+                  :described-by="hasError(part.row, column) ? errorId(part.index, c) : undefined"
+                  @update="(value: string) => (draft = value)"
+                  @done="editor.choose"
+                />
                 <input
+                  v-else
                   v-model="draft"
                   class="k-field-frame__input"
                   :class="{ 'k-mono': column.mono }"

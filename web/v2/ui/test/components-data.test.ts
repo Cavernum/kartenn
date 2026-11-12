@@ -9,6 +9,7 @@ import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
 import { bodyParts, keptIndexes, rowSlots } from "../src/components/internal/virtualRows.ts";
 import { useCellEditor, useCommitWatch } from "../src/components/internal/cellEditor.ts";
+import type { ListOption } from "../src/components/Select/select.ts";
 import { nextTick, ref } from "vue";
 import type { CellRef, CellState, GridCommit } from "../src/components/DataGrid/grid.ts";
 import {
@@ -236,7 +237,11 @@ describe("DataGrid", () => {
   });
 
   // The contract of in-place editing (design « Contrat d'édition »), without a DOM.
-  function editorOf(text = "Serveurs", check?: (value: string) => string | undefined) {
+  function editorOf(
+    text = "Serveurs",
+    check?: (value: string) => string | undefined,
+    options?: ListOption[],
+  ) {
     const editing = ref<CellRef | undefined>(undefined);
     const commits: GridCommit[] = [];
     const refusals: string[] = [];
@@ -250,6 +255,7 @@ describe("DataGrid", () => {
       moveFocus: (_, by) => moves.push(by),
       commit: (commit) => commits.push(commit),
       refuse: (_, error) => refusals.push(error),
+      optionsOf: () => options,
     });
     return { editing, editor, commits, refusals, moves };
   }
@@ -269,6 +275,35 @@ describe("DataGrid", () => {
     editor.onKeydown(key("Enter", false, true));
     expect(commits).toEqual([{ ...cell, value: "Serveurs du sud", now: true }]);
     expect(moves).toEqual([0, 0]);
+  });
+
+  it("editing: a closed list read as the editor opens, a choice committed, its refusal kept (task 021-12g)", async () => {
+    const envs = [
+      { value: "prod", label: "Production" },
+      { value: "deve", label: "Développement" },
+    ];
+    const refuse = (value: string) => (value === "deve" ? "Pas en développement." : undefined);
+    const { editing, editor, commits, refusals, moves } = editorOf("prod", refuse, envs);
+    expect(editor.options.value).toBeUndefined();
+    await editor.start(cell);
+    expect(editor.options.value).toEqual(envs);
+    // Refused: the editor stays open, the error kept although the value changed with it.
+    editor.choose("deve", 0, false);
+    expect(editor.error.value).toBe("Pas en développement.");
+    expect(refusals).toEqual(["Pas en développement."]);
+    expect(editing.value).toEqual(cell);
+    // Tab with the value held: no commit, the focus along the row.
+    editor.choose("prod", 1, false);
+    expect(commits).toEqual([]);
+    expect(moves).toEqual([1]);
+    await editor.start(cell);
+    editor.choose("deve2", 0, true);
+    expect(commits).toEqual([{ ...cell, value: "deve2", now: true }]);
+    expect(editing.value).toBeUndefined();
+    // An empty list is none: the editor of a text.
+    const empty = editorOf("prod", undefined, []);
+    await empty.editor.start(cell);
+    expect(empty.editor.options.value).toBeUndefined();
   });
 
   it("editing: an unchanged text never commits; Tab moves on, Escape cancels", async () => {
@@ -308,7 +343,11 @@ describe("DataGrid", () => {
     await nextTick();
     expect(editor.error.value).toBeUndefined();
     // Nowhere to go (another window): still open, nothing committed.
-    const input = { closest: (selector: string) => selector === ".k-data-grid__editor" };
+    // The box of the editor, without a control showing a popup (`inPopup`).
+    const box = { querySelectorAll: () => [] };
+    const input = {
+      closest: (selector: string) => (selector === ".k-data-grid__editor" ? box : null),
+    };
     const away = (to: object | null) =>
       editor.onFocusout({ relatedTarget: to, target: input } as unknown as FocusEvent);
     away(null);

@@ -365,6 +365,7 @@
     "askOpen": "Non appliqué : terminez ou annulez d'abord {what} ; votre saisie « {value} » n'est pas gardée.",
     "notNow": "Non écrit : hors du présent, ou sans le droit, plus rien ne s'écrit ici.",
     "applyForbidden": "Appliquer maintenant demande {permission} : la modification va au brouillon.",
+    "choice": { "none": "Aucune valeur (retirer)" },
     "check": {
       "required": "{field} est obligatoire.",
       "choice": "Choisissez une valeur de la liste : {values}.",

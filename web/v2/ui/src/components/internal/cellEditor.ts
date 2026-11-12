@@ -9,10 +9,14 @@
 // leaving for elsewhere in the page commits a changed text, leaving the window keeps the
 // editor open; an unchanged text never commits. A text refused by the
 // check keeps the editor open, its error said with the way out (Escape). After a commit,
-// the host renders the cell's state; an error it gives then is said once.
+// the host renders the cell's state; an error it gives then is said once. A cell whose
+// value is one of a closed list (`optionsOf`, read as its editor opens) has a list for an
+// editor (`CellSelect.vue`): a choice commits as Enter would; its list, in the layer of
+// floating layers, is still the editor (task 021-12g).
 
-import { computed, nextTick, ref, watch, type Ref } from "vue";
+import { computed, nextTick, ref, shallowRef, watch, type Ref } from "vue";
 import type { CellRef, CellState, GridCommit } from "../DataGrid/grid.ts";
+import type { ListOption } from "../Select/select.ts";
 
 /** What the grid gives the editor of its cells. */
 export interface CellEditorHost {
@@ -31,10 +35,21 @@ export interface CellEditorHost {
   refuse(cell: CellRef, error: string): void;
   /** The class of the box of the editor in a cell (`k-data-grid__editor` by default). */
   editorClass?: string;
+  /** The closed list the value of `cell` is one of (its editor a list), if any. */
+  optionsOf?: (cell: CellRef) => readonly ListOption[] | undefined;
 }
 
 /** The controls an editor may hold, the first one taking the focus. */
 export const EDITOR_CONTROLS = "input, select, textarea, button, [tabindex]";
+
+/** Whether `to` is in a popup a control of the editor `box` shows (`aria-controls`). */
+export function inPopup(box: Element, to: Node): boolean {
+  return [...box.querySelectorAll("[aria-controls]")].some((control) =>
+    (control.getAttribute("aria-controls") ?? "")
+      .split(/\s+/)
+      .some((id) => id !== "" && !!document.getElementById(id)?.contains(to)),
+  );
+}
 
 export function useCellEditor(host: CellEditorHost) {
   const box = `.${host.editorClass ?? "k-data-grid__editor"}`;
@@ -43,6 +58,11 @@ export function useCellEditor(host: CellEditorHost) {
   const original = ref("");
   /** The error of the text, from the host's check. */
   const error = ref<string | undefined>(undefined);
+  /**
+   * The list of the open editor, read as it opens: a list arriving while it edits (read
+   * on the focus of its cell) leaves the editor as it is.
+   */
+  const options = shallowRef<readonly ListOption[] | undefined>(undefined);
 
   /** The focus into the editor of `cell` once it is rendered, its text chosen. */
   async function focusEditor(cell: CellRef): Promise<void> {
@@ -59,6 +79,8 @@ export function useCellEditor(host: CellEditorHost) {
       if (cell && (cell.row !== before?.row || cell.column !== before?.column)) {
         draft.value = original.value = host.textOf(cell);
         error.value = undefined;
+        const list = host.optionsOf?.(cell);
+        options.value = list && list.length > 0 ? list : undefined;
         // The host opened the editor of the cell that has the focus: the focus goes into
         // it (the cell leaves the tab order while it edits; WCAG 2.4.3).
         const el = host.cellElement(cell);
@@ -68,8 +90,11 @@ export function useCellEditor(host: CellEditorHost) {
     },
     { immediate: true },
   );
-  /** A new text: the refusal of the former one no longer holds. */
-  watch(draft, () => (error.value = undefined));
+  /**
+   * A new text: the refusal of the former one no longer holds. At once (`sync`): a value
+   * chosen in a list is checked right after it is taken (`choose`), its refusal kept.
+   */
+  watch(draft, () => (error.value = undefined), { flush: "sync" });
 
   async function start(cell: CellRef): Promise<void> {
     draft.value = original.value = host.textOf(cell);
@@ -129,18 +154,39 @@ export function useCellEditor(host: CellEditorHost) {
 
   /**
    * The focus leaves the editor: for elsewhere in the page, a changed text commits; for
-   * nowhere (another window, the browser's own controls), the editor stays open.
+   * nowhere (another window, the browser's own controls), the editor stays open; for the
+   * popup of one of its controls (the list of a closed choice, in the layer of floating
+   * layers: `aria-controls`), it is still in the editor.
    */
   function onFocusout(event: FocusEvent): void {
     const cell = host.editing.value;
     const to = event.relatedTarget as Node | null;
     if (!host.driven() || !cell || !to) return;
-    if (!(event.target as HTMLElement).closest(box)) return;
+    const from = (event.target as HTMLElement).closest(box);
+    if (!from) return;
     if (host.cellElement(cell)?.contains(to)) return;
+    if (inPopup(from, to)) return;
     finish(null);
   }
 
-  return { draft, error, start, finish, cancel, onKeydown, onFocusout, focusEditor };
+  /** A value chosen in the list of the editor: committed as Enter (Tab: `move`) would. */
+  function choose(value: string, move: number, now: boolean): void {
+    draft.value = value;
+    finish(move, now);
+  }
+
+  return {
+    draft,
+    error,
+    options,
+    start,
+    finish,
+    choose,
+    cancel,
+    onKeydown,
+    onFocusout,
+    focusEditor,
+  };
 }
 
 /** The most commits followed at once; the oldest are dropped beyond. */

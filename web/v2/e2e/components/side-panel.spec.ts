@@ -52,6 +52,42 @@ test.describe("SidePanel, whose Escape", () => {
     await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toBeFocused();
   });
 
+  test("a closed list in a cell: Escape closes the list, then cancels the edit; the panel stays", async ({
+    page,
+  }) => {
+    await openState(page, "SidePanel", "cell-choice");
+    const panel = page.locator("#k-demo-panel");
+    const cell = panel.locator('[data-row="192.0.2.10"][data-column="usage"]');
+    const list = page.getByRole("listbox", { name: "Usage — 192.0.2.10" });
+    // Reopened by its strip, the keyboard alone: the tab, its panel, the grid's header,
+    // then the cell of the usage.
+    const reopen = page.getByRole("button", { name: "Ouvrir le panneau" });
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await expect(reopen).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByRole("tab", { name: "Détail" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    await expect(cell).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(list.getByRole("option", { name: "Statique" })).toBeFocused();
+    // The first Escape is the list's; the second, the editor's: the panel stays open.
+    await page.keyboard.press("Escape");
+    await expect(list).toHaveCount(0);
+    await expect(cell.locator(".k-cell-select")).toBeFocused();
+    await expect(panel).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(cell).toBeFocused();
+    await expect(cell).not.toHaveAttribute("data-editing");
+    await expect(panel).toBeVisible();
+    // From the cell, Escape is the panel's: it closes, the focus to its strip.
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(reopen).toBeFocused();
+  });
+
   test("intact, Escape from the text field closes at once", async ({ page }) => {
     await openState(page, "SidePanel", "fields");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });

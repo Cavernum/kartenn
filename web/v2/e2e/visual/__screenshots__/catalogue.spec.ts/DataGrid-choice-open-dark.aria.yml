@@ -1,0 +1,7 @@
+- main:
+  - listbox /Environnement — \d+\.\d+\.2\.0\/\d+/:
+    - option "Production"
+    - option "Recette" [selected]
+    - option "Développement"
+    - option "form"
+    - option "Aucun environnement"

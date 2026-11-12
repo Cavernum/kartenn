@@ -365,6 +365,7 @@
     "askOpen": "Not applied: finish or cancel {what} first; your input “{value}” is not kept.",
     "notNow": "Not written: off the present, or without the right, nothing is written here.",
     "applyForbidden": "Applying now takes {permission}: the change goes to the draft.",
+    "choice": { "none": "No value (remove)" },
     "check": {
       "required": "{field} is required.",
       "choice": "Choose a value of the list: {values}.",

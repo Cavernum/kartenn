@@ -224,6 +224,123 @@ test.describe("DataGrid (APG Grid)", () => {
     );
   });
 
+  test("a closed list in a cell: Enter opens it, arrows, Enter chooses; Escape closes, then cancels", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "choice");
+    // Open, the list hides the rest of the page from assistive technologies (modal): the
+    // grid and the button are read by their selectors, not by their roles.
+    const grid = page.locator("[role='grid']");
+    const second = "192.0.2.0/26";
+    const commit = page.locator("[data-demo='commit']");
+    const button = grid.locator(`[data-row="${second}"][data-column="env"] .k-cell-select`);
+    const list = page.getByRole("listbox", { name: `Environnement — ${second}` });
+    const cell = grid.locator(`[data-row="${second}"][data-column="env"]`);
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    expect(await focusedCell(page)).toBe(`${second}|env`);
+    // Enter opens the editor and its list at once, on the value held (its key, its label).
+    await page.keyboard.press("Enter");
+    await expect(list).toBeVisible();
+    await expect(list.getByRole("option", { name: "Recette" })).toBeFocused();
+    await expect(list.getByRole("option", { name: "Recette" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // The focus in the list is still the editor's: it stays open.
+    await expect(cell).toHaveAttribute("data-editing", "true");
+    // The arrows move; Enter chooses and commits the key, the focus back on the cell.
+    await page.keyboard.press("ArrowDown");
+    await expect(list.getByRole("option", { name: "Développement" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(commit).toHaveText(`env de ${second} : deve`);
+    await expect(cell).toBeFocused();
+    await expect(cell).toContainText("Développement");
+    await expect(list).toHaveCount(0);
+    // Escape closes the list without choosing, the editor still open on its button; the
+    // next Escape cancels, the focus back on the cell.
+    // Reka gives the focus to the chosen option once the list is placed.
+    const chosen = list.getByRole("option", { selected: true });
+    await page.keyboard.press("Enter");
+    await expect(chosen).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("Escape");
+    await expect(list).toHaveCount(0);
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await expect(button).toContainText("Développement");
+    await page.keyboard.press("Escape");
+    await expect(cell).toBeFocused();
+    await expect(cell).not.toHaveAttribute("data-editing");
+    await expect(commit).toHaveText(`env de ${second} : deve`);
+    // Tab chooses, commits and goes on along the row.
+    await page.keyboard.press("Enter");
+    await expect(chosen).toBeFocused();
+    // Reka moves the focus after its microtasks: the next key once it has.
+    await page.keyboard.press("ArrowUp");
+    await expect(list.getByRole("option", { name: "Recette" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(commit).toHaveText(`env de ${second} : rece`);
+    expect(await focusedCell(page)).toBe(`${second}|used`);
+    // Ctrl+Enter chooses and commits marked « apply now ».
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("F2");
+    await expect(chosen).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(list.getByRole("option", { name: "Production" })).toBeFocused();
+    await page.keyboard.press("Control+Enter");
+    await expect(commit).toHaveText(`env de ${second} : prod (appliquer maintenant)`);
+    await expect(cell).toBeFocused();
+    // Refused by the host's check: the editor stays open on its button, the error said.
+    await page.keyboard.press("ArrowUp");
+    const firstCell = grid.locator(`[data-row="192.0.2.0/24"][data-column="env"]`);
+    await expect(firstCell).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("option", { name: "Production" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("option", { name: "Recette" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("option", { name: "Développement" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    const refused = firstCell.locator(".k-cell-select");
+    await expect(refused).toBeFocused();
+    await expect(refused).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByRole("alert").filter({ hasText: "développement" })).toContainText(
+      "Un préfixe de production ne passe pas en développement.",
+    );
+    await page.keyboard.press("Escape");
+    await expect(firstCell).toBeFocused();
+    await expect(firstCell).toContainText("Production");
+    // The pointer: a double click opens the list, a click on an option commits it.
+    const third = grid.locator(`[data-row="192.0.2.64/26"][data-column="env"]`);
+    await third.dblclick();
+    await page.getByRole("option", { name: "Recette" }).click();
+    await expect(commit).toHaveText("env de 192.0.2.64/26 : rece");
+    await expect(third).toContainText("Recette");
+    await expect(third).toBeFocused();
+    // No value, an option of its own (End goes to it): the empty value committed.
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("option", { name: "Recette" })).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(page.getByRole("option", { name: "Aucun environnement" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(commit).toHaveText("env de 192.0.2.64/26 :");
+    await expect(third).toBeFocused();
+    // Opened again on « no value », its option chosen; Escape twice leaves it.
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("option", { name: "Aucun environnement" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    // The list fading is still the top layer: the next Escape once it is gone.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(third.locator(".k-cell-select")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(third).toBeFocused();
+    await expect(commit).toHaveText("env de 192.0.2.64/26 :");
+  });
+
   test("editing: Ctrl+Enter commits marked « apply now », the focus back on the cell", async ({
     page,
   }) => {

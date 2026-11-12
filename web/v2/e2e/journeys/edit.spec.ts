@@ -142,9 +142,11 @@ test("under an approval policy, Ctrl+Enter with its motive: « en revue », neve
   await page.goto(`/prefixes?domain=${domain}`);
   await expect(cellOf(page, "nature")).toContainText("Réseau");
   await toCell(page, "nature");
+  // A closed list (task 12g): Enter opens it on the value held, Down, Ctrl+Enter chooses.
   await page.keyboard.press("Enter");
-  await page.keyboard.press("Control+a");
-  await page.keyboard.type("container");
+  await expect(page.getByRole("option", { name: "Réseau" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "Conteneur" })).toBeFocused();
   await page.keyboard.press("Control+Enter");
   // The motive asked in line, prefilled, the focus on it.
   const line = page.getByRole("form", { name: /^Appliquer maintenant : Nature de / });
@@ -492,12 +494,14 @@ test("a cell of the tree: a reader is told why, an author edits it to the draft,
   // Alice, at the keyboard: Enter opens the editor of the nature, its words stand for its key.
   const tree = await topologyOf(page, domain, id);
   await treeCell(tree, "detail").click();
+  // A closed list (task 12g): opened on the value held, its words shown, its key written.
   await page.keyboard.press("Enter");
-  const editor = tree.getByRole("textbox", { name: /^Nature, usage — 198\.51\.100\.0\/24$/ });
-  await expect(editor).toBeFocused();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.type("Conteneur");
+  const list = page.getByRole("listbox", { name: /^Nature, usage — 198\.51\.100\.0\/24$/ });
+  await expect(list.getByRole("option", { name: "Réseau" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(list.getByRole("option", { name: "Conteneur" })).toBeFocused();
   await page.keyboard.press("Enter");
+  await expect(list).toHaveCount(0);
   await expect(treeCell(tree, "detail")).toHaveAttribute("data-state", "draft");
   await expect(treeCell(tree, "detail")).toContainText("Conteneur");
   await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
@@ -559,12 +563,14 @@ test("two tabs, the tree and the content: Ctrl+Enter applies one value, the othe
   }
   await expect(inContent).toContainText("Statique");
 
-  /** In `tab`, from `cell`: the usage typed, then Ctrl+Enter, the motive asked. */
+  /** In `tab`, from `cell`: the usage typed in its list, then Ctrl+Enter, the motive asked. */
   async function ask(tab: Page, cell: Locator, value: string): Promise<void> {
     await cell.click();
     await tab.keyboard.press("Enter");
-    await tab.keyboard.press("Control+a");
-    await tab.keyboard.type(value);
+    await expect(tab.getByRole("option", { name: "Statique" })).toBeFocused();
+    // Its first letter (typing ahead in the list; « é » would be no key press).
+    await tab.keyboard.press(value[0]!);
+    await expect(tab.getByRole("option", { name: value })).toBeFocused();
     await tab.keyboard.press("Control+Enter");
     await expect(tab.getByRole("textbox", { name: "Motif" })).toBeFocused();
   }

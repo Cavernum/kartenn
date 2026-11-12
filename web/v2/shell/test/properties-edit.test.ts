@@ -14,6 +14,7 @@ import {
   originOf,
   propertyOperation,
   propertyPatch,
+  propertyChoices,
   propertyValueOf,
   typedInPlace,
   type Declared,
@@ -100,6 +101,30 @@ describe("a property edited in place", () => {
     expect(propertyValueOf(text, " ")).toBeNull();
     expect(propertyValueOf(declared("custom.rank", "int"), "7")).toBe(7);
     expect(propertyValueOf(declared("custom.on", "bool"), "false")).toBe(false);
+  });
+
+  it("chooses a bool or an enum read whole in a list, a value of its own removable (task 12g)", () => {
+    const words = (value: string) => (value === "nord" ? "Zone nord" : null);
+    const none = "Aucune valeur (retirer)";
+    const bool = declared("custom.on", "bool");
+    expect(propertyChoices(bool, undefined, { words, own: false, none })).toEqual([
+      { value: "true", label: "true", mono: true },
+      { value: "false", label: "false", mono: true },
+    ]);
+    const zone = declared("custom.zone", "enum");
+    expect(propertyChoices(zone, ["nord", "sud"], { words, own: true, none })).toEqual([
+      { value: "nord", label: "Zone nord", mono: false },
+      { value: "sud", label: "sud", mono: true },
+      { value: "", label: none },
+    ]);
+    // Not read yet, or only a part of it: typed, the server checking it.
+    expect(propertyChoices(zone, undefined, { words, own: true, none })).toBeUndefined();
+    expect(propertyChoices(zone, null, { words, own: true, none })).toBeUndefined();
+    // Declared without values: not a list of « no value » alone.
+    expect(propertyChoices(zone, [], { words, own: true, none })).toBeUndefined();
+    expect(
+      propertyChoices(declared("custom.code", "text"), null, { words, own: true, none }),
+    ).toBeUndefined();
   });
 
   it("gives the operation of the draft and the `properties` of the patch", () => {
