@@ -833,6 +833,11 @@ async fn settings_rederive_workloads(pool: PgPool) {
         "the workload unchanged"
     );
     assert_eq!(env.versions(ledger, EXPOSURE).await, 1);
+    assert_eq!(
+        env.versions(ledger, NAMESPACE).await,
+        1,
+        "kube.namespace left as kube.sync set it"
+    );
     assert!(env.assignment(cache, EXPOSURE).await.is_none());
     // A value not admitted: ignored, the warning raised on the workload not written.
     env.applied(vec![mapping("cache", EXPOSURE, "externe")])
@@ -1013,8 +1018,40 @@ async fn settings_rederive_rights(pool: PgPool) {
     let outcome = env
         .submit_as(editor, vec![mapping("db", EXPOSURE, "interne")])
         .await;
-    assert!(matches!(outcome, Outcome::Pending { .. }), "{outcome:?}");
+    let Outcome::Pending { changeset, .. } = outcome else {
+        panic!("not pending: {outcome:?}");
+    };
     assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+    // The proposal applied by a validator holding `apply`: the hook runs again on the
+    // state of the validation, the value derived in its changeset.
+    let validator = env
+        .granted(
+            &[
+                &settings[..],
+                &["kube.settings.apply", "prop.custom.exposure.apply"],
+            ]
+            .concat(),
+        )
+        .await;
+    let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(env.pool.clone())
+        .with_modules(env.registry.clone());
+    let validated = kartenn_service::review::validate_pending(
+        &env.store,
+        &authorizer,
+        &kartenn_service::expected::Sources::none(),
+        changeset,
+        &validator.into(),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(validated, Outcome::Applied { .. }),
+        "{validated:?}"
+    );
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("validated");
+    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.changeset, changeset);
     let applier = env
         .granted(
             &[
@@ -1028,11 +1065,11 @@ async fn settings_rederive_rights(pool: PgPool) {
         )
         .await;
     let outcome = env
-        .submit_as(applier, vec![mapping("db", EXPOSURE, "interne")])
+        .submit_as(applier, vec![mapping("db", EXPOSURE, "externe")])
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     let exposure = env.assignment(ledger, EXPOSURE).await.expect("re-derived");
-    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.value.as_deref(), Some("externe"));
     // The connector, under its role on the domains of the cluster: a mapping it never
     // asked for does not hold its batch.
     env.applied(vec![mapping("cache", EXPOSURE, "externe")])
