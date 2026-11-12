@@ -265,8 +265,15 @@ const edit = useNodeEdit({
   say,
 });
 /** The nodes as the cells show them: with the values of the draft and of this session. */
+// The tree's own nodes only (the editing holds the content's rows too).
 const shownById = computed(
-  () => new Map(edit.shownRows.value.map((row) => [String(row.id), row as unknown as Node])),
+  () =>
+    new Map(
+      items.value.map((item) => [
+        item.id,
+        edit.shownRow(item as unknown as Item) as unknown as Node,
+      ]),
+    ),
 );
 const rowOf = (id: string) => itemById.value.get(id) as Item | undefined;
 const editable = (node: TreeNode, column: GridColumn) => {
@@ -648,7 +655,7 @@ useViewAction("edit", {
 // focus leaves it, as at the foot of a list): Enter opens the record of a node and Tab its
 // « + » by the tree itself (021/A20).
 const focusRow = computed(() => (activeCell.value ? rowOf(activeCell.value.row) : undefined));
-/** Why the cell of the focus has no editor (the tree has no description for it), or none. */
+/** Why the cell of the focus has no editor (its description says it too), or none. */
 const focusWhy = computed(() =>
   activeCell.value && focusRow.value ? edit.why(activeCell.value.column, focusRow.value) : null,
 );

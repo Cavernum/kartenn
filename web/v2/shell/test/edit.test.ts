@@ -824,6 +824,78 @@ describe("a list edited in place", () => {
     const odd = { id: "x", kind: "vlan", nature: "network", version: V1 } as Item;
     expect(edit().editable(odd, column("detail"))).toBe(false);
   });
+
+  it("a cell written from the content lasts until the content's row is read again (12f2)", async () => {
+    let patches = 0;
+    // The tree holds the range at its version, the content at another one (its own page).
+    const content = shallowRef<Item[]>([{ ...NODES[1]!, version: V2 }]);
+    const { edit, rows } = await mounted(
+      ["core.range.edit", "core.range.approval.self"],
+      (call) => {
+        if (call.method !== "PATCH") return { status: 200, body: { items: [], links: {} } };
+        patches += 1;
+        return patches === 1
+          ? {
+              status: 202,
+              body: {
+                changeset: { id: "cs-5", href: "h" },
+                state: "pending",
+                kind: "approval",
+                diff: [],
+                reason: { code: "changeset.approval.self", message: "policy", objects: [] },
+              },
+            }
+          : {
+              status: 200,
+              body: {
+                changeset: { id: "cs-6", href: "h" },
+                state: "applied",
+                warnings: [],
+                diff: [],
+                cascaded: [],
+              },
+            };
+      },
+      "/",
+      (deps) => {
+        const shared = nodeEdit([])(deps);
+        shared.share({ grid: CONTENT_GRID, rows: () => content.value, reread: () => {} });
+        return shared;
+      },
+    );
+    rows.value = [NODES[0]!, NODES[1]!];
+    await nextTick();
+    const range = content.value[0]!;
+    /** Ctrl+Enter in the content, the motive given. */
+    async function apply(value: string): Promise<void> {
+      edit().onCommit({ row: R1, column: "detail", value, now: true }, CONTENT_GRID);
+      await edit().confirm("motif", value);
+    }
+    /** The tree's rows read again at their same version: the entries stay. */
+    async function treeReadAgain(): Promise<void> {
+      rows.value = [...rows.value];
+      await nextTick();
+    }
+
+    // 202 from the content: held, and still held once the tree is read again.
+    await apply("dhcp");
+    expect(edit().cellState(range, column("detail"))).toBe("review");
+    await treeReadAgain();
+    expect(edit().cellState(range, column("detail"))).toBe("review");
+    expect(edit().stateReason(range, column("detail"))).toBe("edit.reason.held");
+
+    // 200 from the content: the value applied shown, in both grids, through the tree's reads.
+    await apply("reserved");
+    expect(edit().shownRow(range).usage).toBe("reserved");
+    await treeReadAgain();
+    expect(edit().shownRow(range).usage).toBe("reserved");
+    expect(edit().shownRow(NODES[1]!).usage).toBe("reserved");
+
+    // The content read again at a new version: the entry gives way to its row.
+    content.value = [{ ...range, usage: "reserved", version: "v3" }];
+    await nextTick();
+    expect(edit().shownRow(content.value[0]!)).toBe(content.value[0]);
+  });
 });
 
 describe("the content of a node edited in place (task 12a)", () => {

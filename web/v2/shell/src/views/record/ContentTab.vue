@@ -96,12 +96,9 @@ const read = computed<Item[]>(() =>
 // In-place editing: the words of a closed list stand for its key in a cell.
 const words = useNodeWords();
 const said = ref("");
-const say = useSay((text) => {
-  said.value = "";
-  void nextTick(() => (said.value = text));
-});
 const reread = () => void content.refetch();
 // Given once, by the host that mounts it (the tree beside it): never another one after.
+// Shared, the host says the outcomes (its status, its toasts): none here.
 const shared = props.nodeEdit;
 const edit =
   shared ??
@@ -111,7 +108,10 @@ const edit =
     reread,
     t: (key, values) => t(key, values ?? {}),
     sentence: useProblems().sentence,
-    say,
+    say: useSay((text) => {
+      said.value = "";
+      void nextTick(() => (said.value = text));
+    }),
   });
 shared?.share({ grid: CONTENT_GRID, rows: () => read.value, reread });
 /** The motive asked here: its line under this grid (the tree's goes under the tree). */
