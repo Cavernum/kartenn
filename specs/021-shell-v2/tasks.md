@@ -3596,7 +3596,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     par le focus sur la cellule A cède à celle du survol d'une cellule B, sans revenir à
     A quand le pointeur part ; ancre détachée (ligne virtualisée sortie) non surveillée,
     hormis le défilement qui la ferme (`Tooltip.vue`) ; restitution par un vrai lecteur
-    d'écran non éprouvée.
+    d'écran non éprouvée. Revue (mineurs) : `closeTip` n'annule pas `switching` (Échap
+    pendant la bascule vers B : l'infobulle se rouvre sur B 300 ms plus tard) ; la ligne
+    `Tooltip` du skill ne dit pas l'exception de la grille, qui arrête Échap ; trois
+    `waitForTimeout(500)` dans `data-grid.spec.ts` contre un délai de 300 ms, marge mince
+    sous charge ; l'épinglage au clic n'est pas testé, et un clic de sélection
+    (`selectable="single"`) ouvre l'infobulle à chaque fois.
 - [ ] 12n. Le pourquoi d'un état partout où une grille le porte (relevés de la revue de
   la 12e) : `ExpandableGrid` transmet `stateReason` et `readonlyReason` (avec `editable`)
   à ses deux `DataGrid` ; une ligne en revue (`rowState`) dit son motif (description de
