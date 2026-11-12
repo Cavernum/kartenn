@@ -22,6 +22,12 @@ pub(crate) const WORKLOAD_TABLE: &str = "kube.workload";
 pub(crate) const SERVICE_TABLE: &str = "kube.service";
 /// The table of the ingresses.
 pub(crate) const INGRESS_TABLE: &str = "kube.ingress";
+/// The table of the mappings of labels to values of axes (migration `0008_settings.sql`).
+pub(crate) const LABEL_MAPPING_TABLE: &str = "kube.label_mapping";
+/// The table of the admitted values of an axis in a namespace.
+pub(crate) const ADMITTED_VALUES_TABLE: &str = "kube.admitted_values";
+/// The table of the label keys tracked in every cluster.
+pub(crate) const TRACKED_LABEL_TABLE: &str = "kube.tracked_label";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -400,7 +406,7 @@ pub(crate) async fn workloads_named(
 
 /// Whether another object of `table` than `id` matches `condition` (on the texts `$1`
 /// to `$n` of `keys`) over `period`.
-async fn taken(
+pub(crate) async fn taken(
     conn: &mut PgConnection,
     table: &str,
     condition: &str,
@@ -992,6 +998,33 @@ pub(crate) async fn absent(
     Ok(found)
 }
 
+/// The namespaces among `namespaces`, and those of the admitted values among `admitted`,
+/// and their admitted values: `(namespace, absent, admitted values)` for each that lives
+/// now, its admitted values living now (`kube.namespace.held`, Q-019-35).
+pub(crate) async fn held_namespaces(
+    conn: &mut PgConnection,
+    namespaces: &[Uuid],
+    admitted: &[Uuid],
+) -> Result<Vec<(Uuid, bool, Vec<Uuid>)>, StoreError> {
+    sqlx::query_as(
+        "WITH wanted (id) AS (
+             SELECT unnest($1::uuid[])
+             UNION SELECT namespace_id FROM kube.admitted_values WHERE id = ANY($2))
+         SELECT n.id, n.absent_since IS NOT NULL,
+                ARRAY(SELECT a.id FROM kube.admitted_values a
+                       WHERE a.namespace_id = n.id AND a.valid_period @> now()
+                       ORDER BY a.id)
+           FROM kube.namespace n JOIN wanted w ON w.id = n.id
+          WHERE n.valid_period @> now()
+          ORDER BY n.id",
+    )
+    .bind(namespaces)
+    .bind(admitted)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The living objects of the module that cite `target` by the reference `from` → `to`
 /// from `at` on.
 pub(crate) async fn referrers(
@@ -1002,9 +1035,13 @@ pub(crate) async fn referrers(
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Uuid>, StoreError> {
     use crate::module::{
-        ADDRESS, CLUSTER, DOMAIN, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
+        ADDRESS, ADMITTED_VALUES, CLUSTER, DOMAIN, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX,
+        SERVICE, WORKLOAD,
     };
     let sql = match (from, to) {
+        (ADMITTED_VALUES, NAMESPACE) => {
+            "SELECT DISTINCT id FROM kube.admitted_values WHERE namespace_id = $1 AND {live}"
+        }
         (INGRESS, NAMESPACE) => {
             "SELECT DISTINCT id FROM kube.ingress WHERE namespace_id = $1 AND {live}"
         }

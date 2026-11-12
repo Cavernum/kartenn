@@ -395,18 +395,24 @@ Acceptation :
 - Namespace `{prod}`, workload sans valeur : le workload résout `{prod}` (source :
   namespace) ; workload `{rec}` : `{rec}` (remplacement, D26).
 
-#### REQ-019-33 — Axe namespace
-Le module doit livrer l'axe `kube.namespace` (référence externe, système `kube`), posé
-par le connecteur sur chaque workload, utilisable dans une contrainte « même valeur »
-(REQ-010-8).
+#### REQ-019-33 — Axe namespace (Q-019-37 à 39)
+Le module doit livrer l'axe `kube.namespace` (référence externe, système `kube` que le
+module déclare), posé par `kube.sync` sur chaque workload (identifiant
+`<id du cluster>/<nom>`, libellé `<slug du cluster>/<nom>`), utilisable dans une
+contrainte « même valeur » (REQ-010-8) ; toute autre affectation ou tout autre retrait
+de cet axe doit être refusé (`kube.namespace.managed`).
 
-#### REQ-019-34 — Labels vers axes (Q-019-7)
+#### REQ-019-34 — Labels vers axes (Q-019-7, Q-019-33 à 36)
 kartenn doit tenir comme paramètres du module (`kube.settings.*`, 027/P4, P5) des
 correspondances (clé de label, valeur de label) → valeur d'axe, et, par namespace, les
 valeurs d'axe admises, écrites par changeset sous `kube.settings.edit` (`apply`,
-`approval.self`) sans permission propre ; quand un workload porte un label correspondant, le connecteur
-doit poser la valeur d'axe si elle est admise dans son namespace, avec la provenance du
-label, et sinon l'ignorer en levant `kube.label.not_admitted`.
+`approval.self`) sans permission propre (types `kube.label_mapping`,
+`kube.admitted_values`, `kube.tracked_label`) ; quand un workload porte un label
+correspondant, le serveur (`kube.sync`, à l'`upsert` du workload) doit poser la valeur
+d'axe si elle est admise dans son namespace, avec la provenance
+`module:kube#label:<clé>`, et sinon l'ignorer en levant `kube.label.not_admitted` ; un
+changeset qui écrit un paramètre doit re-dériver de même les workloads concernés, dans sa
+transaction.
 
 Acceptation :
 - `tier=db` → `policy.exposure: interne` admise dans `payments` : posée ; la même
@@ -415,6 +421,9 @@ Acceptation :
 - Une équipe qui n'a que `policy.settings.*` crée l'axe et ses valeurs mais ne peut
   pas écrire de correspondance (refus, `kube.settings.edit` nommée) ; l'inverse
   aussi (REQ-027-5).
+- `interne` ajoutée aux valeurs admises de `payments` après coup : le changeset des
+  paramètres pose la valeur sur les workloads `tier=db` du namespace, sans attendre le
+  connecteur.
 
 #### REQ-019-35 — Extrémités logiques (Q-019-8 ; amende REQ-010-13, REQ-011-2)
 La politique et le registre de flux doivent accepter comme extrémité un workload, un

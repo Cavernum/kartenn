@@ -123,6 +123,9 @@ module) relèvent de `<déclarant>.settings.*`, le déclarant lu dans la clé
 | `kube.ingress.approval.self` | — | Appliquer son propre changeset qui touche un ingress Kubernetes. |
 | `kube.observation.record` | — | Écrire un lot d'observations au journal des pods d'un cluster Kubernetes (son connecteur seulement). |
 | `kube.observation.read` | — | Lire le journal des pods observés d'un cluster Kubernetes : quel pod avait une adresse, où un workload a tourné. |
+| `kube.settings.edit` | oui | Modifier dans un changeset et soumettre les paramètres du module Kubernetes : correspondances de labels vers des valeurs d'axe, valeurs admises par namespace, labels suivis. |
+| `kube.settings.apply` | oui | Appliquer ou rejeter le changeset d'un autre qui touche les paramètres du module Kubernetes. |
+| `kube.settings.approval.self` | oui | Appliquer son propre changeset qui touche les paramètres du module Kubernetes. |
 
 ## Rôles livrés
 
@@ -205,6 +208,9 @@ l'historique et le journal d'audit.
 | `kube.ingress.write` | `kube.ingress.edit`, `kube.ingress.approval.self` |
 | `kube.ingress.propose` | `kube.ingress.edit` |
 | `kube.ingress.apply_own` | `kube.ingress.approval.self` |
+| `kube.settings.write` | `kube.settings.edit`, `kube.settings.approval.self` |
+| `kube.settings.propose` | `kube.settings.edit` |
+| `kube.settings.apply_own` | `kube.settings.approval.self` |
 | `prop.*.write` | `prop.*.edit`, `prop.*.approval.self` |
 | `prop.*.propose` | `prop.*.edit` |
 | `prop.*.apply_own` | `prop.*.approval.self` |

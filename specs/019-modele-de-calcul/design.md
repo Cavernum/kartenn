@@ -141,16 +141,18 @@ CREATE TABLE kube.service (
     …, EXCLUDE USING GIST (namespace_id WITH =, name WITH =, valid_period WITH &&)
 );
 CREATE TABLE kube.ingress ( … class text, rules jsonb, tls_hosts text[], address_ids uuid[] … );
--- Paramètres du module (kube.settings.*, 027/P4, REQ-019-34) : versionnés, globaux,
--- écrits par changeset sous kube.settings.edit.
-CREATE TABLE kube.label_mapping (
+-- Paramètres du module (kube.settings.*, 027/P4, REQ-019-34 ; Q-019-35) : trois types
+-- du module, versionnés, globaux, écrits par changeset sous kube.settings.edit
+-- (type_permissions), lus sous kube.cluster.read.
+CREATE TABLE kube.label_mapping (     -- (clé, valeur de label, axe) unique à tout instant
     id uuid NOT NULL, label_key text NOT NULL, label_value text NOT NULL,
     axis_key text NOT NULL, axis_value text NOT NULL, …
 );
-CREATE TABLE kube.admitted_value (  -- valeurs d'axe admises par namespace
-    id uuid NOT NULL, namespace_id uuid NOT NULL, axis_key text NOT NULL, axis_value text NOT NULL, …
+CREATE TABLE kube.admitted_values (   -- un objet par (namespace, axe) : l'ensemble admis
+    id uuid NOT NULL, namespace_id uuid NOT NULL, axis_key text NOT NULL,
+    axis_values text[] NOT NULL, …
 );
-CREATE TABLE kube.tracked_label (    -- clés de labels suivies dans tous les clusters
+CREATE TABLE kube.tracked_label (     -- clés de labels suivies dans tous les clusters
     id uuid NOT NULL, label_key text NOT NULL, …
 );
 -- index : node_by_machine, workload_by_namespace, service_by_workload (GIN sur workload_ids),
@@ -284,8 +286,17 @@ triée par (`pod_uid`, `ip`), instants en RFC 3339 UTC à la microseconde.
 | `op` | Auteur, permission | Rôle |
 |---|---|---|
 | `kube.create_cluster` / `update_cluster` | administrateur, `kube.cluster.edit` | déclaration du cluster (domaines, plages, rétention, labels suivis propres, fenêtre de lot, groupe du connecteur) ; `owner`, `site` planifiés |
-| `kube.sync` | connecteur (membre du groupe du connecteur), `kube.<type>.edit` des objets écrits | lot : `upsert` et `close` d'objets par identifiant externe, `mark_absent`, `clear_absent` ; crée et clôt les réseaux de plages et les adresses `vip` qu'il cite, pose `kube.namespace` et les valeurs d'axes des labels admis (opérations du noyau planifiées, ADR 0026 clause 6, sous leurs propres droits) |
-| `kube.set_label_mapping`, `kube.set_admitted_values`, `kube.set_tracked_labels` | `kube.settings.edit` (globale, 027/P4, P5 ; `operation_permissions`, ADR 0026 amendement 3) | paramètres du module : correspondances, valeurs admises par namespace, labels suivis du module (REQ-019-34) |
+| `kube.sync` | connecteur (membre du groupe du connecteur), `kube.<type>.edit` des objets écrits | lot : `upsert` et `close` d'objets par identifiant externe, `mark_absent`, `clear_absent` ; crée et clôt les réseaux de plages et les adresses `vip` qu'il cite ; à l'`upsert` d'un workload, pose `kube.namespace` et **dérive** les valeurs d'axes de ses labels suivis, admises dans son namespace (`AssignProperty`, `UnassignProperty` du noyau planifiés, ADR 0026 clause 6, sous leurs propres droits ; Q-019-33) ; le `close` d'un namespace cité par des valeurs admises devient un `mark_absent`, avertissement `kube.namespace.held` (précision de Q-019-35, 2026-11-12) |
+| `kube.set_label_mapping {action: upsert\|close, …}` | `kube.settings.edit` (globale, 027/P4, P5 ; par `type_permissions` du type `kube.label_mapping`, Q-019-35) | `upsert {label_key, label_value, axis, value}` crée la correspondance de (clé, valeur de label, axe) ou change sa valeur d'axe ; `close {id}` la clôt |
+| `kube.set_admitted_values {namespace: {id}, axis, values}` | idem (`kube.admitted_values`) | remplace l'ensemble des valeurs admises de l'axe dans le namespace ; un ensemble vide clôt l'objet |
+| `kube.set_tracked_labels {keys}` | idem (`kube.tracked_label`) | remplace la liste des clés de labels suivies du module : crée les clés nouvelles, clôt les absentes |
+
+Une correspondance ne vise ni `kube.namespace` (géré par le serveur, Q-019-39) ni une
+propriété sensible ; son axe est une liste fermée portée par `kube.workload`, sa valeur
+une valeur vivante de cette liste ; les valeurs admises sont des valeurs vivantes de la
+liste de l'axe (`kube.operation.invalid` sinon) ; écrire des valeurs admises demande
+aussi `kube.namespace.read` sur leur namespace (tâche 7c). Le changeset qui écrit un paramètre
+re-dérive les affectations des workloads concernés (Q-019-36, tâche 7d3).
 
 Une écriture suit la grammaire de la 024 (M7) : `edit` crée et soumet le changeset,
 `approval.self` l'applique dans la même requête, `apply` applique celui d'un autre.
@@ -311,7 +322,9 @@ domaines touchés.
 | `kube.node.unmatched` | avertissement | nœud sans machine ou correspondance ambiguë |
 | `kube.object.absent` | avertissement | objet cité disparu du cluster |
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
-| `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace |
+| `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace : règle du serveur, levée par la dérivation de `kube.sync` ou du changeset des paramètres (Q-019-33) |
+| `kube.namespace.managed` | erreur | affectation ou retrait de `kube.namespace` autre que ceux que planifie `kube.sync` (`CheckContext::operations`, Q-019-39) |
+| `kube.namespace.held` (ajoutée à la tâche 7c) | avertissement | namespace absent de son cluster que des valeurs admises gardent : le `close` du connecteur est devenu un `mark_absent` ; l'avertissement nomme les valeurs admises à retirer, son anomalie se ferme à leur retrait ou au retour du namespace (précision de Q-019-35, 2026-11-12) |
 | `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; levée seulement pour un auteur qui tient `kube.observation.read` sur le domaine des pods du cluster du nœud, sans quoi elle ferait oracle ; le pod n'est jamais nommé, l'avertissement et son anomalie disent « ressemble à un pod d'un cluster » ; réévaluée quel que soit l'auteur sur une machine qui n'y ressemble plus (close, renommée, déplacée), dont l'anomalie se ferme (Q-019-32, deux amendements) |
 | `kube.sync.stale` | avertissement | cluster sans lot ni signet depuis 10 min (connecteur arrêté) |
 
@@ -336,7 +349,7 @@ objets qui portent une propriété de référence vers lui ; elle est réévalu�
 | `kube.node.*`, `kube.namespace.*`, `kube.workload.*`, `kube.service.*`, `kube.ingress.*` (mêmes actions) | — | objets miroirs (champs suivis réservés au connecteur par `kube.object.managed`) |
 | `kube.observation.read` | — | journal d'observation, sur le domaine des pods du cluster (Q-019-23) |
 | `kube.observation.record` | — | lot d'observations (rôle `kube_connector` seulement), sur le domaine des pods du cluster (Q-019-23) |
-| `kube.settings.{edit,apply,approval.self}` | oui | paramètres du module (lus sous `kube.cluster.read`) |
+| `kube.settings.{edit,apply,approval.self}` | oui | paramètres du module, types `kube.label_mapping`, `kube.admitted_values`, `kube.tracked_label` par `type_permissions` (lus sous `kube.cluster.read`, pas de `kube.settings.read`, Q-019-35) |
 
 Rôles livrés : lecteur, éditeur, approbateur reçoivent `kube.<type>.read` ;
 l'approbateur, `kube.<type>.apply` ; `kube.observation.read` n'est dans aucun des
@@ -368,7 +381,7 @@ changeset et n'entre pas dans l'outbox.
 | Clé | Type | Porteurs | Héritage |
 |---|---|---|---|
 | `machines.platform` | liste fermée simple, livrée vide | `machines.machine` | aucun |
-| `kube.namespace` | référence externe (système `kube`) | `kube.workload` | aucun (posée par le connecteur) |
+| `kube.namespace` | référence externe (système `kube`, déclaré par le module, Q-019-38) | `kube.workload` | aucun (posée par `kube.sync` seul, Q-019-39 ; identifiant `<id du cluster>/<nom>`, libellé `<slug du cluster>/<nom>`, Q-019-37) |
 
 Les axes de la politique portés par un workload (REQ-019-32) : une déclaration n'hérite
 que le long d'**un** arbre (`Declaration::inherit`, `kartenn-core/src/properties.rs`). La
@@ -397,6 +410,7 @@ tâche 7a).
 | nœud | réseau de plage (noyau) | refus ; cascade : clôt le réseau avec le nœud (le connecteur) |
 | service, ingress | adresse `vip` (noyau) | refus ; cascade : clôt l'adresse avec son dernier porteur (partagée entre les services et ingress d'un cluster, Q-019-17, ADR 0026 amendement 10) |
 | service | workload | mise à nul (retrait de la sélection) |
+| valeurs admises (`kube.admitted_values`) | namespace | refus (Q-019-35) ; le `close` de `kube.sync` devient un `mark_absent` (`kube.namespace.held`) |
 | cluster | domaines, conteneurs, réseaux | refus |
 | flux (011) | workload, namespace, service | refus ; le connecteur passe l'objet absent (REQ-019-22) |
 
@@ -492,11 +506,19 @@ refusés, objets absents, mode de repli.
   `kube.objects` et sur les changements de propriétés des porteurs `kube.*`
   (REQ-011-11) ; évaluations matérialisées (ADR 0031) inchangées, une ligne par paire
   logique ; avertissement `flow.endpoint.absent`.
-- **Labels** : le connecteur lit les paramètres `kube.label_mapping` (globaux) et
-  `kube.admitted_value` des namespaces de son cluster, par l'API ; il pose dans le lot les affectations d'axe (opération du noyau
-  `AssignProperty`, provenance « connecteur, label `<clé>` ») et retire celles qu'un label
-  disparu ne justifie plus. Une affectation humaine sur le même workload l'emporte : le
-  connecteur ne remplace jamais une valeur de provenance humaine.
+- **Labels** (Q-019-33, 34, 36) : le **serveur** dérive. À chaque `upsert` d'un workload,
+  `kube.sync` lit ses labels suivis, les correspondances `kube.label_mapping` (globales)
+  et les valeurs admises `kube.admitted_values` de son namespace, et planifie les
+  affectations d'axe (`AssignProperty` du noyau, provenance `module:kube#label:<clé>`,
+  ADR 0026 amendement 14) et les retraits (`UnassignProperty`) de celles qu'un label
+  disparu ou une correspondance close ne justifie plus ; une valeur non admise est
+  ignorée et lève `kube.label.not_admitted`. Le changeset qui écrit un paramètre
+  re-dérive de même les workloads concernés, par leurs labels stockés (index GIN
+  `workload_labels`), dans sa transaction ; son auteur doit tenir les droits de
+  propriété sur l'effet, sinon le changeset reste une proposition. Une affectation de
+  provenance `input` sur le même workload l'emporte : la dérivation ne la remplace ni ne
+  la retire. Le connecteur ne lit les paramètres que pour savoir quelles clés suivre
+  (X4) ; il n'envoie jamais d'affectation d'axe.
 
 ### Routes
 
@@ -548,6 +570,8 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B7 | rôle de connecteur confiné à un cluster | pas de périmètre « objet de module » (ADR 0026 clause 4) : groupe du connecteur (025/G1, G2) lié au rôle `kube_connector` sur les domaines désignés du cluster, types `kube.*` ancrés sur ces domaines, règles `kube.object.managed` et `kube.connector.direct` (X10, ADR 0044) |
 | B8 | rôle livré par un module | ajout additif au contrat de module (ADR 0026 clause 8, ADR 0044), à fournir (tâche 11) |
 | B9 | identifiants des objets du noyau créés par un lot, cités par ses données | crochet `ModuleHandler::planned`, amendement 8 (additif, clause 6) de l'ADR 0026 (Q-019-14), fourni (tâche 3a) |
+| B10 | provenance d'une valeur dérivée d'un label, distincte d'une saisie | forme `module:<module>#<motif>` du noyau, portable par une opération planifiée par un module seulement, migration du `CHECK` de `0011_properties.sql` : amendement 14 de l'ADR 0026 (Q-019-34), à fournir (tâche 7d1) |
+| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations`, amendement 15 de l'ADR 0026 (Q-019-38), à fournir (tâche 7d1) |
 
 ## Erreurs et cas limites
 

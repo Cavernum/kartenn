@@ -32,6 +32,8 @@ mod pg;
 pub mod read;
 #[cfg(feature = "rest")]
 pub mod rest;
+#[cfg(feature = "pg")]
+mod settings;
 
 pub use module::Kube;
 pub use names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, Labels};

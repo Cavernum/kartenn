@@ -53,6 +53,18 @@ pub(crate) static ENGLISH: English = English {
             "kube.observation.read",
             "Read the pod journal of a Kubernetes cluster: which pod had an address, where a workload ran.",
         ),
+        (
+            "kube.settings.edit",
+            "Change in a changeset and submit the settings of the Kubernetes module: mappings of labels to values of axes, admitted values by namespace, tracked labels.",
+        ),
+        (
+            "kube.settings.apply",
+            "Apply or reject the changeset of someone else that touches the settings of the Kubernetes module.",
+        ),
+        (
+            "kube.settings.approval.self",
+            "Apply one's own changeset that touches the settings of the Kubernetes module.",
+        ),
         ("kube.workload.read", "Read the Kubernetes workloads."),
         (
             "kube.workload.edit",
@@ -159,6 +171,10 @@ pub(crate) static ENGLISH: English = English {
             "A Kubernetes object cited by a dependent is present in its cluster.",
         ),
         (
+            "kube.namespace.held",
+            "A namespace gone from its cluster is no longer cited by admitted values.",
+        ),
+        (
             "kube.ingress.backend_missing",
             "An ingress rule targets a service present in its namespace.",
         ),
@@ -190,6 +206,21 @@ pub(crate) static ENGLISH: English = English {
         ),
         ("kube.service", "Service Kubernetes", "Kubernetes service"),
         ("kube.ingress", "Ingress Kubernetes", "Kubernetes ingress"),
+        (
+            "kube.label_mapping",
+            "Correspondance de label Kubernetes",
+            "Kubernetes label mapping",
+        ),
+        (
+            "kube.admitted_values",
+            "Valeurs admises d'un namespace Kubernetes",
+            "Admitted values of a Kubernetes namespace",
+        ),
+        (
+            "kube.tracked_label",
+            "Label Kubernetes suivi",
+            "Tracked Kubernetes label",
+        ),
     ],
     states: &[],
 };
