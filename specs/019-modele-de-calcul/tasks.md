@@ -1712,7 +1712,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     l'auteur, `settings::within`) : les paramètres s'écrivent au présent, le crochet ne
     recevant que la période du changeset (amendement 16, design « Opérations ») ; test
     `settings_rederive_workloads` complété (les trois opérations refusées dans un
-    `within`).
+    `within`). Lecture des workloads concernés (`derivation::concerned`) en `UNION` de
+    trois branches indexables au lieu d'un `OR EXISTS` ; `EXPLAIN` relevé sur une table
+    temporaire de 200 000 workloads (500 valeurs de `tier`, 200 namespaces) : `labels @>
+    ANY(…)` et `labels ?| …` en Bitmap Index Scan sur l'index GIN, la branche par
+    namespace en BitmapAnd de l'index `namespace_id` et de l'index GIN, sous un
+    HashAggregate.
   - reste : les verrous sont pris après `prepare` et `prepare_changeset` (comme tous les
     verrous du pipeline) : un lot préparé avant la validation d'un changeset de
     paramètres dérive sur les paramètres qu'il a lus, et inversement, jusqu'au prochain

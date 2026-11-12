@@ -452,6 +452,8 @@ pub(crate) async fn rederive(
     if labels.is_empty() && keys.is_empty() && scoped.is_empty() {
         return Ok(Vec::new());
     }
+    // Sorted already: the mappings by (label key, label value, axis), so the same label
+    // of two axes comes twice in a row.
     labels.dedup();
     let rows = concerned(conn, (&labels, &keys), (&namespaces, &scoped), at).await?;
     let mut axes = BTreeMap::new();
@@ -503,16 +505,29 @@ async fn concerned(
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Concerned>, StoreError> {
     sqlx::query_as(
-        "SELECT w.id, n.cluster_id, n.id, n.name, c.tracked_label_keys, w.labels
-           FROM kube.workload w
+        // Three branches, each on an index: `workload_labels` (GIN) for the labels and
+        // the keys, with `workload_by_namespace` for the labels of a namespace.
+        "WITH hit AS (
+             SELECT id FROM kube.workload
+              WHERE labels @> ANY($1::jsonb[])
+                AND valid_period @> coalesce($5::timestamptz, now())
+             UNION
+             SELECT id FROM kube.workload
+              WHERE labels ?| $2::text[]
+                AND valid_period @> coalesce($5::timestamptz, now())
+             UNION
+             SELECT w.id FROM unnest($3::uuid[], $4::jsonb[]) AS s(n, l)
+               JOIN kube.workload w
+                 ON w.namespace_id = s.n AND w.labels @> s.l
+                AND w.valid_period @> coalesce($5::timestamptz, now()))
+         SELECT w.id, n.cluster_id, n.id, n.name, c.tracked_label_keys, w.labels
+           FROM hit
+           JOIN kube.workload w
+             ON w.id = hit.id AND w.valid_period @> coalesce($5::timestamptz, now())
            JOIN kube.namespace n
              ON n.id = w.namespace_id AND n.valid_period @> coalesce($5::timestamptz, now())
            JOIN kube.cluster c
              ON c.id = n.cluster_id AND c.valid_period @> coalesce($5::timestamptz, now())
-          WHERE w.valid_period @> coalesce($5::timestamptz, now())
-            AND (w.labels @> ANY($1::jsonb[]) OR w.labels ?| $2::text[]
-                 OR EXISTS (SELECT 1 FROM unnest($3::uuid[], $4::jsonb[]) AS s(n, l)
-                             WHERE s.n = w.namespace_id AND w.labels @> s.l))
           ORDER BY w.id",
     )
     .bind(labels)
