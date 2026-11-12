@@ -3501,7 +3501,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       seule (une cellule de `DataGrid` à widget et à raison ferait voir deux infobulles) ;
       le pointeur revenu du « + » sur la cellule ne rouvre l'infobulle qu'en y rentrant ;
       les identifiants des phrases cachées suivent la fenêtre rendue (recalculés avec les
-      cellules) ; restitution par un vrai lecteur d'écran non éprouvée.
+      cellules) ; restitution par un vrai lecteur d'écran non éprouvée. Revue (mineurs) :
+      l'épinglage au toucher dans le `TreeGrid` n'est pas testé (`onRowClick`) ; un clic
+      sur le chevron d'un nœud qui a une raison épingle l'infobulle en dépliant le nœud,
+      ni dit ni testé ; ligne réécrite du design 020 (~992) non rejustifiée ; la cellule du
+      nœud prend un `stateReason` sans montrer son état (« retenue » décrit, non nommé,
+      à régler en 12f2) ; hors périmètre : une infobulle ouverte au survol suit l'élément
+      de sa cellule, qui peut être recyclé pour une autre ligne pendant un défilement
+      (`anchorTip` lit `dataset.row` sans réactivité).
   - [ ] 12f2. Le shell branche les raisons de l'arbre et partage son édition : la
     Topographie passe `readonlyReason` et `stateReason` à son `TreeGrid` (le pourquoi
     d'une cellule de l'arbre en description, plus seulement par le statut de la vue) ;
