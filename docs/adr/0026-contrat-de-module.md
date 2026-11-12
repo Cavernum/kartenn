@@ -484,6 +484,32 @@ Source : `crates/kartenn-service/src/module.rs` (`ModuleTx::audit`),
 `crates/kartenn-store-pg/src/write.rs` ; premier usage `crates/kartenn-kube/src/jobs.rs`.
 Test : `kartenn-kube` `observations::retention::altered_batch_detected`.
 
+### Amendement 14 — 2026-11-12, provenance d'une valeur dérivée par un module (019/Q-019-34)
+
+Un ajout du noyau, **arbitré par l'utilisateur le 2026-11-12** (019/Q-019-34), à livrer
+par la tâche 019-7d1 : une affectation de propriété peut porter la provenance
+`module:<module>#<motif>` (pour le module kube, `module:kube#label:<clé>` : la valeur
+dérivée d'un label du workload, 019/Q-019-33), en plus de `input` et de
+`source:<id>@<version>` (REQ-003-22).
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| Forme de provenance `module:<module>#<motif>`, `<module>` le nom du module qui planifie l'opération | 6 | une valeur dérivée par un module ne se confond ni avec une saisie (`input`), ni avec une valeur par défaut d'une source ; le module retire sûrement ce qu'il a posé et ne touche jamais une valeur `input` |
+| Portée seulement par une opération qu'un module ajoute (`ModulePlan::core`), du nom de ce module ; refusée en entrée (REST, import, opération écrite par l'auteur) | 6 | un client ne se fait pas passer pour une dérivation du module |
+
+Le schéma du noyau change : une migration élargit le `CHECK` de
+`property_assignment.provenance` (`0011_properties.sql`). Le contrat REST rend la
+provenance telle qu'elle est stockée ; aucune route nouvelle.
+
+### Amendement 15 — 2026-11-12, systèmes externes déclarés par un module (019/Q-019-38)
+
+Un ajout additif au contrat, **arbitré par l'utilisateur le 2026-11-12**
+(019/Q-019-38), à livrer par la tâche 019-7d1 :
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `ModuleDeclarations` gagne les systèmes externes du module (clé et libellés) ; la synchronisation des déclarations crée chacun comme valeur de la liste fermée `core.external_system`, auteur système, ensuite administrable (libellés) comme une valeur livrée | 5 | une propriété de référence externe d'un module (`kube.namespace`, système `kube`) nomme un système qui doit exister sans geste d'un administrateur |
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

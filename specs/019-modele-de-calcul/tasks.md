@@ -1253,7 +1253,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
   `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et
   hyperviseurs par les arêtes de la 4d), correspondances de labels, valeurs admises et labels suivis du
-  module (paramètres `kube.settings.*`, tables et opérations, `operation_permissions`)
+  module (paramètres `kube.settings.*`, tables et opérations, `type_permissions`)
   — REQ-019-32 à 34 (côté module), REQ-019-3 — verify :
   `axis_from_namespace_then_tree`, `axis_values_one_query`, `label_mapping_admitted`,
   `label_mapping_needs_kube_settings`, `looks_like_pod_warns`, `execution_chain_at_date`
@@ -1262,7 +1262,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-core/src/properties.rs` (`InheritTree`, un arbre par déclaration)
   - dépend de : 4, 6
   - découpée (2026-11-12) en 7a à 7d : une brique du port, une famille de vérification
-    chacune.
+    chacune ; 7d découpée à son tour en 7d1 à 7d3 (2026-11-12, arbitrages Q-019-33 à
+    39).
 - [x] 7a. Workloads et leurs axes : `workloads_of(namespace | service | cluster,
   valid_at, as_of)` et `axis_values(workloads, keys, valid_at, as_of)` dans
   `kartenn_kube::read`, une requête pour le lot : par workload et clé, la valeur
@@ -1390,27 +1391,74 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     les arêtes nœud par nœud (deux requêtes par nœud) ; un changeset qui ne touche que le
     nœud (`kube.sync` qui désigne la machine hôte) ne réévalue pas la règle, ni un lot
     d'observations qui ouvre un pod du nom d'une machine.
-- [ ] 7c. Paramètres du module : correspondances (clé, valeur de label) → valeur d'axe,
-  valeurs d'axe admises par namespace, labels suivis du module (X4) ; tables
-  `kube.label_mapping`, `kube.admitted_value` et `kube.tracked_label` (migration
-  suivante), opérations `kube.set_label_mapping`, `kube.set_admitted_values` et
-  `kube.set_tracked_labels`, permission `kube.settings.edit` (`apply`, `approval.self`)
-  par `operation_permissions` — REQ-019-34 (paramètres) — verify :
-  `label_mapping_needs_kube_settings`
-  - où : design « Données » (tables des paramètres), « Opérations » ; `decisions.md`
-    X4, X11 ; spec 027 (P4, P5, REQ-027-5, 6) ;
-    `crates/kartenn-policy/src/module.rs` (`SETTINGS_EDIT`, `typed`) ;
-    `crates/kartenn-service/src/module.rs` (`operation_permissions`)
+- [ ] 7c. Paramètres du module (Q-019-35) : trois types du module, globaux,
+  `kube.label_mapping` (clé et valeur de label → axe et valeur, unique par clé, valeur
+  de label et axe), `kube.admitted_values` (un objet par namespace et axe, l'ensemble des
+  valeurs admises) et `kube.tracked_label` (une clé suivie dans tous les clusters, X4) ;
+  tables (migration suivante) ; sous `type_permissions` (lecture `kube.cluster.read`,
+  écriture `kube.settings.edit`, `apply` et `approval.self` dérivées ; permissions
+  `kube.settings.{edit,apply,approval.self}` globales, pas de `kube.settings.read`) ;
+  opérations `kube.set_label_mapping {action: upsert|close, …}`,
+  `kube.set_admitted_values {namespace: {id}, axis, values}` (remplace l'ensemble, vide
+  il clôt) et `kube.set_tracked_labels {keys}` (remplace la liste) ; valeurs admises vers
+  leur namespace en `Refuse` ; correspondance vers `kube.namespace` ou une propriété
+  sensible refusée, axe liste fermée portée par `kube.workload`, valeurs vivantes de sa
+  liste, clés et valeurs de labels à la syntaxe Kubernetes — REQ-019-34 (paramètres),
+  REQ-019-39 (paramètres) — verify : `label_mapping_needs_kube_settings`,
+  `settings_written_by_changeset`
+  - où : design « Données » (tables des paramètres), « Opérations », « Références » ;
+    `decisions.md` Q-019-35, X4, X11 ; spec 027 (P4, P5, REQ-027-5, 6) ;
+    `crates/kartenn-policy/src/module.rs` (`SETTINGS_EDIT`, `TYPE_PERMISSIONS`, `typed`) ;
+    `crates/kartenn-kube/src/handler.rs` (`prepare`, `plan`, `apply`) ;
+    `crates/kartenn-kube/src/names.rs` (`LabelKey`, `LabelValue`) ;
+    test voisin `crates/kartenn-kube/tests/it/clusters.rs`
   - dépend de : 4
-- [ ] 7d. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
-  `kube`) posé sur chaque workload, et valeurs d'axe des labels correspondants admises
-  dans son namespace, provenance « connecteur, label `<clé>` », sinon ignorées avec
-  `kube.label.not_admitted` — REQ-019-33, 34 (pose) — verify : `label_mapping_admitted`
-  (avec la valeur de `kube.namespace`)
-  - où : design « Propriétés », « Règles » ; `decisions.md` X11 ;
-    `crates/kartenn-kube/src/handler.rs` (upsert d'un workload) ;
+- [ ] 7d. Pose des axes par le serveur (Q-019-33, 34, 36 à 39) — découpée (2026-11-12)
+  en 7d1 à 7d3 : le noyau, la pose par `kube.sync`, la re-dérivation par les paramètres ;
+  une famille de vérification chacune.
+- [ ] 7d1. Noyau : provenance `module:<module>#<motif>` (amendement 14 de l'ADR 0026,
+  Q-019-34) : migration du noyau qui élargit le `CHECK` de
+  `property_assignment.provenance` (`0011_properties.sql`), portée seulement par une
+  opération planifiée par un module (`ModulePlan::core`) et du nom de ce module, refusée
+  en entrée (REST, import, opération de l'auteur) ; systèmes externes déclarés par un
+  module (amendement 15, Q-019-38) : `ModuleDeclarations` gagne les systèmes externes, la
+  synchronisation des déclarations crée la valeur de `core.external_system`, auteur
+  système, ensuite administrable — B10, B11 — verify :
+  `module_provenance_only_planned`, `module_declares_external_system`
+  - où : design « Exigences envers le noyau » (B10, B11) ; ADR 0026 amendements 14, 15 ;
+    `crates/kartenn-store-pg/migrations/0011_properties.sql` (`provenance`) ;
+    `crates/kartenn-service/src/operations.rs` (`AssignProperty`) ;
+    `crates/kartenn-service/src/declarations.rs` (`ModuleDeclarations`, `synced_labels`) ;
+    `crates/kartenn-service/src/expected.rs` (`provenance`, la forme `source:`)
+  - dépend de : —
+- [ ] 7d2. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
+  `kube` déclaré par le module, identifiant `<id du cluster>/<nom>`, libellé
+  `<slug du cluster>/<nom>`, Q-019-37) posé à l'`upsert` de chaque workload ; à chaque
+  `upsert` d'un workload, le serveur lit ses labels suivis, les correspondances et les
+  valeurs admises de son namespace et planifie les `AssignProperty` (provenance
+  `module:kube#label:<clé>`) et `UnassignProperty` (label disparu, correspondance close)
+  du noyau, sous leurs propres droits ; une affectation `input` l'emporte (ni remplacée ni
+  retirée) ; valeur non admise ignorée, `kube.label.not_admitted` (règle du serveur) ;
+  règle d'erreur `kube.namespace.managed` (affectation ou retrait de `kube.namespace`
+  hors de ce que planifie `kube.sync`, `CheckContext::operations`, Q-019-39) —
+  REQ-019-33, 34 (pose) — verify : `label_mapping_admitted` (avec la valeur de
+  `kube.namespace`), `namespace_axis_managed`
+  - où : design « Propriétés », « Règles », « Politique et flux » (Labels) ;
+    `decisions.md` Q-019-33, 34, 37 à 39, X11 ;
+    `crates/kartenn-kube/src/handler.rs` (`plan_sync`, upsert d'un workload) ;
+    `crates/kartenn-kube/src/rules.rs` ;
     `crates/kartenn-machines/src/module.rs` (`declarations`)
-  - dépend de : 7c
+  - dépend de : 7c, 7d1
+- [ ] 7d3. Re-dérivation par les paramètres (Q-019-36) : le changeset qui écrit une
+  correspondance ou des valeurs admises re-dérive, dans sa transaction, les affectations
+  des workloads concernés à partir de leurs labels stockés (index GIN
+  `workload_labels`) ; l'auteur doit tenir les droits de propriété sur l'effet, sinon le
+  changeset reste une proposition ; `kube.label.not_admitted` levée ou close de même —
+  REQ-019-34 (re-dérivation) — verify : `settings_rederive_workloads`
+  - où : design « Opérations », « Politique et flux » (Labels) ; `decisions.md`
+    Q-019-36 ; la dérivation de la 7d2 ;
+    `crates/kartenn-kube/src/handler.rs` (`prepare` des opérations des paramètres)
+  - dépend de : 7d2
 - [ ] 8. Routes REST et imports : collections du module par `{id}` (clé naturelle en
   filtre, `?slug=`), filtres, chaîne d'exécution (`GET /v1/workloads/{id}/chain`), paramètres (`If-Match`), permissions
   de lecture ajoutées aux rôles livrés (lecteur, éditeur, approbateur ; `apply` à

@@ -488,6 +488,94 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
     ferme sans rien révéler ; une machine qui y ressemble encore garde son anomalie telle
     quelle face à un auteur sans le droit.
 
+### Q-019-33 — Qui dérive les valeurs d'axe des labels (tâches 7c, 7d)
+- Constat : REQ-019-34 et le design (« Politique et flux », « Labels ») faisaient lire au
+  connecteur les correspondances et les valeurs admises par l'API, puis poser lui-même
+  les affectations d'axe dans son lot. Le connecteur deviendrait juge de la borne par
+  namespace (X11) : un connecteur compromis ou en retard sur les paramètres poserait des
+  valeurs non admises, et la règle `kube.label.not_admitted` ne verrait que ce qu'il a
+  choisi d'envoyer.
+- Options : A. le connecteur dérive et pose (design initial) ; B. le **serveur** dérive :
+  à chaque `upsert` d'un workload, `kube.sync` lit les labels suivis du workload, les
+  correspondances et les valeurs admises de son namespace et planifie les affectations et
+  les retraits du noyau.
+- Décision (l'utilisateur, 2026-11-12) : B. À chaque `upsert` d'un workload, `kube.sync`
+  lit ses labels suivis, les correspondances (`kube.label_mapping`) et les valeurs
+  admises de son namespace (`kube.admitted_values`) et planifie des `AssignProperty` et
+  `UnassignProperty` du noyau (ADR 0026 clause 6) ; `kube.label.not_admitted` est une
+  règle du serveur. Le connecteur ne lit les paramètres que pour savoir quelles clés de
+  labels suivre (X4) ; il n'envoie jamais d'affectation d'axe.
+
+### Q-019-34 — Provenance d'une valeur dérivée d'un label (tâche 7d)
+- Constat : une valeur posée par label doit dire sa provenance (« connecteur, label
+  `<clé>` », X11) et ne jamais remplacer une valeur humaine. Le noyau n'admet que deux
+  formes de provenance (`input`, `source:<id>@<version>`, `CHECK` de
+  `0011_properties.sql`) : aucune ne distingue une valeur dérivée par un module.
+- Options : A. réutiliser `input` (la valeur dérivée se confond avec une saisie et ne se
+  retire plus sûrement) ; B. une **forme nouvelle du noyau**, `module:<module>#label:<clé>`.
+- Décision (l'utilisateur, 2026-11-12) : B. Le noyau admet la provenance
+  `module:kube#label:<clé>` (forme générale `module:<module>#<motif>`), portable
+  seulement par une opération planifiée par un module (`ModulePlan::core`) et refusée en
+  entrée REST ; migration du noyau qui élargit le `CHECK` de `0011_properties.sql`.
+  Amendement 14 de l'ADR 0026 et du choix structurant n° 2 (le schéma du noyau change).
+  Une valeur de provenance `input` sur le même workload l'emporte : `kube.sync` ne
+  remplace ni ne retire une affectation qu'il n'a pas posée.
+
+### Q-019-35 — Forme des paramètres du module (tâche 7c)
+- Constat : correspondances, valeurs admises et labels suivis sont des paramètres du
+  module (027/P4, P5) ; la tâche 7c les donnait sous `operation_permissions`, alors que
+  ce sont des objets versionnés lus par la dérivation et par l'API.
+- Options : A. opérations sous `operation_permissions`, sans type d'objet ; B. **trois
+  types d'objets du module** sous `type_permissions` (précédent de la 027 pour les axes
+  et valeurs de la politique).
+- Décision (l'utilisateur, 2026-11-12) : B. Types `kube.label_mapping` (clé et valeur
+  de label → clé et valeur d'axe), `kube.admitted_values` (un objet par namespace et
+  propriété, l'ensemble des valeurs admises) et `kube.tracked_label` (une clé suivie dans
+  tous les clusters), sous `type_permissions` : lecture `kube.cluster.read`, écriture
+  `kube.settings.edit` (`apply`, `approval.self` dérivées). Opérations
+  `kube.set_label_mapping {action: upsert|close, …}`,
+  `kube.set_admitted_values {namespace: {id}, axis, values}` (remplace l'ensemble) et
+  `kube.set_tracked_labels {keys}` (remplace la liste). Les valeurs admises citent leur
+  namespace en `Refuse` (D33). Pas de `kube.settings.read` (X16). Une correspondance vers
+  `kube.namespace` ou vers une propriété sensible est refusée.
+
+### Q-019-36 — Effet d'un changement de paramètres (tâche 7d)
+- Constat : une correspondance ou une valeur admise ajoutée, changée ou retirée change la
+  valeur d'axe des workloads déjà synchronisés ; attendre le prochain `upsert` du
+  connecteur laisserait la politique fausse pour une durée indéfinie.
+- Options : A. effet au prochain lot du connecteur ; B. le **changeset des paramètres
+  re-dérive** les affectations des workloads concernés, dans sa transaction.
+- Décision (l'utilisateur, 2026-11-12) : B. Le changeset qui écrit un paramètre
+  re-dérive, à partir des labels stockés (`kube.workload.labels`, index GIN
+  `workload_labels`), les affectations des workloads concernés, dans la même
+  transaction. L'auteur doit tenir les droits de propriété sur l'effet (affectations et
+  retraits planifiés) ; sans eux, le changeset reste une proposition.
+
+### Q-019-37 — Valeur de l'axe `kube.namespace` (tâche 7d)
+- Constat : la référence externe (`{system, id, label}`, 0046) de l'axe `kube.namespace`
+  doit être stable et comparable entre workloads (« même valeur », REQ-010-8), lisible
+  par un humain, et deux clusters peuvent avoir un namespace du même nom.
+- Décision (l'utilisateur, 2026-11-12) : identifiant `<id du cluster>/<nom>`, libellé
+  `<slug du cluster>/<nom>`.
+
+### Q-019-38 — Système externe `kube` (tâche 7d)
+- Constat : une référence externe nomme son système par une valeur de la liste fermée
+  `core.external_system` ; rien ne crée la valeur `kube`, et un module ne déclare que des
+  propriétés et leurs libellés (`ModuleDeclarations`).
+- Options : A. valeur ajoutée à la main par un administrateur ; B. le module la
+  **déclare**.
+- Décision (l'utilisateur, 2026-11-12) : B. `ModuleDeclarations` gagne les systèmes
+  externes du module ; la synchronisation des déclarations crée la valeur `kube` de
+  `core.external_system`, auteur système, ensuite administrable (libellés) comme une
+  valeur livrée. Ajout au contrat de module, amendement 15 de l'ADR 0026.
+
+### Q-019-39 — Axe `kube.namespace` géré par le serveur (tâche 7d)
+- Constat : `kube.namespace` dit le namespace réel d'un workload ; une affectation à la
+  main ferait mentir une contrainte « même valeur » (REQ-010-8).
+- Décision (l'utilisateur, 2026-11-12) : règle d'erreur `kube.namespace.managed` : toute
+  affectation ou tout retrait de `kube.namespace` autre que ceux que planifie `kube.sync`
+  est refusé (lu par `CheckContext::operations`, amendement 11).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
@@ -795,6 +883,12 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   `<module>.settings.*`, 027/P4).
 - Décidé par : l'utilisateur (2026-11-09, Q-019-7 ; correspondances en paramètres
   génériques du module, sans action propre) ; composition de la valeur : Claude
+- Amendée (l'utilisateur, 2026-11-12, Q-019-33 à 39) : le **serveur** dérive les valeurs
+  d'axe des labels, à l'`upsert` d'un workload par `kube.sync` et au changeset des
+  paramètres, provenance `module:kube#label:<clé>` ; les paramètres sont trois types du
+  module (`kube.label_mapping`, `kube.admitted_values`, `kube.tracked_label`) sous
+  `type_permissions` ; `kube.namespace` vaut `<id du cluster>/<nom>`, système `kube`
+  déclaré par le module, géré par le serveur seul (`kube.namespace.managed`).
 
 ## X12 — Flux : nouvelles extrémités
 - Décision (Q-019-8 = A, D22 amendée) : extrémités ajoutées à la 010 (REQ-010-13) et à la
@@ -873,9 +967,14 @@ l'utilisateur le 2026-11-09 (tâche 0b).
    (Q-019-4, observations hors bitemporel et hors changesets), D22 (Q-019-8, extrémité
    logique), D31 (Q-019-13) ; D21 tenue par Q-019-7 A (valeurs d'axes en liste fermée).
 2. **Schéma** : schéma `kube` (six types, table d'observation non versionnée,
-   partitionnée) ; colonne d'état `absent_since` ; aucune modification du schéma du
-   noyau ; propriété `machines.platform` (009) ; colonne `kube.node.pod_cidrs` (Q-019-14,
-   2026-11-10).
+   partitionnée) ; colonne d'état `absent_since` ; propriété `machines.platform` (009) ;
+   colonne `kube.node.pod_cidrs` (Q-019-14, 2026-11-10) ; tables des paramètres
+   `kube.label_mapping`, `kube.admitted_values`, `kube.tracked_label` (Q-019-35,
+   2026-11-12). Le schéma du noyau ne changeait pas ; **amendé** le 2026-11-12
+   (Q-019-34, amendement 14 de l'ADR 0026) : la migration du noyau élargit le `CHECK`
+   de `property_assignment.provenance` (`0011_properties.sql`) à la forme
+   `module:<module>#<motif>`, portable par une opération planifiée par un module
+   seulement.
 3. **Contrat REST** (additif, 006/H12) : collections `/v1/kube-clusters`,
    `/v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`,
    `/v1/ingresses`, identifiées par `{id}`, la clé naturelle en filtre (006/H3) ; route
@@ -890,7 +989,9 @@ l'utilisateur le 2026-11-09 (tâche 0b).
    d'un lot d'observations par le noyau, deux événements d'audit nouveaux (ADR 0043) ;
    identifiants créés rendus au module par `ModuleHandler::planned`, amendement additif de
    la clause 6 de l'ADR 0026 (Q-019-14, 2026-11-10) ;
-   référence possédante, amendement additif de l'ADR 0026 (Q-019-16, 2026-11-10).
+   référence possédante, amendement additif de l'ADR 0026 (Q-019-16, 2026-11-10) ;
+   systèmes externes déclarés par un module, amendement 15 de l'ADR 0026 (Q-019-38,
+   2026-11-12).
 6. **Dépendance** : client Kubernetes (Q-019-12), fiche à la tâche 9.
 7. **ADR** : [0043](../../docs/adr/0043-observations-hors-referentiel.md)
    (observations hors référentiel) et
