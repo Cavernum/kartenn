@@ -175,6 +175,18 @@ test.describe("touch: a tap instead of hovering", () => {
     ).toHaveAttribute("aria-valuenow", "320");
   });
 
+  test("a cell of a grid says why it is held in review", async ({ page }) => {
+    await open(page, "/_ui/c/DataGrid?etat=cell-states");
+    const grid = page.getByRole("grid");
+    await grid.locator("[data-state='review']").tap();
+    await expect(bubble(page)).toContainText("politique d'approbation");
+    // A tap on the bubble keeps it; one on another cell, without a reason, closes it.
+    await bubble(page).tap();
+    await expect(bubble(page)).toContainText("politique d'approbation");
+    await grid.locator("[data-state='draft']").tap();
+    await expect(bubble(page)).toHaveCount(0);
+  });
+
   test("a bar of a chart shows its value", async ({ page }) => {
     await open(page, "/_ui/c/BarChart?etat=days");
     await page.locator(".k-bar-chart__hit").nth(2).tap();
