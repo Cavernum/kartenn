@@ -51,7 +51,10 @@ async function choose(page: Page, row: Locator, title: string, entry: string): P
   }).toPass({ timeout: 15_000 });
 }
 
-/** The nature of the only prefix of the list changed in place, Enter: to the draft. */
+/**
+ * The nature of the only prefix of the list changed in place: its list opened by Enter, the
+ * option of the label `nature` reached by Down (task 021-12g), Enter: to the draft.
+ */
 async function draftNature(page: Page, nature: string): Promise<void> {
   await expect(cellOf(page, "nature")).toContainText("Réseau");
   await prefixes(page)
@@ -60,8 +63,10 @@ async function draftNature(page: Page, nature: string): Promise<void> {
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
-  await page.keyboard.press("Control+a");
-  await page.keyboard.type(nature);
+  // Reka moves the focus after its microtasks: each key once the option has it.
+  await expect(page.getByRole("option", { name: "Réseau" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: nature })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(cellOf(page, "nature")).toHaveAttribute("data-state", "draft");
 }
@@ -74,7 +79,7 @@ test("an edit to the draft, simulated, applied by Ctrl+Entrée with the summary 
   await login("alice");
   const { slug } = await ownedDomain(page, unique(browserName));
   await page.goto(`/prefixes?domain=${slug}`);
-  await draftNature(page, "container");
+  await draftNature(page, "Conteneur");
   await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
 
   // The counter opens the panel on the draft, and closes it.
@@ -116,7 +121,7 @@ test("without approval.self, « Appliquer » is refused with its permission; the
   try {
     await loginIn(carol, "carol");
     await carol.goto(`/prefixes?domain=${slug}`);
-    await draftNature(carol, "container");
+    await draftNature(carol, "Conteneur");
     await counter(carol).click();
     await expect(
       panel(carol).getByRole("status").filter({ hasText: "Simulation valide" }),
@@ -302,7 +307,7 @@ test("an answer lost at the submission, then « Réessayer »: the same key, one
   await login("alice");
   const { slug } = await ownedDomain(page, unique(browserName));
   await page.goto(`/prefixes?domain=${slug}`);
-  await draftNature(page, "container");
+  await draftNature(page, "Conteneur");
   await counter(page).click();
   await expect(
     panel(page).getByRole("status").filter({ hasText: "Simulation valide" }),
