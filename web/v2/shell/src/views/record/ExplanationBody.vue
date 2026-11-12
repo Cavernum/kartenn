@@ -2,8 +2,9 @@
 // The explanation of a resolved property (REQ-021-9, REQ-003-14, 15; maquette E2): where its
 // value comes from — set on the object itself, inherited from an origin through a chain of
 // objects walked up to it, or inferred by a rule — read when its popover opens, at the
-// dates of the page. Its three states: a few lines of skeleton, the explanation, the error
-// with its codes.
+// dates of the page. A value a module derived (`module:<module>#<motif>`, ADR 0026,
+// amendment 14) is said so, not as one typed (task 021-13d). Its three states: a few lines
+// of skeleton, the explanation, the error with its codes.
 import { reads, type components } from "@kartenn/sdk";
 import { CodeBadge, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
@@ -12,6 +13,7 @@ import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import ObjectName from "./ObjectName.vue";
+import { provenanceOf } from "./provenance.ts";
 
 type Explanation = components["schemas"]["Explanation"];
 /** A node of the chain, as the server writes it: its kind, identifier and URL. */
@@ -40,6 +42,11 @@ const chain = computed<ChainNode[]>(
   () => (facts.value?.chain ?? []).filter((node) => node !== null) as unknown as ChainNode[],
 );
 const direct = computed(() => origin.value !== null && origin.value.id === props.id);
+/** The provenance, when a module derived the value: said in its place of « direct ». */
+const derived = computed(() => {
+  const read = provenanceOf(facts.value?.provenance);
+  return read?.kind === "label" || read?.kind === "module" ? read : null;
+});
 </script>
 
 <template>
@@ -52,15 +59,25 @@ const direct = computed(() => origin.value !== null && origin.value.id === props
     />
     <template v-else-if="facts">
       <p v-if="facts.masked">{{ t("views.record.explanationMasked") }}</p>
-      <p v-else-if="origin === null && facts.provenance">
-        {{ t("views.record.inferred") }} <CodeBadge :code="facts.provenance" />
-      </p>
-      <p v-else-if="origin === null">{{ t("views.record.unset") }}</p>
-      <p v-else-if="direct">{{ t("views.record.direct") }}</p>
-      <p v-else>
-        {{ t("views.record.inheritedFrom") }}
-        <ObjectName :id="origin.id" :kind="origin.kind" :href="origin.href" with-kind />
-      </p>
+      <template v-else>
+        <p v-if="origin !== null && !direct">
+          {{ t("views.record.inheritedFrom") }}
+          <ObjectName :id="origin.id" :kind="origin.kind" :href="origin.href" with-kind />
+        </p>
+        <p v-if="derived?.kind === 'label'">
+          {{ t("views.record.fromLabel", { module: derived.module }) }}
+          <CodeBadge :code="derived.key" />
+        </p>
+        <p v-else-if="derived">
+          {{ t("views.record.byModule", { module: derived.module }) }}
+          <CodeBadge :code="derived.motif" />
+        </p>
+        <p v-else-if="origin === null && facts.provenance">
+          {{ t("views.record.inferred") }} <CodeBadge :code="facts.provenance" />
+        </p>
+        <p v-else-if="origin === null">{{ t("views.record.unset") }}</p>
+        <p v-else-if="direct">{{ t("views.record.direct") }}</p>
+      </template>
       <template v-if="chain.length > 1 && !direct">
         <p>{{ t("views.record.chain") }}</p>
         <ol class="k-explanation__chain">

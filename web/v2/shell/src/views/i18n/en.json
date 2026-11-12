@@ -138,6 +138,8 @@
       "direct": "Set directly on this object.",
       "inheritedFrom": "Inherited from",
       "inferred": "Inferred by the rule",
+      "fromLabel": "Taken by the module {module} from the label",
+      "byModule": "Derived by the module {module}:",
       "unset": "No value set nor inherited.",
       "chain": "Path walked, from the object to the origin:",
       "masked": "Masked",

@@ -4812,7 +4812,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
     adresses, pas aux plages.
   - repris le 2026-11-03 par la 7a : les lectures d'enfants au survol pendant un défilement
-- [ ] 13d. Provenance de module dans l'explication d'une valeur (relevé de la 019-7d1) :
+- [x] 13d. Provenance de module dans l'explication d'une valeur (relevé de la 019-7d1) :
   `ExplanationBody.vue` dit « direct » pour toute valeur posée sur l'objet, quelle que soit
   sa provenance ; une valeur dérivée par un module (`module:kube#label:<clé>`, amendement
   14 de l'ADR 0026) se lit alors comme une saisie. L'explication la dit « tirée du label
@@ -4822,6 +4822,22 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/record/ExplanationBody.vue` (ou voisin), catalogues
     `views/i18n/{fr,en}.json` ; `specs/006-api-rest/openapi-v1.json` (`Explanation.provenance`)
   - dépend de : 019-7d1
+  - fait le 2026-11-12 : `views/record/provenance.ts` (`provenanceOf`) lit les trois formes
+    (`input`, `source:<…>`, `module:<module>#<motif>`, plus une forme inconnue gardée
+    telle quelle) ; `ExplanationBody.vue` dit une valeur dérivée à la place de « Posée
+    directement » : « Tirée par le module kube du label `<clé>` » (`fromLabel`), et pour
+    un motif inconnu, de kube ou d'un autre module, « Dérivée par le module `<m>` :
+    `<motif>` » (`byModule`), le motif brut ; héritée, la ligne « Héritée de » reste
+    au-dessus ; l'origine retenue, la provenance d'un module n'est plus dite « Inférée
+    par la règle ». `input` et `source:` gardent leur rendu. Clé et motif en `CodeBadge`
+    copiable. Vitest : `shell/test/explanation.test.ts` (`provenanceOf` sur les trois
+    formes et les formes mal faites ; l'explication montée : saisie, source, label de
+    kube, motif d'un autre module, héritée et dérivée, origine retenue). Aucune capture ne
+    montre la bulle réelle, et les rendus déjà capturés (maquette E2) ne changent pas.
+  - choix : une phrase par clé, le `CodeBadge` en fin de phrase (relectures : ordre des
+    mots traduisible, bouton « Copier » qui ne coupe pas la phrase) ; seul `kube` a un
+    motif connu (`label:`), un `label:` d'un autre module reste brut ; le nom du module en
+    texte courant.
 - [ ] 24f. Ctrl+Entrée sur un dépôt dans un arbre de plugin (REQ-021-32, reste de la 24,
   arbitré par l'utilisateur le 2026-11-11) : un déplacement dans l'arbre de l'hébergement
   des machines peut devenir un changeset immédiat par Ctrl+Entrée, l'écriture passant par
