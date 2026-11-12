@@ -399,6 +399,10 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "A local reference in a value designates an object an earlier operation of the same changeset creates.",
     ),
     (
+        "prop.assignment.provenance",
+        "Only an operation a module plan adds carries a module provenance, `module:<module>#<motif>`, of the name of that module.",
+    ),
+    (
         "prop.resolution.expected_mismatch",
         "The resolved value differs from the value expected by the configured source.",
     ),

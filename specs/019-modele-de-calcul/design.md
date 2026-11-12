@@ -570,8 +570,8 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B7 | rôle de connecteur confiné à un cluster | pas de périmètre « objet de module » (ADR 0026 clause 4) : groupe du connecteur (025/G1, G2) lié au rôle `kube_connector` sur les domaines désignés du cluster, types `kube.*` ancrés sur ces domaines, règles `kube.object.managed` et `kube.connector.direct` (X10, ADR 0044) |
 | B8 | rôle livré par un module | ajout additif au contrat de module (ADR 0026 clause 8, ADR 0044), à fournir (tâche 11) |
 | B9 | identifiants des objets du noyau créés par un lot, cités par ses données | crochet `ModuleHandler::planned`, amendement 8 (additif, clause 6) de l'ADR 0026 (Q-019-14), fourni (tâche 3a) |
-| B10 | provenance d'une valeur dérivée d'un label, distincte d'une saisie | forme `module:<module>#<motif>` du noyau, portable par une opération planifiée par un module seulement, migration du `CHECK` de `0011_properties.sql` : amendement 14 de l'ADR 0026 (Q-019-34), à fournir (tâche 7d1) |
-| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations`, amendement 15 de l'ADR 0026 (Q-019-38), à fournir (tâche 7d1) |
+| B10 | provenance d'une valeur dérivée d'un label, distincte d'une saisie | forme `module:<module>#<motif>` du noyau, portable par une opération planifiée par un module seulement, migration du `CHECK` de `0011_properties.sql` (`0078`), donnée par le crochet `ModuleHandler::provenance` : amendement 14 de l'ADR 0026 (Q-019-34), fourni (tâche 7d1) |
+| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations` (`external_systems`), valeurs de `core.external_system` par la synchronisation du noyau : amendement 15 de l'ADR 0026 (Q-019-38), fourni (tâche 7d1) ; la déclaration du système `kube` par le module vient avec la 7d2 |
 
 ## Erreurs et cas limites
 

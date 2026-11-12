@@ -531,6 +531,17 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Shared::default()
     }
 
+    /// The provenance of the value that `plan.core[index]`, an `AssignProperty`, assigns
+    /// when the module derives it (ADR 0026, amendment 14; 019/Q-019-34):
+    /// `module:<module>#<motif>`, of the name of the module
+    /// ([`crate::operations::module_provenance`]), `prop.assignment.provenance`
+    /// otherwise. Only the operations a plan adds carry one: no request, import or
+    /// operation of the author does. `None` by default: the value is typed (`input`).
+    fn provenance(&self, plan: &ModulePlan, index: usize) -> Option<String> {
+        let _ = (plan, index);
+        None
+    }
+
     /// The rights `plan` needs besides the right to write its object: `(permission,
     /// object)` pairs for the objects it cites without writing them, such as an address
     /// of the core attached to an interface (009/M16). The core checks them like a guard,

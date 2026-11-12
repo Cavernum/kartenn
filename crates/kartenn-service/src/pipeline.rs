@@ -21,7 +21,8 @@ use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::module::{ModuleHandler, ModulePlan, ModuleRegistry};
 use crate::operations::{
-    ChangesetRequest, ModuleKind, ModuleOperation, ObjectKind, Operation, PeriodSpec, Ref,
+    ChangesetRequest, INPUT, ModuleKind, ModuleOperation, ObjectKind, Operation, PeriodSpec, Ref,
+    is_module_provenance,
 };
 use crate::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, Journal, Pending, Replay, Store, StoreError,
@@ -313,6 +314,9 @@ pub(crate) enum Planned {
         kind: ObjectKind,
         property: Uuid,
         values: Option<Vec<Raw>>,
+        /// `module:<module>#<motif>` for a value a module derives (ADR 0026, amendment
+        /// 14), `source:<id>@<version>` for a default value; `None`, typed (`input`).
+        provenance: Option<String>,
     },
     Unassign {
         object: Uuid,
@@ -982,6 +986,26 @@ fn local_value(
     }
 }
 
+/// The provenance the module plan `by` gives the assignment at `index` of its `core`
+/// (ADR 0026, amendment 14): `None`, typed; `module:<module>#<motif>`, of the name of its
+/// module; `prop.assignment.provenance` for any other.
+fn module_provenance_of(by: &Planned, index: usize) -> Result<Option<String>, Violation> {
+    let Planned::Module { handler, plan, .. } = by else {
+        return Ok(None);
+    };
+    let module = plan.kind.module();
+    match handler.provenance(plan, index) {
+        Some(provenance) if !is_module_provenance(&provenance, module) => Err(Violation::new(
+            &rules::PROP_PROVENANCE,
+            format!(
+                "the module '{module}' may not give the provenance '{provenance}': \
+                 module:{module}#<motif> only"
+            ),
+        )),
+        found => Ok(found),
+    }
+}
+
 /// Parses every operation and runs the local rules (no database): the planned writes, the
 /// index of the operation each comes from, the own period of a core operation a module
 /// operation adds (its `Within`, `None` otherwise), and the violations found, each ascribed
@@ -1017,15 +1041,19 @@ fn plan(
         let found = violations.len();
         // The operation, then the core operations a module operation adds (ADR 0026,
         // clause 6), planned in turn under the same index; each queued with the position,
-        // in `adding`, of the module plan that adds it, and the scope it is shareable in
-        // (amendment 10).
-        let mut queue: std::collections::VecDeque<(Operation, Option<usize>, Option<ShareScope>)> =
-            std::collections::VecDeque::from([(requested.clone(), None, None)]);
+        // in `adding`, of the module plan that adds it with its own position in the
+        // plan's `core`, and the scope it is shareable in (amendment 10).
+        let mut queue: std::collections::VecDeque<(
+            Operation,
+            Option<(usize, usize)>,
+            Option<ShareScope>,
+        )> = std::collections::VecDeque::from([(requested.clone(), None, None)]);
         // The module plans that add core operations, by their position in `planned`,
         // with the identifiers drawn for those operations (amendment 8).
         let mut adding: Vec<(usize, Vec<Uuid>)> = Vec::new();
         let mut first = true;
-        while let Some((owned, by, shared)) = queue.pop_front() {
+        while let Some((owned, added, shared)) = queue.pop_front() {
+            let by = added.map(|(by, _)| by);
             // An added core operation keeps its own period (a `Within`), so that a module
             // bounds it to the life of its object (REQ-004-2): the period of the requested
             // operation is applied to the others.
@@ -1090,7 +1118,7 @@ fn plan(
                     match found {
                         Ok(module_plan) => {
                             if !module_plan.core.is_empty() {
-                                let by = Some(adding.len());
+                                let by = adding.len();
                                 adding.push((planned.len(), Vec::new()));
                                 let shared = handler.shared(&module_plan);
                                 let scope: ShareScope =
@@ -1098,7 +1126,7 @@ fn plan(
                                 queue.extend(module_plan.core.iter().cloned().enumerate().map(
                                     |(i, c)| {
                                         let marked = shared.core.contains(&i);
-                                        (c, by, marked.then(|| scope.clone()))
+                                        (c, Some((by, i)), marked.then(|| scope.clone()))
                                     },
                                 ));
                             }
@@ -1214,9 +1242,25 @@ fn plan(
                 Operation::AssignProperty { .. }
                 | Operation::ClearProperty { .. }
                 | Operation::UnassignProperty { .. } => {
+                    // The provenance the module whose plan adds the assignment gives it, of
+                    // its own name (ADR 0026, amendment 14); none for the author's.
+                    let derived = match (op, added) {
+                        (Operation::AssignProperty { .. }, Some((by, index))) => {
+                            module_provenance_of(&planned[adding[by].0], index)
+                        }
+                        _ => Ok(None),
+                    };
                     let local = |n| local_value(n, &ids, &objects);
-                    match crate::resolution::plan(op, |r| resolve(r, &ids), local) {
-                        Ok(p) => planned.push(p),
+                    match derived.and_then(|derived| {
+                        crate::resolution::plan(op, |r| resolve(r, &ids), local)
+                            .map(|p| (p, derived))
+                    }) {
+                        Ok((mut p, derived)) => {
+                            if let Planned::Assign { provenance, .. } = &mut p {
+                                *provenance = derived;
+                            }
+                            planned.push(p);
+                        }
                         Err(v) => violations.push(v),
                     }
                 }
@@ -1564,7 +1608,8 @@ async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result
     .await
 }
 
-/// Writes or removes an assignment typed by the user (`input` provenance).
+/// Writes or removes an assignment: typed by the user (`input` provenance), or derived by
+/// the module whose plan adds it (`module:<module>#<motif>`, checked by [`plan`]).
 async fn assignment<T: WriteTx>(
     tx: &mut T,
     p: &Planned,
@@ -1577,10 +1622,12 @@ async fn assignment<T: WriteTx>(
             kind,
             property,
             values,
+            provenance,
         } => {
             let values = values.as_deref();
+            let provenance = provenance.as_deref().unwrap_or(INPUT);
             crate::resolution::assign(
-                tx, *object, *kind, *property, values, "input", period, changeset,
+                tx, *object, *kind, *property, values, provenance, period, changeset,
             )
             .await
         }

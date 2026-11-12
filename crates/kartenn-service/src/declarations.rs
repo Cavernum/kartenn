@@ -624,6 +624,12 @@ pub struct ModuleDeclarations {
     /// French and English labels of the declarations (by key) and of their values
     /// (`<key>/<value>`) (spec 018, R10).
     pub labels: BTreeMap<String, Compiled>,
+    /// The external systems the module names (ADR 0026, amendment 15; 019/Q-019-38), by
+    /// key (`[a-z0-9-]`) with their French and English labels: the synchronisation of the
+    /// core declares each as a value of `core.external_system`
+    /// ([`core_declarations_for`]), by the system author, administrable afterwards like a
+    /// delivered value (an administrator's labels survive it, R10).
+    pub external_systems: BTreeMap<String, Compiled>,
 }
 
 /// The labels a synchronisation writes for an object whose code says `code`, given the
@@ -773,6 +779,18 @@ pub fn core_declarations() -> ModuleDeclarations {
     core_declarations_for(ModuleRegistry::empty())
 }
 
+/// The external systems the modules of the build name (ADR 0026, amendment 15), values of
+/// `core.external_system`: the first module to name a key gives its labels.
+fn external_systems(modules: &ModuleRegistry) -> BTreeMap<String, Compiled> {
+    let mut systems = BTreeMap::new();
+    for declared in modules.modules().filter_map(|m| m.declarations()) {
+        for (key, labels) in declared.external_systems {
+            systems.entry(key).or_insert(labels);
+        }
+    }
+    systems
+}
+
 /// [`core_declarations`] completed by the modules of the build (spec 008, REQ-008-6):
 /// every type of a module carries `core.owner`, inherited along the tree of its module
 /// and required where the type says so; the types that say so carry `core.site`.
@@ -787,6 +805,27 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
     // The types handled as those of a module: the VLANs of the core (spec 026), then the
     // types of the modules of the build.
     let types = || crate::vlan::TYPES.iter().chain(modules.object_types());
+    let systems = external_systems(modules);
+    let mut labels = BTreeMap::from([
+        (
+            "core.owner".to_owned(),
+            Compiled::new("Entité propriétaire", "Owning entity"),
+        ),
+        (
+            EXTERNAL_SYSTEM.to_owned(),
+            Compiled::new("Système externe", "External system"),
+        ),
+        ("core.site".to_owned(), Compiled::new("Site", "Site")),
+        (
+            crate::vlan::PROPERTY.to_owned(),
+            Compiled::new("VLAN", "VLAN"),
+        ),
+    ]);
+    labels.extend(
+        systems
+            .iter()
+            .map(|(key, compiled)| (format!("{EXTERNAL_SYSTEM}/{key}"), *compiled)),
+    );
     ModuleDeclarations {
         module: "core".into(),
         version: env!("CARGO_PKG_VERSION").into(),
@@ -824,7 +863,7 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                     obligations: BTreeSet::new(),
                     expected: None,
                 },
-                Vec::new(),
+                systems.keys().cloned().collect(),
             ),
             (
                 Declaration {
@@ -861,20 +900,8 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                 Vec::new(),
             ),
         ],
-        labels: BTreeMap::from([
-            (
-                "core.owner".to_owned(),
-                Compiled::new("Entité propriétaire", "Owning entity"),
-            ),
-            (
-                EXTERNAL_SYSTEM.to_owned(),
-                Compiled::new("Système externe", "External system"),
-            ),
-            ("core.site".to_owned(), Compiled::new("Site", "Site")),
-            (
-                crate::vlan::PROPERTY.to_owned(),
-                Compiled::new("VLAN", "VLAN"),
-            ),
-        ]),
+        labels,
+        // Those of the modules, gathered above as values of `core.external_system`.
+        external_systems: BTreeMap::new(),
     }
 }

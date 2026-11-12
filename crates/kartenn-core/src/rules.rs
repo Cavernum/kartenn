@@ -218,6 +218,8 @@ rules! {
         "Une référence désigne un objet valide sur toute la période de l'affectation.";
     PROP_UNKNOWN_LOCAL = "prop.assignment.unknown_local", Error, ["REQ-004-4"], "021/A13",
         "Une référence locale dans une valeur désigne un objet qu'une opération antérieure du même changeset crée.";
+    PROP_PROVENANCE = "prop.assignment.provenance", Error, ["REQ-003-14", "REQ-003-22"], "019/Q-019-34",
+        "Seule une opération qu'ajoute le plan d'un module porte une provenance de module, `module:<module>#<motif>`, du nom de ce module.";
     PROP_EXPECTED_MISMATCH = "prop.resolution.expected_mismatch", Warning, ["REQ-003-24"], "D23",
         "La valeur résolue diffère de la valeur attendue par la source configurée.";
 }

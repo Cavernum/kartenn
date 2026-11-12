@@ -1482,7 +1482,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
 - [ ] 7d. Pose des axes par le serveur (Q-019-33, 34, 36 à 39) — découpée (2026-11-12)
   en 7d1 à 7d3 : le noyau, la pose par `kube.sync`, la re-dérivation par les paramètres ;
   une famille de vérification chacune.
-- [ ] 7d1. Noyau : provenance `module:<module>#<motif>` (amendement 14 de l'ADR 0026,
+- [x] 7d1. Noyau : provenance `module:<module>#<motif>` (amendement 14 de l'ADR 0026,
   Q-019-34) : migration du noyau qui élargit le `CHECK` de
   `property_assignment.provenance` (`0011_properties.sql`), portée seulement par une
   opération planifiée par un module (`ModulePlan::core`) et du nom de ce module, refusée
@@ -1497,6 +1497,36 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-service/src/declarations.rs` (`ModuleDeclarations`, `synced_labels`) ;
     `crates/kartenn-service/src/expected.rs` (`provenance`, la forme `source:`)
   - dépend de : —
+  - fait (2026-11-12) : `kartenn-store-pg` migration `0078_module_provenance.sql`
+    (`CHECK` élargi à `^module:[a-z][a-z0-9_]*#.+$`) ; `kartenn-service` `module.rs`
+    (crochet `ModuleHandler::provenance(plan, index)`, à défaut neutre),
+    `operations.rs` (`INPUT`, `module_provenance`, `is_module_provenance`),
+    `pipeline.rs` (la file des opérations ajoutées garde leur rang dans `core`,
+    `module_provenance_of`, `Planned::Assign::provenance` écrite par `assignment`),
+    `resolution.rs`, `expected.rs` (provenance du défaut dans le `Planned`),
+    `declarations.rs` (`ModuleDeclarations::external_systems`, `external_systems`,
+    `core_declarations_for` les donne en valeurs de `core.external_system` avec leurs
+    libellés) ; règle d'erreur `prop.assignment.provenance` (`kartenn-core` `rules.rs`,
+    `code_labels.rs`, `docs/spec/regles-noyau.md`) ; `kartenn-rest` `operation.rs`
+    (`OperationDto` refuse en 400 un `assign_property` qui porte `provenance`, seul,
+    dans un `within` ou un élément d'import), `properties.rs` (description de
+    `Explanation.provenance`) ; contrat de référence et types des deux SDK régénérés
+    (description seule) ; ADR 0026 amendements 14 et 15 marqués livrés, design B10,
+    B11 fournis ; tests `module_pipeline::module_provenance_only_planned` (plan du
+    module de son nom écrit et expliqué ; autre module, motif vide, `input` refusés ;
+    opération de l'auteur `input`, membre `provenance` ignoré par serde ; `CHECK` de la
+    base), `declarations::module_declares_external_system` (valeur `kube` créée par
+    l'auteur système, libellés d'un administrateur gardés), `kartenn-rest`
+    `cycle::a_module_provenance_is_refused_in_input`,
+    `operation::tests::a_provenance_in_input_is_refused`.
+  - choix : la provenance passe par un crochet `ModuleHandler::provenance` plutôt que par
+    un champ de `Operation::AssignProperty` (une centaine de littéraux à reprendre, et un
+    champ que serde devrait taire) : aucune opération ne la porte, le module la donne à
+    la planification, comme `planned` et `shared` (amendements 8, 10) ; les systèmes
+    externes passent par les déclarations du noyau, synchronisées d'abord, qui
+    réutilisent l'ajout de valeur et la règle des libellés (R10) ; deux modules qui
+    nomment une même clé : libellés du premier ; la déclaration du système `kube` par le
+    module `kube` vient avec la 7d2, qui crée ses déclarations (`kube.namespace`).
 - [ ] 7d2. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
   `kube` déclaré par le module, identifiant `<id du cluster>/<nom>`, libellé
   `<slug du cluster>/<nom>`, Q-019-37) posé à l'`upsert` de chaque workload ; à chaque

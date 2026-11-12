@@ -486,7 +486,7 @@ Test : `kartenn-kube` `observations::retention::altered_batch_detected`.
 
 ### Amendement 14 — 2026-11-12, provenance d'une valeur dérivée par un module (019/Q-019-34)
 
-Un ajout du noyau, **arbitré par l'utilisateur le 2026-11-12** (019/Q-019-34), à livrer
+Un ajout du noyau, **arbitré par l'utilisateur le 2026-11-12** (019/Q-019-34), livré
 par la tâche 019-7d1 : une affectation de propriété peut porter la provenance
 `module:<module>#<motif>` (pour le module kube, `module:kube#label:<clé>` : la valeur
 dérivée d'un label du workload, 019/Q-019-33), en plus de `input` et de
@@ -501,14 +501,44 @@ Le schéma du noyau change : une migration élargit le `CHECK` de
 `property_assignment.provenance` (`0011_properties.sql`). Le contrat REST rend la
 provenance telle qu'elle est stockée ; aucune route nouvelle.
 
+Livraison (019-7d1). Le module donne la provenance par un crochet à défaut neutre,
+`ModuleHandler::provenance(plan, index)`, pour l'`AssignProperty` `plan.core[index]` :
+aucune opération du noyau ne porte de champ de provenance, si bien qu'aucune requête,
+aucun import ni aucune requête enregistrée (rejouée à la validation d'un changeset
+`pending`) ne peut en nommer une. Le pipeline refuse, par la règle d'erreur
+`prop.assignment.provenance`, une provenance qui n'est pas `module:<module>#<motif>` du
+nom du module dont le plan ajoute l'opération, le motif non vide et sans caractère de
+contrôle. L'API refuse en 400 une opération `assign_property` qui porte un membre
+`provenance`, seule, dans un `within` ou dans un élément d'import. La migration `0078`
+élargit le `CHECK` à `^module:[a-z][a-z0-9_]*#.+$` ; l'explication (REQ-003-14) rend la
+provenance stockée. Source : `crates/kartenn-service/src/module.rs`
+(`ModuleHandler::provenance`), `crates/kartenn-service/src/pipeline.rs`
+(`module_provenance_of`), `crates/kartenn-service/src/operations.rs`
+(`module_provenance`, `is_module_provenance`), `crates/kartenn-rest/src/operation.rs`
+(`OperationDto`), `crates/kartenn-store-pg/migrations/0078_module_provenance.sql`.
+Tests : `kartenn-service` `module_pipeline::module_provenance_only_planned`,
+`kartenn-rest` `cycle::a_module_provenance_is_refused_in_input` et
+`operation::tests::a_provenance_in_input_is_refused`.
+
 ### Amendement 15 — 2026-11-12, systèmes externes déclarés par un module (019/Q-019-38)
 
 Un ajout additif au contrat, **arbitré par l'utilisateur le 2026-11-12**
-(019/Q-019-38), à livrer par la tâche 019-7d1 :
+(019/Q-019-38), livré par la tâche 019-7d1 :
 
 | Ajout | Clause | Raison |
 |---|---|---|
 | `ModuleDeclarations` gagne les systèmes externes du module (clé et libellés) ; la synchronisation des déclarations crée chacun comme valeur de la liste fermée `core.external_system`, auteur système, ensuite administrable (libellés) comme une valeur livrée | 5 | une propriété de référence externe d'un module (`kube.namespace`, système `kube`) nomme un système qui doit exister sans geste d'un administrateur |
+
+Livraison (019-7d1). `ModuleDeclarations::external_systems` (clé `[a-z0-9-]`, libellés
+français et anglais) ; les déclarations du noyau (`core_declarations_for`, synchronisées
+d'abord) donnent à `core.external_system` les clés que nomment les modules du build, avec
+leurs libellés sous `core.external_system/<clé>` : la synchronisation ajoute une valeur
+manquante dans le changeset de l'auteur système, réécrit les libellés tant qu'ils sont
+ceux du système et garde ceux d'un administrateur (R10) ; elle ne clôt jamais une valeur
+qu'aucun module ne nomme plus. Deux modules qui nomment une même clé : les libellés du
+premier dans l'ordre du registre. Source : `crates/kartenn-service/src/declarations.rs`
+(`ModuleDeclarations`, `external_systems`, `core_declarations_for`). Test :
+`kartenn-service` `declarations::module_declares_external_system`.
 
 ## Alternatives
 

@@ -270,6 +270,148 @@ async fn a_module_operation_plans_core_operations(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM dummy.thing").await, 1);
 }
 
+/// ADR 0026, amendment 14 (019/Q-019-34): `module:<module>#<motif>` is carried only by an
+/// assignment a module plan adds, of the name of that module; the author's are `input`,
+/// and the explanation of the value gives the provenance as stored.
+#[kartenn_testing::pg_test]
+async fn module_provenance_only_planned(pool: PgPool) {
+    use kartenn_core::values::Cardinality;
+    use kartenn_service::operations::{DeclarationInput, RawInput, TypeInput};
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let declaration = DeclarationInput {
+        key: "custom.origin".into(),
+        value_type: TypeInput::ENUM,
+        cardinality: Cardinality::Single,
+        carriers: vec!["domain".into()],
+        inherit: None,
+        module: None,
+        obligations: Vec::new(),
+        expected: None,
+        labels: None,
+    };
+    let value = |key: &str| Operation::AddEnumValue {
+        local: None,
+        property: Ref::Local(1),
+        key: key.into(),
+        labels: std::collections::BTreeMap::new(),
+    };
+    applied(
+        &store,
+        author,
+        vec![
+            Operation::DeclareProperty {
+                local: Some(1),
+                declaration,
+            },
+            value("app"),
+            value("web"),
+            domain(2, "derived"),
+            domain(3, "typed"),
+        ],
+    )
+    .await;
+    let id = |sql: &'static str| sqlx::query_scalar::<_, Uuid>(sql).fetch_one(&pool);
+    let property = id("SELECT id FROM property_declaration WHERE key = 'custom.origin'")
+        .await
+        .unwrap();
+    let derived = id("SELECT id FROM addressing_domain WHERE slug = 'derived'")
+        .await
+        .unwrap();
+    let typed = id("SELECT id FROM addressing_domain WHERE slug = 'typed'")
+        .await
+        .unwrap();
+    let derive = |label: &str, value: &str, provenance: Option<&str>| {
+        dummy::create_thing(json!({
+            "label": label,
+            "derive": {
+                "domain": {"id": derived}, "property": {"id": property},
+                "value": value, "provenance": provenance,
+            },
+        }))
+    };
+    let provenance_of = |object: Uuid| {
+        sqlx::query_scalar::<_, String>(
+            "SELECT provenance FROM property_assignment
+              WHERE object_id = $1 AND property_id = $2 AND valid_period @> now()",
+        )
+        .bind(object)
+        .bind(property)
+        .fetch_one(&pool)
+    };
+    // Planned by the module, of its own name: written with it.
+    applied(
+        &store,
+        author,
+        vec![derive("a", "app", Some("module:dummy#label:app"))],
+    )
+    .await;
+    assert_eq!(
+        provenance_of(derived).await.unwrap(),
+        "module:dummy#label:app"
+    );
+    // The explanation of the value says it as stored (REQ-003-14).
+    let explained = kartenn_store_pg::explain::explain(
+        &pool,
+        derived,
+        property,
+        sqlx::types::time::OffsetDateTime::now_utc(),
+        None,
+    )
+    .await
+    .unwrap()
+    .expect("an explanation");
+    assert_eq!(
+        explained.provenance.as_deref(),
+        Some("module:dummy#label:app")
+    );
+    // Of another module's name, or without a motif: refused, nothing written.
+    for wrong in [
+        "module:kube#label:app",
+        "module:dummy#",
+        "module:dummy",
+        "input",
+    ] {
+        let outcome = submit(
+            &store,
+            &Unrestricted,
+            &request(author, vec![derive("b", "web", Some(wrong))]),
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap();
+        assert_eq!(rules(&outcome), ["prop.assignment.provenance"], "{wrong}");
+    }
+    assert_eq!(
+        provenance_of(derived).await.unwrap(),
+        "module:dummy#label:app"
+    );
+    // Without one, the module's assignment is typed, as the author's always is: no
+    // operation of the request names a provenance (serde never reads it).
+    applied(&store, author, vec![derive("c", "web", None)]).await;
+    assert_eq!(provenance_of(derived).await.unwrap(), "input");
+    let typed_op: Operation = serde_json::from_value(json!({
+        "op": "assign_property", "object": {"id": typed}, "kind": "domain",
+        "property": {"id": property}, "values": ["app"],
+        "provenance": "module:dummy#label:app",
+    }))
+    .unwrap();
+    assert!(matches!(
+        &typed_op,
+        Operation::AssignProperty { values, .. } if values == &[RawInput::Text("app".into())]
+    ));
+    applied(&store, author, vec![typed_op]).await;
+    assert_eq!(provenance_of(typed).await.unwrap(), "input");
+    // The database keeps the form too (migration 0078).
+    let malformed = sqlx::query(
+        "UPDATE property_assignment SET provenance = 'module:Dummy#x' WHERE object_id = $1",
+    )
+    .bind(typed)
+    .execute(&pool)
+    .await;
+    assert!(malformed.is_err(), "{malformed:?}");
+}
+
 #[kartenn_testing::pg_test]
 async fn named_lock_keys_do_not_deadlock(pool: PgPool) {
     let store = dummy::store(&pool).await;
