@@ -2,7 +2,7 @@
   - region "TreeGrid":
     - heading "TreeGrid" [level=1]
     - paragraph: "Motif : Treegrid"
-    - 'figure "editing — Édition en place : éditeur ouvert, cellule en attente, en revue, en erreur (motif et code)"':
+    - 'figure "editing — Édition en place : éditeur ouvert, cellule en attente, en revue (son motif), en erreur (motif et code), sans éditeur (pourquoi)"':
       - treegrid "Arbre des préfixes":
         - rowgroup:
           - row "Préfixe Environnement Occupation":

@@ -193,6 +193,54 @@
       - text: "Pages demandées : 1"
       - code: paged
       - text: ""
+    - 'figure "capped — Niveau plafonné : une ligne d''avis après les enfants lus, sur toute la ligne, hors de leur ensemble, activée par Entrée, jamais sélectionnée"':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Bases \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+          - 'row /L''arbre s''arrête à 2 nœuds : Entrée ouvre la liste des préfixes dans \d+\.\d+\.2\.0\/\d+/ [level=3]':
+            - 'gridcell /L''arbre s''arrête à 2 nœuds : Entrée ouvre la liste des préfixes dans \d+\.\d+\.2\.0\/\d+/'
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ Production \d+ %/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 %/ [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+      - status
+      - alert
+      - code: capped
+      - text: ""
     - figure "draft — Nœud en brouillon":
       - treegrid "Arbre des préfixes":
         - rowgroup:
@@ -240,7 +288,61 @@
       - alert
       - code: draft
       - text: ""
-    - 'figure "editing — Édition en place : éditeur ouvert, cellule en attente, en revue, en erreur (motif et code)"':
+    - 'figure "moved-preview — Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d''aperçu à la place d''après"':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Bases \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(déplacé dans le brouillon\) Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(déplacé dans le brouillon\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ Production \d+ %/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 %/ [expanded] [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(aperçu du brouillon\) Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+ \(aperçu du brouillon\)/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+      - status
+      - alert
+      - code: moved-preview
+      - text: ""
+    - 'figure "editing — Édition en place : éditeur ouvert, cellule en attente, en revue (son motif), en erreur (motif et code), sans éditeur (pourquoi)"':
       - treegrid "Arbre des préfixes":
         - rowgroup:
           - row "Préfixe Environnement Occupation":
@@ -374,6 +476,93 @@
       - alert
       - code: drop-refused
       - text: ""
+    - 'figure "drop-accepted-preview — Glisser au-dessus d''une ligne d''aperçu acceptée : le contour de la cible remplace le tireté de l''aperçu"':
+      - treegrid "Entités":
+        - rowgroup:
+          - row "Entité Responsable":
+            - columnheader "Entité"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Infrastructure Équipe réseau" [expanded] [level=1]:
+            - gridcell "Infrastructure"
+            - gridcell "Équipe réseau"
+          - row "Réseaux Équipe réseau" [expanded] [level=2]:
+            - gridcell "Réseaux"
+            - gridcell "Équipe réseau"
+          - row "Cœur Équipe réseau" [level=3]:
+            - gridcell "Cœur"
+            - gridcell "Équipe réseau"
+          - row "Accès Équipe réseau" [level=3]:
+            - gridcell "Accès"
+            - gridcell "Équipe réseau"
+          - row "Serveurs Équipe système" [level=2]:
+            - gridcell "Serveurs"
+            - gridcell "Équipe système"
+          - row "Stockage Équipe système" [level=2]:
+            - gridcell "Stockage"
+            - gridcell "Équipe système"
+          - row "Postes de travail (aperçu du brouillon, cible acceptée) Support" [expanded] [level=1]:
+            - gridcell "Postes de travail (aperçu du brouillon, cible acceptée)"
+            - gridcell "Support"
+          - row "Assistance Support" [level=2]:
+            - gridcell "Assistance"
+            - gridcell "Support"
+          - row "Ateliers Support" [level=2]:
+            - gridcell "Ateliers"
+            - gridcell "Support"
+          - row "Archives Documentation" [level=1]:
+            - gridcell "Archives"
+            - gridcell "Documentation"
+      - status
+      - alert
+      - code: drop-accepted-preview
+      - text: ""
+    - 'figure "drop-refused-preview — Glisser au-dessus d''une ligne d''aperçu refusée : le tireté de la cible refusée, motif et code"':
+      - treegrid "Entités":
+        - rowgroup:
+          - row "Entité Responsable":
+            - columnheader "Entité"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Infrastructure Équipe réseau" [expanded] [level=1]:
+            - gridcell "Infrastructure"
+            - gridcell "Équipe réseau"
+          - row "Réseaux Équipe réseau" [expanded] [level=2]:
+            - gridcell "Réseaux"
+            - gridcell "Équipe réseau"
+          - row "Cœur (aperçu du brouillon, cible refusée) Un nœud ne peut pas aller sous l'un de ses descendants. Copier tree.cycle Équipe réseau" [level=3]:
+            - gridcell "Cœur (aperçu du brouillon, cible refusée) Un nœud ne peut pas aller sous l'un de ses descendants. Copier tree.cycle":
+              - text: ""
+              - button "Copier tree.cycle":
+                - text: ""
+                - code: tree.cycle
+              - status
+            - gridcell "Équipe réseau"
+          - row "Accès Équipe réseau" [level=3]:
+            - gridcell "Accès"
+            - gridcell "Équipe réseau"
+          - row "Serveurs Équipe système" [level=2]:
+            - gridcell "Serveurs"
+            - gridcell "Équipe système"
+          - row "Stockage Équipe système" [level=2]:
+            - gridcell "Stockage"
+            - gridcell "Équipe système"
+          - row "Postes de travail Support" [expanded] [level=1]:
+            - gridcell "Postes de travail"
+            - gridcell "Support"
+          - row "Assistance Support" [level=2]:
+            - gridcell "Assistance"
+            - gridcell "Support"
+          - row "Ateliers Support" [level=2]:
+            - gridcell "Ateliers"
+            - gridcell "Support"
+          - row "Archives Documentation" [level=1]:
+            - gridcell "Archives"
+            - gridcell "Documentation"
+      - status: "Cible refusée : Un nœud ne peut pas aller sous l'un de ses descendants. (tree.cycle)"
+      - alert
+      - code: drop-refused-preview
+      - text: ""
     - figure "move-states — Déplacement en attente (à sa place d'origine), déplacement refusé avec code":
       - treegrid "Entités":
         - rowgroup:
@@ -464,6 +653,57 @@
       - status
       - alert
       - code: add
+      - text: ""
+    - 'figure /add-refused — « \+ » refusé : visible, grisé, la permission manquante dite au survol et au focus \(REQ-\d+-\d+\)/':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Ajouter dans \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+ Ajouter dans \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+              - button /Ajouter dans \d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Bases \d+\.\d+\.2\.0\/\d+ Ajouter dans \d+\.\d+\.2\.0\/\d+ Production \d+ %/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+ Ajouter dans \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+              - button /Ajouter dans \d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+ Recette \d+ %/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - button /Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+ Production \d+ %/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - button /Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 %/ [level=2] [selected]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+ Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+              - button /Ajouter dans \d+\.\d+\.\d+\.\d+\/\d+/ [disabled]
+            - gridcell "Développement"
+            - gridcell "3 %"
+      - status
+      - alert
+      - code: add-refused
       - text: ""
     - 'figure "virtual — Cent mille nœuds : une fenêtre dans le document, la ligne du focus gardée, déplacement au clavier"':
       - treegrid "Cent mille nœuds":

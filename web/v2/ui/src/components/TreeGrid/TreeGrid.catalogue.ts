@@ -167,7 +167,9 @@ const dragged = (target: string, preview = false) =>
 /**
  * The keyboard script (e2e/components/tree-grid.spec.ts): entities of declared parents,
  * the label and the owner editable (the owner refused empty, the « server » refusing
- * « Personne »), moves checked (never under a descendant) and applied after a while, a
+ * « Personne »; a commit marked « apply now » held in review, the cell saying why,
+ * `stateReason`; the label of the first entity without an editor, saying why,
+ * `readonlyReason`), moves checked (never under a descendant) and applied after a while, a
  * move into « Archives » refused by the « server » with its code; « Déplacer vers… » on
  * the chosen entity, as a screen's action would.
  */
@@ -193,7 +195,7 @@ const keyboard = defineComponent({
         if (commit.value === "Personne")
           after.set(k, { error: "Responsable inconnu.", code: "entity.owner-unknown" });
         else {
-          after.set(k, "draft");
+          after.set(k, commit.now ? "review" : "draft");
           host.nodes.value = rename(host.nodes.value, commit);
         }
         states.value = after;
@@ -231,9 +233,13 @@ const keyboard = defineComponent({
           onMove: host.onMove,
           // Every cell, but the label of the first entity (Enter activates its row).
           editable: (node: TreeNode, column: GridColumn) => node.id !== "n1" || column.id !== "",
+          readonlyReason: (node: TreeNode, column: GridColumn) =>
+            node.id === "n1" && column.id === "" ? ROOT_NAME : undefined,
           validate: (_: TreeNode, column: GridColumn, value: string) =>
             value.trim() === "" ? `${column.label} : une valeur est attendue.` : undefined,
           cellState: (node: TreeNode, column: GridColumn) => states.value.get(key(node, column)),
+          stateReason: (node: TreeNode, column: GridColumn) =>
+            states.value.get(key(node, column)) === "review" ? HELD : undefined,
           onCommit,
           onActivate: (id: string) => (said.value = `Ouvrir ${id}`),
         }),
@@ -306,23 +312,34 @@ const paged = defineComponent({
   },
 });
 
+/** Why a cell in review is held (`stateReason`): its description and its tooltip. */
+const HELD = "Une politique d'approbation retient la modification : elle attend une revue.";
+/** Why the label of a root entity has no editor (`readonlyReason`). */
+const ROOT_NAME = "Le nom d'une entité racine se change dans sa fiche.";
+
 const editingTree = defineComponent({
   setup() {
     const editing = ref<CellRef | undefined>({ row: "p3", column: "env" });
+    const cellState = (node: TreeNode, column: GridColumn): CellState | undefined =>
+      node.id === "p2" && column.id === "env"
+        ? "pending"
+        : node.id === "p5" && column.id === "env"
+          ? { error: "Environnement inconnu.", code: "prefix.env-unknown" }
+          : node.id === "p1" && column.id === "used"
+            ? "review"
+            : undefined;
     return () =>
       h(TreeGrid as Component, {
         ...base,
         editing: editing.value,
         "onUpdate:editing": (next: CellRef | undefined) => (editing.value = next),
         editable: (_: TreeNode, column: GridColumn) => column.id === "env",
-        cellState: (node: TreeNode, column: GridColumn): CellState | undefined =>
-          node.id === "p2" && column.id === "env"
-            ? "pending"
-            : node.id === "p5" && column.id === "env"
-              ? { error: "Environnement inconnu.", code: "prefix.env-unknown" }
-              : node.id === "p1" && column.id === "used"
-                ? "review"
-                : undefined,
+        // The occupation is computed: no editor, said; the one in review, why it is held.
+        readonlyReason: (_: TreeNode, column: GridColumn) =>
+          column.id === "used" ? "L'occupation est calculée par le serveur." : undefined,
+        cellState,
+        stateReason: (node: TreeNode, column: GridColumn) =>
+          cellState(node, column) === "review" ? HELD : undefined,
       });
   },
 });
@@ -410,7 +427,7 @@ export default {
     {
       name: "editing",
       description:
-        "Édition en place : éditeur ouvert, cellule en attente, en revue, en erreur (motif et code)",
+        "Édition en place : éditeur ouvert, cellule en attente, en revue (son motif), en erreur (motif et code), sans éditeur (pourquoi)",
       props: {},
       demo: editingTree,
       wide: true,
