@@ -3602,7 +3602,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `waitForTimeout(500)` dans `data-grid.spec.ts` contre un délai de 300 ms, marge mince
     sous charge ; l'épinglage au clic n'est pas testé, et un clic de sélection
     (`selectable="single"`) ouvre l'infobulle à chaque fois.
-- [ ] 12n. Le pourquoi d'un état partout où une grille le porte (relevés de la revue de
+- [x] 12n. Le pourquoi d'un état partout où une grille le porte (relevés de la revue de
   la 12e) : `ExpandableGrid` transmet `stateReason` et `readonlyReason` (avec `editable`)
   à ses deux `DataGrid` ; une ligne en revue (`rowState`) dit son motif (description de
   sa première cellule, comme son mot caché) — REQ-021-15 — verify : Vitest monté
@@ -3612,6 +3612,42 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `DataGrid/DataGrid.vue` (`markOf`, `rowState`), `shell/src/views/edit/inline.ts`
     (`rowState`) ; test voisin `ui/test/no-value-mounted.test.ts`
   - dépend de : 12e
+  - fait le 2026-11-12 — `DataGrid` prend `rowReason(row)` (facultative) : pourquoi une
+    ligne est dans son état, une phrase ou une par écriture retenue, demandée pour une
+    ligne à état seulement ; ses phrases rejoignent celles de sa première cellule rendue
+    (celle de la marque et du mot caché : description, infobulle), avant celles de la
+    cellule, chacune une fois (`notesOf`) ; `hasReasons` garde la phrase cachée et
+    l'infobulle. `ExpandableGrid` passe à ses deux grilles, d'un seul objet (`shared`),
+    `editable`, `validate`, `readonlyReason`, `stateReason`, `rowReason`, et réémet
+    `commit` : la grille compacte qui omet la colonne retenue dit le motif par la première
+    cellule de la ligne. Shell : `rowReason` dans `edit/inline.ts` (les motifs distincts des
+    écritures retenues de la ligne, quelle que soit la colonne) et `edit/properties.ts`,
+    branché dans `ListView`, `record/ContentTab.vue`, `record/PropertiesTab.vue`.
+    Catalogue : `row-states` de `DataGrid` décrit sa ligne en revue. 020 design (contrat
+    d'édition, inventaire 20 et 37), skill (lignes `DataGrid`, `ExpandableGrid`). Tests :
+    `ui/test/expandable-reasons-mounted.test.ts` (raisons dans les deux grilles, ligne en
+    revue décrite par son motif dans la compacte sans sa colonne retenue, ligne en
+    brouillon, phrases de la ligne et de sa première cellule une fois chacune, édition :
+    `commit` réémis, Échap dans l'éditeur de la grande grille l'annule sans fermer le
+    dialogue), `shell/test/edit.test.ts` (202 : motif de la ligne ; brouillon : aucun),
+    `properties-edit.test.ts` (première cellule de la ligne en revue décrite par le motif).
+  - choix : propriété à part `rowReason` (avec `rowState`, comme `stateReason` avec
+    `cellState`) plutôt que de déduire le motif des cellules (la grille compacte, ou une
+    colonne masquée par l'utilisateur, omettent la cellule retenue) ; une liste de phrases
+    admise, pour qu'une phrase que la cellule dit déjà ne se répète pas (relevé de la
+    relecture : une jointure `"X Y"` doublait `X`) ; `editable` transmis avec `validate`
+    et l'événement `commit` (ajout d'API de l'`ExpandableGrid`, rétrocompatible : sans
+    lui, Entrée ouvrait un éditeur dont la saisie se perdait) ; chaque grille garde son
+    focus et son éditeur ; la première cellule en erreur ne dit que son erreur (comme
+    toute cellule en erreur, 12e) ; pas de capture nouvelle (description et infobulle
+    seulement), pas d'état de catalogue d'`ExpandableGrid` éditable.
+  - reste : le motif dit par la ligne ne nomme pas le champ retenu (`heldWords` : le motif
+    de la politique), d'où, dans la grille compacte sans la colonne, le pourquoi sans le
+    où ; le pied d'`EditHint` (`activeHeld` de `ListView`, `ContentTab`) ne dit que le
+    motif de la cellule de la focalisation, pas celui de la ligne sur sa première
+    cellule ; Échap dans l'éditeur d'une grille dans un `Dialog` éprouvé sous happy-dom
+    seulement (pas de script clavier sous navigateur) ; restitution par un lecteur
+    d'écran (mot caché puis longue description) non éprouvée.
 - [x] 12o. Valeur héritée d'une propriété modifiée en place, à arbitrer par l'utilisateur
   avant la 12h — arbitrée le 2026-11-11 (Q-021-19) : une valeur propre de l'objet, qui
   surcharge l'héritée, la cellule le disant avant l'envoi ; le retrait rend l'héritage. Question d'origine : modifier dans l'onglet Propriétés une valeur héritée (résolue d'un
