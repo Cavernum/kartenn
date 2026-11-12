@@ -25,13 +25,17 @@ use crate::module::{MACHINE, OBSERVATION_READ_PERMISSION};
 use crate::pg::store;
 use crate::rules::MACHINE_LOOKS_LIKE_POD;
 
-/// Whether `operation` writes the name, the kind or the host of a machine.
+/// Whether `operation` writes the name, the kind or the host of a machine, or closes it.
 fn writes_machine(operation: &Operation) -> bool {
     match operation {
         Operation::Within { operation, .. } => writes_machine(operation),
         Operation::Module(m) => {
             m.module == "machines" && matches!(m.name.as_str(), "create_machine" | "update_machine")
         }
+        Operation::Close {
+            kind: ObjectKind::Module(kind),
+            ..
+        } => kind.as_str() == MACHINE,
         _ => false,
     }
 }

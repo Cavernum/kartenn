@@ -1350,7 +1350,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     avertissement ; auteur qui le tient, même machine : « looks like a pod of a
     cluster », dans l'avertissement et dans l'anomalie ; réécrite par l'auteur sans le
     droit, toujours ressemblante : anomalie gardée ; déplacée par lui : anomalie close ;
-    pod parti ou autre nom : rien).
+    pod parti ou autre nom : rien ; replacée puis close par un changeset seul d'un
+    auteur sans le droit : anomalie close).
   - choix : `execution_chain(conn, authorizer, Reading { context, journal, audit },
     workload, valid_at)` ; le lecteur est le sujet du `RequestContext` (kartenn lui-même
     ne lit rien) ; `None` pour un workload inconnu ou sans le droit (le 404/403 reste à
@@ -1366,8 +1367,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     workload par la clé de tête, la période en filtre), « jamais observé » par
     `of_workload` limité à une ligne ; un pod vu sans nœud compte parmi les pods
     journalisés mais ne donne pas de maillon ; la règle : déclenchée par un
-    `machines.create_machine` ou `update_machine` parmi les opérations de l'auteur
-    (`Within` compris), sur les machines `machines.machine` de `CheckContext::objects`,
+    `machines.create_machine`, un `update_machine` ou un `Close` d'une machine parmi
+    les opérations de l'auteur (`Within` compris), sur les machines `machines.machine` de `CheckContext::objects`,
     vivantes à partir de maintenant, de sorte `container`, hébergées par la machine d'un
     nœud vivant, nommées exactement comme un pod d'une observation ouverte de ce nœud ;
     un avertissement par machine, sujet la machine, chaque machine écrite réévaluée.
@@ -1381,7 +1382,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `kartenn-store-pg`) ; une machine qui n'y ressemble plus est réévaluée quel que soit
     l'auteur, une qui y ressemble encore n'est pas réévaluée pour un auteur sans le
     droit ; `execution_chain` lit en SQL les seules observations tenues à la date.
-  - reste : la jointure
+  - reste : le déclenchement de la règle sous `Within` n'est pas testé ; une machine
+    close en cascade (par son propriétaire) sans opération de machine ne réévalue pas
+    la règle ; la jointure
     des observations ouvertes d'un cluster par nœud et nom n'a pas d'index dédié (index
     `(cluster_id, pod_uid, ip)` de la partition ouverte), non mesurée ; la chaîne lit
     les arêtes nœud par nœud (deux requêtes par nœud) ; un changeset qui ne touche que le

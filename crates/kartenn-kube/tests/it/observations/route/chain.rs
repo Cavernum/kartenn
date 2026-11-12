@@ -9,7 +9,7 @@ use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::reads::ReadAudit;
-use kartenn_service::{ChangesetRequest, Operation, Outcome, submit};
+use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::rbac::PgAuthorizer;
 use serde_json::{Value, json};
@@ -409,4 +409,17 @@ async fn looks_like_pod_warns(pool: PgPool) {
     )
     .await;
     assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
+    // Back on the machine of the node, then closed by a changeset of its own, by an
+    // author without the right: the anomaly closed with the machine.
+    submitted(&env, who, vec![rehost(vm1)]).await;
+    assert!(anomaly(&pool, ct).await);
+    let close = Operation::Close {
+        kind: ObjectKind::from_name("machines.machine").unwrap(),
+        id: Ref::Id(ct),
+        expected: None,
+        cascade: false,
+    };
+    let outcome = submitted(&env, env.admin, vec![close]).await;
+    assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
+    assert!(!anomaly(&pool, ct).await);
 }
