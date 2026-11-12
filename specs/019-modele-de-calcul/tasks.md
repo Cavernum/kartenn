@@ -1133,7 +1133,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     journalisés, connecteur qui écrit sans lire → 404, port borné au domaine et vide sans
     le droit) ; `kartenn-server` `a_module_kind_reads_under_the_short_permission` (aucun
     rôle livré ne lit le journal).
-  - choix : cluster et workload vivants seuls (comme l'écriture) ; `ip` et `at` exigés,
+  - choix : cluster et workload lus dans leur dernière version commencée, clos → 410
+    (Q-019-28) ; `ip` et `at` exigés,
     réseau strict (bits d'hôte refusés, REQ-002-5) ; pages par curseur (REQ-006-7) triées
     par (début, pod, IP), le curseur fige l'instant de la première page, référence de la
     rétention ; `valid_at`, `as_of` refusés (400) ; `reason` toujours présent, `null` hors
@@ -1149,10 +1150,26 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     rétention à `at`, ses lignes écartées, les autres répondues ; exclusion des rôles
     livrés par le nom (`<module>.observation.*`) plutôt qu'un champ nouveau de
     `Permission`.
-  - reste : un cluster ou un workload clos n'est plus lisible, même dans la rétention de
-    ses lignes ; la route du workload ne lit que par `workload_id` (index btree), triée
-    sur `lower(observed)` sans index propre ; `cluster_id = ANY(…)` de `who_had` sur
-    l'index GiST non mesuré (aucun `EXPLAIN`).
+  - correction de revue (2026-11-12) : objets clos illisibles, mais dit (Q-019-28 ;
+    `decisions.md`, design « Port de lecture » et « Routes », ADR 0043 amendée) :
+    classe générique `gone` (410, `ProblemKind::Gone`, table des erreurs de la 006,
+    `interfaces.md`, catalogue de repli du shell) pour la route d'un cluster clos et
+    celle d'un workload clos ou d'un cluster clos, après la visibilité ; `Cut::Closed`
+    de `who_had` pour un cluster clos du domaine qui vivait à `at`, qui l'emporte sur
+    `retention` ; clé du curseur sur le texte de l'IP rendu par la base (`host`) ;
+    registre des modules : type `<module>.observation` refusé
+    (`RegistryError::ReservedKind`). Tests : `closed_objects_answer_gone` (410 au
+    lecteur du journal, 404 sans droit, aucune lecture journalisée, `who_had` motif
+    `closed` puis rien après la clôture), `host_network_by_the_node_version_at_the_instant`
+    (nœud à deux versions : l'adresse d'avant répond avant, pas après, et l'inverse),
+    `kartenn-server` `no_delivered_role_holds_an_observation_permission`,
+    `kartenn-service` `registry_refuses_a_type_named_observation`.
+  - reste : la route du workload ne lit que par `workload_id` (index btree), triée sur
+    `lower(observed)` sans index propre ; `cluster_id = ANY(…)` de `who_had` sur l'index
+    GiST non mesuré (aucun `EXPLAIN`) ; le port n'a pas de borne (`0.0.0.0/0` charge
+    tout le journal des clusters du domaine) ; le gel de l'instant de la première page
+    par le curseur n'est pas testé ; la purge des clusters clos est à vérifier avec la
+    6c ; un 410 n'est pas journalisé (ni lecture ni refus).
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
   `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et

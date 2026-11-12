@@ -47,7 +47,7 @@ use crate::module::{
     CLUSTER, OBSERVATION_READ_PERMISSION, OBSERVATION_RECORD_PERMISSION, WORKLOAD,
 };
 use crate::observations::{self, Batch, Closing, Invalid, Line, Opening, RecordError};
-use crate::read::{self, Cut, Key, Observation};
+use crate::read::{self, Key, Observation};
 
 /// The journal a batch of the module writes, as its audit event names it.
 const JOURNAL: &str = "kube.pod_observation";
@@ -551,6 +551,16 @@ fn observation_dto(o: Observation) -> Result<ObservationDto, Problem> {
     })
 }
 
+/// 410 for the journal of a closed object (`what`), once the caller may read it: a closed
+/// cluster or workload is not read, but the answer says so (Q-019-28).
+fn closed(living: bool, what: &str) -> Result<(), Problem> {
+    if living {
+        return Ok(());
+    }
+    Err(Problem::new(ProblemKind::Gone)
+        .detail(format!("{what} is closed: its journal is no longer read")))
+}
+
 /// A read of the journal: the page asked for in `collection`, read at `moment`.
 struct Asked<'a> {
     page: &'a Page,
@@ -567,7 +577,7 @@ async fn answered(
     headers: &HeaderMap,
     asked: &Asked<'_>,
     mut rows: Vec<Observation>,
-    reason: Option<Cut>,
+    reason: Option<ReasonDto>,
 ) -> Result<Response, Problem> {
     let Asked {
         page,
@@ -602,7 +612,7 @@ async fn answered(
         links: ListingLinks {
             next: next.as_deref(),
         },
-        reason: reason.map(|Cut::Retention| ReasonDto::Retention),
+        reason,
     };
     let bytes = serde_json::to_vec(&body).map_err(|_| Problem::new(ProblemKind::Internal))?;
     let etag = ETag::page(&bytes);
@@ -618,7 +628,7 @@ async fn answered(
 /// `GET /v1/kube-clusters/{id}/observations?ip=&at=`: who had an address of `ip` at `at`
 /// in the cluster (REQ-019-16, 17; Q-019-25), under `kube.observation.read` on its pod
 /// domain (see [`allowed`]); past its retention, an empty page with the reason
-/// `retention`, whether or not the purge dropped the rows yet.
+/// `retention`, whether or not the purge dropped the rows yet; closed, 410 (Q-019-28).
 async fn cluster_observations(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -627,15 +637,17 @@ async fn cluster_observations(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let cluster: Option<(Uuid, i16)> = sqlx::query_as(
-        "SELECT pod_domain_id, retention_days FROM kube.cluster
-          WHERE id = $1 AND valid_period @> now()",
+    // The cluster in its last version begun: living, or closed.
+    let cluster: Option<(Uuid, i16, bool)> = sqlx::query_as(
+        "SELECT pod_domain_id, retention_days, valid_period @> now() FROM kube.cluster
+          WHERE id = $1 AND lower(valid_period) <= now()
+          ORDER BY lower(valid_period) DESC LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&api.pool)
     .await
     .map_err(|e| kit::store(&e))?;
-    let Some((pods, retention)) = cluster else {
+    let Some((pods, retention, living)) = cluster else {
         return Err(Problem::new(ProblemKind::NotFound));
     };
     let target = (CLUSTER, id);
@@ -648,6 +660,7 @@ async fn cluster_observations(
         OBSERVATION_READ_PERMISSION,
     )
     .await?;
+    closed(living, "the cluster")?;
     let collection = format!("kube-clusters/{id}/observations");
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &collection)?;
     undated(&page)?;
@@ -662,7 +675,7 @@ async fn cluster_observations(
             .map_err(|e| kit::store(&e))?;
         (rows, None)
     } else {
-        (Vec::new(), Some(Cut::Retention))
+        (Vec::new(), Some(ReasonDto::Retention))
     };
     let asked = Asked {
         page: &page,
@@ -674,7 +687,8 @@ async fn cluster_observations(
 
 /// `GET /v1/workloads/{id}/observations`: where the workload ran, its pods with their
 /// nodes and addresses still within the retention of its cluster (REQ-019-17), under
-/// `kube.observation.read` on the pod domain of its cluster (see [`allowed`]).
+/// `kube.observation.read` on the pod domain of its cluster (see [`allowed`]); closed, or
+/// its cluster closed, 410 (Q-019-28).
 async fn workload_observations(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -683,18 +697,27 @@ async fn workload_observations(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let workload: Option<(Uuid, i16)> = sqlx::query_as(
-        "SELECT c.pod_domain_id, c.retention_days
-           FROM kube.workload w
-           JOIN kube.namespace n ON n.id = w.namespace_id AND n.valid_period @> now()
-           JOIN kube.cluster c ON c.id = n.cluster_id AND c.valid_period @> now()
-          WHERE w.id = $1 AND w.valid_period @> now()",
+    // The workload, its namespace and its cluster, each in its last version begun.
+    let workload: Option<(Uuid, i16, bool)> = sqlx::query_as(
+        "SELECT c.pod_domain_id, c.retention_days,
+                w.valid_period @> now() AND c.valid_period @> now()
+           FROM (SELECT namespace_id, valid_period FROM kube.workload
+                  WHERE id = $1 AND lower(valid_period) <= now()
+                  ORDER BY lower(valid_period) DESC LIMIT 1) w
+          CROSS JOIN LATERAL (
+                SELECT cluster_id FROM kube.namespace
+                 WHERE id = w.namespace_id AND lower(valid_period) <= now()
+                 ORDER BY lower(valid_period) DESC LIMIT 1) n
+          CROSS JOIN LATERAL (
+                SELECT pod_domain_id, retention_days, valid_period FROM kube.cluster
+                 WHERE id = n.cluster_id AND lower(valid_period) <= now()
+                 ORDER BY lower(valid_period) DESC LIMIT 1) c",
     )
     .bind(id)
     .fetch_optional(&api.pool)
     .await
     .map_err(|e| kit::store(&e))?;
-    let Some((pods, retention)) = workload else {
+    let Some((pods, retention, living)) = workload else {
         return Err(Problem::new(ProblemKind::NotFound));
     };
     let target = (WORKLOAD, id);
@@ -707,6 +730,7 @@ async fn workload_observations(
         OBSERVATION_READ_PERMISSION,
     )
     .await?;
+    closed(living, "the workload or its cluster")?;
     let collection = format!("workloads/{id}/observations");
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, &collection)?;
     undated(&page)?;
@@ -749,8 +773,9 @@ pub fn routes() -> ModuleRouter {
          in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod \
          domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the \
          caller neither reads nor holds that right on). The journal has no dated read. Past \
-         the retention of the cluster, an empty page with the reason `retention`. Each read \
-         is journaled (`data.objects.read`).",
+         the retention of the cluster, an empty page with the reason `retention`. A closed \
+         cluster is not read: 410 `gone` (Q-019-28). Each read is journaled \
+         (`data.objects.read`).",
     )
     .path("id", "The cluster.", true)
     .params::<HeldParams>()
@@ -768,7 +793,8 @@ pub fn routes() -> ModuleRouter {
          addresses, still within the retention of its cluster; under `kube.observation.read` \
          on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a \
          workload the caller neither reads nor holds that right on). The journal has no \
-         dated read. Each read is journaled (`data.objects.read`).",
+         dated read. A closed workload, or one of a closed cluster, is not read: 410 `gone` \
+         (Q-019-28). Each read is journaled (`data.objects.read`).",
     )
     .path("id", "The workload.", true)
     .params::<PageParams>()

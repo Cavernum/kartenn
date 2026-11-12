@@ -13,16 +13,16 @@ use kartenn_core::family::ALL;
 use kartenn_core::objects::Nature;
 use kartenn_kube::observations::{Batch, Opening};
 use kartenn_kube::read::{Cut, who_had};
-use kartenn_service::StoreError;
 use kartenn_service::authn::IdentityKind;
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
+use kartenn_service::{ObjectKind, Operation, Ref, StoreError};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 use tower::ServiceExt;
 
-use super::super::{Env, closing, hours, op};
+use super::super::{Env, closing, hours, op, sync};
 use super::{app, audited, principal};
 
 /// An authorizer that grants nothing.
@@ -486,4 +486,132 @@ async fn observations_read_bounded_to_cluster(pool: PgPool) {
 /// The router as the service account `who`.
 fn app_as_account(pool: &PgPool, who: Uuid) -> Router {
     app(pool, principal(who, IdentityKind::ServiceAccount), None)
+}
+
+/// The instant of the database, now.
+async fn clock(pool: &PgPool) -> OffsetDateTime {
+    sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Q-019-28 (objets clos : illisibles, mais dit): a closed workload answers 410 `gone`,
+/// a closed cluster too, to whoever may read their journal; to a caller without any right
+/// they stay 404, as absent ones; neither answer is journaled as a read; the port answers
+/// nothing for the closed cluster with the reason `closed`, and nothing without a reason
+/// for an instant after its closing.
+#[kartenn_testing::pg_test]
+async fn closed_objects_answer_gone(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.recorded(&Batch {
+        opened: vec![env.pod(1, "198.51.100.17")],
+        closed: Vec::new(),
+    })
+    .await;
+    let lived = clock(&pool).await;
+    let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
+    let app = as_person(&pool, who);
+    let nobody = as_person(&pool, reader(&pool, &[], None).await);
+    let gone = |status: StatusCode, problem: &Value| {
+        assert_eq!(status, StatusCode::GONE, "{problem}");
+        assert_eq!(problem["type"], "urn:kartenn:problem:gone");
+    };
+    // The workload closed by the connector.
+    env.applied(
+        env.connector,
+        vec![op(
+            "sync",
+            json!({"action": "close", "type": "kube.workload", "cluster": {"id": env.prod},
+                   "name": "web", "namespace": "payments", "kind": "deployment"}),
+        )],
+    )
+    .await;
+    let workload = format!("/v1/workloads/{}/observations", env.web);
+    let (status, problem) = get(&app, &workload).await;
+    gone(status, &problem);
+    let (status, problem) = get(&nobody, &workload).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    // The cluster still lives: read.
+    let (status, page) = get(&app, &held(env.prod, "198.51.100.17", lived)).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(pods(&page), [Uuid::from_u128(1)]);
+    // The cluster closed.
+    env.applied(
+        env.admin,
+        vec![Operation::Close {
+            kind: ObjectKind::from_name("kube.cluster").unwrap(),
+            id: Ref::Id(env.prod),
+            expected: None,
+            cascade: true,
+        }],
+    )
+    .await;
+    let after = clock(&pool).await;
+    let (status, problem) = get(&app, &held(env.prod, "198.51.100.17", lived)).await;
+    gone(status, &problem);
+    let (status, problem) = get(&nobody, &held(env.prod, "198.51.100.17", lived)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    // One read journaled: the one answered while the cluster lived.
+    assert_eq!(audited(&pool, "data.objects.read").await.len(), 1);
+    assert!(audited(&pool, "authz.access.denied").await.is_empty());
+    // The port: the rows are kept, not served, and it says so.
+    let mut conn = pool.acquire().await.unwrap();
+    let subject = principal(who, IdentityKind::Person).subject();
+    let network = prefix("198.51.100.17");
+    let answer = who_had(&mut conn, &Unrestricted, &subject, network, env.pods, lived)
+        .await
+        .unwrap();
+    assert!(answer.observations.is_empty());
+    assert_eq!(answer.reason, Some(Cut::Closed));
+    let answer = who_had(&mut conn, &Unrestricted, &subject, network, env.pods, after)
+        .await
+        .unwrap();
+    assert!(answer.observations.is_empty());
+    assert_eq!(answer.reason, None);
+}
+
+/// A pod in `hostNetwork` is answered by the addresses of its node in the version valid at
+/// the instant asked: the address of before a change answers before it, not after; the
+/// address of after, after it, not before.
+#[kartenn_testing::pg_test]
+async fn host_network_by_the_node_version_at_the_instant(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.recorded(&Batch {
+        opened: vec![host_pod(&env, 3)],
+        closed: Vec::new(),
+    })
+    .await;
+    let before = clock(&pool).await;
+    // The node `worker-1` now at `192.0.2.22` instead of `192.0.2.21`.
+    env.applied(
+        env.connector,
+        vec![sync(
+            "node",
+            env.prod,
+            "worker-1",
+            json!({"pod_cidrs": ["198.51.100.0/26"],
+                   "addresses": [{"type": "InternalIP", "value": "192.0.2.22"}]}),
+        )],
+    )
+    .await;
+    let versions: i64 = sqlx::query_scalar("SELECT count(*) FROM kube.node WHERE id = $1")
+        .bind(env.node)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(versions, 2, "a second version of the node");
+    let after = clock(&pool).await;
+    let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
+    let app = as_person(&pool, who);
+    for (ip, at, expected) in [
+        ("192.0.2.21", before, vec![Uuid::from_u128(3)]),
+        ("192.0.2.22", before, Vec::new()),
+        ("192.0.2.22", after, vec![Uuid::from_u128(3)]),
+        ("192.0.2.21", after, Vec::new()),
+    ] {
+        let (status, page) = get(&app, &held(env.prod, ip, at)).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert_eq!(pods(&page), expected, "{ip} at {at}");
+    }
 }

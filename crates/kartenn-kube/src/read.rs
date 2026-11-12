@@ -47,6 +47,9 @@ pub struct Observation {
     pub opened_batch: Uuid,
     /// The batch that closed it.
     pub closed_batch: Option<Uuid>,
+    /// Its IP as the database writes it (`host`), empty without one: the text the order
+    /// of the reads compares, which the text of [`IpAddr`] may not be (rare IPv6 forms).
+    ip_text: String,
 }
 
 impl Observation {
@@ -56,7 +59,7 @@ impl Observation {
         Key {
             from: self.from,
             pod_uid: self.pod_uid,
-            ip: self.ip.map(|ip| ip.to_string()).unwrap_or_default(),
+            ip: self.ip_text.clone(),
         }
     }
 }
@@ -79,6 +82,9 @@ pub enum Cut {
     /// The instant asked about is older than the retention of the cluster (ADR 0043,
     /// decision 8).
     Retention,
+    /// The cluster is closed: its rows may still be stored, within its retention, but a
+    /// closed cluster is not read (Q-019-28).
+    Closed,
 }
 
 impl Cut {
@@ -87,6 +93,7 @@ impl Cut {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Retention => "retention",
+            Self::Closed => "closed",
         }
     }
 }
@@ -96,8 +103,11 @@ impl Cut {
 pub struct Answer {
     /// The observations, in the order of [`Key`].
     pub observations: Vec<Observation>,
-    /// [`Cut::Retention`] when the instant is past the retention of a cluster of the
-    /// domain the reader sees, which therefore answers nothing.
+    /// Why clusters of the domain the reader sees answered nothing (Q-019-28): a cluster
+    /// for which the instant is past its retention gives [`Cut::Retention`]; a closed
+    /// cluster that still lived at the instant, within its retention, gives
+    /// [`Cut::Closed`]. [`Cut::Closed`] prevails over [`Cut::Retention`] when both occur:
+    /// it says that rows are kept but not served.
     pub reason: Option<Cut>,
 }
 
@@ -147,12 +157,13 @@ fn observation(row: Row) -> Observation {
         workload,
         node,
         // `host` of an `inet` of the journal always reads back as an address.
-        ip: ip.and_then(|ip| ip.parse().ok()),
+        ip: ip.as_deref().and_then(|ip| ip.parse().ok()),
         host_network,
         from: row.8,
         until: row.9,
         opened_batch: row.10,
         closed_batch: row.11,
+        ip_text: ip.unwrap_or_default(),
     }
 }
 
@@ -249,8 +260,11 @@ pub async fn of_workload(
 /// Who had an address of `network` at `at` among the clusters whose pod domain is
 /// `domain` (design « Port de lecture »): the observations of those clusters, provided
 /// `reader` holds `kube.observation.read` on that domain (Q-019-23; ADR 0043, decision 6),
-/// nothing otherwise. A cluster for which `at` is past its retention answers nothing and
-/// sets [`Cut::Retention`] (Q-019-25).
+/// nothing otherwise. Each cluster is taken in its last version begun: a living one is
+/// read; one for which `at` is past its retention answers nothing and sets
+/// [`Cut::Retention`] (Q-019-25); a closed one that still lived at `at` answers nothing
+/// and sets [`Cut::Closed`] (Q-019-28), which prevails. It journals nothing: the caller
+/// journals the read (`record_read`, REQ-012-18), as the routes do.
 ///
 /// # Errors
 ///
@@ -269,18 +283,32 @@ pub async fn who_had(
     if !denied.is_empty() {
         return Ok(Answer::default());
     }
-    let clusters: Vec<(Uuid, i16, OffsetDateTime)> = sqlx::query_as(
-        "SELECT id, retention_days, now() FROM kube.cluster
-          WHERE pod_domain_id = $1 AND valid_period @> now() ORDER BY id",
+    // Each cluster in its last version begun, if its pod domain is `domain`: whether it
+    // lives, and when it was closed.
+    let clusters: Vec<(Uuid, i16, bool, Option<OffsetDateTime>, OffsetDateTime)> = sqlx::query_as(
+        "SELECT id, retention_days, valid_period @> now(), upper(valid_period), now()
+               FROM (SELECT DISTINCT ON (id) * FROM kube.cluster
+                      WHERE id IN (SELECT id FROM kube.cluster WHERE pod_domain_id = $1)
+                        AND lower(valid_period) <= now()
+                      ORDER BY id, lower(valid_period) DESC) c
+              WHERE pod_domain_id = $1
+              ORDER BY id",
     )
     .bind(domain)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    let (kept, past): (Vec<&(Uuid, i16, OffsetDateTime)>, Vec<_>) = clusters
-        .iter()
-        .partition(|(_, days, now)| within_retention(at, *now, *days));
-    let kept: Vec<Uuid> = kept.into_iter().map(|c| c.0).collect();
+    let mut kept = Vec::new();
+    let mut reason = None;
+    for (id, days, living, end, now) in clusters {
+        if !within_retention(at, now, days) {
+            reason = reason.or(Some(Cut::Retention));
+        } else if living {
+            kept.push(id);
+        } else if end.is_some_and(|end| at < end) {
+            reason = Some(Cut::Closed);
+        }
+    }
     let observations = if kept.is_empty() {
         Vec::new()
     } else {
@@ -290,6 +318,6 @@ pub async fn who_had(
     };
     Ok(Answer {
         observations,
-        reason: (!past.is_empty()).then_some(Cut::Retention),
+        reason,
     })
 }

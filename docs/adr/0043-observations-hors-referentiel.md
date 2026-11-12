@@ -105,3 +105,14 @@ retenue par l'utilisateur (Q-019-4, A, 2026-11-09) l'est donc **avec garde-fous*
   lot) est tenu par cette ADR.
 - Les flux constatés (v0.4) réutiliseront la catégorie : un flux constaté est déclaré
   par un changeset qui cite des observations, jamais créé par elles.
+
+## Amendement du 2026-11-12 (spec 019, Q-019-28)
+
+La décision 6 se précise pour une source close : ses observations ne se lisent plus,
+même dans leur rétention, mais la réponse le dit. Après la règle de visibilité (invisible
+ou absente → 404), la lecture d'une source close, ou d'un objet clos qui y vivait,
+répond 410 `gone` ; une lecture qui porte sur plusieurs sources (`who_had` de la 019)
+rend le motif `closed` pour une source close qui vivait encore à l'instant demandé, et
+`closed` l'emporte sur `retention`. Les lignes restent stockées jusqu'à leur purge
+(décision 8). La décision 2 s'applique aussi au registre des modules : un type d'objet
+`<module>.observation` est refusé, ses permissions étant celles des observations.

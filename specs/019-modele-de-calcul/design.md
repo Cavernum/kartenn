@@ -393,7 +393,7 @@ RFC 3339 en UTC (`Z`) ou `null` :
 | `workloads_of(namespace | service | cluster, valid_at, as_of)` | workloads |
 | `axis_values(workloads, keys, valid_at, as_of)` | par workload et clé : valeurs, porteur source, explication (une requête pour le lot) |
 | `execution_chain(workload, valid_at)` | nœuds observés, machines, hyperviseurs, clusters de virtualisation |
-| `who_had(ip, domain, at, reader)` | observations (pod, workload, nœud) des seuls clusters où le lecteur a `kube.observation.read` ; vide hors rétention, motif `retention` ; `ip` une adresse ou un réseau, un pod en `hostNetwork` répondu par les adresses de son nœud à `at` (tâche 6d) |
+| `who_had(ip, domain, at, reader)` | observations (pod, workload, nœud) des seuls clusters où le lecteur a `kube.observation.read` ; vide hors rétention, motif `retention` ; `ip` une adresse ou un réseau, un pod en `hostNetwork` répondu par les adresses de son nœud à `at` (tâche 6d) ; un cluster clos du domaine qui vivait à `at` ne répond rien, motif `closed`, qui l'emporte sur `retention` ; l'appelant journalise la lecture (Q-019-28) |
 | `service_addresses(service, …)` | adresses `vip` |
 
 ### Connecteur
@@ -464,7 +464,7 @@ refusés, objets absents, mode de repli.
 |---|---|
 | `GET, POST /v1/kube-clusters` (filtre `?slug=`) ; `GET, PATCH, DELETE /v1/kube-clusters/{id}` | déclaration (`kube.cluster.*`) |
 | `POST /v1/kube-clusters/{id}/observations` | lot d'observations (`kube.observation.record`, membre du groupe du connecteur ; corps `{opened, closed}`, workload et nœud en références `{id}` ; au plus `batch_max_operations` lignes ; 201 `{id, received_at, opened, closed, hash}`, empreinte en hexadécimal ; 422 `invalid-batch`, `code` `kube.observation.invalid`, `violations` à pointeurs JSON ; un lot vide est audité comme les autres ; Q-019-21) |
-| `GET /v1/kube-clusters/{id}/observations?ip=&at=` ; `GET /v1/workloads/{id}/observations` | journal (`kube.observation.read`, domaine des pods du cluster ; `ip=` une adresse ou un réseau ; hors rétention 200 avec `items: []` et `reason: "retention"` ; lectures journalisées par `record_read` ; Q-019-25 ; pages par curseur, triées par début, pod et IP, sans `valid_at` ni `as_of` ; cluster ou workload invisible ou absent → 404, visible sans le droit → 403 journalisé, comme l'écriture) |
+| `GET /v1/kube-clusters/{id}/observations?ip=&at=` ; `GET /v1/workloads/{id}/observations` | journal (`kube.observation.read`, domaine des pods du cluster ; `ip=` une adresse ou un réseau ; hors rétention 200 avec `items: []` et `reason: "retention"` ; lectures journalisées par `record_read` ; Q-019-25 ; pages par curseur, triées par début, pod et IP, sans `valid_at` ni `as_of` ; cluster ou workload invisible ou absent → 404, visible sans le droit → 403 journalisé, comme l'écriture ; clos (ou workload d'un cluster clos) → 410 `gone`, Q-019-28) |
 | `GET /v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`, `/v1/ingresses` (+ `/{id}`) | lectures datées, filtres de REQ-019-38 (`kube.<type>.read`) |
 | `GET /v1/workloads/{id}/chain` | chaîne d'exécution |
 | `GET, POST /v1/kube-label-mappings`, `GET, PATCH, DELETE /v1/kube-label-mappings/{id}` ; `PUT /v1/kube-namespaces/{id}/admitted-values` ; `GET, PUT /v1/kube-tracked-labels` | paramètres du module (`kube.settings.*`), un changeset d'une opération (`If-Match`) |

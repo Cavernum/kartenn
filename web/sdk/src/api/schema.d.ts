@@ -2113,7 +2113,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Who had an address, or an address of a network, at an instant in the cluster (REQ-019-16, 17): the pods observed with it, their workload and node, and the pods in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on). The journal has no dated read. Past the retention of the cluster, an empty page with the reason `retention`. Each read is journaled (`data.objects.read`). */
+    /** Who had an address, or an address of a network, at an instant in the cluster (REQ-019-16, 17): the pods observed with it, their workload and node, and the pods in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on). The journal has no dated read. Past the retention of the cluster, an empty page with the reason `retention`. A closed cluster is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`). */
     get: operations["kube_cluster_observations"];
     put?: never;
     /** Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on); at most `batch_max_operations` lines; an instant to come is brought back to the instant of the batch, counted in its event; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer). */
@@ -4371,7 +4371,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Where the workload ran (REQ-019-17): its pods observed with their nodes and addresses, still within the retention of its cluster; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). The journal has no dated read. Each read is journaled (`data.objects.read`). */
+    /** Where the workload ran (REQ-019-17): its pods observed with their nodes and addresses, still within the retention of its cluster; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). The journal has no dated read. A closed workload, or one of a closed cluster, is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`). */
     get: operations["kube_workload_observations"];
     put?: never;
     post?: never;

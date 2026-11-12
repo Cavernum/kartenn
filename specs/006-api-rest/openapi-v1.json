@@ -26374,7 +26374,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "Who had an address, or an address of a network, at an instant in the cluster (REQ-019-16, 17): the pods observed with it, their workload and node, and the pods in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on). The journal has no dated read. Past the retention of the cluster, an empty page with the reason `retention`. Each read is journaled (`data.objects.read`).",
+        "summary": "Who had an address, or an address of a network, at an instant in the cluster (REQ-019-16, 17): the pods observed with it, their workload and node, and the pods in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on). The journal has no dated read. Past the retention of the cluster, an empty page with the reason `retention`. A closed cluster is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`).",
         "tags": [
           "kube"
         ]
@@ -40780,7 +40780,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "Where the workload ran (REQ-019-17): its pods observed with their nodes and addresses, still within the retention of its cluster; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). The journal has no dated read. Each read is journaled (`data.objects.read`).",
+        "summary": "Where the workload ran (REQ-019-17): its pods observed with their nodes and addresses, still within the retention of its cluster; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). The journal has no dated read. A closed workload, or one of a closed cluster, is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`).",
         "tags": [
           "kube"
         ]
