@@ -2352,4 +2352,21 @@ impl ModuleHandler for Handler {
             crate::edges::of(conn, object, valid_at, as_of).await
         })
     }
+
+    /// The background tasks of the journal of observations (task 019-6c).
+    fn run_job<'a>(
+        &'a self,
+        name: &'a str,
+        tx: &'a mut dyn ModuleTx,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if crate::jobs::run(name, tx).await? {
+                Ok(())
+            } else {
+                Err(StoreError(format!(
+                    "unknown task {name} of the module kube"
+                )))
+            }
+        })
+    }
 }

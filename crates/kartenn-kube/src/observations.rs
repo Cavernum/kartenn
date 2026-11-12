@@ -13,6 +13,9 @@ use sqlx::PgConnection;
 use sqlx::types::time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
+/// The journal a batch of the module writes, as its audit events name it.
+pub const JOURNAL: &str = "kube.pod_observation";
+
 /// A pod seen: every column of an observation but the end of its period.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Opening {
@@ -192,6 +195,8 @@ pub struct Recorded {
     /// The longest advance of those lines on the instant of the batch, in milliseconds;
     /// 0 without any.
     pub skew_max_ms: u64,
+    /// Its earliest instant, sealed with it (task 019-6c, Q-019-29).
+    pub earliest: OffsetDateTime,
 }
 
 /// An instant as PostgreSQL keeps it, to the microsecond, in UTC.
@@ -202,7 +207,8 @@ fn stored(at: OffsetDateTime) -> OffsetDateTime {
 }
 
 /// An instant in its canonical text: RFC 3339, UTC, six digits of fraction.
-fn rfc3339(at: OffsetDateTime) -> String {
+#[must_use]
+pub fn rfc3339(at: OffsetDateTime) -> String {
     let at = stored(at);
     format!(
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
@@ -597,10 +603,18 @@ pub async fn record(
     // The writes: the batch, its openings, then its closings.
     let written: Vec<Opening> = written.into_iter().cloned().collect();
     let hash = content_hash(cluster, &written, &closed)?;
+    // Its earliest instant: every row it writes ends at or after it, so that the
+    // verification knows it whole while that instant is not before the purge bound of
+    // the cluster (task 019-6c, Q-019-24).
+    let earliest = written
+        .iter()
+        .map(|o| o.from)
+        .chain(closed.iter().map(|c| c.at))
+        .fold(received_at, OffsetDateTime::min);
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO kube.observation_batch
-                (id, cluster_id, author, received_at, opened, closed, content_hash)
-         VALUES (uuidv7(), $1, $2, $3, $4, $5, $6)
+                (id, cluster_id, author, received_at, opened, closed, content_hash, earliest)
+         VALUES (uuidv7(), $1, $2, $3, $4, $5, $6, $7)
          RETURNING id",
     )
     .bind(cluster)
@@ -609,6 +623,7 @@ pub async fn record(
     .bind(count(written.len()))
     .bind(count(closed.len()))
     .bind(hash.as_slice())
+    .bind(earliest)
     .fetch_one(&mut *conn)
     .await?;
     if !written.is_empty() {
@@ -702,6 +717,7 @@ pub async fn record(
             .iter()
             .max()
             .map_or(0, |ms| u64::try_from(*ms).unwrap_or(u64::MAX)),
+        earliest,
     })
 }
 

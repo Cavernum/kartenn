@@ -46,11 +46,9 @@ use uuid::Uuid;
 use crate::module::{
     CLUSTER, OBSERVATION_READ_PERMISSION, OBSERVATION_RECORD_PERMISSION, WORKLOAD,
 };
-use crate::observations::{self, Batch, Closing, Invalid, Line, Opening, RecordError};
+use crate::observations::{self, Batch, Closing, Invalid, JOURNAL, Line, Opening, RecordError};
 use crate::read::{self, Key, Observation};
 
-/// The journal a batch of the module writes, as its audit event names it.
-const JOURNAL: &str = "kube.pod_observation";
 /// The code of a batch refused, in the extension `code` of its `invalid-batch` (Q-019-21).
 const INVALID: &str = "kube.observation.invalid";
 /// The `reason` of `abuse.input.rejected` for a body that does not read: the class of
@@ -454,6 +452,7 @@ async fn record_batch(
         .and_then(|e| e.detail("hash", hash.as_str()))
         .and_then(|e| e.detail("clamped", recorded.clamped))
         .and_then(|e| e.detail("skew_max", recorded.skew_max_ms))
+        .and_then(|e| e.detail("earliest", observations::rfc3339(recorded.earliest)))
         .map_err(audited)?;
     // In the transaction of the batch (ADR 0043, decision 5): no batch without its event.
     api.journal

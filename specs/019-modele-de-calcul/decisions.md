@@ -397,6 +397,37 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   passé la rétention compte `retention`, même clos ; `closed` l'emporte sur `retention`
   dans la réponse, car il dit que des lignes sont gardées sans être servies.
 
+### Q-019-29 — Modèle de menace du journal (revue de la tâche 6c)
+- Constat : la 6c retrouvait l'événement d'un lot par `recorded_at = received_at` et se
+  repliait sur la copie de `observation_batch` faute de lui ; `earliest` et la borne de
+  purge n'étaient scellés nulle part ; une rétention baissée s'appliquait à la purge
+  suivante ; une ligne pouvait être attribuée à un ancien lot. Un rôle applicatif
+  compromis pouvait ainsi soustraire un lot à la vérification, avancer une borne ou
+  purger tout de suite.
+- Options : A. le journal tient contre un rôle `kartenn_app` compromis ; B. seul le
+  propriétaire du schéma est de confiance, et le rôle applicatif aussi, ce qui se
+  documente.
+- Décision (l'utilisateur, 2026-11-11) : A.
+  1. L'empreinte attendue est celle de l'unique événement scellé
+     `observation.batch.recorded` du lot, retrouvé par son identifiant (détail `batch`) ;
+     deux événements pour un lot sont une altération ; la copie de `observation_batch`
+     ne sert que si l'audit a purgé ce mois par sa rétention (`audit.purge`), ailleurs un
+     événement manquant est une altération ; l'instant de l'événement est celui du lot.
+  2. `earliest` est scellé avec le lot (détail `earliest`, ajout au catalogue) ; chaque
+     purge scelle la borne qu'elle avance (`observation.journal.purged` : cluster, borne
+     avant et après, lignes supprimées, jours supprimés) par `ModuleTx::audit` ; la
+     vérification contrôle `earliest` et la borne de chaque cluster contre ces
+     événements, et juge un lot entier selon la borne scellée.
+  3. Une rétention baissée ne s'applique qu'une fois l'ancienne écoulée : la purge prend
+     la plus grande rétention des versions du cluster, en temps valide et en temps
+     système (historique), en vigueur dans la fenêtre de leur propre rétention.
+  4. Un déclencheur refuse une ligne de `pod_observation` ouverte (`opened_batch`) ou
+     fermée (`closed_batch`) sous un lot qui n'est pas écrit par la même transaction ; un
+     lot est reçu à l'instant de sa transaction (`received_at = now()`).
+  Les écarts sont des `observation.batch.altered` distingués par leur `reason`
+  (`content`, `event_missing`, `event_duplicated`, `received_at`, `earliest`,
+  `purge_bound`) ; l'amendement 13 de l'ADR 0026 (`ModuleTx::audit`) est ratifié.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
