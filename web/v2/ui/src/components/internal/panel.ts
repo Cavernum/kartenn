@@ -22,21 +22,24 @@ export function filled(nodes: VNodeArrayChildren): boolean {
 }
 
 /**
- * Whether Escape belongs to the focused control: a field being typed in (it may cancel its
- * own input), or a popup it opened (a combobox, a menu button).
+ * Whether an Escape the panel hears belongs to the focused control rather than to the panel
+ * (task 021-12p). A control that takes Escape for itself prevents its default (a cell
+ * editor that cancels, an error or a tooltip that closes), and the panel leaves a prevented
+ * Escape alone; this answers for what does not: a popup its control opened and still shows
+ * (a combobox's list, a menu button's menu: Reka closes them from the document, after the
+ * panel heard the key), and a composition in progress (an IME, whose Escape cancels it).
+ * Anything else lets it go, as a dialog does: a closed combobox (its second Escape, which
+ * its header promises to the layer around), a text field, a text area, a segment of a date.
  */
-export function ownsEscape(target: EventTarget | null): boolean {
+export function ownsEscape(event: KeyboardEvent): boolean {
+  if (event.isComposing) return true;
+  const target = event.target;
   if (!(target instanceof HTMLElement)) return false;
-  const popup = target.getAttribute("role") === "combobox" || target.hasAttribute("aria-haspopup");
-  if (target.isContentEditable || (popup && target.getAttribute("aria-expanded") === "true"))
-    return true;
-  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
-  return (
-    target instanceof HTMLInputElement &&
-    !["button", "checkbox", "radio", "submit", "reset", "range", "color", "file"].includes(
-      target.type,
-    )
-  );
+  // A disclosure (`aria-expanded` without a popup) shows its content in place: not a popup.
+  const haspopup = target.getAttribute("aria-haspopup");
+  const popup =
+    target.getAttribute("role") === "combobox" || (haspopup !== null && haspopup !== "false");
+  return popup && target.getAttribute("aria-expanded") === "true";
 }
 
 /**
