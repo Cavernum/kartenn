@@ -121,7 +121,8 @@ test("a group, then a VLAN created and set on a network, seen in its tab, the pr
   await page.keyboard.press("c");
   const form = page.getByRole("form", { name: "Créer : Groupe de VLAN" });
   await form.getByRole("textbox", { name: "Clé" }).fill(group);
-  await form.getByRole("combobox", { name: /^Ancre/ }).click();
+  // The anchor found by its text among the entities, sites and domains (`q`, task 12j).
+  await form.getByRole("combobox", { name: /^Ancre/ }).fill(domain);
   await page.getByRole("option", { name: new RegExp(`^${domain}`) }).click();
   await form.getByRole("textbox", { name: "Premier VID" }).fill("100");
   await form.getByRole("textbox", { name: "Dernier VID" }).fill("199");
@@ -260,7 +261,7 @@ test("a VLAN created for a network: to the draft then applied, or applied at onc
     await expect(page.getByText("Ce réseau ne porte aucun VLAN")).toBeVisible();
     await page.getByRole("button", { name: "Créer un VLAN pour ce réseau" }).click();
     const form = page.getByRole("form", { name: `Créer un VLAN pour ${network}` });
-    await form.getByRole("combobox", { name: /^Groupe/ }).click();
+    await form.getByRole("combobox", { name: /^Groupe/ }).fill(group);
     await page.getByRole("option", { name: group, exact: true }).click();
     await expect(form.getByRole("textbox", { name: "VID" })).toHaveValue(vid);
     await form.getByRole("textbox", { name: "Nom" }).fill(name);

@@ -238,7 +238,9 @@ ne vide pas l'écran) avec ses trois états.
 - **Panneau d'édition par sorte** (REQ-021-36) : `EditPanel` dans l'onglet Détail, champs
   tirés du schéma de création ou de `PATCH` de la sorte (contrat), mêmes champs d'où qu'on
   vienne (arbre, table, palette, menu) ; ajoute au brouillon, ou applique par le bouton
-  scindé.
+  scindé. Une référence (domaine, parent, groupe, ancre) se choisit par un `Combobox` dont
+  les suggestions viennent de `q` de sa collection (12j), non d'une première page lue ; un
+  texte saisi sans suggestion prise est refusé, rien n'est deviné.
 - **Administration** (droits par groupes, spec 025) : écrans de la 007 sur `DataGrid`,
   `Dialog`, `FormField`. Entrées de l'espace : **Groupes**, **Rôles**, **Identités**,
   **Comptes de service**, **Émetteurs**, **Audit** ; plus d'entrée « Liaisons » : une

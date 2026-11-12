@@ -3573,7 +3573,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     à l'inverse de la 12h ; `shownRows` recalculé à chaque lecture (~60 fois au chargement
     d'une colonne) ; à vérifier : `aria-colindex`/`aria-colcount` comptent-ils les colonnes
     de propriétés cachées ?
-- [ ] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
+- [x] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
   parent choisis par un `Combobox` qui interroge `q` de leur collection (`/v1/domains`,
   `/v1/prefixes`), non plus dans la première page lue — REQ-021-36 — verify : Vitest
   (suggestions tirées de `q`, valeur prise au-delà de la première page) ; parcours `edit`
@@ -3581,6 +3581,52 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/edit/EditPanel.vue` (`optionsOf`, `suggestTargets` de
     « Changer de parent… »), `panel.ts`
   - dépend de : 12
+  - fait le 2026-11-12 — `EditPanel.vue` seul (`panel.ts` inchangé) : toute référence
+    (domaine, parent d'une entité ou d'un site, groupe d'un VLAN, ancre d'un groupe) est un
+    `Combobox` (`suggestionsOf`) dont les suggestions sont demandées à sa collection par `q`
+    à la saisie (`cacheSuggest` de `views/filters.ts` : la première page de la réponse ;
+    l'ancre interroge entités, sites et domaines à la fois), Bas ou Alt+Bas sur un champ
+    vide la première page ; à côté, « Aucun » d'une référence facultative et les objets
+    créés plus tôt dans le brouillon (`draftedCreations`, références locales `local:<n>`
+    de la 14l gardées, nommées « opération n du brouillon »). « Changer de parent… » prend
+    le même chemin (cibles valides seules, `canMove` ; les ancêtres lus sur dix pages au
+    plus, pour le cycle). Une valeur donnée d'avance (domaine de l'arbre, groupe d'un
+    « Créer un VLAN ») ou lue sans ses mots (ancre, groupe) est nommée par la lecture de
+    son objet (`readLabel`), le champ vide jusque-là (son identifiant seulement si
+    l'objet ne se lit pas) ; un texte saisi sans suggestion prise est refusé sur le champ
+    (`edit.check.pick`, celui d'un déplacement `edit.move.choose`), rien n'est deviné ;
+    l'aide du champ le dit d'avance (`edit.referenceHint`). Listes fermées (nature, usage)
+    toujours en `Select`. 021 design (« Panneau d'édition par sorte »). Tests : Vitest
+    `shell/test/edit-reference.test.ts` (domaine trouvé par `q` au-delà de la première
+    page, pris et écrit ; valeur donnée d'avance nommée par son objet, aucune liste lue ;
+    texte sans suggestion refusé, rien d'envoyé ; « Aucun » et parents par `q`),
+    `draft-replace.test.ts` (domaine local nommé dans le champ) ; parcours `edit` (domaine
+    trouvé par sa saisie au clavier, `q` envoyé), `tree`, `vlan` (ancre et groupe saisis).
+  - choix : toutes les références plutôt que domaine et parent seuls (un seul chemin, la
+    même limite levée pour le groupe et l'ancre) ; la tâche nomme `/v1/prefixes`, mais
+    aucun champ du panneau ne désigne un préfixe : les collections interrogées sont
+    celles des références (`/v1/domains`, `/v1/entities`, `/v1/sites`,
+    `/v1/vlan-groups`) ; un champ vidé vaut « Aucun » pour une référence facultative (à
+    la création comme en modification, s'il en vient une), un déplacement exige une cible
+    ou « Aucun » prise ; les mots d'une valeur
+    connue gardés par valeur (`labels`) pour le motif d'un 412, l'aperçu et l'indice du
+    VID.
+  - passe de correction (revue) : les suggestions ont leur propre clé de cache
+    (`cacheSuggest` de `views/filters.ts`, `page_size` écrit : la page par défaut du
+    contrat), distincte de celle de la liste qu'une vue ou un panneau lit de la même collection (les
+    ancêtres d'un déplacement, `nodesRead`) : une page seule, jamais les dix d'une liste
+    périmée, et l'annulation par un texte plus récent ne coupe que leur lecture ; la barre
+    de filtres en profite. Vitest `edit-reference.test.ts` (champ vidé pendant la lecture
+    des ancêtres : leurs trois pages lues sans annulation, les suggestions d'une page sans
+    curseur).
+  - reste (relectures et revue) : Échap d'un combobox fermé dans un panneau → 12p ;
+    l'erreur d'un champ reste jusqu'à l'envoi suivant, comme pour les autres champs ; une
+    page de cibles toutes invalides d'un déplacement, champ vide, n'offre rien tant que
+    rien n'est saisi ; un objet illisible dont l'identifiant remplit le champ, non testé ;
+    « Aucun » filtré par le texte comme une suggestion (`filterOptions`) ; aucun Vitest de
+    « Changer de parent… » par `q` (le parcours `moves` le tient) ; `labels` grossit sans
+    purge le temps du panneau ; une cible au-delà des dix pages d'ancêtres lues, refusée
+    par le serveur pour un cycle, non testée ; aucune capture (12l).
 - [ ] 12k. `c` et `e` refusés dits au clavier (relevés des 12c et 12d, `a11y-auditor`) :
   sous `as_of`, sans le droit ou sans domaine, la touche dit sa raison par le statut poli
   de la vue au lieu de rien ; dans l'onglet Contenu et le contenu d'un nœud, la phrase
@@ -3701,6 +3747,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   reste-t-elle sans éditeur avec un renvoi vers le porteur ? La spec 003 (résolution des
   propriétés) est à relire d'abord ; si elle ne le dit pas, à l'utilisateur.
   - où : `specs/003-proprietes/`, `web/v2/shell/src/views/record/PropertiesTab.vue`
+- [ ] 12p. Échap d'un combobox fermé dans un panneau (relevé de l'`a11y-auditor` sur la
+  12j) : `ownsEscape` donne Échap à tout `input` texte, si bien que dans `SidePanel` et
+  `BottomPanel` la seconde Échap d'un champ de référence (`Combobox`, liste fermée) ne
+  ferme pas le panneau, alors que le `Select` d'avant la laissait passer et que l'en-tête
+  du `Combobox` promet « la suivante est à la couche autour » ; un combobox fermé
+  (`role="combobox"`, `aria-expanded="false"`) ne la garde plus ; le sort d'un champ texte
+  simple (`TextField`) à dire dans le même passage — REQ-021-36 — verify : script clavier
+  `e2e/components/side-panel.spec.ts` (Combobox dans le panneau : Échap ferme la liste,
+  la seconde ferme le panneau, focus rendu à l'ouvreur) ; Vitest de `ownsEscape`
+  - où : `web/v2/ui/src/components/internal/panel.ts` (`ownsEscape`),
+    `SidePanel/SidePanel.vue`, `BottomPanel/BottomPanel.vue`, `Combobox/Combobox.vue`
+    (en-tête), `SidePanel.catalogue.ts` ; ligne `SidePanel` du skill `kartenn-ui`
+  - dépend de : 12j
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
