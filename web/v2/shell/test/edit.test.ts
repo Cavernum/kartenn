@@ -54,6 +54,22 @@ import {
 // the input kept beside the value read again, no apply without `X.approval.self`.
 
 const PREFIXES = collectionById("prefixes")!;
+
+/**
+ * In the list of the open editor of a cell (task 12g), the option `label` chosen by Enter
+ * (Ctrl+Enter: `ctrlKey`), as Reka's option hears it.
+ */
+async function chooseOption(label: string, ctrlKey = false): Promise<void> {
+  const option = () =>
+    [...document.querySelectorAll<HTMLElement>("[role='option']")].find(
+      (el) => el.textContent?.trim() === label,
+    );
+  await expect.poll(option).toBeDefined();
+  option()!.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", ctrlKey, bubbles: true, cancelable: true }),
+  );
+  await nextTick();
+}
 /** What may be written at the present, under `valid_at` alone, under `as_of` (`writesOf`). */
 const NOW = { quickEdit: true, draft: true };
 const DATED = { quickEdit: false, draft: true };
@@ -710,6 +726,17 @@ describe("a list edited in place", () => {
     expect(edit().editable(range, column("detail"))).toBe(true);
     expect(edit().validate(prefix, column("detail"), "Conteneur")).toBeUndefined();
     expect(edit().validate(prefix, column("detail"), "ailleurs")).toContain("Réseau, Conteneur");
+    // Its closed list, chosen in the cell (task 12g): the keys held, their words shown.
+    expect(edit().choices(prefix, column("detail"))).toEqual([
+      { value: "network", label: "Réseau", mono: false },
+      { value: "container", label: "Conteneur", mono: false },
+    ]);
+    expect(
+      edit()
+        .choices(range, column("detail"))
+        ?.map((o) => o.value),
+    ).toContain("dhcp");
+    expect(edit().choices(prefix, column("occupancy"))).toBeUndefined();
 
     edit().onCommit({ row: P1, column: "detail", value: "Conteneur" });
     await expect.poll(() => edit().cellState(prefix, column("detail"))).toBe("draft");
@@ -999,7 +1026,7 @@ describe("the content of a node edited in place (task 12a)", () => {
     );
     expect(cell(R2)!.getAttribute("aria-describedby")).toBeNull();
 
-    /** The editor of the range opened, `text` typed, then `key` (with Ctrl or not). */
+    /** The editor of the range opened, `text` chosen in its list by Enter (or Ctrl+Enter). */
     async function type(text: string, ctrlKey = false): Promise<void> {
       cell(R2)!.click();
       cell(R2)!.focus();
@@ -1007,12 +1034,7 @@ describe("the content of a node edited in place (task 12a)", () => {
       cell(R2)!.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
       );
-      await expect.poll(() => document.querySelector("[data-k-content] input")).not.toBeNull();
-      const input = document.querySelector<HTMLInputElement>("[data-k-content] input")!;
-      input.value = text;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey, bubbles: true }));
-      await nextTick();
+      await chooseOption(text, ctrlKey);
     }
     // Enter: to the draft, at the version the page served; the row marked « en brouillon ».
     await type("DHCP");
@@ -1126,7 +1148,6 @@ describe("a cell of the tree of the topography edited in place (task 12f2)", () 
     app.use(createShellI18n("fr")).use(router);
     app.mount(root);
     await router.isReady();
-    const tree = () => root.querySelector<HTMLElement>("[data-k-tree]");
     const cell = (grid: string, row: string, column = "detail") =>
       root.querySelector<HTMLElement>(
         `[${grid}] [data-row="${row}"][data-column="${column}"]:not([data-k-skeleton])`,
@@ -1151,13 +1172,7 @@ describe("a cell of the tree of the topography edited in place (task 12f2)", () 
       const at = cell("data-k-tree", R3)!;
       at.focus();
       at.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      await expect.poll(() => tree()!.querySelector("input")).not.toBeNull();
-      const input = tree()!.querySelector<HTMLInputElement>("input")!;
-      input.value = text;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }),
-      );
+      await chooseOption(text, true);
       await expect
         .poll(() => root.querySelector("form[aria-label^='Appliquer maintenant']"))
         .not.toBeNull();

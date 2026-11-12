@@ -209,6 +209,7 @@ function onCancelAsk(): void {
       :editable="edit.editable"
       :readonly-reason="readonlyReason"
       :validate="edit.validate"
+      :options="edit.choices"
       :cell-state="edit.cellState"
       :state-reason="edit.stateReason"
       :row-state="edit.rowState"

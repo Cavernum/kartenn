@@ -11,7 +11,7 @@ import {
   type QuickWrite,
   type Refusal as SdkRefusal,
 } from "@kartenn/sdk";
-import type { CellRef, CellState, GridColumn, GridCommit, RowState } from "@kartenn/ui";
+import type { CellRef, CellState, GridColumn, GridCommit, ListOption, RowState } from "@kartenn/ui";
 import {
   computed,
   onScopeDispose,
@@ -53,7 +53,8 @@ import { heldWords } from "./say.ts";
 // codes, 403 a refusal, the input kept. Without
 // `X.approval.self`, Ctrl+Enter goes to the draft and says why. Rows of several kinds (the
 // nodes of the topography, task 12a) give the collection of each row and the field each of
-// their columns edits; a word of a closed list typed stands for its key.
+// their columns edits; a closed list is chosen in the cell (`choices`, task 12g), and a word
+// of it typed (a host's editor of text) stands for its key.
 
 /** A refused try, as the line of the motive shows it (the SDK's, whatever its input). */
 export type Refusal = SdkRefusal<unknown>;
@@ -407,6 +408,23 @@ export function useInlineEdit({
     return name === undefined ? undefined : modificationField(collection(row).id, name);
   };
 
+  /**
+   * The closed list a cell of `row` chooses among (task 12g): the keys of a nature or a
+   * usage, held as the cell holds them, shown in their words (a key without words, in
+   * fixed pitch); a flag's `true` and `false`, as its cell writes them; none for a field
+   * typed in.
+   */
+  function choices(row: Item, column: GridColumn): ListOption[] | undefined {
+    const field = fieldOf(row, column.id);
+    if (field?.kind === "flag")
+      return ["true", "false"].map((value) => ({ value, label: value, mono: true }));
+    if (field?.kind !== "choice") return undefined;
+    return (field.options ?? []).map((key) => {
+      const label = words?.(field.name, key) ?? null;
+      return { value: key, label: label ?? key, mono: label === null };
+    });
+  }
+
   function validate(row: Item, column: GridColumn, value: string): string | undefined {
     const field = fieldOf(row, column.id);
     if (!field) return undefined;
@@ -602,6 +620,7 @@ export function useInlineEdit({
     rowState,
     rowReason,
     editable,
+    choices,
     validate,
     why,
     canApply,

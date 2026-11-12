@@ -285,6 +285,11 @@ const cellState = (node: TreeNode, column: GridColumn) => {
   const row = rowOf(node.id);
   return row ? edit.cellState(row, column) : undefined;
 };
+/** The nature of a prefix, the usage of a range: chosen in their list (task 12g). */
+const options = (node: TreeNode, column: GridColumn) => {
+  const row = rowOf(node.id);
+  return row ? edit.choices(row, column) : undefined;
+};
 // Why a cell of the tree has no editor, or is held in review: its description and its
 // tooltip, as in the grid of the content (task 12f2). The node's own cell has neither: its
 // value is not edited in place (021/A20).
@@ -827,6 +832,7 @@ onBeforeUnmount(() => stopIntent());
             :add-blocked="addBlocked"
             :editable="editable"
             :validate="validate"
+            :options="options"
             :cell-state="cellState"
             :readonly-reason="readonlyReason"
             :state-reason="stateReason"

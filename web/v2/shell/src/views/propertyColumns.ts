@@ -275,6 +275,11 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
         ? inline.validate(row, column, text)
         : edit.validate(String(row.id), key, text);
     },
+    /** The closed list of a cell: a field's (nature, usage, flag), a property's (bool, enum). */
+    options: (row: Item, column: GridColumn) => {
+      const key = property(column);
+      return key === null ? inline.choices(row, column) : edit.choices(String(row.id), key);
+    },
     cellState: (row: Item, column: GridColumn): CellState | undefined => {
       const key = property(column);
       return key === null ? inline.cellState(row, column) : edit.cellState(String(row.id), key);
