@@ -699,13 +699,26 @@ test("a field changed: Escape, the counter and a navigation ask first; abandoned
   await expect(page).toHaveURL(/\/addresses/);
   await expect(value).toHaveValue("192.0.2.77");
 
-  // « Abandonner »: the panel closes, the input dropped, nothing written.
-  await value.focus();
-  await page.keyboard.press("Escape");
+  // The other tab and back: the form stays mounted, its input with it.
+  await panel.getByRole("tab", { name: /^Brouillon/ }).click();
+  await panel.getByRole("tab", { name: "Détail" }).click();
+  await expect(value).toHaveValue("192.0.2.77");
+  // A new edit asked (`c`) would replace it: asked first, « Continuer la saisie » keeps it.
+  await page.keyboard.press("c");
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(value).toHaveValue("192.0.2.77");
+
+  // « Abandonner » on a navigation: the page changes, the edit dropped, nothing written.
+  await page
+    .getByRole("navigation", { name: "Navigation principale" })
+    .getByRole("link", { name: "Préfixes", exact: true })
+    .click();
+  await expect(keep).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(ask.getByRole("button", { name: "Abandonner" })).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(panel).toBeHidden();
+  await expect(page).toHaveURL(/\/prefixes/);
   await expect(form).toHaveCount(0);
   expect(writes).toEqual([]);
 });

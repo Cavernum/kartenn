@@ -77,7 +77,6 @@ import {
   watch,
 } from "vue";
 import { useI18n } from "vue-i18n";
-import { editModified, panelModified } from "./modified.ts";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
@@ -112,9 +111,11 @@ import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
-import { closeEditWithPage, editRequest, lineToReturn } from "../views/edit/panel.ts";
+import { dropMotive, typedMotive } from "../draft/motive.ts";
+import { closeEditWithPage, editRequest, guardEdit, lineToReturn } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { detailRequests } from "./detail.ts";
+import { editModified, panelModified, reportModified } from "./modified.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
 
@@ -298,14 +299,26 @@ closeEditWithPage(
 
 // A form of the panel changed and not written (Q-021-22, task 12qb): the panel asks
 // « Abandonner les modifications ? » before Escape, its cross, `]` or the counter close it
-// (`close()`, never the model), and before a navigation that would drop the edit (the
-// criterion of `closeEditWithPage`); « Continuer la saisie » stays on the page.
+// (`close()`, never the model), before a new edit replaces a modified one (`guardEdit`),
+// and before a navigation that would drop the edit (the criterion of
+// `closeEditWithPage`); « Continuer la saisie » keeps the input, the edit and the page.
+// Its tabs stay mounted (`SidePanel`); the motive of the draft is kept outside its form
+// (`motive.ts`: shown again on the page of the draft), and goes with « Abandonner ».
 const modified = panelModified();
 const sidePanel = useTemplateRef<InstanceType<typeof SidePanel>>("sidePanel");
+reportModified(
+  () => activeDraft.value !== null && !draftOnPage.value && !!typedMotive(activeDraft.value),
+);
 function closePanel(): void {
   if (sidePanel.value) sidePanel.value.close();
   else panelOpen.value = false;
 }
+/** The panel closed (« Abandonner » when modified): the motive typed in it goes too. */
+function onPanelClose(): void {
+  if (activeDraft.value && !draftOnPage.value) dropMotive(activeDraft.value);
+}
+guardEdit(() => (sidePanel.value && editModified() ? sidePanel.value.ask() : true));
+onBeforeUnmount(() => guardEdit(null));
 onBeforeUnmount(
   router.beforeEach(async (to, from) => {
     if (!sidePanel.value || !editModified()) return true;
@@ -313,7 +326,8 @@ onBeforeUnmount(
     const before = timeOf(from.query);
     const moved = now.validAt !== before.validAt || now.asOf !== before.asOf;
     if (to.path === from.path && !(moved && !now.present)) return true;
-    return await sidePanel.value.ask();
+    // Withdrawn because nothing is left to drop (`modified` turned false): it goes on.
+    return (await sidePanel.value.ask()) || !editModified();
   }),
 );
 
@@ -934,6 +948,7 @@ onBeforeUnmount(
           :sheet="width === 'compact'"
           :rail="width !== 'compact'"
           :shortcut="settings.singleKeys.value ? [']'] : undefined"
+          @close="onPanelClose"
         >
           <template #detail>
             <ClosePanel v-if="editing?.mode === 'close'" :key="editing.serial" :request="editing" />

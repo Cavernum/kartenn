@@ -55,14 +55,34 @@ let serial = 0;
 /** The line of a draft to give the focus back to, once shown again (`lineToReturn`). */
 const returning = shallowRef<{ draft: string; index: number } | null>(null);
 
-/** Opens the edit panel on `request`; the focus will go back to what had it. */
+/** What asks before a new request replaces a modified edit (the frame, Q-021-22). */
+let guard: (() => boolean | Promise<boolean>) | null = null;
+
+/**
+ * In the frame: `ask` says whether a new request may replace the edit shown — at once when
+ * it is intact, after « Abandonner les modifications ? » when it is modified (« Continuer
+ * la saisie »: the new request is dropped). `null` when the frame goes.
+ */
+export function guardEdit(ask: (() => boolean | Promise<boolean>) | null): void {
+  guard = ask;
+}
+
+/**
+ * Opens the edit panel on `request`; the focus will go back to what had it. A modified
+ * edit is asked about first (`guardEdit`).
+ */
 export function openEdit(request: EditRequest): void {
   const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // An entry of a menu goes with its menu: the focus goes back to the button that opened it.
   const menu = active?.closest("[role='menu']");
   const button = menu?.getAttribute("aria-labelledby");
   const opener = (button ? document.getElementById(button) : null) ?? active;
-  current.value = { ...request, serial: ++serial, opener };
+  const show = (): void => {
+    current.value = { ...request, serial: ++serial, opener };
+  };
+  const allowed = guard?.() ?? true;
+  if (allowed === true) show();
+  else if (allowed !== false) void allowed.then((go) => go && show());
 }
 
 /**
@@ -75,7 +95,10 @@ export function closeEdit(back = true): void {
   current.value = null;
   if (!back) return;
   const slot = request && "replace" in request ? request.replace : undefined;
-  if (opener?.isConnected && opener !== document.body) opener.focus();
+  // An opener in a tab not in front (the panel keeps its tabs mounted, hidden) is gone too.
+  if (opener?.isConnected && opener !== document.body && !opener.closest("[hidden]")) {
+    opener.focus();
+  }
   // « Modifier » of the draft tab, which the Détail tab took the place of (or a click that
   // left the focus on `body`): the tab shown again, the line takes the focus back
   // (`DraftOperations.vue`).

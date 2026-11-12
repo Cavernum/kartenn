@@ -142,6 +142,12 @@ test("without approval.self, « Appliquer » is refused with its permission; the
     await carol.keyboard.press("Enter");
     await expect(summary).toBeFocused();
     await expect(summary).toHaveValue("Bascule des VIP de la salle B");
+    // The Détail tab and back: the motive typed is there again.
+    await panel(carol).getByRole("tab", { name: "Détail" }).click();
+    await panel(carol)
+      .getByRole("tab", { name: /^Brouillon/ })
+      .click();
+    await expect(summary).toHaveValue("Bascule des VIP de la salle B");
     await split(carol).click();
     await expect(
       carol.getByRole("status").filter({ hasText: "Proposé, en revue" }).first(),

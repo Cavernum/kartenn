@@ -32,7 +32,7 @@ import {
 import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
-import { reportModified } from "../frame/modified.ts";
+import { keepMotive, typedMotive } from "./motive.ts";
 import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
@@ -122,13 +122,17 @@ const effect = computed(() => {
 const motiveWhy = computed(() =>
   !writable.value ? t("drafts.why.past") : awaiting.value ? t("drafts.motiveFrozen") : undefined,
 );
+// The motive: one typed and not sent yet, kept outside the form (`motive.ts`: the panel's
+// other tab, the page of the draft show it again), else the one kept with the draft; a
+// reason read again never replaces a motive typed.
 const summary = ref("");
 const description = ref("");
 watch(
   () => [props.id, draft.value?.reason.summary, draft.value?.reason.description] as const,
-  ([, s, d]) => {
-    summary.value = s ?? "";
-    description.value = d ?? "";
+  ([id, s, d]) => {
+    const own = id ? typedMotive(id) : undefined;
+    summary.value = own?.summary ?? s ?? "";
+    description.value = own?.description ?? d ?? "";
   },
   { immediate: true },
 );
@@ -162,14 +166,14 @@ watch(
   { immediate: true },
 );
 // A motive typed (other than the one kept with the draft, or the generic one prefilled):
-// the panel asks before it drops it (Q-021-22).
-reportModified(() => {
-  const kept = draft.value?.reason;
-  const typed = summary.value.trim();
-  return (
+// kept until it is sent or abandoned; the frame's panel asks before it drops it (Q-021-22).
+watch([summary, description, () => draft.value?.reason] as const, ([s, d, kept]) => {
+  if (!props.id) return;
+  const typed = s.trim();
+  const own =
     (typed !== (kept?.summary ?? "") && typed !== t("drafts.defaultSummary")) ||
-    description.value.trim() !== (kept?.description ?? "")
-  );
+    d.trim() !== (kept?.description ?? "");
+  keepMotive(props.id, own ? { summary: s, description: d } : null);
 });
 
 const busy = ref(false);

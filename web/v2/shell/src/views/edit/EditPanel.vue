@@ -503,7 +503,10 @@ reportModified(
     filled.value &&
     (writing.motiveTyped.value ||
       fields.value.some(
-        (field) => textOf(values.value[field.name]) !== textOf(opened.value[field.name]),
+        (field) =>
+          // A VID proposed for the group (not typed: `vidProposed`) is no input of the user.
+          !(field.name === "vid" && vidProposed.value !== null) &&
+          textOf(values.value[field.name]) !== textOf(opened.value[field.name]),
       )),
   true,
 );
