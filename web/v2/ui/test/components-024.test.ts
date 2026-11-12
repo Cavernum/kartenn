@@ -178,7 +178,8 @@ describe("BottomPanel (020, « Panneau du bas »)", () => {
 
   it("is a named complementary region with tabs, a horizontal handle and a height menu", async () => {
     const html = await render(BottomPanel, { label: "Détail de l'objet", tabs });
-    expect(html).toMatch(/^<aside[^>]*aria-label="Détail de l&#39;objet"/);
+    // The panel, then its question (`AlertDialog`, closed): a fragment.
+    expect(html).toMatch(/^<!--\[--><aside[^>]*aria-label="Détail de l&#39;objet"/);
     expect(html).toContain('role="tablist"');
     const handle = /<div[^>]*role="separator"[^>]*>/.exec(html)?.[0] ?? "";
     expect(handle).toContain('class="k-panel-handle"');
@@ -200,7 +201,7 @@ describe("BottomPanel (020, « Panneau du bas »)", () => {
 
   it("as a sheet, is a modal dialog with « Retour » first, without handle nor menu", async () => {
     const html = await render(BottomPanel, { label: "Panneau", tabs, sheet: true });
-    expect(html).toMatch(/^<div[^>]*role="dialog"[^>]*aria-modal="true"/);
+    expect(html).toMatch(/^<!--\[--><div[^>]*role="dialog"[^>]*aria-modal="true"/);
     expect(html.indexOf("Retour")).toBeLessThan(html.indexOf('role="tablist"'));
     expect(html).not.toContain('role="separator"');
     expect(html).not.toContain("Hauteur du panneau");

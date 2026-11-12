@@ -12,6 +12,7 @@ import type { GridColumn } from "../DataGrid/grid.ts";
 import Grid from "../Grid/Grid.vue";
 import Stack from "../Stack/Stack.vue";
 import StatusBadge from "../StatusBadge/StatusBadge.vue";
+import TextField from "../TextField/TextField.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
 import BottomPanel from "./BottomPanel.vue";
 
@@ -50,11 +51,16 @@ const demo = defineComponent({
     tab: { type: String, default: "detail" },
     height: { type: Number, default: 240 },
     sheet: Boolean,
+    /** A text field in the detail tab, tracked by the host (`modified`): asked first. */
+    fields: Boolean,
   },
   setup(props) {
     const open = ref(props.open);
     const tab = ref(props.tab);
     const height = ref(props.height);
+    const label = ref("Supervision");
+    // Closed (abandoned), the input goes.
+    const modified = () => (props.fields ? label.value !== "Supervision" : undefined);
     return () =>
       h(
         DemoFrame,
@@ -76,6 +82,8 @@ const demo = defineComponent({
                 label: "Panneau du bas",
                 tabs,
                 sheet: props.sheet,
+                modified: modified(),
+                onClose: () => (label.value = "Supervision"),
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
                 tab: tab.value,
@@ -86,11 +94,20 @@ const demo = defineComponent({
               {
                 // The detail in several columns: as many as the width holds.
                 detail: () =>
-                  h(Grid, { as: "dl", columns: 3, gap: "2" }, () =>
-                    ATTRIBUTES.map(([term, value]) =>
-                      h(Stack, { gap: "0" }, () => [h("dt", term), h("dd", value)]),
-                    ),
-                  ),
+                  props.fields
+                    ? // As wide as a column of the detail, not the whole panel.
+                      h(Grid, { columns: 3, gap: "2" }, () => [
+                        h(TextField, {
+                          label: "Libellé",
+                          modelValue: label.value,
+                          "onUpdate:modelValue": (v: string) => (label.value = v),
+                        }),
+                      ])
+                    : h(Grid, { as: "dl", columns: 3, gap: "2" }, () =>
+                        ATTRIBUTES.map(([term, value]) =>
+                          h(Stack, { gap: "0" }, () => [h("dt", term), h("dd", value)]),
+                        ),
+                      ),
                 history: () =>
                   h(Stack, { as: "ol", gap: "2" }, () =>
                     ["Créé", "Libellé changé", "VLAN ajouté"].map((what) =>
@@ -139,6 +156,14 @@ export default {
       description:
         "Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début",
       props: { open: true, tab: "detail", sheet: true },
+      demo,
+      wide: true,
+    },
+    {
+      name: "fields",
+      description:
+        "Un champ texte dans l'onglet Détail, suivi par l'hôte (`modified`) : intact, Échap ferme le panneau depuis le champ ; modifié, Échap ou la croix demandent d'abord « Abandonner les modifications ? »",
+      props: { open: true, tab: "detail", fields: true },
       demo,
       wide: true,
     },

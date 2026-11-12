@@ -18,7 +18,10 @@
 // « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
 // current one checked (`menuitemradio`). The line of the handle is the outline of the
 // panel (`.k-panel-handle`, components/shared.css). Escape closes it and gives the focus
-// back to what opened it; an open popup or a field typed in keeps it (`ownsEscape`).
+// back to what opened it; an open popup or a composition keeps it (`ownsEscape`). With
+// `modified` (Q-021-22), Escape from a field too, and a modified panel asks « Abandonner
+// les modifications ? » before Escape, the cross or the back button close it
+// (`usePanelClose`); a host that does not say it leaves Escape to a field typed in.
 // Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
 // takes the whole width of its container, over it, without handle (spec 021, « Cadre » :
 // at 768 px the panel covers the surface). With `rail`, the closed panel leaves a strip
@@ -38,10 +41,11 @@
 import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
+import AlertDialog from "../AlertDialog/AlertDialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { filled, ownsEscape, scrollCue } from "../internal/panel.ts";
+import { filled, scrollCue, usePanelClose } from "../internal/panel.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -76,8 +80,16 @@ const props = withDefaults(
      * the tooltip of the cross and of the strip's button, and their `aria-keyshortcuts`.
      */
     shortcut?: string[] | undefined;
+    /**
+     * Whether a field of the panel was modified since it opened, as the host tracks it
+     * (Q-021-22): true, Escape, the cross and the back button ask « Abandonner les
+     * modifications ? » first, and `close` follows « Abandonner » (the host then drops
+     * the input); false, they close it at once. Said (true or false), Escape goes to the
+     * panel from a field too; left out, a field typed in keeps it, nothing lost unasked.
+     */
+    modified?: boolean | undefined;
   }>(),
-  { id: undefined, min: 320, max: 720, step: 16, shortcut: undefined },
+  { id: undefined, min: 320, max: 720, step: 16, shortcut: undefined, modified: undefined },
 );
 const open = defineModel<boolean>("open", { default: true });
 /** The active tab. */
@@ -114,27 +126,15 @@ function room(): number {
 const clamp = (value: number) =>
   Math.round(Math.max(props.min, Math.min(props.max, room(), value)));
 
-// The focus comes back to what opened the panel (WCAG 2.4.3): the element that had it
-// when the panel opened, if the focus was in the panel when it closed.
-let opener: HTMLElement | null = null;
-watch(
+// Escape, the cross, the back button: asked first when modified; the focus comes back to
+// what opened the panel (WCAG 2.4.3), else to the strip.
+const { asking, request, discard, onKeydown } = usePanelClose({
+  panel,
   open,
-  (now) => {
-    if (typeof document === "undefined") return;
-    if (now) opener = document.activeElement as HTMLElement | null;
-  },
-  { immediate: true },
-);
-
-async function close(): Promise<void> {
-  const inside = panel.value?.contains(document.activeElement) ?? false;
-  open.value = false;
-  emit("close");
-  await nextTick();
-  if (inside && opener && opener !== document.body && opener.isConnected) opener.focus();
-  else if (inside) strip.value?.querySelector<HTMLElement>("button")?.focus();
-  opener = null;
-}
+  modified: () => props.modified,
+  closed: () => emit("close"),
+  fallback: () => strip.value?.querySelector<HTMLElement>("button"),
+});
 
 const focusTab = () =>
   panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
@@ -186,13 +186,6 @@ async function reopen(): Promise<void> {
   open.value = true;
   await nextTick();
   panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
-}
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event)) {
-    event.preventDefault();
-    void close();
-  }
 }
 
 /** The handle sits at the inline start: moving it towards the start widens the panel. */
@@ -271,7 +264,7 @@ function onPointerup(event: PointerEvent): void {
         icon="arrow-left"
         size="sm"
         :label="t('panelBack')"
-        @click="close"
+        @click="request"
       />
       <div
         v-if="!props.cover && !props.sheet"
@@ -314,7 +307,7 @@ function onPointerup(event: PointerEvent): void {
           size="sm"
           :label="t('panelClose')"
           :shortcut="props.shortcut"
-          @click="close"
+          @click="request"
         />
       </div>
       <footer v-if="footerShown()" class="k-side-panel__footer">
@@ -336,6 +329,16 @@ function onPointerup(event: PointerEvent): void {
       />
     </div>
   </Transition>
+  <!-- A modified panel asks before it closes (Q-021-22); the focus starts on « Continuer ». -->
+  <AlertDialog
+    v-model:open="asking"
+    :title="t('panelLeaveTitle')"
+    :description="t('panelLeaveText')"
+    :confirm="t('panelLeaveConfirm')"
+    :cancel="t('panelLeaveCancel')"
+    danger
+    @confirm="discard"
+  />
 </template>
 
 <style>

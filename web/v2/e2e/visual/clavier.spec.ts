@@ -122,8 +122,8 @@ test.describe("SidePanel (complementary + Tabs, Window Splitter)", () => {
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     await expect(panel.getByRole("tab", { name: "Détail" })).toBeFocused();
     await expect(panel.getByRole("tablist", { name: "Onglets du panneau" })).toBeVisible();
-    // Escape in a text field belongs to the field: the panel stays (Q-021-22: until the
-    // panel asks before dropping what is typed, task 021-12q).
+    // Escape in a text field belongs to the field while the host does not say `modified`:
+    // the panel stays, nothing asks before dropping what is typed (Q-021-22, 021-12qa).
     await panel.getByRole("tab", { name: /Brouillon/ }).click();
     await panel.getByRole("textbox", { name: /Résumé/ }).focus();
     await page.keyboard.press("Escape");

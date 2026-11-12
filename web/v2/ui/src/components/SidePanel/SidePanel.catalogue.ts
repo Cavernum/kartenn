@@ -74,6 +74,14 @@ const demo = defineComponent({
     const summary = ref("Maintenance du référentiel");
     const domain = ref("");
     const label = ref("Supervision");
+    // Fields (`fields`): the host tracks what changed since the panel opened (Q-021-22);
+    // closed (abandoned), their input goes.
+    const modified = () =>
+      props.fields ? domain.value !== "" || label.value !== "Supervision" : undefined;
+    function discard(): void {
+      domain.value = "";
+      label.value = "Supervision";
+    }
     const action = ref("apply");
     function toggle(): void {
       if (open.value) open.value = false;
@@ -109,6 +117,8 @@ const demo = defineComponent({
                 cover: props.cover,
                 sheet: props.sheet,
                 shortcut: props.shortcut,
+                modified: modified(),
+                onClose: discard,
                 rail: true,
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
@@ -124,8 +134,9 @@ const demo = defineComponent({
                     h("p", "Supervision · Production"),
                     h("p", "Occupation : 45 %"),
                     // Fields (`fields`): Escape closes the list of the reference, then the
-                    // panel; the text field keeps it (task 021-12p). Spaced as the
-                    // fields of the shell's edit panel.
+                    // panel, from the text field too; modified, the panel asks first
+                    // (tasks 021-12p, 021-12qa). Spaced as the fields of the shell's edit
+                    // panel.
                     ...(props.fields
                       ? [
                           h(Stack, { gap: "3" }, () => [
@@ -236,7 +247,7 @@ export default {
     {
       name: "fields",
       description:
-        "Champs dans l'onglet Détail : une référence (Combobox) et un texte ; dans la référence, Échap ferme la liste ouverte, puis le panneau ; le champ texte garde Échap",
+        "Champs dans l'onglet Détail : une référence (Combobox) et un texte, suivis par l'hôte (`modified`) ; Échap ferme la liste ouverte, puis le panneau, depuis le champ texte aussi ; un champ modifié, Échap ou la croix demandent d'abord « Abandonner les modifications ? »",
       props: { open: true, tab: "detail", fields: true },
       demo,
       wide: true,

@@ -21,11 +21,13 @@ test.describe("SidePanel, the host's shortcut", () => {
   });
 });
 
-// Whose Escape (task 021-12p; `ownsEscape`): an open popup keeps it, and a text field,
-// whose input would go with the panel (until the panel asks first, Q-021-22, task 021-12q).
-// In a reference field (`Combobox`), Escape closes the list and the second closes the
-// panel, as its header promises. The focus goes back to what opened the panel, else to
-// the strip.
+// Whose Escape (tasks 021-12p, 021-12qa; `ownsEscape`, `usePanelClose`): an open popup
+// keeps it; the host of the `fields` state says `modified`, so a text field lets it go. In
+// a reference field (`Combobox`), Escape closes the list and the second goes to the panel,
+// as its header promises. Intact, the panel closes at once; modified, Escape or the cross
+// ask « Abandonner les modifications ? » first (Q-021-22): the focus on « Continuer »,
+// which gives it back to the field or the cross, the input kept; « Abandonner » closes
+// the panel, the focus back to what opened it, else to the strip.
 
 test.describe("SidePanel, whose Escape", () => {
   test("a reference field: the list first, then the panel, the focus to the strip", async ({
@@ -44,18 +46,15 @@ test.describe("SidePanel, whose Escape", () => {
     await expect(panel).toBeVisible();
     await expect(field).toBeFocused();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect(panel).toBeHidden();
     await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toBeFocused();
   });
 
-  test("reopened by the strip: the text field keeps Escape, the typed reference does not", async ({
-    page,
-  }) => {
+  test("intact, Escape from the text field closes at once", async ({ page }) => {
     await openState(page, "SidePanel", "fields");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     const reopen = page.getByRole("button", { name: "Ouvrir le panneau" });
-    const domain = panel.getByRole("combobox", { name: "Domaine" });
-    const label = panel.getByRole("textbox", { name: "Libellé" });
     await panel.getByRole("button", { name: "Fermer le panneau" }).click();
     await expect(reopen).toBeFocused();
     await page.keyboard.press("Enter");
@@ -63,24 +62,88 @@ test.describe("SidePanel, whose Escape", () => {
     // The tab, its panel, then the fields.
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
-    await expect(domain).toBeFocused();
-    await page.keyboard.type("pro");
-    await expect(domain).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Tab");
+    await expect(panel.getByRole("textbox", { name: "Libellé" })).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(domain).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(panel).toBeHidden();
+    await expect(reopen).toBeFocused();
+  });
+
+  test("modified: Escape asks, « Continuer » keeps the input and the focus, « Abandonner » closes", async ({
+    page,
+  }) => {
+    await openState(page, "SidePanel", "fields");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    const reopen = page.getByRole("button", { name: "Ouvrir le panneau" });
+    const label = panel.getByRole("textbox", { name: "Libellé" });
+    const ask = page.getByRole("alertdialog", { name: "Abandonner les modifications ?" });
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await expect(label).toBeFocused();
     // Tab selects the text: End, then the typing goes after it.
     await page.keyboard.press("End");
     await page.keyboard.type(" B");
     await page.keyboard.press("Escape");
+    await expect(ask).toBeVisible();
+    await expect(ask).toHaveAccessibleDescription(
+      "Les modifications de ce panneau seront perdues.",
+    );
+    await expect(ask.getByRole("button", { name: "Continuer" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(ask).toBeHidden();
     await expect(panel).toBeVisible();
     await expect(label).toBeFocused();
     await expect(label).toHaveValue("Supervision B");
-    await page.keyboard.press("Shift+Tab");
-    await expect(domain).toBeFocused();
+    // Escape in the question is « Continuer ».
     await page.keyboard.press("Escape");
+    await expect(ask).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(ask).toBeHidden();
+    await expect(label).toBeFocused();
+    await expect(label).toHaveValue("Supervision B");
+    // « Abandonner »: closed, the focus to what opened it (the strip), the input gone.
+    await page.keyboard.press("Escape");
+    await expect(ask.getByRole("button", { name: "Continuer" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(ask.getByRole("button", { name: "Abandonner" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(ask).toBeHidden();
     await expect(panel).toBeHidden();
     await expect(reopen).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(label).toHaveValue("Supervision");
+  });
+
+  test("modified by the reference: its second Escape asks; the cross asks too, and gets the focus back", async ({
+    page,
+  }) => {
+    await openState(page, "SidePanel", "fields");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    const domain = panel.getByRole("combobox", { name: "Domaine" });
+    const close = panel.getByRole("button", { name: "Fermer le panneau" });
+    const ask = page.getByRole("alertdialog", { name: "Abandonner les modifications ?" });
+    await domain.focus();
+    await page.keyboard.type("pro");
+    await expect(domain).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
+    await expect(domain).toHaveAttribute("aria-expanded", "false");
+    await expect(ask).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(ask.getByRole("button", { name: "Continuer" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(domain).toBeFocused();
+    await expect(domain).toHaveValue("pro");
+    // The cross: asked first as well, « Continuer » gives the focus back to it.
+    await close.focus();
+    await page.keyboard.press("Enter");
+    await expect(ask.getByRole("button", { name: "Continuer" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(ask).toBeHidden();
+    await expect(panel).toBeVisible();
+    await expect(close).toBeFocused();
   });
 });
