@@ -696,27 +696,16 @@ async fn workload_observations(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    // The workload, its namespace and its cluster, each in its last version begun.
-    let workload: Option<(Uuid, i16, bool)> = sqlx::query_as(
-        "SELECT c.pod_domain_id, c.retention_days,
-                w.valid_period @> now() AND c.valid_period @> now()
-           FROM (SELECT namespace_id, valid_period FROM kube.workload
-                  WHERE id = $1 AND lower(valid_period) <= now()
-                  ORDER BY lower(valid_period) DESC LIMIT 1) w
-          CROSS JOIN LATERAL (
-                SELECT cluster_id FROM kube.namespace
-                 WHERE id = w.namespace_id AND lower(valid_period) <= now()
-                 ORDER BY lower(valid_period) DESC LIMIT 1) n
-          CROSS JOIN LATERAL (
-                SELECT pod_domain_id, retention_days, valid_period FROM kube.cluster
-                 WHERE id = n.cluster_id AND lower(valid_period) <= now()
-                 ORDER BY lower(valid_period) DESC LIMIT 1) c",
-    )
-    .bind(id)
-    .fetch_optional(&api.pool)
-    .await
-    .map_err(|e| kit::store(&e))?;
-    let Some((pods, retention, living)) = workload else {
+    let workload = read::framed(&api.pool, id)
+        .await
+        .map_err(|e| kit::store(&e))?;
+    let Some(read::Framed {
+        pod_domain: pods,
+        retention_days: retention,
+        living,
+        ..
+    }) = workload
+    else {
         return Err(Problem::new(ProblemKind::NotFound));
     };
     let target = (WORKLOAD, id);

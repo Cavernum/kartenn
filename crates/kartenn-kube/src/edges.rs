@@ -33,7 +33,8 @@ pub(crate) fn time(i: Instant) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(i.0) * 1_000).expect("an instant")
 }
 
-fn instant(t: OffsetDateTime) -> Instant {
+/// An instant of PostgreSQL as the core reads it.
+pub(crate) fn instant(t: OffsetDateTime) -> Instant {
     Instant(i64::try_from(t.unix_timestamp_nanos() / 1_000).unwrap_or(i64::MAX))
 }
 

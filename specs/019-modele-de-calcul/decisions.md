@@ -464,6 +464,29 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   machines ; l'avertissement ne nomme le pod que si l'auteur tient
   `kube.observation.read`, sinon il dit « ressemble à un pod d'un cluster » ; seules les
   observations ouvertes comptent.
+- Amendement (l'utilisateur, 2026-11-12, tâche 7b) :
+  - Constat : l'avertissement d'un changeset appliqué devient une anomalie, dont le
+    message est lu ensuite par quiconque lit la machine, sans `kube.observation.read` :
+    le nom du pod donné à un auteur qui tient le droit fuit par l'anomalie.
+  - Options : A. garder ; B. deux messages, le nommé dans la réponse au changeset, le
+    générique dans l'anomalie (le pipeline porterait les deux) ; C. ne jamais nommer le
+    pod.
+  - Décision : C. L'avertissement et l'anomalie disent toujours « ressemble à un pod
+    d'un cluster », quel que soit le droit de l'auteur ; un lecteur qui a le droit
+    retrouve le pod par `execution_chain` ou le journal. Le droit de l'auteur n'est plus
+    lu.
+- Second amendement (l'utilisateur, 2026-11-12, revue de la tâche 7b) :
+  - Constat : même générique, l'avertissement fait oracle ; un auteur sans
+    `kube.observation.read` qui crée une machine `container` sur la machine d'un nœud
+    apprend, par sa présence ou son absence, si un pod de ce nom y tourne.
+  - Options : A. lever l'avertissement pour le seul auteur qui tient le droit ; B.
+    accepter le risque ; C. retirer la règle.
+  - Décision : A. L'avertissement n'est levé que si l'auteur tient
+    `kube.observation.read` sur le domaine des pods du cluster du nœud (droit lu par
+    domaine) ; le message reste générique. Une machine qui ne ressemble plus à un pod
+    (close, renommée, déplacée) est réévaluée quel que soit l'auteur, son anomalie se
+    ferme sans rien révéler ; une machine qui y ressemble encore garde son anomalie telle
+    quelle face à un auteur sans le droit.
 
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,

@@ -41,6 +41,9 @@ use tower::ServiceExt;
 
 use super::{Env, closing, op};
 
+/// The chain of execution of a workload and the machines that look like its pods
+/// (task 019-7b).
+mod chain;
 /// The reads of the same journal (task 019-6d).
 mod read;
 
