@@ -365,6 +365,7 @@
     "check": {
       "required": "{field} is required.",
       "choice": "Choose a value of the list: {values}.",
+      "pick": "{field}: choose an object among the suggestions of the list.",
       "flag": "Choose yes or no.",
       "integer": "{field} is a whole number.",
       "between": "{field} is a whole number from {min} to {max}.",
@@ -420,6 +421,7 @@
     "addIn": "Add in {within}",
     "kind": "Kind of object",
     "none": "None",
+    "referenceHint": "Type the start of its name, then choose among the suggestions.",
     "unchanged": "Nothing changed: there is nothing to write.",
     "replace": {
       "title": "Modify operation {n}: {op} {subject}",

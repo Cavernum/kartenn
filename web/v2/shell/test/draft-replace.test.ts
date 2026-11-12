@@ -420,7 +420,7 @@ describe("« Modifier » of an operation of a draft", () => {
     modify(root, 1).click();
     await expect.poll(() => root.querySelector("form")).not.toBeNull();
     // The domain shown by what its operation names, never empty.
-    await expect.poll(() => root.querySelector("form")!.textContent).toContain("labo");
+    await expect.poll(() => field(root, "Domaine").value).toBe("labo");
     await type(field(root, "Valeur"), "198.51.100.0/25");
     replaceButton(root).click();
     await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);

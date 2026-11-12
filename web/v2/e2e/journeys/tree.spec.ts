@@ -213,7 +213,7 @@ test("each prefix says its occupancy from its page, its « + » opens the panel 
   await page.keyboard.press("Enter");
   const form = page.getByRole("form", { name: `Ajouter dans ${DATA.wide.prefix}` });
   await expect(form.getByRole("button", { name: "Préfixe", pressed: true })).toBeVisible();
-  await expect(form.getByRole("combobox", { name: /^Domaine/ })).toContainText(DATA.domain);
+  await expect(form.getByRole("combobox", { name: /^Domaine/ })).toHaveValue(DATA.domain);
   await expectAccessible(page);
   await form.getByRole("button", { name: "Annuler" }).click();
   await expect(add).toBeFocused();

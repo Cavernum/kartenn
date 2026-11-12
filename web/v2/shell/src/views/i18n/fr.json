@@ -365,6 +365,7 @@
     "check": {
       "required": "{field} est obligatoire.",
       "choice": "Choisissez une valeur de la liste : {values}.",
+      "pick": "{field} : choisissez un objet parmi les suggestions de la liste.",
       "flag": "Choisissez oui ou non.",
       "integer": "{field} est un nombre entier.",
       "between": "{field} est un nombre entier de {min} à {max}.",
@@ -420,6 +421,7 @@
     "addIn": "Ajouter dans {within}",
     "kind": "Sorte d'objet",
     "none": "Aucun",
+    "referenceHint": "Saisissez le début de son nom, puis choisissez parmi les suggestions.",
     "unchanged": "Rien n'a changé : il n'y a rien à écrire.",
     "replace": {
       "title": "Modifier l'opération {n} : {op} {subject}",

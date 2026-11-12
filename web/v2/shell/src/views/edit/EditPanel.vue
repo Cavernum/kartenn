@@ -22,10 +22,12 @@ import { addToActiveDraft, replaceInDraft } from "@kartenn/sdk/host";
 import {
   changesets,
   keys,
+  queryClient,
   reads,
   write,
   type components,
   type Entry,
+  type ListPath,
   type Operation,
   type Submission,
 } from "@kartenn/sdk";
@@ -45,8 +47,9 @@ import {
   Stack,
   TextField,
   type ListOption,
+  type Suggest,
 } from "@kartenn/ui";
-import { computed, nextTick, ref, useTemplateRef, watch, watchEffect } from "vue";
+import { computed, nextTick, reactive, ref, useTemplateRef, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import {
@@ -59,6 +62,7 @@ import {
 import ProblemState from "../../problems/ProblemState.vue";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
+import { cacheSuggest } from "../filters.ts";
 import { operationLine } from "../../draft/operations.ts";
 import { failed, isConflict, useWriteAction } from "./action.ts";
 import {
@@ -127,39 +131,19 @@ const record = useQuery(() => ({
 const item = computed(() => (record.data.value as Entry<Item> | undefined)?.data ?? null);
 const name = computed(() => (item.value ? nameOf(item.value) : ""));
 
-// The objects a reference may name: the domains, the parents of an entity or a site, the
-// group of a VLAN; an anchor, an entity, a site or a domain (026 V3).
-const targets = computed(
-  () =>
-    new Set(
-      fields.value.flatMap((field): CollectionId[] =>
-        field.kind === "anchor"
-          ? ["entities", "sites", "domains"]
-          : field.target
-            ? [field.target]
-            : [],
-      ),
-    ),
-);
-const targetRead = (id: CollectionId) =>
-  useInfiniteQuery(() => ({
-    ...reads.list(collectionById(id)!.path as "/v1/domains"),
-    enabled: targets.value.has(id),
-  }));
-const READS: Partial<Record<CollectionId, ReturnType<typeof targetRead>>> = {
-  domains: targetRead("domains"),
-  entities: targetRead("entities"),
-  sites: targetRead("sites"),
-  "vlan-groups": targetRead("vlan-groups"),
-};
-const itemsOf = (id: CollectionId) => rowsOf(READS[id]?.data.value as never) as unknown as Item[];
-/** The read of the nodes a move chooses among: the entities or the sites. */
-const nodesRead = computed(() => READS[collection.value.id === "sites" ? "sites" : "entities"]!);
-// A move reads the pages after the first (ten at most): every valid target offered, and the
-// ancestors of each known for the check of a cycle.
+/**
+ * The read of the nodes a move chooses among (the entities or the sites): the ancestors of
+ * each target, for the check of a cycle; the targets themselves are suggested by `q`.
+ */
+const nodesRead = useInfiniteQuery(() => ({
+  ...reads.list((collection.value.id === "sites" ? "/v1/sites" : "/v1/entities") as ListPath),
+  enabled: moving.value,
+}));
+// A move reads the pages after the first (ten at most): the ancestors of each target known
+// for the check of a cycle.
 const MOVE_PAGES = 10;
 watchEffect(() => {
-  const nodes = nodesRead.value;
+  const nodes = nodesRead;
   if (
     moving.value &&
     nodes.hasNextPage.value &&
@@ -171,15 +155,11 @@ watchEffect(() => {
   }
 });
 /**
- * The option « Aucun » of an optional reference (a root): the empty string is the Select's
- * « no value », its placeholder, so the option has a value of its own, read back as `""`.
+ * The option « Aucun » of an optional reference (a root): the empty string is the field's
+ * « nothing taken », so the option has a value of its own, read back as `""`.
  */
 const NONE = "none";
-const selectValue = (field: EditField) => {
-  const text = String(values.value[field.name] ?? "");
-  return text === "" && field.kind === "reference" && !field.required ? NONE : text;
-};
-const fromSelect = (value: string | undefined) => (value === NONE ? "" : (value ?? ""));
+const fromOption = (value: string | undefined) => (value === NONE ? "" : (value ?? ""));
 /**
  * The objects an earlier operation of the draft creates (a local name, 021/A13), offered
  * beside those read to the references of an operation replaced (task 14l): named by what
@@ -205,57 +185,160 @@ function draftedOptions(
       mono: true,
     }));
 }
-function optionsOf(field: EditField): ListOption[] {
-  if (field.kind === "choice") {
-    return (field.options ?? []).map((key) => {
-      const words = `views.value.${field.name}.${key}`;
-      return { value: key, label: te(words) ? t(words) : key, detail: key };
-    });
-  }
+/** The options of a closed list of the contract (nature, usage…), in its words. */
+function choicesOf(field: EditField): ListOption[] {
+  return (field.options ?? []).map((key) => {
+    const words = `views.value.${field.name}.${key}`;
+    return { value: key, label: te(words) ? t(words) : key, detail: key };
+  });
+}
+const isReference = (field: EditField) => field.kind === "reference" || field.kind === "anchor";
+/** The objects of the draft a reference may name (an operation replaced, task 14l). */
+function draftedOf(field: EditField): ListOption[] {
+  if (field.kind !== "anchor") return field.target ? draftedOptions(field.target, localText) : [];
+  return ANCHOR_KINDS.flatMap((kind) => {
+    const of = collectionOfKind(kind)!;
+    const words = keyLabel("kind", of.type) ?? kind;
+    return draftedOptions(of.id, (local) => `${kind}:${localText(local)}`, words);
+  });
+}
+/** A move offers the valid targets only (REQ-021-32): the others are not offered at all. */
+const validTarget = (id: string | null, label: string) =>
+  !moving.value || moves.canMove(movedNode.value, id === null ? null : { id, label }).ok;
+
+// A reference (the domain, the parent of an entity or a site, the group of a VLAN, the
+// anchor of a group) is a `Combobox` (task 12j): its suggestions are asked of its collection
+// by `q` as the text is typed (`cacheSuggest`, the first page of the answer), so that any
+// object is found, not only those of a first page read; beside them, « Aucun » for an
+// optional one, and the objects of the draft an operation replaced may name (14l).
+/** The words of the objects named so far, by value: suggested, read, of the draft. */
+const labels = reactive(new Map<string, string>());
+async function suggestionsOf(
+  field: EditField,
+  query: string,
+  signal: AbortSignal,
+): Promise<ListOption[]> {
+  const q = query.trim();
+  const read = async (id: CollectionId) =>
+    (await cacheSuggest(
+      collectionById(id)!.path as ListPath,
+      q === "" ? {} : { q },
+      signal,
+    )) as unknown as Item[];
+  let found: ListOption[];
   if (field.kind === "anchor") {
-    return ANCHOR_KINDS.flatMap((kind) => {
-      const of = collectionOfKind(kind)!;
-      const words = keyLabel("kind", of.type) ?? kind;
-      return [
-        ...itemsOf(of.id).map((i) => ({
+    const lists = await Promise.all(
+      ANCHOR_KINDS.map(async (kind) => {
+        const of = collectionOfKind(kind)!;
+        const words = keyLabel("kind", of.type) ?? kind;
+        return (await read(of.id)).map((i) => ({
           value: `${kind}:${String(i.id)}`,
           label: nameOf(i),
           detail: words,
           mono: true,
-        })),
-        ...draftedOptions(of.id, (local) => `${kind}:${localText(local)}`, words),
-      ];
-    });
+        }));
+      }),
+    );
+    found = lists.flat();
+  } else {
+    found = (await read(field.target!))
+      .filter((i) => validTarget(String(i.id), nameOf(i)))
+      .map((i) => ({ value: String(i.id), label: nameOf(i), mono: true }));
   }
-  const items = field.target ? itemsOf(field.target) : [];
-  const inDraft = field.target ? draftedOptions(field.target, localText) : [];
-  // A move lists the valid targets only (REQ-021-32): the others are not offered at all.
-  const valid = (id: string | null, label: string) =>
-    !moving.value || moves.canMove(movedNode.value, id === null ? null : { id, label }).ok;
-  const options = [
-    ...items
-      .filter((i) => valid(String(i.id), nameOf(i)))
-      .map((i) => ({ value: String(i.id), label: nameOf(i), mono: true })),
-    ...inDraft,
-  ];
-  return field.required || !valid(null, t("edit.none"))
-    ? options
-    : [{ value: NONE, label: t("edit.none") }, ...options];
+  const none =
+    field.kind === "reference" && !field.required && validTarget(null, t("edit.none"))
+      ? [{ value: NONE, label: t("edit.none") }]
+      : [];
+  const options = [...filterOptions(none, q), ...found, ...filterOptions(draftedOf(field), q)];
+  for (const option of options) labels.set(option.value, option.label);
+  return options;
+}
+/** The function of suggestions of each reference, the same while its field is shown. */
+const suggests = computed(
+  () =>
+    new Map(
+      fields.value
+        .filter(isReference)
+        .map((field): [string, Suggest] => [
+          field.name,
+          (query, signal) => suggestionsOf(field, query, signal),
+        ]),
+    ),
+);
+/** The words of a value of a reference: « Aucun », what names it, else its identifier. */
+function referenceLabel(field: EditField, value: string): string {
+  if (value === "") return field.required ? "" : t("edit.none");
+  return labels.get(value) ?? draftedOf(field).find((o) => o.value === value)?.label ?? value;
 }
 
-// « Changer de parent… »: a `Combobox` of the valid targets only (REQ-021-32), filtered by
-// the text typed; the target taken, or « Aucun » for a root, is the field's value.
-const moveText = ref("");
-const moveValue = ref<string | undefined>(undefined);
-const suggestTargets = async (query: string) => filterOptions(optionsOf(fields.value[0]!), query);
-watch(moveValue, (value) => {
-  if (moving.value && value !== undefined) setValue("parent", fromSelect(value));
-});
+/** A reference's field: its text, and the value taken from the suggestions, if one is. */
+interface Pick {
+  text: string;
+  value: string | undefined;
+}
+const picks = ref<Record<string, Pick>>({});
+/** The words a reference read gives of its object (a summary's slug), `""` if none. */
+function summaryName(field: EditField, read: unknown): string {
+  const summary = field.kind === "anchor" ? Object.values(read ?? {})[0] : read;
+  if (typeof summary !== "object" || summary === null) return "";
+  const named = nameOf(summary as Item);
+  return named === textOf(summary) ? "" : named;
+}
+/**
+ * The field of a reference as the form opens: the words of its value — read with the object
+ * (a summary's slug), of the draft, else read by its identifier (a value given beforehand,
+ * an anchor or a group read without their words): the field empty until then, never an
+ * opaque identifier read out, which shows only if the object cannot be read.
+ */
+function pickOf(field: EditField, value: string, read: unknown): Pick {
+  if (value === "") {
+    // A root (« Changer de parent… »): « Aucun » taken; a creation starts empty.
+    return moving.value && !field.required
+      ? { text: t("edit.none"), value: NONE }
+      : { text: "", value: undefined };
+  }
+  const named = textOf(read) === value ? summaryName(field, read) : "";
+  if (named !== "") labels.set(value, named);
+  const text = referenceLabel(field, value);
+  if (text !== value || value.includes("local:")) return { text, value };
+  void readLabel(field, value);
+  return { text: "", value };
+}
+/** The words of a reference unknown so far, from its object read by its identifier. */
+async function readLabel(field: EditField, value: string): Promise<void> {
+  const [kind, id] =
+    field.kind === "anchor"
+      ? [value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1)]
+      : [collectionById(field.target!)!.kind, value];
+  let label: string;
+  try {
+    label = nameOf((await queryClient.fetchQuery(reads.object<Item>(kind, id))).data);
+    labels.set(value, label);
+  } catch {
+    label = value; // Unread: its identifier, the only words left.
+  }
+  // Shown unless the user typed meanwhile (the value then let go by the Combobox).
+  const pick = picks.value[field.name];
+  if (pick?.value === value && pick.text === "") {
+    picks.value = { ...picks.value, [field.name]: { text: label, value } };
+  }
+}
+/** A text typed: no value taken any more until a suggestion is (the Combobox clears it). */
+function typed(field: EditField, text: string): void {
+  const pick = picks.value[field.name];
+  picks.value = { ...picks.value, [field.name]: { text, value: pick?.value } };
+}
+/** A suggestion taken, or the value let go by a text typed: the field's value. */
+function picked(field: EditField, value: string | undefined): void {
+  const pick = picks.value[field.name];
+  picks.value = { ...picks.value, [field.name]: { text: pick?.text ?? "", value } };
+  setValue(field.name, fromOption(value));
+}
 
 // « Changer de parent… »: the node moved, its parent read, and the ancestors of each target
 // as the pages read show them (a cycle beyond them is the server's to refuse).
 const parentIds = computed(() => {
-  const items = rowsOf(nodesRead.value.data.value as never) as unknown as Item[];
+  const items = rowsOf(nodesRead.data.value as never) as unknown as Item[];
   return new Map(items.map((i) => [String(i.id), textOf(i.parent) || null]));
 });
 const movedNode = computed(() => ({ id: objectId.value ?? "", label: name.value }));
@@ -294,12 +377,14 @@ function fill(): void {
   before.value = { ...start };
   opened.value = { ...values.value };
   version.value = typeof item.value?.version === "string" ? item.value.version : null;
-  if (moving.value) {
-    // The parent read, by its slug (the summary of the record), or « Aucun ».
-    const parent = item.value?.parent as { slug?: string | null } | null | undefined;
-    moveValue.value = start.parent ? String(start.parent) : NONE;
-    moveText.value = parent ? (parent.slug ?? String(start.parent)) : t("edit.none");
-  }
+  picks.value = Object.fromEntries(
+    fields.value
+      .filter(isReference)
+      .map((field) => [
+        field.name,
+        pickOf(field, String(values.value[field.name] ?? ""), item.value?.[field.name]),
+      ]),
+  );
   filled.value = true;
 }
 let filledFor = "";
@@ -354,9 +439,10 @@ watch(
 const hintOf = (field: EditField) =>
   field.name === "vid" && vidProposed.value !== null
     ? t("edit.vlan.vidProposed", {
-        group: optionsOf(fields.value.find((f) => f.name === "group")!).find(
-          (o) => o.value === vidProposed.value,
-        )?.label,
+        group: referenceLabel(
+          fields.value.find((f) => f.name === "group")!,
+          vidProposed.value,
+        ),
       })
     : undefined;
 
@@ -373,7 +459,7 @@ const destination = computed(() => {
   if (!moving.value) return "";
   const parent = String(values.value.parent ?? "");
   if (parent === "") return t("edit.move.root");
-  return optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
+  return referenceLabel(fields.value[0]!, parent);
 });
 // The split button, the generic motive prefilled, the idempotency key and the outcome said
 // (`action.ts`): the key follows the body sent — an input of the user, another kind, the
@@ -465,8 +551,12 @@ const labelOf = (field: EditField) => t(`views.field.${field.name}`);
 const shownText = (field: EditField, value: unknown) => {
   const text = textOf(value);
   if (field.kind === "flag") return t(`views.value.boolean.${value === true}`);
-  if (field.kind === "reference" || field.kind === "anchor") {
-    return optionsOf(field).find((o) => o.value === text)?.label ?? text;
+  if (isReference(field)) {
+    return (
+      (labels.has(text) ? labels.get(text) : summaryName(field, value)) ||
+      referenceLabel(field, text) ||
+      "—"
+    );
   }
   return text || "—";
 };
@@ -540,6 +630,15 @@ async function rebase(): Promise<void> {
 function checked(): boolean {
   const found: Record<string, string> = {};
   for (const field of fields.value) {
+    // A text typed and no suggestion taken: nothing is guessed; a move takes a target or
+    // « Aucun » from the list of the valid ones, never an empty field.
+    const pick = isReference(field) ? picks.value[field.name] : undefined;
+    if (pick && pick.value === undefined && (pick.text.trim() !== "" || moving.value)) {
+      found[field.name] = moving.value
+        ? t("edit.move.choose")
+        : t("edit.check.pick", { field: labelOf(field) });
+      continue;
+    }
     const refused = checkValue(field, values.value[field.name] ?? "");
     if (refused) {
       found[field.name] = t(refused, {
@@ -692,18 +791,13 @@ async function replace(what: string): Promise<void> {
  * or the server, may still refuse it: the reason and its code on the field.
  */
 async function moveTo(parent: string, now: boolean, what: string): Promise<void> {
-  // A text typed and no target taken from the list: nothing is guessed.
-  if (moveValue.value === undefined) {
-    errors.value = { parent: t("edit.move.choose") };
-    void toFirstError();
-    return;
-  }
+  // A target taken from the list of the valid ones (`checked`): nothing is guessed.
   if (parent === (before.value.parent ?? "")) {
     writing.tell(t("edit.unchanged"));
     return;
   }
   busy.value = true;
-  const label = optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
+  const label = referenceLabel(fields.value[0]!, parent);
   // A rejection settles as a refusal: the button given back, the problem said.
   const outcome: MoveOutcome | Refusal = await moves
     .move(
@@ -829,27 +923,28 @@ watch(
           @update:model-value="setValue(field.name, $event === true)"
         />
         <Combobox
-          v-else-if="moving && field.kind === 'reference'"
-          v-model="moveText"
-          v-model:value="moveValue"
+          v-else-if="isReference(field)"
           class="k-edit-panel__field"
+          :model-value="picks[field.name]?.text ?? ''"
+          :value="picks[field.name]?.value"
           :label="labelOf(field)"
-          :suggest="suggestTargets"
-          :error="errors[field.name]"
-          mono
-        />
-        <Select
-          v-else-if="
-            field.kind === 'choice' || field.kind === 'reference' || field.kind === 'anchor'
-          "
-          class="k-edit-panel__field"
-          :model-value="selectValue(field)"
-          :label="labelOf(field)"
-          :options="optionsOf(field)"
-          :mono="field.kind !== 'choice'"
+          :suggest="suggests.get(field.name)!"
+          :hint="t('edit.referenceHint')"
           :required="field.required === true"
           :error="errors[field.name]"
-          @update:model-value="setValue(field.name, fromSelect($event))"
+          mono
+          @update:model-value="typed(field, $event)"
+          @update:value="picked(field, $event)"
+        />
+        <Select
+          v-else-if="field.kind === 'choice'"
+          class="k-edit-panel__field"
+          :model-value="String(values[field.name] ?? '')"
+          :label="labelOf(field)"
+          :options="choicesOf(field)"
+          :required="field.required === true"
+          :error="errors[field.name]"
+          @update:model-value="setValue(field.name, $event ?? '')"
         />
         <TextField
           v-else

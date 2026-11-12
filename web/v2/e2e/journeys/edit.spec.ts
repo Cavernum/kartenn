@@ -635,7 +635,7 @@ test("the same edit panel from a node of the topography and from the list of add
   await page.keyboard.press("c");
   const fromNode = page.getByRole("form", { name: "Ajouter dans 198.51.100.0/24" });
   await expect(fromNode.getByRole("button", { name: "Adresse", pressed: true })).toBeVisible();
-  await expect(fromNode.getByRole("combobox", { name: /^Domaine/ })).toContainText(slug);
+  await expect(fromNode.getByRole("combobox", { name: /^Domaine/ })).toHaveValue(slug);
   const nodeFields = await fieldsOf(fromNode);
   await expectAccessible(page);
   await fromNode.getByRole("button", { name: "Annuler" }).click();
@@ -686,8 +686,22 @@ test("a creation applied at once: ?approval=self, its violation on its field, th
   await expect(cellOf(page, "value")).toContainText("198.51.100.0/24");
   await page.keyboard.press("c");
   const form = page.getByRole("form", { name: "Créer : Préfixe" });
-  await form.getByRole("combobox", { name: /^Domaine/ }).click();
-  await page.getByRole("option", { name: slug }).click();
+  // The domain found by its text (`q` of `/v1/domains`, task 12j), wherever the list puts
+  // it: the field has the focus as the panel opens; Down goes to the suggestion, Enter
+  // takes it.
+  const domain = form.getByRole("combobox", { name: /^Domaine/ });
+  await expect(domain).toBeFocused();
+  const asked = page.waitForRequest(
+    (r) =>
+      new URL(r.url()).pathname === "/v1/domains" &&
+      new URL(r.url()).searchParams.get("q") === slug,
+  );
+  await page.keyboard.type(slug);
+  await asked;
+  await expect(page.getByRole("option", { name: slug, exact: true })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(domain).toHaveValue(slug);
   await form.getByRole("button", { name: "Choisir l'action" }).click();
   await page.getByRole("menuitem", { name: "Appliquer" }).click();
   await expect(form.getByRole("textbox", { name: "Motif" })).toHaveValue(/^Création : Préfixe$/);
