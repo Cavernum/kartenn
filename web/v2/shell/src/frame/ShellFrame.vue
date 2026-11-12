@@ -110,7 +110,7 @@ import { createKeyListener, createShortcutRegistry } from "../shortcuts/registry
 import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
-import { runnable } from "../shortcuts/view.ts";
+import { play, runnable } from "../shortcuts/view.ts";
 import { dropMotive, typedMotive } from "../draft/motive.ts";
 import { closeEditWithPage, editRequest, guardEdit, lineToReturn } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
@@ -763,11 +763,12 @@ for (const shortcut of shellShortcuts({
 })) {
   registry.register(shortcut);
 }
-/** An action of the view behind `/`, `c`, `e`; `false` when it has none or cannot now. */
+/**
+ * An action of the view behind `/`, `c`, `e`, or, refused, why said by the view's status;
+ * `false` when it has none, or nothing to say.
+ */
 function playView(id: "filter" | "create" | "edit"): boolean {
-  const action = runnable(id, time.value);
-  action?.run();
-  return action !== null;
+  return play(id, time.value, t);
 }
 const shellList = shallowRef(registry.list());
 onBeforeUnmount(registry.subscribe(() => (shellList.value = registry.list())));

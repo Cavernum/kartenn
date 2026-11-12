@@ -200,7 +200,10 @@ explicite au présent).
   une séquence ; les raccourcis de la vue d'un plugin passent par le SDK
   (`shortcuts.register`), qui refuse les touches du shell (`reserveKeys`) ; l'aide `?`, la
   palette et les menus lisent ce registre (une seule source). Une vue du shell donne `/`,
-  `c`, `e` par `useViewAction`.
+  `c`, `e` par `useViewAction` ; `c` ou `e` refusé dit sa raison par le statut poli de la
+  vue (`say`) : hors du présent d'abord (`edit.why.past`), puis la raison de la vue (`why` :
+  la permission manquante, aucun domaine) ; rien à modifier (aucune ligne, aucun nœud
+  choisi), la touche se tait et passe (tâche 12k).
 - Réglage « Raccourcis à une touche » (menu de l'utilisateur, `localStorage`) :
   désactivés, seuls Ctrl+K, Ctrl+Entrée et Échap restent (WCAG 2.1.4) ; l'aide le dit en
   tête et marque « (désactivé) » chaque touche seule que l'écouteur joue.

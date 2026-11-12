@@ -3754,13 +3754,65 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     « Changer de parent… » par `q` (le parcours `moves` le tient) ; `labels` grossit sans
     purge le temps du panneau ; une cible au-delà des dix pages d'ancêtres lues, refusée
     par le serveur pour un cycle, non testée ; aucune capture (12l).
-- [ ] 12k. `c` et `e` refusés dits au clavier (relevés des 12c et 12d, `a11y-auditor`) :
+- [x] 12k. `c` et `e` refusés dits au clavier (relevés des 12c et 12d, `a11y-auditor`) :
   sous `as_of`, sans le droit ou sans domaine, la touche dit sa raison par le statut poli
   de la vue au lieu de rien ; dans l'onglet Contenu et le contenu d'un nœud, la phrase
   d'une cellule nomme ce que « Modifier » modifie — REQ-021-37 — verify : Vitest des
   raccourcis refusés ; parcours `time` (`e` sous `as_of` dit pourquoi)
   - où : `web/v2/shell/src/shortcuts/view.ts` (`useViewAction`), `views/edit/EditHint.vue`
   - dépend de : 12d
+  - fait le 2026-11-12 — `shortcuts/view.ts` : `ViewAction.why` (la raison de la vue,
+    `undefined` : rien à modifier) et `ViewAction.say` (son statut poli) ; `play(id, time,
+    t)` joue l'action ou, refusée, fait dire au statut hors du présent d'abord
+    (`edit.why.past`), puis le `why` de la vue, et prend la touche ; sans objet (aucune
+    ligne, aucun nœud choisi), sans statut, elle se tait et passe ; `ShellFrame.vue`
+    (`playView`) passe par `play`, la palette garde `runnable`. `ListView.vue` : `c` et `e`
+    disent la permission (`whyWords`), « restarted » cède la région à la phrase ;
+    `TopologyView.vue` : `c` dit « Ajout impossible : aucun domaine que vous puissiez lire »
+    (domaines lus, aucun ; région de statut sœur de l'`EmptyState`), sinon ce que dit son
+    « + » (`addRefusal`), `e` la permission du nœud choisi ; `RecordView.vue` : région de
+    statut propre, `e` dit la permission, `blockedBy` met hors du présent avant le droit
+    (comme les cellules et les touches). Onglet Contenu et contenu d'un nœud
+    (`record/ContentTab.vue`) : `whyWords(why, t, of)` et `EditHint` `of` disent
+    `edit.why.inPlaceDatedOf` (« « Modifier » mène au brouillon daté, pour {of} et non pour
+    cette ligne »), `of` vide → la phrase sans nom. 021 design (« Raccourcis »), skill
+    (§ 5). Tests : `shell/test/refused-keys.test.ts` (liste sous `as_of` et pour un
+    lecteur, `e` sans ligne qui passe ; Topographie sans domaine, d'un lecteur, sous
+    `as_of` ; fiche sous `as_of` ; cellule du contenu sous `valid_at`, description et
+    pied), `shortcuts.test.ts` (`play` : ordre période puis droit, sans objet, sans statut,
+    `dated`) ; parcours `time` (`e` sous `as_of` : la région de statut de la fiche dit
+    « revenez au présent pour modifier »).
+  - choix : hors du présent l'emporte sur un droit manquant, pour la touche comme pour les
+    cellules (12d) et désormais le bouton « Modifier » de la fiche ; un refus dit prend la
+    touche, un refus muet la laisse aller ; `say` donné par action (explicite) plutôt
+    qu'une fois par vue ; les vues d'administration (sans région de statut, `allowed` sans
+    raison) restent muettes ; `e` d'une liste sans ligne au focus ne dit rien (rien à
+    modifier) ; le nom de la phrase datée est `name` de l'onglet (la fiche ou le nœud),
+    sans sa sorte.
+  - corrections des relectures : `c` de la Topographie sous `as_of`, domaine lu, restait
+    muet (`why` ne rendait que le refus de droit ; `ui-reviewer`) ; ordre bouton/touche de
+    la fiche aligné ; région « aucun domaine » hors du paragraphe de l'`EmptyState` et
+    `restarted` d'une liste qui masquait la phrase (`a11y-auditor`) ; `of` vide ;
+    formulations (`inPlaceDatedOf`, `addNoDomain`).
+  - passe de corrections (revue) : `useStatus` (`edit/say.ts`) porte la région de statut
+    des vues (liste, Topographie, fiche, onglets Contenu et Propriétés) : vidée puis dite,
+    vidée à un autre période ou d'autres droits (une phrase encore à venir abandonnée),
+    `clear` pour un autre objet (nœud choisi, fiche) ; la phrase datée du contenu suit
+    ce qui y mène : « « Modifier » ouvre le brouillon daté de {of}, non de cette ligne »
+    dans la fiche, la touche `e` ou « Ouvrir la fiche » puis « Modifier » à côté de l'arbre
+    (`edit.why.inPlaceDatedNode`, le panneau du nœud n'a pas de « Modifier ») ;
+    `whyWords(why, t, dated)` et `EditHint` `dated` reçoivent la phrase de l'hôte ; un nom
+    pas encore lu (vide ou l'identifiant) la laisse sans nom. Tests :
+    `refused-keys.test.ts` (refus sous `as_of` effacé au retour au présent, liste et
+    fiche ; phrase du contenu à côté de l'arbre).
+  - reste : sous `as_of`, « revenez au présent pour modifier » dit aussi le refus de `c`
+    (créer) ; les vues d'administration sous `as_of` ou sans droit restent muettes ; dans
+    l'arbre de la Topographie, la phrase datée d'une cellule renvoie à « Modifier » qui
+    modifie le nœud choisi, non forcément la ligne ; la touche `e` nommée par la phrase du
+    contenu à côté de l'arbre l'est aussi quand les raccourcis à une touche sont coupés ;
+    deux régions de statut dans la fiche (la sienne et celle de `ContentTab`) ; le test de
+    `e` sous `as_of` dans la Topographie ne prouve pas la phrase redite (une même phrase
+    deux fois) ; restitution par un vrai lecteur d'écran non éprouvée.
 - [ ] 12l. Captures des vrais écrans d'édition, à arbitrer : le projet `visual` n'a pas
   d'API ; il faudrait un banc de captures à API simulée, transverse (les 11, 14 et 17
   l'attendent aussi), plutôt qu'une tâche de la 12 — à la session principale ou à

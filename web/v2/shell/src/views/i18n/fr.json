@@ -268,6 +268,7 @@
       "domainMissingText": "Le domaine de l'adresse n'est pas parmi ceux que vous lisez : l'arbre montre {name}.",
       "noDomain": "Aucun domaine",
       "noDomainText": "Aucun domaine que vous puissiez lire : l'arbre des préfixes en a besoin.",
+      "addNoDomain": "Ajout impossible : aucun domaine que vous puissiez lire.",
       "preview": {
         "title": "Aperçu du brouillon",
         "partial": "Aperçu partiel du brouillon",
@@ -452,6 +453,8 @@
       "past": "Lecture seule hors du présent : revenez au présent pour modifier.",
       "dated": "Lecture datée : rien ne s'applique tout de suite, la modification va au brouillon daté.",
       "inPlaceDated": "Lecture datée : rien ne se modifie en place, « Modifier » mène au brouillon daté.",
+      "inPlaceDatedOf": "Lecture datée : rien ne se modifie en place ; « Modifier » ouvre le brouillon daté de {of}, non de cette ligne.",
+      "inPlaceDatedNode": "Lecture datée : rien ne se modifie en place ; la touche e, ou « Ouvrir la fiche » puis « Modifier », ouvre le brouillon daté de {of}, non de cette ligne.",
       "immutable": "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
       "computed": "Valeur calculée : elle ne se modifie pas.",
       "creation": "Fixée à la création : elle ne se modifie pas.",

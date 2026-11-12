@@ -97,9 +97,14 @@ test("under as_of, the editors and the actions of the record are off, each sayin
   ).toBeAttached();
   await expect(modify(page)).toHaveAttribute("aria-disabled", "true");
   await expect(modify(page)).toHaveAccessibleDescription(/revenez au présent pour modifier/);
-  // Its key does nothing either.
+  // Its key opens nothing either, and says why by the status of the record (task 12k).
   await page.keyboard.press("e");
   await expect(editPanel(page)).toHaveCount(0);
+  await expect(
+    main(page)
+      .getByRole("status")
+      .filter({ hasText: /revenez au présent pour modifier/ }),
+  ).toHaveCount(1);
   await main(page).getByRole("button", { name: "Actions" }).click();
   const close = page.getByRole("menuitem", { name: /^Clore…/ });
   await expect(close).toHaveAttribute("aria-disabled", "true");

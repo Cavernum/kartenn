@@ -17,6 +17,8 @@ const props = defineProps<{
   held?: string | undefined;
   /** What an edit of the cell writes, said before it is sent (a value over an inherited one). */
   note?: string | undefined;
+  /** The host's sentence under a validity date, when « Modifier » does not change the row. */
+  dated?: string | undefined;
 }>();
 const { t } = useI18n();
 </script>
@@ -40,7 +42,9 @@ const { t } = useI18n();
       {{ t("edit.why.forbidden") }} <CodeBadge :code="props.why.permission" />
     </template>
     <template v-else-if="props.why.kind === 'past'">{{ t("edit.why.past") }}</template>
-    <template v-else-if="props.why.kind === 'dated'">{{ t("edit.why.inPlaceDated") }}</template>
+    <template v-else-if="props.why.kind === 'dated'">
+      {{ props.dated ?? t("edit.why.inPlaceDated") }}
+    </template>
     <template v-else>{{ t(`edit.why.${props.why.reason}`) }}</template>
   </span>
 </template>

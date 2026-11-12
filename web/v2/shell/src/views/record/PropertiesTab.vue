@@ -35,7 +35,7 @@ import {
   type PropertyRow,
 } from "../edit/properties.ts";
 import QuickApply from "../edit/QuickApply.vue";
-import { useSay } from "../edit/say.ts";
+import { useSay, useStatus } from "../edit/say.ts";
 import ExplanationBody from "./ExplanationBody.vue";
 import PropertyValue from "./PropertyValue.vue";
 
@@ -86,11 +86,8 @@ const targetOf = (key: string) => {
 };
 const labelOf = (key: string) => keyLabel("property", key);
 
-const said = ref("");
-const say = useSay((text) => {
-  said.value = "";
-  void nextTick(() => (said.value = text));
-});
+const { said, status } = useStatus();
+const say = useSay(status);
 const readByKey = computed(() => new Map(read.value.map((row) => [row.key, row])));
 const edit = recordGrid(
   usePropertyEdit({

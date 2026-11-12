@@ -160,12 +160,20 @@ export function cellErrorOf(
   return code ? { error, code } : { error };
 }
 
-/** Why a cell offers no editor, as one sentence (its description); none for no field. */
-export function whyWords(why: NotEditable | null, t: (key: string) => string): string | undefined {
+/**
+ * Why a cell offers no editor, as one sentence (its description); none for no field.
+ * `dated`: the host's own sentence under a validity date, when « Modifier » there does not
+ * change the row of the cell (the record of a content tab, the node chosen beside it).
+ */
+export function whyWords(
+  why: NotEditable | null,
+  t: (key: string) => string,
+  dated?: string,
+): string | undefined {
   if (!why || why.kind === "none") return undefined;
   if (why.kind === "forbidden") return `${t("edit.why.forbidden")} ${why.permission}`;
   if (why.kind === "past") return t("edit.why.past");
-  if (why.kind === "dated") return t("edit.why.inPlaceDated");
+  if (why.kind === "dated") return dated ?? t("edit.why.inPlaceDated");
   return t(`edit.why.${why.reason}`);
 }
 
