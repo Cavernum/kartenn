@@ -39,32 +39,20 @@ export function filled(nodes: VNodeArrayChildren): boolean {
  * still shows (a combobox's list, a menu button's menu: Reka closes them from the document,
  * after the panel heard the key) and a composition in progress (an IME, whose Escape
  * cancels it; under WebKit the composition ends before the keydown, which keeps its
- * `keyCode` 229). A field typed in (text field, text area, segment of a date) lets it go
- * when the panel is `guarded`, its host saying whether a field was modified: the panel then
- * asks before dropping it (Q-021-22); unguarded, a host that says nothing, the field keeps
- * it, since what it holds would go with the panel unasked. A closed combobox lets it go
- * (its second Escape, which its header promises to the layer around), as does anything
- * else, as in a dialog.
+ * `keyCode` 229). Anything else lets it go, as in a dialog: a closed combobox (its second
+ * Escape, which its header promises to the layer around), a button, and a field typed in,
+ * since a modified panel asks before dropping what it holds (Q-021-22, `usePanelClose`).
  */
-export function ownsEscape(event: KeyboardEvent, guarded = false): boolean {
+export function ownsEscape(event: KeyboardEvent): boolean {
   // `keyCode` is deprecated, but the only trace of a composition WebKit has just ended.
   if (event.isComposing || event.keyCode === 229) return true;
   const target = event.target;
   if (!(target instanceof HTMLElement)) return false;
   // A disclosure (`aria-expanded` without a popup) shows its content in place: not a popup.
   const haspopup = target.getAttribute("aria-haspopup");
-  const combobox = target.getAttribute("role") === "combobox";
-  const popup = combobox || (haspopup !== null && haspopup !== "false");
-  if (popup && target.getAttribute("aria-expanded") === "true") return true;
-  if (combobox || guarded) return false;
-  if (target.isContentEditable) return true;
-  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
-  return (
-    target instanceof HTMLInputElement &&
-    !["button", "checkbox", "radio", "submit", "reset", "range", "color", "file"].includes(
-      target.type,
-    )
-  );
+  const popup =
+    target.getAttribute("role") === "combobox" || (haspopup !== null && haspopup !== "false");
+  return popup && target.getAttribute("aria-expanded") === "true";
 }
 
 /** What a panel gives `usePanelClose`. */
@@ -73,8 +61,8 @@ export interface PanelClose {
   panel: Ref<HTMLElement | null>;
   /** Its model. */
   open: Ref<boolean>;
-  /** Whether a field was modified since it opened, as its host says (none: not said). */
-  modified: () => boolean | undefined;
+  /** Whether a field was modified since it opened, as its host says. */
+  modified: () => boolean;
   /** Says it closed (its `close` event). */
   closed: () => void;
   /** Where the focus goes when its opener is gone (the strip of a `SidePanel`). */
@@ -83,25 +71,59 @@ export interface PanelClose {
 
 /**
  * How a panel closes (`SidePanel`, `BottomPanel`; tasks 021-12p, 021-12qa, Q-021-22).
- * Escape (that the focused control does not own), the cross and the back button `request`
- * it: intact, the panel closes at once; modified (`modified` true), it first asks
- * « Abandonner les modifications ? » (`asking`, the panel's `AlertDialog`): « Continuer »
- * or Escape leave it open, the focus back on the field or the button it came from (the
- * dialog's own return); « Abandonner » (`discard`) closes it. Closed, the focus goes back
- * to what had it when the panel opened (WCAG 2.4.3; APG Alert Dialog), else to `fallback`,
- * if it was in the panel when the close was asked; the host's model closing it says
- * nothing, and drops a question in progress.
+ * Escape (that the focused control does not own), the cross, the back button and the host
+ * through the panel's exposed `close()` `request` it: intact, the panel closes at once;
+ * modified, it first asks « Abandonner les modifications ? » (`ask`, `asking`, the
+ * panel's `PanelLeave`): « Continuer la saisie » or Escape leave it open, the focus back on
+ * the field or the button it came from (the dialog's own return); « Abandonner » closes it.
+ * `ask()` alone asks without closing (a host's guard: a navigation that would drop the
+ * input), and says whether to drop it. Closed, the focus goes back to what had it when the
+ * panel opened (WCAG 2.4.3; APG Alert Dialog), else to `fallback`, if it was in the panel
+ * when the close was asked. The host's model closing it asks nothing and withdraws a
+ * question in progress, the focus to the opener; `modified` turned false withdraws it too,
+ * the focus back where the question came from.
  */
 export function usePanelClose(o: PanelClose): {
   asking: Ref<boolean>;
   request: (event?: Event) => void;
-  discard: () => void;
+  ask: () => Promise<boolean>;
+  answer: (drop: boolean) => void;
   onKeydown: (event: KeyboardEvent) => void;
 } {
   let opener: HTMLElement | null = null;
   const asking = ref(false);
   /** Whether the focus was in the panel when its close was asked. */
   let inside = false;
+  /** The question in progress, and what settles it. */
+  let pending: { promise: Promise<boolean>; settle: (drop: boolean) => void } | null = null;
+
+  /** Asks « Abandonner les modifications ? » when modified: true to drop them. */
+  function ask(): Promise<boolean> {
+    if (!o.modified()) return Promise.resolve(true);
+    if (!pending) {
+      let settle: (drop: boolean) => void = () => {};
+      const promise = new Promise<boolean>((resolve) => (settle = resolve));
+      pending = { promise, settle };
+      asking.value = true;
+    }
+    return pending.promise;
+  }
+  /** The answer (« Abandonner »: true), or the question withdrawn (false). */
+  function answer(drop: boolean): void {
+    const was = pending;
+    pending = null;
+    // Settled before the question closes: « Abandonner » makes the panel inert before the
+    // dialog gives the focus back.
+    was?.settle(drop);
+    asking.value = false;
+  }
+  // `modified` turned false (the host dropped or saved the input): nothing left to ask.
+  watch(
+    () => o.modified(),
+    (now) => {
+      if (!now && pending) answer(false);
+    },
+  );
 
   /** Once the panel is gone, the focus to its opener, else to `fallback`, if it was in. */
   async function refocus(): Promise<void> {
@@ -121,8 +143,8 @@ export function usePanelClose(o: PanelClose): {
     (now) => {
       // Closed by the host's model while it asks: the question goes, unanswered, and the
       // focus it held goes to the opener as after « Abandonner ».
-      if (!now && asking.value) {
-        asking.value = false;
+      if (!now && pending) {
+        answer(false);
         leave();
         void refocus();
       }
@@ -148,22 +170,24 @@ export function usePanelClose(o: PanelClose): {
     if (target && panel?.contains(target) && !panel.contains(document.activeElement))
       target.focus();
     inside = panel?.contains(document.activeElement) ?? false;
-    if (o.modified()) asking.value = true;
-    else close();
-  }
-  function discard(): void {
-    leave();
-    close();
+    if (!o.modified()) {
+      close();
+      return;
+    }
+    void ask().then((drop) => {
+      if (!drop || !o.open.value) return;
+      leave();
+      close();
+    });
   }
   function onKeydown(event: KeyboardEvent): void {
-    const guarded = o.modified() !== undefined;
     // A held Escape asks once: its repeats would answer the question as it opens.
     if (event.key !== "Escape" || event.repeat || event.defaultPrevented) return;
-    if (ownsEscape(event, guarded)) return;
+    if (ownsEscape(event)) return;
     event.preventDefault();
     request();
   }
-  return { asking, request, discard, onKeydown };
+  return { asking, request, ask, answer, onKeydown };
 }
 
 /**

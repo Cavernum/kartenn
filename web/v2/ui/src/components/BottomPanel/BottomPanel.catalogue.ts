@@ -60,7 +60,7 @@ const demo = defineComponent({
     const height = ref(props.height);
     const label = ref("Supervision");
     // Closed (abandoned), the input goes.
-    const modified = () => (props.fields ? label.value !== "Supervision" : undefined);
+    const modified = () => label.value !== "Supervision";
     return () =>
       h(
         DemoFrame,
@@ -154,8 +154,8 @@ export default {
     {
       name: "sheet",
       description:
-        "Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début",
-      props: { open: true, tab: "detail", sheet: true },
+        "Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début ; son champ modifié, « Retour » demande d'abord",
+      props: { open: true, tab: "detail", sheet: true, fields: true },
       demo,
       wide: true,
     },

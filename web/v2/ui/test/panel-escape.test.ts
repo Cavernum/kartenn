@@ -8,16 +8,15 @@ import { nextTick, ref } from "vue";
 import { ownsEscape, usePanelClose } from "../src/components/internal/panel.ts";
 
 // Whose is an Escape heard by a panel (`SidePanel`, `BottomPanel`; tasks 021-12p,
-// 021-12qa): an open popup's, a composition's; a field's that is typed in only while the
-// panel is not guarded (its host does not say `modified`: nothing would ask before its
-// input went, Q-021-22); a closed combobox and the rest let it go to the panel, as in a
-// dialog. The panels' keyboard is played in the browser (e2e/components/side-panel.spec.ts,
+// 021-12qa): an open popup's, a composition's; anything else lets it go to the panel, a
+// field typed in too, since a modified panel asks before it closes (Q-021-22). The panels'
+// keyboard is played in the browser (e2e/components/side-panel.spec.ts,
 // bottom-panel.spec.ts, e2e/visual/clavier.spec.ts).
 
 /** What `ownsEscape` says of an Escape pressed on `el` (its target, as the panel hears it). */
-function owns(el: Element, init: KeyboardEventInit = {}, guarded = false): boolean {
+function owns(el: Element, init: KeyboardEventInit = {}): boolean {
   let said: boolean | undefined;
-  document.body.addEventListener("keydown", (event) => (said = ownsEscape(event, guarded)), {
+  document.body.addEventListener("keydown", (event) => (said = ownsEscape(event)), {
     once: true,
   });
   el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, ...init }));
@@ -53,29 +52,16 @@ describe("ownsEscape (SidePanel, BottomPanel)", () => {
     expect(owns(make('<button aria-haspopup="false" aria-expanded="true"></button>'))).toBe(false);
   });
 
-  const FIELDS = [
-    '<input type="text" value="Serveurs">',
-    '<input type="search" value="192.0.2.0">',
-    "<input>",
-    "<textarea>Maintenance</textarea>",
-    "<select><option>A</option></select>",
-    '<span role="spinbutton" contenteditable="true">2026</span>',
-  ];
-
-  it("unguarded, a field typed in keeps it: text, search, text area, select, segment", () => {
-    for (const html of FIELDS) expect(owns(make(html)), html).toBe(true);
-  });
-
-  it("guarded (the panel asks when modified), a field lets it go", () => {
-    for (const html of FIELDS) expect(owns(make(html), {}, true), html).toBe(false);
-  });
-
-  it("guarded, an open popup and a composition still keep it", () => {
-    expect(owns(make('<input role="combobox" aria-expanded="true">'), {}, true)).toBe(true);
-    const menu = '<button aria-haspopup="menu" aria-expanded="true"></button>';
-    expect(owns(make(menu), {}, true)).toBe(true);
-    expect(owns(make('<input type="text">'), { isComposing: true }, true)).toBe(true);
-    expect(owns(make("<textarea></textarea>"), { keyCode: 229 }, true)).toBe(true);
+  it("a field typed in lets it go: text, search, text area, select, segment of a date", () => {
+    for (const html of [
+      '<input type="text" value="Serveurs">',
+      '<input type="search" value="192.0.2.0">',
+      "<input>",
+      "<textarea>Maintenance</textarea>",
+      "<select><option>A</option></select>",
+      '<span role="spinbutton" contenteditable="true">2026</span>',
+    ])
+      expect(owns(make(html)), html).toBe(false);
   });
 
   it("a button, a check box, a closed select-only combobox let it go", () => {
@@ -89,6 +75,7 @@ describe("ownsEscape (SidePanel, BottomPanel)", () => {
 
   it("a composition in progress keeps it, whatever the field, also once WebKit ended it", () => {
     expect(owns(make('<input type="text">'), { isComposing: true })).toBe(true);
+    expect(owns(make("<textarea></textarea>"), { keyCode: 229 })).toBe(true);
     const closed = '<input role="combobox" aria-expanded="false">';
     expect(owns(make(closed), { isComposing: true })).toBe(true);
     expect(owns(make(closed), { keyCode: 229 })).toBe(true);
@@ -100,68 +87,120 @@ describe("ownsEscape (SidePanel, BottomPanel)", () => {
 });
 
 describe("usePanelClose (SidePanel, BottomPanel)", () => {
-  /** A panel holding a field, open, an Escape pressed in the field, and what its host heard. */
-  function setup(modified: boolean | undefined) {
-    const el = make('<aside><input type="text" value="Supervision"></aside>');
-    const panel = ref<HTMLElement | null>(el);
+  const settled = () => new Promise((resolve) => setTimeout(resolve));
+
+  /**
+   * An opener, then a panel holding a field, opened from it; `modified` as the host says.
+   * `escape()` presses Escape in the field (`repeat`: a held key).
+   */
+  function setup(changed: boolean) {
+    document.body.innerHTML =
+      '<button id="opener">Ouvrir</button><aside><input type="text" value="Supervision"></aside>';
+    const opener = document.getElementById("opener")!;
+    const el = document.querySelector("aside")!;
+    const field = el.querySelector("input")!;
+    opener.focus();
+    const modified = ref(changed);
     const open = ref(true);
     let closed = 0;
-    const close = usePanelClose({ panel, open, modified: () => modified, closed: () => closed++ });
-    const field = el.querySelector("input")!;
-    field.focus();
-    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    const close = usePanelClose({
+      panel: ref<HTMLElement | null>(el),
+      open,
+      modified: () => modified.value,
+      closed: () => closed++,
+    });
     el.addEventListener("keydown", close.onKeydown);
-    field.dispatchEvent(escape);
-    return { close, open, escape, closed: () => closed, el };
+    field.focus();
+    const escape = (repeat = false) => {
+      const event = new KeyboardEvent("keydown", {
+        key: "Escape",
+        repeat,
+        bubbles: true,
+        cancelable: true,
+      });
+      field.dispatchEvent(event);
+      return event;
+    };
+    return { close, open, modified, escape, closed: () => closed, el, opener };
   }
 
-  it("intact, Escape from a field closes at once", () => {
-    const { close, open, escape, closed } = setup(false);
-    expect(escape.defaultPrevented).toBe(true);
+  it("intact, Escape from a field closes at once, the focus to the opener", async () => {
+    const { close, open, escape, closed, opener } = setup(false);
+    expect(escape().defaultPrevented).toBe(true);
     expect(close.asking.value).toBe(false);
     expect(open.value).toBe(false);
     expect(closed()).toBe(1);
+    await nextTick();
+    expect(document.activeElement).toBe(opener);
   });
 
-  it("modified, Escape asks first; « Abandonner » closes it, the leaving panel inert", () => {
-    const { close, open, closed, el } = setup(true);
+  it("modified, Escape asks; « Abandonner » closes, the leaving panel inert, focus to the opener", async () => {
+    const { close, open, escape, closed, el, opener } = setup(true);
+    escape();
     expect(close.asking.value).toBe(true);
     expect(open.value).toBe(true);
     expect(closed()).toBe(0);
-    close.discard();
+    close.answer(true);
+    await settled();
+    expect(close.asking.value).toBe(false);
     expect(open.value).toBe(false);
     expect(closed()).toBe(1);
     expect(el.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(opener);
   });
 
-  it("not said, the field keeps Escape: nothing closes, nothing asks", () => {
-    const { close, open, escape } = setup(undefined);
-    expect(escape.defaultPrevented).toBe(false);
+  it("modified, « Continuer la saisie » leaves it open", async () => {
+    const { close, open, escape, closed } = setup(true);
+    escape();
+    close.answer(false);
+    await settled();
     expect(close.asking.value).toBe(false);
+    expect(open.value).toBe(true);
+    expect(closed()).toBe(0);
+  });
+
+  it("modified, the repeats of a held Escape neither ask again nor answer", () => {
+    const { close, open, escape } = setup(true);
+    escape();
+    expect(escape(true).defaultPrevented).toBe(false);
+    expect(close.asking.value).toBe(true);
     expect(open.value).toBe(true);
   });
 
-  it("closed by the host's model, a question in progress goes, unsaid, the panel inert", async () => {
-    const { close, open, closed, el } = setup(true);
+  it("closed by the host's model during the question: withdrawn, focus to the opener", async () => {
+    const { close, open, escape, closed, el, opener } = setup(true);
+    escape();
+    const asked = close.ask();
     open.value = false;
     await nextTick();
+    await nextTick();
     expect(close.asking.value).toBe(false);
+    expect(await asked).toBe(false);
     expect(closed()).toBe(0);
     expect(el.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(opener);
   });
 
-  it("the repeats of a held Escape are not the panel's", () => {
-    const el = make('<aside><button type="button">Fermer</button></aside>');
-    const open = ref(true);
-    const close = usePanelClose({
-      panel: ref(el),
-      open,
-      modified: () => false,
-      closed: () => {},
-    });
-    const repeat = { key: "Escape", repeat: true, bubbles: true, cancelable: true };
-    el.addEventListener("keydown", close.onKeydown);
-    el.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", repeat));
+  it("`modified` turned false during the question withdraws it, the panel open", async () => {
+    const { close, open, modified, escape } = setup(true);
+    escape();
+    const asked = close.ask();
+    modified.value = false;
+    await nextTick();
+    expect(close.asking.value).toBe(false);
+    expect(await asked).toBe(false);
+    expect(open.value).toBe(true);
+  });
+
+  it("`ask()` (a host's guard) asks without closing; intact, says yes at once", async () => {
+    const intact = setup(false);
+    expect(await intact.close.ask()).toBe(true);
+    const { close, open } = setup(true);
+    const asked = close.ask();
+    expect(close.asking.value).toBe(true);
+    expect(close.ask()).toBe(asked);
+    close.answer(true);
+    expect(await asked).toBe(true);
     expect(open.value).toBe(true);
   });
 });

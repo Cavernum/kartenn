@@ -122,14 +122,23 @@ test.describe("SidePanel (complementary + Tabs, Window Splitter)", () => {
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     await expect(panel.getByRole("tab", { name: "Détail" })).toBeFocused();
     await expect(panel.getByRole("tablist", { name: "Onglets du panneau" })).toBeVisible();
-    // Escape in a text field belongs to the field while the host does not say `modified`:
-    // the panel stays, nothing asks before dropping what is typed (Q-021-22, 021-12qa).
+    // Escape in a text field goes to the panel: the summary typed in (the host says
+    // `modified`), it asks first; « Continuer la saisie » keeps it (Q-021-22, 021-12qa).
     await panel.getByRole("tab", { name: /Brouillon/ }).click();
-    await panel.getByRole("textbox", { name: /Résumé/ }).focus();
+    const summary = panel.getByRole("textbox", { name: /Résumé/ });
+    await summary.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" B");
     await page.keyboard.press("Escape");
+    const ask = page.getByRole("alertdialog", { name: "Abandonner les modifications ?" });
+    await expect(ask.getByRole("button", { name: "Continuer la saisie" })).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(panel).toBeVisible();
-    await panel.getByRole("tab", { name: /Brouillon/ }).focus();
+    await expect(summary).toBeFocused();
+    await expect(summary).toHaveValue("Maintenance du référentiel B");
     await page.keyboard.press("Escape");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
     await expect(panel).toBeHidden();
     await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toBeFocused();
   });

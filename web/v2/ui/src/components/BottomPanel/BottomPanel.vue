@@ -16,12 +16,11 @@
 // menu « Hauteur du panneau » beside the close button: « Basse » (the lower bound),
 // « Standard » (320 px), « Haute » (the upper bound), the current one checked. The line of
 // the handle is the outline of the panel (`.k-panel-handle`, components/shared.css).
-// Escape closes it and gives the focus back to what opened it; an open popup or a
-// composition keeps it (`ownsEscape`); with `modified`, as on `SidePanel` (Q-021-22),
-// Escape from a field too, and a modified panel asks « Abandonner les modifications ? »
-// before Escape, the cross or the back button close it; a host that does not say it
-// leaves Escape to a field typed in. Closed, it leaves nothing behind (the host reopens
-// it, from a selection). The footer shows only when the host
+// Escape closes it and gives the focus back to what opened it, from a field too; only an
+// open popup or a composition keeps it (`ownsEscape`). `modified`, `close()` and `ask()`
+// as on `SidePanel` (Q-021-22): a modified panel asks « Abandonner les modifications ? »
+// before it closes. Closed, it leaves nothing behind (the host reopens it, from a
+// selection). The footer shows only when the host
 // fills it for the tab in front. With `sheet` (compact frame), it is the same sheet as the
 // side panel: the whole window, a back button at its start, a modal dialog that takes the
 // focus when it opens and makes everything beside it `inert`, up to the nearest
@@ -29,10 +28,10 @@
 import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
-import AlertDialog from "../AlertDialog/AlertDialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import { inertOthers } from "../internal/inertOthers.ts";
 import { filled, scrollCue, usePanelClose } from "../internal/panel.ts";
+import PanelLeave from "../internal/PanelLeave.vue";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -67,14 +66,14 @@ const props = withDefaults(
     besidePanel?: boolean;
     /**
      * Whether a field of the panel was modified since it opened, as the host tracks it
-     * (Q-021-22), as on `SidePanel`: true, Escape, the cross and the back button ask
+     * (Q-021-22), as on `SidePanel`: Escape, the cross, the back button and `close()` ask
      * « Abandonner les modifications ? » first, and `close` follows « Abandonner » (the
-     * host then drops the input); false, they close it at once. Said,
-     * Escape goes to the panel from a field too; left out, a field typed in keeps it.
+     * host then drops the input); turned false during the question, the question goes.
+     * Intact (false, the default), they close it at once.
      */
-    modified?: boolean | undefined;
+    modified?: boolean;
   }>(),
-  { id: undefined, min: 160, max: 640, step: 16, modified: undefined },
+  { id: undefined, min: 160, max: 640, step: 16 },
 );
 const open = defineModel<boolean>("open", { default: true });
 /** The active tab. */
@@ -113,11 +112,17 @@ const clamp = (value: number) =>
 
 // Escape, the cross, the back button: asked first when modified; the focus comes back to
 // what opened the panel (WCAG 2.4.3).
-const { asking, request, discard, onKeydown } = usePanelClose({
+const { asking, request, ask, answer, onKeydown } = usePanelClose({
   panel,
   open,
   modified: () => props.modified,
   closed: () => emit("close"),
+});
+defineExpose({
+  /** Closes it as the cross does: asked first when modified. */
+  close: (): void => request(),
+  /** Asks without closing (a host's guard): true to go on and drop the input. */
+  ask,
 });
 
 const focusTab = () =>
@@ -281,16 +286,8 @@ function onPointerup(event: PointerEvent): void {
       </footer>
     </component>
   </Transition>
-  <!-- A modified panel asks before it closes (Q-021-22); the focus starts on « Continuer ». -->
-  <AlertDialog
-    v-model:open="asking"
-    :title="t('panelLeaveTitle')"
-    :description="t('panelLeaveText')"
-    :confirm="t('panelLeaveConfirm')"
-    :cancel="t('panelLeaveCancel')"
-    danger
-    @confirm="discard"
-  />
+  <!-- A modified panel asks before it closes (Q-021-22). -->
+  <PanelLeave :open="asking" @answer="answer" />
 </template>
 
 <style>

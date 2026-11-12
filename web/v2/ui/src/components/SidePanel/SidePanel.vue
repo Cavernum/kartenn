@@ -18,11 +18,11 @@
 // « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
 // current one checked (`menuitemradio`). The line of the handle is the outline of the
 // panel (`.k-panel-handle`, components/shared.css). Escape closes it and gives the focus
-// back to what opened it; an open popup or a composition keeps it (`ownsEscape`). With
-// `modified` (Q-021-22), Escape from a field too, and a modified panel asks « Abandonner
-// les modifications ? » before Escape, the cross or the back button close it
-// (`usePanelClose`); a host that does not say it leaves Escape to a field typed in.
-// Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
+// back to what opened it, from a field too; only an open popup or a composition keeps it
+// (`ownsEscape`). `modified` (Q-021-22): a modified panel asks « Abandonner les
+// modifications ? » before Escape, the cross, the back button or the host's `close()`
+// close it, an intact one closes at once (`usePanelClose`, `PanelLeave`); the host's
+// guard asks the same by `ask()`. Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
 // takes the whole width of its container, over it, without handle (spec 021, « Cadre » :
 // at 768 px the panel covers the surface). With `rail`, the closed panel leaves a strip
 // in the flow at the end of its container (the same `auto` track): a chevron button,
@@ -41,11 +41,11 @@
 import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
-import AlertDialog from "../AlertDialog/AlertDialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
 import { filled, scrollCue, usePanelClose } from "../internal/panel.ts";
+import PanelLeave from "../internal/PanelLeave.vue";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -82,14 +82,14 @@ const props = withDefaults(
     shortcut?: string[] | undefined;
     /**
      * Whether a field of the panel was modified since it opened, as the host tracks it
-     * (Q-021-22): true, Escape, the cross and the back button ask « Abandonner les
+     * (Q-021-22): Escape, the cross, the back button and `close()` ask « Abandonner les
      * modifications ? » first, and `close` follows « Abandonner » (the host then drops
-     * the input); false, they close it at once. Said (true or false), Escape goes to the
-     * panel from a field too; left out, a field typed in keeps it, nothing lost unasked.
+     * the input); turned false during the question, the question goes. Intact (false,
+     * the default), they close it at once.
      */
-    modified?: boolean | undefined;
+    modified?: boolean;
   }>(),
-  { id: undefined, min: 320, max: 720, step: 16, shortcut: undefined, modified: undefined },
+  { id: undefined, min: 320, max: 720, step: 16, shortcut: undefined },
 );
 const open = defineModel<boolean>("open", { default: true });
 /** The active tab. */
@@ -128,12 +128,21 @@ const clamp = (value: number) =>
 
 // Escape, the cross, the back button: asked first when modified; the focus comes back to
 // what opened the panel (WCAG 2.4.3), else to the strip.
-const { asking, request, discard, onKeydown } = usePanelClose({
+const { asking, request, ask, answer, onKeydown } = usePanelClose({
   panel,
   open,
   modified: () => props.modified,
   closed: () => emit("close"),
   fallback: () => strip.value?.querySelector<HTMLElement>("button"),
+});
+defineExpose({
+  /** Closes it as the cross does (the host's `]`, its counter): asked first when modified. */
+  close: (): void => request(),
+  /**
+   * Asks « Abandonner les modifications ? » without closing (a guard: a navigation that
+   * would drop the input): true to go on and drop it; at once when intact.
+   */
+  ask,
 });
 
 const focusTab = () =>
@@ -329,16 +338,8 @@ function onPointerup(event: PointerEvent): void {
       />
     </div>
   </Transition>
-  <!-- A modified panel asks before it closes (Q-021-22); the focus starts on « Continuer ». -->
-  <AlertDialog
-    v-model:open="asking"
-    :title="t('panelLeaveTitle')"
-    :description="t('panelLeaveText')"
-    :confirm="t('panelLeaveConfirm')"
-    :cancel="t('panelLeaveCancel')"
-    danger
-    @confirm="discard"
-  />
+  <!-- A modified panel asks before it closes (Q-021-22). -->
+  <PanelLeave :open="asking" @answer="answer" />
 </template>
 
 <style>

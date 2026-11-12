@@ -74,13 +74,16 @@ const demo = defineComponent({
     const summary = ref("Maintenance du référentiel");
     const domain = ref("");
     const label = ref("Supervision");
-    // Fields (`fields`): the host tracks what changed since the panel opened (Q-021-22);
-    // closed (abandoned), their input goes.
+    // The host tracks what changed since the panel opened (Q-021-22): the fields (`fields`),
+    // the summary of the draft; closed (abandoned), the input goes.
     const modified = () =>
-      props.fields ? domain.value !== "" || label.value !== "Supervision" : undefined;
+      domain.value !== "" ||
+      label.value !== "Supervision" ||
+      summary.value !== "Maintenance du référentiel";
     function discard(): void {
       domain.value = "";
       label.value = "Supervision";
+      summary.value = "Maintenance du référentiel";
     }
     const action = ref("apply");
     function toggle(): void {
