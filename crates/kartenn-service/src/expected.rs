@@ -315,6 +315,7 @@ async fn views<T: WriteTx>(
 /// objects of a property are evaluated in one call. Returns the assignments written, to
 /// resolve them like the others, and per property the objects whose origins it brought up
 /// to date and that no default of that property can have moved since.
+#[allow(clippy::too_many_lines)] // one pass per property, its objects read then written
 pub(crate) async fn defaults<T: WriteTx>(
     tx: &mut T,
     sources: &Sources,
@@ -400,13 +401,14 @@ pub(crate) async fn defaults<T: WriteTx>(
             let Some(values) = raws(&suggestion.values) else {
                 continue;
             };
+            let provenance = provenance(source.id(), &revision, suggestion);
             crate::resolution::assign(
                 tx,
                 view.id,
                 *kind,
                 property,
                 Some(&values),
-                &provenance(source.id(), &revision, suggestion),
+                &provenance,
                 period,
                 changeset,
             )
@@ -416,6 +418,7 @@ pub(crate) async fn defaults<T: WriteTx>(
                 kind: *kind,
                 property,
                 values: Some(values),
+                provenance: Some(provenance),
             });
         }
         // Without a default of the property, the origins refreshed above still hold.

@@ -490,6 +490,28 @@ impl ModuleOperation {
     }
 }
 
+/// The provenance of a value typed by the author of its changeset (REQ-003-14).
+pub const INPUT: &str = "input";
+
+/// The provenance of a value module `module` derives, `module:<module>#<motif>` (ADR 0026,
+/// amendment 14; 019/Q-019-34): for `kube`, `module:kube#label:<key>`, the value read from
+/// a label of the workload.
+#[must_use]
+pub fn module_provenance(module: &str, motif: &str) -> String {
+    format!("module:{module}#{motif}")
+}
+
+/// Whether module `module` may give `provenance`: `module:<module>#<motif>`, of its own
+/// name, the motif neither empty nor holding a control character.
+#[must_use]
+pub fn is_module_provenance(provenance: &str, module: &str) -> bool {
+    provenance
+        .strip_prefix("module:")
+        .and_then(|rest| rest.strip_prefix(module))
+        .and_then(|rest| rest.strip_prefix('#'))
+        .is_some_and(|motif| !motif.is_empty() && !motif.chars().any(char::is_control))
+}
+
 /// One operation of a changeset.
 // The derived (de)serialisation is that of the core operations; `Operation`'s own impls
 // below route a qualified tag to [`Operation::Module`] first.

@@ -5636,7 +5636,12 @@ export interface components {
       origin?: components["schemas"]["Node"] | null;
       /** @description The property. */
       property: string;
-      /** @description How the value was obtained. */
+      /**
+       * @description How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
+       *     (the default of a source of expected values, REQ-003-22), or
+       *     `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
+       *     a label of a workload; ADR 0026, amendment 14).
+       */
       provenance?: string | null;
       replaces?: components["schemas"]["Replaced"] | null;
       /** @description The resolved value; `null` when masked or without value. */

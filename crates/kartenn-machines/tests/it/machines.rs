@@ -1476,6 +1476,7 @@ impl Module for Inventory {
                 ),
             ],
             labels: std::collections::BTreeMap::new(),
+            external_systems: std::collections::BTreeMap::new(),
         })
     }
 }

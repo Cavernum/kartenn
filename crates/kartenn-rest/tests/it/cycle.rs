@@ -637,6 +637,49 @@ async fn the_proposals_are_those_the_caller_may_validate(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
+async fn a_module_provenance_is_refused_in_input(pool: PgPool) {
+    // ADR 0026, amendment 14: only a module plan gives `module:<module>#<motif>`; a
+    // request that names a provenance is malformed, and nothing is written.
+    let admin = app_as(&pool, person(&pool, &["*"]).await);
+    let property: Uuid = sqlx::query_scalar(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'custom.code', 'text', 'single', ARRAY['domain'],
+                 '{\"min_len\": 1, \"max_len\": 64}',
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+         RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (lab, _) = domain(&admin, &pool, "lab").await;
+    let assign = |provenance: Option<&str>| {
+        let mut op = json!({"op": "assign_property", "object": {"id": lab}, "kind": "domain",
+                            "property": {"id": property}, "values": ["app"]});
+        if let Some(provenance) = provenance {
+            op["provenance"] = provenance.into();
+        }
+        op
+    };
+    for provenance in ["module:kube#label:app", "input"] {
+        let (status, body) = submit(&admin, json!([assign(Some(provenance))])).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    }
+    let written: i64 = sqlx::query_scalar("SELECT count(*) FROM property_assignment")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(written, 0);
+    let (status, body) = submit(&admin, json!([assign(None)])).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let provenance: String = sqlx::query_scalar("SELECT provenance FROM property_assignment")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(provenance, "input");
+}
+
+#[kartenn_testing::pg_test]
 async fn a_sensitive_value_is_masked_without_its_right(pool: PgPool) {
     let admin = app_as(&pool, person(&pool, &["*"]).await);
     let auditor = app_as(

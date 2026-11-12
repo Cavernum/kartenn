@@ -47,6 +47,9 @@ pub(crate) fn plan(
                 kind: *kind,
                 property: resolve(*property),
                 values: Some(raws),
+                // A module gives it to the operations its plan adds (ADR 0026, amendment
+                // 14), never the author.
+                provenance: None,
             }
         }
         Operation::ClearProperty {
@@ -58,6 +61,7 @@ pub(crate) fn plan(
             kind: *kind,
             property: resolve(*property),
             values: None,
+            provenance: None,
         },
         Operation::UnassignProperty {
             object,
@@ -193,7 +197,8 @@ pub(crate) async fn parse<T: WriteTx>(
 }
 
 /// Writes an assignment, or explicit "no value" when `values` is `None` (REQ-003-4, 8,
-/// 12, 13), with its provenance (`input`, or `source:<id>@<version>`, REQ-003-22).
+/// 12, 13), with its provenance (`input`, `source:<id>@<version>`, REQ-003-22, or
+/// `module:<module>#<motif>`, ADR 0026, amendment 14).
 #[allow(clippy::too_many_arguments)] // one per column of the assignment and its context
 pub(crate) async fn assign<T: WriteTx>(
     tx: &mut T,

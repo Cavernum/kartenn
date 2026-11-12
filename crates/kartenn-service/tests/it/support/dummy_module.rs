@@ -201,8 +201,24 @@ struct CreateThing {
     /// A domain the thing creates along, by a core operation.
     #[serde(default)]
     domain: Option<String>,
+    /// A value of the core the thing derives, by a core operation (ADR 0026, amendment
+    /// 14).
+    #[serde(default)]
+    derive: Option<Derive>,
     #[serde(default)]
     keys: Vec<String>,
+}
+
+/// The assignment of `value` to `property` on the domain `domain`, with the provenance
+/// the handler gives it (`None`: typed).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Derive {
+    domain: Ref,
+    property: Ref,
+    value: String,
+    #[serde(default)]
+    provenance: Option<String>,
 }
 
 #[derive(Debug)]
@@ -275,11 +291,22 @@ impl ModuleHandler for Handler {
             Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown address".into()))?),
             None => None,
         };
-        let core = thing
+        let mut core: Vec<Operation> = thing
             .domain
             .into_iter()
             .map(|slug| Operation::CreateDomain { local: None, slug })
             .collect();
+        // The provenance of each core operation, read back by `provenance`.
+        let mut provenances = vec![None; core.len()];
+        if let Some(derive) = thing.derive {
+            core.push(Operation::AssignProperty {
+                object: derive.domain,
+                kind: kartenn_service::ObjectKind::Domain,
+                property: derive.property,
+                values: vec![kartenn_service::operations::RawInput::Text(derive.value)],
+            });
+            provenances.push(derive.provenance);
+        }
         Ok(ModulePlan {
             kind: kind(),
             object,
@@ -293,8 +320,13 @@ impl ModuleHandler for Handler {
                 "domain_ref": domain_ref,
                 "address_ref": address_ref,
                 "cites": thing.shares.then(|| address_ref.into_iter().collect::<Vec<_>>()),
+                "provenances": provenances,
             }),
         })
+    }
+
+    fn provenance(&self, plan: &ModulePlan, index: usize) -> Option<String> {
+        plan.data["provenances"][index].as_str().map(str::to_owned)
     }
 
     fn shared(&self, plan: &ModulePlan) -> Shared {

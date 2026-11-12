@@ -578,7 +578,10 @@ struct ExplanationDto {
     origin: Option<Node>,
     /// The objects walked, nearest first; `null` for one the caller may not read.
     chain: Vec<Option<Node>>,
-    /// How the value was obtained.
+    /// How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
+    /// (the default of a source of expected values, REQ-003-22), or
+    /// `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
+    /// a label of a workload; ADR 0026, amendment 14).
     provenance: Option<String>,
     /// The assignment it replaces.
     replaces: Option<Replaced>,

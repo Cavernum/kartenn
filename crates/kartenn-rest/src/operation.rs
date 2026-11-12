@@ -578,6 +578,18 @@ impl<'de> Deserialize<'de> for OperationDto {
                 body.remove("op");
                 Ok(Self::Module(ModuleOperation { module, name, body }))
             }
+            // The provenance of an assignment is the server's: typed (`input`), or given by
+            // the module that derives it (ADR 0026, amendment 14), never by a client.
+            (_, value)
+                if value.get("op").and_then(serde_json::Value::as_str)
+                    == Some("assign_property")
+                    && value.get("provenance").is_some() =>
+            {
+                Err(serde::de::Error::custom(
+                    "assign_property: the provenance of a value is set by the server, never \
+                     by the request",
+                ))
+            }
             (_, value) => CoreOperationDto::deserialize(value)
                 .map(Self::Core)
                 .map_err(serde::de::Error::custom),
@@ -1753,5 +1765,21 @@ mod tests {
                 "{sample}"
             );
         }
+    }
+
+    /// ADR 0026, amendment 14: no input names the provenance of an assignment, alone, in a
+    /// `within`, or in an element of an import.
+    #[test]
+    fn a_provenance_in_input_is_refused() {
+        let assign = json!({"op": "assign_property", "object": {"id": Uuid::now_v7()},
+            "kind": "prefix", "property": {"id": Uuid::now_v7()}, "values": ["app"],
+            "provenance": "module:kube#label:app"});
+        let within = json!({"op": "within", "period": {"start": 0}, "operation": assign});
+        for sample in [assign.clone(), within] {
+            let refused = serde_json::from_value::<OperationDto>(sample.clone()).unwrap_err();
+            assert!(refused.to_string().contains("provenance"), "{refused}");
+        }
+        let item = json!({"external_id": "x", "operation": assign});
+        assert!(serde_json::from_value::<ImportItemDto>(item).is_err());
     }
 }

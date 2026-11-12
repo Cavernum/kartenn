@@ -365,6 +365,7 @@ impl Module for Machines {
                 .iter()
                 .map(|(key, fr, en)| ((*key).to_owned(), Compiled::new(fr, en)))
                 .collect(),
+            external_systems: std::collections::BTreeMap::new(),
         })
     }
     fn permissions(&self) -> &'static [&'static Permission] {

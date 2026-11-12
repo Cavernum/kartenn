@@ -332,6 +332,7 @@ fn policy(values: &[&str], carriers: &[&str]) -> ModuleDeclarations {
             values.iter().map(|v| (*v).to_owned()).collect(),
         )],
         labels: std::collections::BTreeMap::new(),
+        external_systems: std::collections::BTreeMap::new(),
     }
 }
 
@@ -505,6 +506,85 @@ async fn an_administrator_label_survives_the_module_sync(pool: PgPool) {
         .is_empty(),
         "an administrator's labels are no longer the module's"
     );
+}
+
+/// A module that names the external system `kube` (ADR 0026, amendment 15).
+#[derive(Debug)]
+struct Orbit;
+
+impl kartenn_service::module::Module for Orbit {
+    fn name(&self) -> &'static str {
+        "orbit"
+    }
+    fn version(&self) -> &'static str {
+        "0.1.0"
+    }
+    fn declarations(&self) -> Option<ModuleDeclarations> {
+        Some(ModuleDeclarations {
+            module: "orbit".into(),
+            version: "0.1.0".into(),
+            properties: Vec::new(),
+            labels: std::collections::BTreeMap::new(),
+            external_systems: [(
+                "kube".to_owned(),
+                kartenn_core::labels::Compiled::new("Kubernetes", "Kubernetes"),
+            )]
+            .into(),
+        })
+    }
+}
+
+/// ADR 0026, amendment 15 (019/Q-019-38): the synchronisation of the declarations creates
+/// the external system a module names as a value of `core.external_system`, by the system
+/// author; an administrator relabels it afterwards, and the next synchronisation keeps it.
+#[kartenn_testing::pg_test]
+async fn module_declares_external_system(pool: PgPool) {
+    use kartenn_service::declarations::core_declarations_for;
+    use kartenn_service::module::ModuleRegistry;
+    let f = Fixture::new(&pool).await;
+    let registry = ModuleRegistry::new(vec![std::sync::Arc::new(Orbit)]).unwrap();
+    let declarations: Vec<ModuleDeclarations> = std::iter::once(core_declarations_for(&registry))
+        .chain(registry.modules().filter_map(|m| m.declarations()))
+        .collect();
+    let sync = || sync_modules(&f.store, &Unrestricted, &declarations, MAX_OPERATIONS);
+    sync().await.unwrap();
+    let system = f.property("core.external_system").await;
+    assert_eq!(f.current_enum_keys(system).await, vec!["kube"]);
+    let (author, labels): (Uuid, serde_json::Value) = sqlx::query_as(
+        "SELECT c.author_id, v.labels FROM property_enum_value v
+           JOIN changeset c ON c.id = v.changeset_id
+          WHERE v.property_id = $1 AND v.key = 'kube' AND v.valid_period @> now()",
+    )
+    .bind(system)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(author, SYSTEM_AUTHOR);
+    assert_eq!(
+        labels,
+        serde_json::json!({"fr": "Kubernetes", "en": "Kubernetes"})
+    );
+    // In line: nothing to do.
+    assert!(sync().await.unwrap().is_empty());
+    // Administrable like a delivered value: the administrator's labels survive.
+    f.applied(vec![Operation::UpdateEnumValue {
+        property: Ref::Id(system),
+        key: "kube".into(),
+        labels: [("fr".to_owned(), "Grappes".to_owned())].into(),
+    }])
+    .await;
+    let outcomes = sync().await.unwrap();
+    assert!(outcomes.is_empty(), "{outcomes:?}");
+    let labels: serde_json::Value = sqlx::query_scalar(
+        "SELECT labels FROM property_enum_value
+          WHERE property_id = $1 AND key = 'kube' AND valid_period @> now()",
+    )
+    .bind(system)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(labels, serde_json::json!({"fr": "Grappes"}));
+    assert_eq!(f.current_enum_keys(system).await, vec!["kube"]);
 }
 
 #[kartenn_testing::pg_test]
