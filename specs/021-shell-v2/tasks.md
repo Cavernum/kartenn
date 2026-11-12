@@ -3794,13 +3794,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     la fiche aligné ; région « aucun domaine » hors du paragraphe de l'`EmptyState` et
     `restarted` d'une liste qui masquait la phrase (`a11y-auditor`) ; `of` vide ;
     formulations (`inPlaceDatedOf`, `addNoDomain`).
-  - reste : une phrase de statut n'est jamais effacée (elle reste lisible au parcours
-    virtuel jusqu'à la suivante) ; sous `as_of`, « revenez au présent pour modifier » dit
-    aussi le refus de `c` (créer) ; la logique « vider puis dire » de la région se répète
-    dans quatre vues (un composable partagé, avec `useSay`) ; les vues d'administration
-    sous `as_of` ou sans droit restent muettes ; dans l'arbre de la Topographie, la phrase
-    datée d'une cellule renvoie à « Modifier » qui modifie le nœud choisi, non forcément la
-    ligne ; restitution par un vrai lecteur d'écran non éprouvée.
+  - passe de corrections (revue) : `useStatus` (`edit/say.ts`) porte la région de statut
+    des vues (liste, Topographie, fiche, onglets Contenu et Propriétés) : vidée puis dite,
+    vidée à un autre période ou d'autres droits (une phrase encore à venir abandonnée),
+    `clear` pour un autre objet (nœud choisi, fiche) ; la phrase datée du contenu suit
+    ce qui y mène : « « Modifier » ouvre le brouillon daté de {of}, non de cette ligne »
+    dans la fiche, la touche `e` ou « Ouvrir la fiche » puis « Modifier » à côté de l'arbre
+    (`edit.why.inPlaceDatedNode`, le panneau du nœud n'a pas de « Modifier ») ;
+    `whyWords(why, t, dated)` et `EditHint` `dated` reçoivent la phrase de l'hôte ; un nom
+    pas encore lu (vide ou l'identifiant) la laisse sans nom. Tests :
+    `refused-keys.test.ts` (refus sous `as_of` effacé au retour au présent, liste et
+    fiche ; phrase du contenu à côté de l'arbre).
+  - reste : sous `as_of`, « revenez au présent pour modifier » dit aussi le refus de `c`
+    (créer) ; les vues d'administration sous `as_of` ou sans droit restent muettes ; dans
+    l'arbre de la Topographie, la phrase datée d'une cellule renvoie à « Modifier » qui
+    modifie le nœud choisi, non forcément la ligne ; la touche `e` nommée par la phrase du
+    contenu à côté de l'arbre l'est aussi quand les raccourcis à une touche sont coupés ;
+    deux régions de statut dans la fiche (la sienne et celle de `ContentTab`) ; le test de
+    `e` sous `as_of` dans la Topographie ne prouve pas la phrase redite (une même phrase
+    deux fois) ; restitution par un vrai lecteur d'écran non éprouvée.
 - [ ] 12l. Captures des vrais écrans d'édition, à arbitrer : le projet `visual` n'a pas
   d'API ; il faudrait un banc de captures à API simulée, transverse (les 11, 14 et 17
   l'attendent aussi), plutôt qu'une tâche de la 12 — à la session principale ou à
