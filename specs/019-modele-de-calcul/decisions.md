@@ -610,6 +610,34 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Précision (session principale, 2026-11-12, application de X4) : les clés suivies sont
   celles de `kube.tracked_label` et celles que le cluster ajoute (`tracked_label_keys`).
 
+### Q-019-42 — Re-dérivation d'un changeset qui écrit plusieurs paramètres (tâche 7d3)
+- Constat : le pipeline complète chaque opération (`ModuleHandler::prepare`) sur l'état
+  d'avant le changeset, seule, puis planifie sans base ; une opération de paramètres ne
+  voit pas les autres. Un changeset qui écrit ensemble une correspondance et les valeurs
+  admises qui la rendent effective (cas d'acceptation de REQ-019-34) ne re-dériverait
+  rien : chaque opération seule ne donne aucune valeur, et l'état final, qui admet la
+  valeur, ne lève pas `kube.label.not_admitted`. Deux opérations sur un même workload
+  ajouteraient aussi deux affectations tirées d'états partiels.
+- Options : A. **crochet par changeset** : un module complète ensemble ses opérations du
+  changeset, une fois chacune préparée (amendement 16 de l'ADR 0026) ; B. crochet de fin
+  de planification qui rend des opérations du noyau à ajouter ; C. re-dérivation par
+  opération, juste pour un seul paramètre par changeset, fausse sans avertissement pour
+  plusieurs.
+- Décision (l'utilisateur, 2026-11-12) : A. `prepare_changeset(tx, operations, period)`,
+  sans effet par défaut, appelé une fois par module après les `prepare` par opération,
+  avec ses opérations du changeset dans l'ordre. `kube` y re-dérive les workloads
+  concernés par tous les paramètres du changeset, sur leur état final, une seule fois par
+  workload (les faits dans la dernière opération de paramètres), avec la dérivation de la
+  7d2 inchangée.
+
+- Précision de Q-019-36 (session principale, 2026-11-12, tâche 7d3 ; application de la
+  grammaire de la 024, M7) : « l'auteur doit tenir les droits de propriété sur l'effet,
+  sinon proposition » se lit comme toute écriture : sans `prop.<axe>.edit` sur un
+  workload dont la re-dérivation change l'axe, le changeset est refusé
+  (`prop.assignment.forbidden_effect`) ; avec l'édition mais sans
+  `prop.<axe>.approval.self`, il reste une proposition, appliquée par un validateur qui
+  tient `prop.<axe>.apply`.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;

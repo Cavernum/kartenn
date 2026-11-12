@@ -29,9 +29,12 @@ const NAMESPACE: &str = "kube.namespace";
 struct Env {
     pool: PgPool,
     store: PgStore,
+    registry: Arc<ModuleRegistry>,
     author: Uuid,
     connector: Uuid,
     cluster: Uuid,
+    /// The owner of the cluster and its domains.
+    acme: Uuid,
 }
 
 /// An assignment as stored: provenance, key of its value of a closed list, external
@@ -75,9 +78,11 @@ impl Env {
         let mut env = Self {
             pool: pool.clone(),
             store,
+            registry,
             author,
             connector,
             cluster: Uuid::nil(),
+            acme: Uuid::nil(),
         };
         env.applied(vec![Operation::CreateEntity {
             local: None,
@@ -86,6 +91,7 @@ impl Env {
         }])
         .await;
         let acme = env.id("entity", "slug", "acme").await;
+        env.acme = acme;
         let pods = env
             .domain(acme, "pods", "198.51.100.0/24", Nature::Container)
             .await;
@@ -138,6 +144,75 @@ impl Env {
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
             .unwrap()
+    }
+
+    /// `operations` submitted by `identity`, under the RBAC of the store.
+    async fn submit_as(&self, identity: Uuid, operations: Vec<Operation>) -> Outcome {
+        let request = ChangesetRequest {
+            author: identity,
+            motive: "test".into(),
+            period: None,
+            operations,
+            simulate: false,
+            idempotency_key: None,
+            approval_self: true,
+        };
+        let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(self.pool.clone())
+            .with_modules(self.registry.clone());
+        submit(&self.store, &authorizer, &request, MAX_OPERATIONS)
+            .await
+            .unwrap()
+    }
+
+    /// `identity` granted `permissions` on `acme` and what it owns, or everywhere.
+    async fn grant(&self, identity: Uuid, permissions: &[&str], acme: bool) {
+        let role = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+             VALUES ($1, $2, jsonb_build_object('fr', 'r'),
+                     tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(format!("r_{}", role.simple()))
+        .execute(&self.pool)
+        .await
+        .unwrap();
+        for permission in permissions {
+            sqlx::query(
+                "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+                 VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+            )
+            .bind(role)
+            .bind(permission)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        }
+        let (scope, id) = if acme {
+            ("entity", Some(self.acme))
+        } else {
+            ("global", None)
+        };
+        sqlx::query(kartenn_testing::BIND_IDENTITY)
+            .bind(identity)
+            .bind(role)
+            .bind(scope)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+    }
+
+    /// A new person holding `permissions` everywhere.
+    async fn granted(&self, permissions: &[&str]) -> Uuid {
+        let identity: Uuid = sqlx::query_scalar(
+            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'g') RETURNING id",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap();
+        self.grant(identity, permissions, false).await;
+        identity
     }
 
     async fn applied(&self, operations: Vec<Operation>) {
@@ -451,7 +526,8 @@ async fn label_mapping_admitted(pool: PgPool) {
         .await;
     assert_eq!(env.versions(ledger, EXPOSURE).await, 1);
     assert_eq!(env.versions(ledger, NAMESPACE).await, 1);
-    // Admitted in `shop` afterwards: set at the next upsert, the anomaly closed.
+    // Admitted in `shop` afterwards: set by the changeset of the settings (Q-019-36), the
+    // next upsert unchanged, the anomaly closed.
     env.applied(vec![admitted(shop, &["externe", "interne"])])
         .await;
     env.applied(vec![deployment(env.cluster, "shop", "cart", None)])
@@ -690,4 +766,357 @@ async fn untracked_label_ignored(pool: PgPool) {
     assert_eq!(exposure.value.as_deref(), Some("interne"));
     assert_eq!(exposure.provenance, "module:kube#label:app");
     assert!(env.anomaly(cart, "kube.label.not_admitted").await);
+}
+
+/// The changeset of the living mapping of `tier=<label>`.
+async fn mapping_changeset(env: &Env, label: &str) -> Uuid {
+    sqlx::query_scalar(
+        "SELECT changeset_id FROM kube.label_mapping
+          WHERE label_value = $1 AND valid_period @> now()",
+    )
+    .bind(label)
+    .fetch_one(&env.pool)
+    .await
+    .unwrap()
+}
+
+/// REQ-019-34, Q-019-36, 42: the changeset that writes settings re-derives, in its
+/// transaction, the workloads they concern from their stored labels, on the final state of
+/// all its settings: a mapping and the values that admit it, written together, set the
+/// value; a value not admitted warns, the anomaly closed once admitted; a mapping closed
+/// removes what it gave; a label key tracked afterwards gives its value. A workload no
+/// setting concerns is left as it is.
+#[kartenn_testing::pg_test]
+async fn settings_rederive_workloads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let payments = env.namespace("payments").await;
+    env.applied(vec![
+        deployment(
+            env.cluster,
+            "payments",
+            "ledger",
+            Some(json!({"tier": "db"})),
+        ),
+        deployment(
+            env.cluster,
+            "payments",
+            "cache",
+            Some(json!({"tier": "cache"})),
+        ),
+        deployment(
+            env.cluster,
+            "payments",
+            "front",
+            Some(json!({"app": "front"})),
+        ),
+    ])
+    .await;
+    let (ledger, cache, front) = (
+        env.workload("ledger").await,
+        env.workload("cache").await,
+        env.workload("front").await,
+    );
+    let batch = env.written_by(ledger).await;
+    // Together: neither alone would give a value.
+    env.applied(vec![
+        mapping("db", EXPOSURE, "interne"),
+        admitted(payments, &["interne"]),
+    ])
+    .await;
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("re-derived");
+    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.provenance, "module:kube#label:tier");
+    assert_eq!(exposure.changeset, mapping_changeset(&env, "db").await);
+    assert_eq!(
+        env.written_by(ledger).await,
+        batch,
+        "the workload unchanged"
+    );
+    assert_eq!(env.versions(ledger, EXPOSURE).await, 1);
+    assert_eq!(
+        env.versions(ledger, NAMESPACE).await,
+        1,
+        "kube.namespace left as kube.sync set it"
+    );
+    assert!(env.assignment(cache, EXPOSURE).await.is_none());
+    // A value not admitted: ignored, the warning raised on the workload not written.
+    env.applied(vec![mapping("cache", EXPOSURE, "externe")])
+        .await;
+    assert!(env.assignment(cache, EXPOSURE).await.is_none());
+    assert!(env.anomaly(cache, "kube.label.not_admitted").await);
+    env.applied(vec![admitted(payments, &["externe", "interne"])])
+        .await;
+    let exposure = env.assignment(cache, EXPOSURE).await.expect("admitted");
+    assert_eq!(exposure.value.as_deref(), Some("externe"));
+    assert!(!env.anomaly(cache, "kube.label.not_admitted").await);
+    assert_eq!(env.versions(ledger, EXPOSURE).await, 1, "ledger untouched");
+    // The mapping closed: what it gave is removed.
+    let db = env.id("kube.label_mapping", "label_value", "db").await;
+    env.applied(vec![op(
+        "set_label_mapping",
+        json!({"action": "close", "id": {"id": db}}),
+    )])
+    .await;
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+    assert!(env.assignment(cache, EXPOSURE).await.is_some());
+    // A key tracked with its mapping, in one changeset.
+    env.applied(vec![
+        op(
+            "set_label_mapping",
+            json!({
+                "action": "upsert", "label_key": "app", "label_value": "front",
+                "axis": EXPOSURE, "value": "externe",
+            }),
+        ),
+        tracked(&["app", "tier"]),
+    ])
+    .await;
+    let exposure = env.assignment(front, EXPOSURE).await.expect("tracked");
+    assert_eq!(exposure.provenance, "module:kube#label:app");
+    // The key no longer tracked: removed again.
+    env.applied(vec![tracked(&["tier"])]).await;
+    assert!(env.assignment(front, EXPOSURE).await.is_none());
+    assert!(env.assignment(cache, EXPOSURE).await.is_some());
+    // The settings are written in the present: a period of their own is refused.
+    let start: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM now() + interval '1 day') * 1000000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    for setting in [
+        mapping("db", EXPOSURE, "interne"),
+        admitted(payments, &["interne"]),
+        tracked(&["app", "tier"]),
+    ] {
+        env.refused(
+            vec![Operation::Within {
+                period: kartenn_service::operations::PeriodSpec { start, end: None },
+                operation: Box::new(setting),
+            }],
+            "kube.operation.invalid",
+        )
+        .await;
+    }
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+}
+
+/// Q-019-36, review of task 019-7d3b: a batch that changes the labels of a workload while
+/// a changeset of the settings waits for the lock of its cluster has the changeset
+/// replayed, which derives from the labels committed, never from those it first read.
+#[kartenn_testing::pg_test]
+async fn settings_rederive_replayed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let payments = env.namespace("payments").await;
+    env.applied(vec![admitted(payments, &["externe", "interne"])])
+        .await;
+    env.applied(vec![deployment(
+        env.cluster,
+        "payments",
+        "ledger",
+        Some(json!({"tier": "db"})),
+    )])
+    .await;
+    let ledger = env.workload("ledger").await;
+    // A batch of the cluster, its lock held, moves `ledger` from `tier=db` to `tier=cache`.
+    let key = format!("kube.cluster:{}", env.cluster);
+    let mut batch = pool.begin().await.unwrap();
+    let bucket: i32 = sqlx::query_scalar(
+        "SELECT b FROM (SELECT hashtext($2) & 1023 AS b) s, pg_advisory_xact_lock($1, s.b)",
+    )
+    .bind(0x6b61_726b_i32)
+    .bind(&key)
+    .fetch_one(&mut *batch)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE kube.workload SET labels = '{\"tier\": \"cache\"}'
+          WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(ledger)
+    .execute(&mut *batch)
+    .await
+    .unwrap();
+    let waiting = async {
+        loop {
+            let waits: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks
+                                 WHERE locktype = 'advisory' AND NOT granted
+                                   AND database = (SELECT oid FROM pg_database
+                                                    WHERE datname = current_database())
+                                   AND classid = $1::oid AND objid = $2::oid AND objsubid = 2)",
+            )
+            .bind(0x6b61_726b_i64)
+            .bind(i64::from(bucket))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if waits {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        batch.commit().await.unwrap();
+    };
+    // The mapping of `tier=db`, read on `ledger` before the lock.
+    let (outcome, ()) = tokio::join!(
+        env.submit(vec![mapping("db", EXPOSURE, "interne")]),
+        waiting
+    );
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        env.assignment(ledger, EXPOSURE).await.is_none(),
+        "derived from the labels committed"
+    );
+}
+
+/// Q-019-36 (precision of 2026-11-12), under the RBAC of the store: the author of the
+/// settings needs the rights of the property on the effect, refused without
+/// `prop.<axis>.edit`, pending without `prop.<axis>.approval.self`; the connector, under a
+/// role equivalent to `kube_connector` (ADR 0044, 7), is not held by a mapping to an axis
+/// `custom.*`.
+#[kartenn_testing::pg_test]
+async fn settings_rederive_rights(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let payments = env.namespace("payments").await;
+    env.applied(vec![admitted(payments, &["externe", "interne"])])
+        .await;
+    env.applied(vec![deployment(
+        env.cluster,
+        "payments",
+        "ledger",
+        Some(json!({"tier": "db"})),
+    )])
+    .await;
+    let ledger = env.workload("ledger").await;
+    let settings = [
+        "kube.cluster.read",
+        "kube.namespace.read",
+        "kube.workload.read",
+        "kube.settings.edit",
+        "kube.settings.approval.self",
+    ];
+    let blind = env.granted(&settings).await;
+    let outcome = env
+        .submit_as(blind, vec![mapping("db", EXPOSURE, "interne")])
+        .await;
+    let Outcome::Refused { violations, .. } = &outcome else {
+        panic!("not refused: {outcome:?}");
+    };
+    let forbidden = violations
+        .iter()
+        .find(|v| v.rule.id == "prop.assignment.forbidden_effect")
+        .unwrap_or_else(|| panic!("{outcome:?}"));
+    assert!(forbidden.subjects.contains(&ledger), "{forbidden:?}");
+    assert!(
+        forbidden.message.contains("prop.custom.exposure.edit"),
+        "{forbidden:?}"
+    );
+    let editor = env
+        .granted(&[&settings[..], &["prop.custom.exposure.edit"]].concat())
+        .await;
+    let outcome = env
+        .submit_as(editor, vec![mapping("db", EXPOSURE, "interne")])
+        .await;
+    let Outcome::Pending { changeset, .. } = outcome else {
+        panic!("not pending: {outcome:?}");
+    };
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+    // The proposal applied by a validator holding `apply`: the hook runs again on the
+    // state of the validation, the value derived in its changeset.
+    let validator = env
+        .granted(
+            &[
+                &settings[..],
+                &["kube.settings.apply", "prop.custom.exposure.apply"],
+            ]
+            .concat(),
+        )
+        .await;
+    let authorizer = kartenn_store_pg::rbac::PgAuthorizer::new(env.pool.clone())
+        .with_modules(env.registry.clone());
+    let validated = kartenn_service::review::validate_pending(
+        &env.store,
+        &authorizer,
+        &kartenn_service::expected::Sources::none(),
+        changeset,
+        &validator.into(),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(validated, Outcome::Applied { .. }),
+        "{validated:?}"
+    );
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("validated");
+    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.changeset, changeset);
+    let applier = env
+        .granted(
+            &[
+                &settings[..],
+                &[
+                    "prop.custom.exposure.edit",
+                    "prop.custom.exposure.approval.self",
+                ],
+            ]
+            .concat(),
+        )
+        .await;
+    let outcome = env
+        .submit_as(applier, vec![mapping("db", EXPOSURE, "externe")])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("re-derived");
+    assert_eq!(exposure.value.as_deref(), Some("externe"));
+    // The connector, under its role on the domains of the cluster: a mapping it never
+    // asked for does not hold its batch.
+    env.applied(vec![mapping("cache", EXPOSURE, "externe")])
+        .await;
+    let connector = [
+        "kube.cluster.read",
+        "kube.node.read",
+        "kube.node.edit",
+        "kube.node.approval.self",
+        "kube.namespace.read",
+        "kube.namespace.edit",
+        "kube.namespace.approval.self",
+        "kube.workload.read",
+        "kube.workload.edit",
+        "kube.workload.approval.self",
+        "kube.service.read",
+        "kube.service.edit",
+        "kube.service.approval.self",
+        "kube.ingress.read",
+        "kube.ingress.edit",
+        "kube.ingress.approval.self",
+        "core.domain.read",
+        "core.prefix.read",
+        "core.prefix.edit",
+        "core.prefix.approval.self",
+        "core.address.read",
+        "core.address.edit",
+        "core.address.approval.self",
+        "prop.*.edit",
+        "prop.*.approval.self",
+        "kube.observation.record",
+    ];
+    env.grant(env.connector, &connector, true).await;
+    let outcome = env
+        .submit_as(
+            env.connector,
+            vec![deployment(
+                env.cluster,
+                "payments",
+                "cache",
+                Some(json!({"tier": "cache"})),
+            )],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let cache = env.workload("cache").await;
+    let exposure = env.assignment(cache, EXPOSURE).await.expect("derived");
+    assert_eq!(exposure.value.as_deref(), Some("externe"));
+    assert!(env.assignment(cache, NAMESPACE).await.is_some());
 }

@@ -463,6 +463,59 @@ async fn named_lock_keys_do_not_deadlock(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM dummy.thing").await, 20);
 }
 
+/// ADR 0026, amendment 16 (019/Q-019-42): once each operation is prepared, a module
+/// completes its operations of the changeset together, in their order, those of a
+/// `Within` included, on the state of the transaction; a changeset without an operation
+/// of the module does not call it.
+#[kartenn_testing::pg_test]
+async fn module_prepares_changeset(pool: PgPool) {
+    use std::sync::atomic::Ordering;
+    let prepared = || dummy::CHANGESETS_PREPARED.load(Ordering::SeqCst);
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    applied(&store, author, vec![domain(1, "only-core")]).await;
+    assert_eq!(prepared(), 0, "no operation of the module, no call");
+    applied(
+        &store,
+        author,
+        vec![dummy::create_thing(json!({"label": "a"}))],
+    )
+    .await;
+    assert_eq!(prepared(), 1);
+    let start: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM now() + interval '1 day') * 1000000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let within = Operation::Within {
+        period: kartenn_service::operations::PeriodSpec { start, end: None },
+        operation: Box::new(dummy::create_thing(json!({"label": dummy::SEEN}))),
+    };
+    applied(
+        &store,
+        author,
+        vec![
+            dummy::create_thing(json!({"label": "x"})),
+            domain(1, "between"),
+            within,
+            dummy::create_thing(json!({"label": "y"})),
+        ],
+    )
+    .await;
+    assert_eq!(prepared(), 2, "one call for the changeset");
+    // Every operation of the module, in its order, and the state before the changeset.
+    thing(&pool, "x+$seen+y|1").await;
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM dummy.thing WHERE label = '$seen'"
+        )
+        .await,
+        0
+    );
+}
+
 /// Applies `operations`, returns the changeset.
 async fn applied(store: &PgStore, author: Uuid, operations: Vec<Operation>) -> Uuid {
     let outcome = submit(

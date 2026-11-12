@@ -495,6 +495,26 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(())))
     }
 
+    /// Completes the operations of the module in the changeset together, once each is
+    /// prepared ([`Self::prepare`]) and before any is planned (ADR 0026, amendment 16;
+    /// 019/Q-019-42): an effect that depends on several of them (the settings of a module
+    /// that derive the values of objects) is computed on all of them at once. `operations`
+    /// are those of the module, in their order, those of a `Within` included, as
+    /// `prepare` completed them; `period` is the changeset's. The module reads the state
+    /// of the transaction without writing it and completes their bodies, neither adding,
+    /// removing nor reordering them. Called once per module with at least one operation
+    /// in the changeset, never for another; again when a pending changeset is validated
+    /// (REQ-004-21). Nothing by default.
+    fn prepare_changeset<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operations: &'a mut [&'a mut ModuleOperation],
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let _ = (tx, operations, period);
+        Box::pin(std::future::ready(Ok(())))
+    }
+
     /// Decodes and checks `operation` locally; `object` is the identifier of the object it
     /// creates, if any; `resolve` gives the object of a reference (`None` for a local name
     /// no earlier operation defines).

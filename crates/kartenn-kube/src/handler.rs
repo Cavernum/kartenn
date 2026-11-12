@@ -118,7 +118,7 @@ fn invalid(message: impl Into<String>) -> Violation {
 
 /// The lock key of the writes of a cluster: two batches of a cluster do not cross
 /// (design « Opérations »).
-fn cluster_key(cluster: Uuid) -> String {
+pub(crate) fn cluster_key(cluster: Uuid) -> String {
     format!("kube.cluster:{cluster}")
 }
 
@@ -2085,6 +2085,21 @@ impl ModuleHandler for Handler {
         })
     }
 
+    /// The settings of a changeset re-derive, on their final state, the workloads they
+    /// concern (Q-019-36, 42).
+    fn prepare_changeset<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operations: &'a mut [&'a mut ModuleOperation],
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let (at, _) = pg::bounds(period);
+            let conn = connection(tx)?;
+            crate::settings::complete_changeset(conn, operations, at).await
+        })
+    }
+
     fn plan(
         &self,
         operation: &ModuleOperation,
@@ -2182,6 +2197,8 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
+            // What a re-derivation by the settings read, checked under the locks (Q-019-36).
+            crate::settings::recheck(tx, plan, period).await?;
             // A closure: the core ends the object, then the module's rows (`close`).
             if plan.data.get("noop").is_some() {
                 return Ok(());
@@ -2389,10 +2406,15 @@ impl ModuleHandler for Handler {
             // Who writes, whatever the changeset writes (019/X5, X10).
             let conn = connection(tx)?;
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
+            found.extend(crate::settings::within(context.operations));
             let mut reevaluated = absences(conn, context, &mut found).await?;
             reevaluated.extend(held(conn, context, &mut found).await?);
-            // The axes the server derives (Q-019-33, 39).
-            let workloads = of(workload_kind());
+            // The axes the server derives (Q-019-33, 39), on the workloads written and those
+            // the settings re-derive (Q-019-36).
+            let mut workloads = of(workload_kind());
+            workloads.extend(crate::settings::rederived(context.operations));
+            workloads.sort_unstable();
+            workloads.dedup();
             reevaluated
                 .extend(crate::derivation::check(conn, context, &workloads, &mut found).await?);
             // The machines the changeset writes, whatever else it writes (REQ-019-3).

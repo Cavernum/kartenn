@@ -23,13 +23,14 @@ use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{ModuleObjectRow, ModulePlan, ModuleTx};
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
-use kartenn_service::port::{StoreError, WriteError};
+use kartenn_service::port::{STALE_VERSION, StoreError, WriteError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::derivation::{Recheck, Rederived};
 use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, NAMESPACE_AXIS, TRACKED_LABEL, WORKLOAD};
 use crate::names::{LabelKey, LabelValue};
 use crate::pg::{
@@ -134,6 +135,144 @@ struct Completed {
     /// operation of a client, [`prepare`] replaces it (refused then).
     #[serde(default)]
     create: Option<String>,
+    /// The workloads the settings of the changeset concern, with what their derivation
+    /// reads on the final state of the settings: in its last operation of the settings
+    /// alone ([`complete_changeset`], Q-019-42).
+    #[serde(default)]
+    rederive: Vec<Rederived>,
+    /// What the re-derivation read, read again once the locks are taken.
+    #[serde(default)]
+    recheck: Option<Recheck>,
+}
+
+/// Completes the operations of the module in a changeset once each is prepared (ADR 0026,
+/// amendment 16; Q-019-36, 42): the last operation of the settings receives the
+/// workloads all of them concern, derived once each on the final state of the settings.
+pub(crate) async fn complete_changeset(
+    conn: &mut PgConnection,
+    operations: &mut [&mut ModuleOperation],
+    at: Option<OffsetDateTime>,
+) -> Result<(), StoreError> {
+    let Some(last) = operations.iter().rposition(|o| is_setting(&o.name)) else {
+        return Ok(());
+    };
+    let settings: Vec<&ModuleOperation> = operations
+        .iter()
+        .filter(|o| is_setting(&o.name))
+        .map(|o| &**o)
+        .collect();
+    let (rederived, recheck) = crate::derivation::rederive(conn, &settings, at).await?;
+    let operation = &mut *operations[last];
+    let mut completed = completed_of(operation);
+    completed.rederive = rederived;
+    completed.recheck = recheck;
+    operation.body.insert(
+        "completed".into(),
+        serde_json::to_value(&completed).expect("a JSON object"),
+    );
+    Ok(())
+}
+
+/// Reads again, once the locks are taken, what the re-derivation of `plan` read: when a
+/// batch committed while this changeset waited for its locks has changed the labels of a
+/// workload, or which workloads are concerned, the changeset is replayed in a new
+/// transaction (`STALE_VERSION`, task 021-22p), which reads them anew.
+pub(crate) async fn recheck(
+    tx: &mut dyn ModuleTx,
+    plan: &ModulePlan,
+    period: Option<Period>,
+) -> Result<(), WriteError> {
+    let Some(recheck) = plan.data.get("recheck") else {
+        return Ok(());
+    };
+    let recheck: Recheck =
+        serde_json::from_value(recheck.clone()).map_err(|e| StoreError(e.to_string()))?;
+    let conn = connection(tx)?;
+    let (at, _) = pg::bounds(period);
+    match crate::derivation::changed(conn, &recheck, at).await? {
+        Some(workload) => Err(StoreError(format!(
+            "{STALE_VERSION} {workload} changed while the settings waited for their locks"
+        ))
+        .into()),
+        None => Ok(()),
+    }
+}
+
+/// The settings written over a period of their own (a `Within`) among the author's
+/// `operations`, refused: the settings are written in the present, their re-derivation
+/// reading the period of the changeset (Q-019-42).
+pub(crate) fn within(operations: &[Operation]) -> Vec<Violation> {
+    operations
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| {
+            matches!(o, Operation::Within { .. })
+                && matches!(o.inner(), Operation::Module(m) if m.module == "kube" && is_setting(&m.name))
+        })
+        .map(|(i, _)| {
+            invalid(format!(
+                "the operation at position {i} writes the settings within a period of its own: the settings are written in the present"
+            ))
+        })
+        .collect()
+}
+
+/// The workloads the settings of `operations`, prepared, re-derive: their rules of the
+/// derivation are evaluated anew (`kube.label.not_admitted`, `kube.label.conflict`).
+pub(crate) fn rederived(operations: &[Operation]) -> Vec<Uuid> {
+    operations
+        .iter()
+        .filter_map(|o| match o.inner() {
+            Operation::Module(m) if m.module == "kube" && is_setting(&m.name) => Some(m),
+            _ => None,
+        })
+        .flat_map(|m| completed_of(m).rederive)
+        .map(|r| r.workload)
+        .collect()
+}
+
+fn completed_of(operation: &ModuleOperation) -> Completed {
+    operation
+        .body
+        .get("completed")
+        .cloned()
+        .and_then(|c| serde_json::from_value(c).ok())
+        .unwrap_or_default()
+}
+
+/// Adds to `plan` the assignments and removals of the core the derivation of `rederived`
+/// plans (the provenances by position, read back by the handler's `provenance`), under the
+/// locks of their clusters: a batch of a cluster does not cross the re-derivation.
+fn with_rederived(mut plan: ModulePlan, completed: &Completed) -> ModulePlan {
+    if let Some(recheck) = &completed.recheck {
+        plan.data["recheck"] = json!(recheck);
+    }
+    let rederived = &completed.rederive;
+    if rederived.is_empty() {
+        return plan;
+    }
+    let workload = ModuleKind::parse(WORKLOAD).expect("a valid kind");
+    let mut provenances: Vec<Option<String>> = vec![None; plan.core.len()];
+    for r in rederived {
+        let derived = crate::derivation::derive(
+            &r.facts,
+            workload,
+            r.workload,
+            r.cluster,
+            &r.namespace,
+            None,
+        );
+        for (operation, provenance) in derived {
+            plan.core.push(operation);
+            provenances.push(provenance);
+        }
+        let key = crate::handler::cluster_key(r.cluster);
+        if !plan.keys.contains(&key) {
+            plan.keys.push(key);
+        }
+    }
+    plan.data["provenances"] = json!(provenances);
+    plan
 }
 
 /// The living object of `table` that matches `condition` (on the texts `$1` to `$n` of
@@ -377,11 +516,12 @@ pub(crate) fn plan(
     object: Uuid,
     resolve: &dyn Fn(Ref) -> Option<Uuid>,
 ) -> Result<ModulePlan, Violation> {
-    match operation.name.as_str() {
+    let plan = match operation.name.as_str() {
         "set_label_mapping" => plan_mapping(operation, object, resolve),
         "set_admitted_values" => plan_admitted(operation, object, resolve),
         _ => plan_tracked(operation, object),
-    }
+    }?;
+    Ok(with_rederived(plan, &completed_of(operation)))
 }
 
 /// The identifier the reference `field` of `body` names.
