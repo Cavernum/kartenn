@@ -2113,7 +2113,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Who had an address, or an address of a network, at an instant in the cluster (REQ-019-16, 17): the pods observed with it, their workload and node, and the pods in `hostNetwork` on a node that had it; under `kube.observation.read` on the pod domain of the cluster (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on). The journal has no dated read. Past the retention of the cluster, an empty page with the reason `retention`. A closed cluster is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`). */
+    get: operations["kube_cluster_observations"];
     put?: never;
     /** Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on); at most `batch_max_operations` lines; an instant to come is brought back to the instant of the batch, counted in its event; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer). */
     post: operations["record_kube_observations"];
@@ -4363,6 +4364,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workloads/{id}/observations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Where the workload ran (REQ-019-17): its pods observed with their nodes and addresses, still within the retention of its cluster; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). The journal has no dated read. A closed workload, or one of a closed cluster, is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`). */
+    get: operations["kube_workload_observations"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workloads/{id}/properties": {
     parameters: {
       query?: never;
@@ -6105,6 +6123,39 @@ export interface components {
       /** Format: uuid */
       id: string;
     };
+    /** @description A pod observed, over its period: a row of the journal. */
+    KubeObservation: {
+      /**
+       * Format: uuid
+       * @description The batch that closed it.
+       */
+      closed_batch?: string | null;
+      /** @description Since when it was seen (RFC 3339). */
+      from: string;
+      /** @description Whether it shared the network of its node. */
+      host_network: boolean;
+      /** @description Its IP; `null` in `hostNetwork`, where the address is the node's. */
+      ip?: string | null;
+      /** @description Its namespace, by name. */
+      namespace: string;
+      node?: components["schemas"]["KubeObjectRef"] | null;
+      /**
+       * Format: uuid
+       * @description The batch that opened the observation, as its event `observation.batch.recorded`
+       *     names it.
+       */
+      opened_batch: string;
+      /** @description Its name. */
+      pod_name: string;
+      /**
+       * Format: uuid
+       * @description Its Kubernetes UID.
+       */
+      pod_uid: string;
+      /** @description When it was gone (RFC 3339); `null` while it is still seen. */
+      until?: string | null;
+      workload?: components["schemas"]["KubeObjectRef"] | null;
+    };
     /**
      * @description A batch of the connector of a cluster: at most `batch_max_operations` lines of the
      *     cluster in all, accepted or refused whole.
@@ -6182,6 +6233,11 @@ export interface components {
       pod_uid: string;
       workload?: components["schemas"]["KubeObjectRef"] | null;
     };
+    /**
+     * @description Why a page of the journal is empty though rows may still be stored.
+     * @enum {string}
+     */
+    KubeObservationReason: "retention";
     /** @description The dictionary of labels for one language. */
     Labels: {
       /** @description The system time asked for, when one was. */
@@ -6634,6 +6690,14 @@ export interface components {
       items: components["schemas"]["Interface"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of the journal. */
+    Listing_KubeObservation: {
+      /** @description The observations of the page, by start, pod and IP. */
+      items: components["schemas"]["KubeObservation"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+      reason?: components["schemas"]["KubeObservationReason"] | null;
     };
     /** @description A page of a list, as answered. */
     Listing_Machine: {
@@ -16907,6 +16971,54 @@ export interface operations {
       };
     };
   };
+  kube_cluster_observations: {
+    parameters: {
+      query: {
+        /**
+         * @description An address, or a network `address/length` without host bits (RFC 4632 §3.1): the
+         *     pods that had one of its addresses, and those in `hostNetwork` on a node that had
+         *     one.
+         */
+        ip: string;
+        /** @description The instant, RFC 3339 with its offset. */
+        at: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of observations, by start, pod and IP. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeObservation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   record_kube_observations: {
     parameters: {
       query?: never;
@@ -24637,6 +24749,46 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_workload_observations: {
+    parameters: {
+      query?: {
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The workload. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of observations, by start, pod and IP. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeObservation"];
         };
       };
       /** @description A problem (RFC 9457). */

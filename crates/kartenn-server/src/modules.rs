@@ -299,6 +299,31 @@ mod tests {
         }
     }
 
+    /// ADR 0043, decision 2: no delivered role of the reader, the editor or the approver
+    /// holds a right of the observations of a module (`kube.observation.read`,
+    /// `kube.observation.record`); `*` covers them.
+    #[test]
+    fn no_delivered_role_holds_an_observation_permission() {
+        use kartenn_core::authz::{APPROVER, EDITOR, READER};
+        let registry = super::registry().expect("the modules of the build");
+        let permissions = registry.permissions();
+        let observations: Vec<&str> = permissions
+            .iter()
+            .map(|p| p.name)
+            .filter(|name| name.split('.').nth(1) == Some("observation"))
+            .collect();
+        assert!(
+            observations.contains(&"kube.observation.read"),
+            "{observations:?}"
+        );
+        for role in [&READER, &EDITOR, &APPROVER] {
+            let entries = role.entries_with(&permissions);
+            for name in &observations {
+                assert!(!entries.contains(name), "{}: {name}", role.key);
+            }
+        }
+    }
+
     /// REQ-018-6, REQ-024-9: no old permission name is left in the repository, outside the
     /// renaming table, the migrations, the migration of the custom roles and their tests,
     /// and the decision logs.

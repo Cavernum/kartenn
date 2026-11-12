@@ -122,6 +122,7 @@ module) relèvent de `<déclarant>.settings.*`, le déclarant lu dans la clé
 | `kube.ingress.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un ingress Kubernetes. |
 | `kube.ingress.approval.self` | — | Appliquer son propre changeset qui touche un ingress Kubernetes. |
 | `kube.observation.record` | — | Écrire un lot d'observations au journal des pods d'un cluster Kubernetes (son connecteur seulement). |
+| `kube.observation.read` | — | Lire le journal des pods observés d'un cluster Kubernetes : quel pod avait une adresse, où un workload a tourné. |
 
 ## Rôles livrés
 

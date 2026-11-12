@@ -383,6 +383,20 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   `observation.batch.recorded` porte en outre `clamped` (lignes ramenées) et `skew_max`
   (plus grande avance, en millisecondes comme les durées du catalogue, 0 sans elles).
 
+### Q-019-28 — Journal d'un objet clos (revue de la tâche 6d)
+- Constat : les lectures de la 6d ne lisent qu'un cluster ou un workload vivant ; clos,
+  il répond comme un absent (404), et `who_had` omet en silence un cluster clos du
+  domaine, alors que ses lignes restent stockées jusqu'à la fin de leur rétention.
+- Options : A. lisibles dans la rétention (le journal d'un objet clos se lit jusqu'à sa
+  purge) ; B. illisibles, mais dit (la réponse dit que l'objet est clos).
+- Décision (l'utilisateur, 2026-11-12) : B. La visibilité s'applique d'abord : invisible
+  ou absent → même 404. Visible et clos : la route d'un cluster clos, et celle d'un
+  workload clos ou d'un cluster clos, répondent 410 `gone` (classe générique du noyau) ;
+  `who_had` rend `reason: "closed"` pour un cluster clos du domaine qui vivait encore à
+  l'instant demandé, dans sa rétention. Plusieurs motifs : un cluster dont l'instant est
+  passé la rétention compte `retention`, même clos ; `closed` l'emporte sur `retention`
+  dans la réponse, car il dit que des lignes sont gardées sans être servies.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;

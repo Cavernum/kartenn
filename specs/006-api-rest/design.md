@@ -532,6 +532,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Sans authentification, jeton invalide | 401 | `unauthenticated` |
 | Droit manquant pour une action hors changeset sur un objet visible (lecture d'administration, action sur un changeset, filtre de sortie), CSRF | 403 | `forbidden`, `cross-site-request` |
 | Objet absent ou invisible | 404 | `not-found` |
+| Objet visible mais clos, dont la route ne sert pas un objet clos (journal d'un cluster ou d'un workload clos, spec 019, Q-019-28) | 410 | `gone` |
 | Annulation en conflit, état d'un changeset incompatible, idempotence en cours, morceau différent | 409 | `conflict`, `undo-conflict`, `idempotency-in-progress` |
 | ETag périmé | 412 | `precondition-failed` |
 | Corps trop gros | 413 | `payload-too-large` |

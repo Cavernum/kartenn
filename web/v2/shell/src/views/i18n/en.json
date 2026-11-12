@@ -19,6 +19,7 @@
       "forbidden": "You are not allowed to do this.",
       "cross-site-request": "Request refused: it did not come from kartenn.",
       "not-found": "This object does not exist at these dates, or no longer.",
+      "gone": "This object is closed: what it held is no longer read.",
       "method-not-allowed": "This action is not possible here.",
       "not-acceptable": "The server cannot answer in this format.",
       "conflict": "The current state does not allow this action.",

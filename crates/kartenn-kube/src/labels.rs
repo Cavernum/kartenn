@@ -49,6 +49,10 @@ pub(crate) static ENGLISH: English = English {
             "kube.observation.record",
             "Write a batch of observations to the pod journal of a Kubernetes cluster (its connector only).",
         ),
+        (
+            "kube.observation.read",
+            "Read the pod journal of a Kubernetes cluster: which pod had an address, where a workload ran.",
+        ),
         ("kube.workload.read", "Read the Kubernetes workloads."),
         (
             "kube.workload.edit",

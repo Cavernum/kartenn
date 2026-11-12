@@ -29,6 +29,9 @@ pub enum ProblemKind {
     CrossSiteRequest,
     /// The object is absent or invisible.
     NotFound,
+    /// The object, visible, is closed, and what the route serves is not read of a closed
+    /// one (spec 019, Q-019-28: the journal of a closed cluster or workload).
+    Gone,
     /// The route does not take the method.
     MethodNotAllowed,
     /// No representation the client accepts (`Accept`).
@@ -84,13 +87,14 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
         Self::Forbidden,
         Self::CrossSiteRequest,
         Self::NotFound,
+        Self::Gone,
         Self::MethodNotAllowed,
         Self::NotAcceptable,
         Self::Conflict,
@@ -127,6 +131,7 @@ impl ProblemKind {
             Self::Forbidden => "forbidden",
             Self::CrossSiteRequest => "cross-site-request",
             Self::NotFound => "not-found",
+            Self::Gone => "gone",
             Self::MethodNotAllowed => "method-not-allowed",
             Self::NotAcceptable => "not-acceptable",
             Self::Conflict => "conflict",
@@ -164,6 +169,7 @@ impl ProblemKind {
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::CrossSiteRequest => StatusCode::FORBIDDEN,
             Self::NotFound | Self::Exhausted => StatusCode::NOT_FOUND,
+            Self::Gone => StatusCode::GONE,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::NotAcceptable => StatusCode::NOT_ACCEPTABLE,
             Self::Conflict | Self::UndoConflict | Self::IdempotencyInProgress => {
@@ -206,6 +212,7 @@ impl ProblemKind {
             Self::Forbidden => "Vous n'avez pas le droit de faire cela.",
             Self::CrossSiteRequest => "Requête refusée : elle ne vient pas de kartenn.",
             Self::NotFound => "Cet objet n'existe pas à ces dates, ou plus.",
+            Self::Gone => "Cet objet est clos : ce qu'il portait ne se lit plus.",
             Self::MethodNotAllowed => "Cette action n'est pas possible ici.",
             Self::NotAcceptable => "Le serveur ne sait pas répondre dans ce format.",
             Self::Conflict => "L'état actuel ne permet pas cette action.",
@@ -248,6 +255,7 @@ impl ProblemKind {
             Self::Forbidden => "You are not allowed to do this.",
             Self::CrossSiteRequest => "Request refused: it did not come from kartenn.",
             Self::NotFound => "This object does not exist at these dates, or no longer.",
+            Self::Gone => "This object is closed: what it held is no longer read.",
             Self::MethodNotAllowed => "This action is not possible here.",
             Self::NotAcceptable => "The server cannot answer in this format.",
             Self::Conflict => "The current state does not allow this action.",
@@ -291,6 +299,7 @@ impl ProblemKind {
             Self::Forbidden => "The action is not permitted",
             Self::CrossSiteRequest => "Cross-site request refused",
             Self::NotFound => "Not found",
+            Self::Gone => "Gone",
             Self::MethodNotAllowed => "Method not allowed",
             Self::NotAcceptable => "No acceptable representation",
             Self::Conflict => "The current state does not allow the action",
