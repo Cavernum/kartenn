@@ -39,7 +39,7 @@ import { useInlineEdit, whyWords } from "./edit/inline.ts";
 import { openEdit } from "./edit/panel.ts";
 import EditHint from "./edit/EditHint.vue";
 import QuickApply from "./edit/QuickApply.vue";
-import { useSay } from "./edit/say.ts";
+import { useSay, useStatus } from "./edit/say.ts";
 import {
   fieldText,
   isSummary,
@@ -144,12 +144,11 @@ useViewAction("filter", {
 });
 
 // In-place editing, and the edit panel behind `c` and `e`.
-const said = ref("");
-// Emptied first: the same sentence twice is said twice; « restarted » gives way to it.
+// The status of the list (`useStatus`); « restarted » gives way to a sentence.
+const { said, status } = useStatus();
 const say = useSay((text) => {
   restarted.value = false;
-  said.value = "";
-  void nextTick(() => (said.value = text));
+  status(text);
 });
 const edit = useInlineEdit({
   collection: () => props.collection,

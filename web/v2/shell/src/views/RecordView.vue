@@ -23,7 +23,7 @@ import {
   type MenuItem,
   type TabItem,
 } from "@kartenn/ui";
-import { computed, nextTick, ref, watchEffect } from "vue";
+import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "../data/query.ts";
@@ -46,6 +46,7 @@ import { useTime, writesOf } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
 import { whyWords } from "./edit/inline.ts";
 import { moveEntryRefusal } from "./edit/moves.ts";
+import { useStatus } from "./edit/say.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
   anchorOf,
@@ -184,7 +185,9 @@ function modify(): void {
 }
 // Refused, `e` says why by the status of the record, as « Modifier » says it on its button
 // (`blockedBy`: off the present first, `view.ts`).
-const said = ref("");
+const { said, status, clear: clearSaid } = useStatus();
+// Another object shown by the same view: what was said of the last one no longer holds.
+watch(() => props.id, clearSaid);
 useViewAction("edit", {
   label: () => t("edit.editThis", { kind: kindWords.value, name: name.value }),
   allowed: () => mayEdit.value && item.value !== undefined,
@@ -192,11 +195,7 @@ useViewAction("edit", {
     item.value === undefined
       ? undefined
       : whyWords({ kind: "forbidden", permission: editPermission.value }, t),
-  // Emptied first: the same sentence twice is said twice.
-  say: (text) => {
-    said.value = "";
-    void nextTick(() => (said.value = text));
-  },
+  say: status,
   run: modify,
   dated: true,
 });

@@ -38,7 +38,7 @@ import {
   type NodeEdit,
 } from "../edit/nodes.ts";
 import QuickApply from "../edit/QuickApply.vue";
-import { useSay } from "../edit/say.ts";
+import { useSay, useStatus } from "../edit/say.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "../data.ts";
@@ -95,7 +95,7 @@ const read = computed<Item[]>(() =>
 
 // In-place editing: the words of a closed list stand for its key in a cell.
 const words = useNodeWords();
-const said = ref("");
+const { said, status } = useStatus();
 const reread = () => void content.refetch();
 // Given once, by the host that mounts it (the tree beside it): never another one after.
 // Shared, the host says the outcomes (its status, its toasts): none here.
@@ -108,10 +108,7 @@ const edit =
     reread,
     t: (key, values) => t(key, values ?? {}),
     sentence: useProblems().sentence,
-    say: useSay((text) => {
-      said.value = "";
-      void nextTick(() => (said.value = text));
-    }),
+    say: useSay(status),
   });
 shared?.share({ grid: CONTENT_GRID, rows: () => read.value, reread });
 /** The motive asked here: its line under this grid (the tree's goes under the tree). */
@@ -123,9 +120,16 @@ const rows = computed<Row[]>(() =>
   }),
 );
 // Under a validity date, « Modifier » here changes the record or the node chosen, not the
-// row: the sentence of a cell names it (task 12k).
+// row: the sentence of a cell names it (task 12k), by what leads there — the record's
+// button, or beside the tree (shared) the key `e` and « Ouvrir la fiche ». No name read
+// yet: the sentence without it.
+const datedWords = computed(() =>
+  props.name === "" || props.name === props.id
+    ? undefined
+    : t(shared ? "edit.why.inPlaceDatedNode" : "edit.why.inPlaceDatedOf", { of: props.name }),
+);
 const readonlyReason = (row: Row, column: GridColumn) =>
-  whyWords(edit.why(column.id, row), t, props.name);
+  whyWords(edit.why(column.id, row), t, datedWords.value);
 /** The cell of the focus, and what its keys do or why it has no editor, under the grid. */
 const active = ref<CellRef | undefined>();
 const activeRow = computed(() =>
@@ -234,7 +238,7 @@ function onCancelAsk(): void {
       :why="activeWhy"
       :apply-lacks="applyLacks"
       :held="activeHeld"
-      :of="props.name"
+      :dated="datedWords"
     />
     <!-- Its own sentences; shared, the host's status says them. -->
     <span v-if="!shared" class="k-visually-hidden" role="status">{{ said }}</span>

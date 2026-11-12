@@ -1,7 +1,10 @@
 import type { PendingReason } from "@kartenn/sdk";
 import { injectToasts } from "@kartenn/ui";
+import { nextTick, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { useSession } from "../../rights/index.ts";
+import { useTime } from "../../time/index.ts";
 import type { InlineSay } from "./inline.ts";
 
 // The outcome of a write that went through, said by a toast of the frame (REQ-021-16): 200
@@ -25,6 +28,43 @@ export function heldWords(
   if (!reason) return undefined;
   const words = REASONS[reason.code];
   return words ? t(words) : (reason.message ?? undefined);
+}
+
+/** The sentence of a view's polite status region (`role="status"`), and how to set it. */
+export interface StatusLine {
+  said: Readonly<Ref<string>>;
+  /** Says `text`: emptied first, so that the same sentence twice is said twice. */
+  status: (text: string) => void;
+  /** Empties it: what it said no longer holds (another object). */
+  clear: () => void;
+}
+
+/**
+ * The status of a view, emptied once what it said may no longer hold: another period
+ * (a refusal « revenez au présent » is not left at the present), other rights; the view
+ * clears it for another object (`clear`). A sentence still to come is dropped too.
+ */
+export function useStatus(): StatusLine {
+  const said = ref("");
+  const time = useTime();
+  const session = useSession();
+  let turn = 0;
+  const clear = () => {
+    turn += 1;
+    said.value = "";
+  };
+  watch(() => [time.value.validAt, time.value.asOf, session.value.rights] as const, clear);
+  return {
+    said,
+    status(text) {
+      clear();
+      const mine = turn;
+      void nextTick(() => {
+        if (mine === turn) said.value = text;
+      });
+    },
+    clear,
+  };
 }
 
 export function useSay(status: (text: string) => void = () => {}): InlineSay {

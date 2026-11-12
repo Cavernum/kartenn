@@ -207,13 +207,77 @@ describe("the cell of a content grid under a validity date (task 021-12k)", () =
     const described = cell()!.getAttribute("aria-describedby")!.split(" ");
     const words = described.map((id) => document.getElementById(id)?.textContent).join(" ");
     expect(words).toContain(
-      "« Modifier » mène au brouillon daté, pour 192.0.2.0/24 et non pour cette ligne.",
+      "« Modifier » ouvre le brouillon daté de 192.0.2.0/24, non de cette ligne.",
     );
     // At the foot of the grid, the same words once the cell has the focus.
     cell()!.click();
     cell()!.focus();
     await expect
       .poll(() => root.textContent)
-      .toContain("brouillon daté, pour 192.0.2.0/24 et non pour cette ligne");
+      .toContain("« Modifier » ouvre le brouillon daté de 192.0.2.0/24, non de cette ligne.");
+  });
+
+  it("beside the tree of the Topography: the key `e` and « Ouvrir la fiche », no « Modifier » there", async () => {
+    const { root } = await mounted(
+      `/topology?node=${PREFIX}&valid_at=${VALID_AT}`,
+      ["core.prefix.read", "core.prefix.edit"],
+      (url) =>
+        url.startsWith("/v1/domains?") || url === "/v1/domains"
+          ? page([{ id: DOMAIN, slug: "production", links: { self: `/v1/domains/${DOMAIN}` } }])
+          : url.startsWith(`/v1/domains/${DOMAIN}/roots`)
+            ? page([NODE])
+            : url.startsWith(`/v1/prefixes/${PREFIX}/children`)
+              ? page([
+                  {
+                    kind: "prefix",
+                    id: CHILD,
+                    value: "192.0.2.0/25",
+                    nature: "network",
+                    version: "1",
+                    href: `/v1/prefixes/${CHILD}`,
+                  },
+                ])
+              : url.startsWith(`/v1/prefixes/${PREFIX}`)
+                ? { ...NODE, domain: DOMAIN, links: {} }
+                : page([]),
+    );
+    const cell = () =>
+      root.querySelector<HTMLElement>(
+        `[data-k-content] [data-row="${CHILD}"][data-column="detail"]`,
+      );
+    await expect.poll(() => cell()?.getAttribute("aria-describedby")).toBeTruthy();
+    const described = cell()!.getAttribute("aria-describedby")!.split(" ");
+    const words = described.map((id) => document.getElementById(id)?.textContent).join(" ");
+    expect(words).toContain(
+      "la touche e, ou « Ouvrir la fiche » puis « Modifier », ouvre le brouillon daté de 192.0.2.0/24, non de cette ligne.",
+    );
+  });
+});
+
+describe("a status sentence that no longer holds (task 021-12k)", () => {
+  it("a refusal under `as_of`, emptied once back at the present", async () => {
+    const author = ["core.prefix.read", "core.prefix.edit"];
+    const { root, router } = await mounted(`/prefixes?as_of=${AS_OF}`, author, () => page([]));
+    await expect.poll(() => root.querySelector('[role="status"]')).not.toBeNull();
+    expect(play("create", timeIn(router), t)).toBe(true);
+    await expect.poll(() => statuses(root)).toContain("<past>");
+    await router.push("/prefixes");
+    await expect.poll(() => statuses(root)).not.toContain("<past>");
+  });
+
+  it("the record: the refusal of `e` emptied at the present, and for another object", async () => {
+    const { root, router } = await mounted(
+      `/prefixes/${PREFIX}?as_of=${AS_OF}`,
+      ["core.prefix.read", "core.prefix.edit"],
+      (url) =>
+        url.includes("/properties")
+          ? { properties: {}, masked: [], explanation: {} }
+          : url.startsWith("/v1/prefixes/") && url.split("?")[0]!.split("/").length === 4
+            ? { ...NODE, domain: DOMAIN, links: {} }
+            : page([]),
+    );
+    await expect.poll(() => (play("edit", timeIn(router), t), statuses(root))).toContain("<past>");
+    await router.push(`/prefixes/${PREFIX}`);
+    await expect.poll(() => statuses(root)).not.toContain("<past>");
   });
 });

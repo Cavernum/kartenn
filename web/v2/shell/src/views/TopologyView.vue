@@ -75,7 +75,7 @@ import {
 } from "./edit/nodes.ts";
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
-import { useSay } from "./edit/say.ts";
+import { useSay, useStatus } from "./edit/say.ts";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
@@ -245,12 +245,9 @@ const levelOf = (parent: string | null) =>
 // served; after a 412, the level that holds the node is read again.
 const items = computed(() => [...results.keys()].flatMap(itemsOf));
 const itemById = computed(() => new Map(items.value.map((item) => [item.id, item])));
-const said = ref("");
-// Emptied first: the same sentence twice is said twice.
-const say = useSay((text) => {
-  said.value = "";
-  void nextTick(() => (said.value = text));
-});
+// The status of the view (`useStatus`: emptied at another period, other rights, another node).
+const { said, status, clear: clearSaid } = useStatus();
+const say = useSay(status);
 const words = useNodeWords();
 const edit = useNodeEdit({
   rows: () => items.value as unknown as Item[],
@@ -699,10 +696,11 @@ watch(
   () => [activeCell.value?.row, activeCell.value?.column, whyWords(focusWhy.value, t)] as const,
   ([row, column, words], [oldRow, oldColumn, oldWords]) => {
     if (!words || words === oldWords || row !== oldRow || column !== oldColumn) return;
-    said.value = "";
-    void nextTick(() => (said.value = words));
+    status(words);
   },
 );
+// What `c` or `e` said of the node chosen no longer holds for another.
+watch(() => chosen.value?.id, clearSaid);
 
 /** The line of the motive closed: the focus back to its cell. */
 async function afterAsk(cell: CellRef): Promise<void> {
