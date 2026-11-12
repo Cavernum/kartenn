@@ -916,8 +916,13 @@ async fn prepare_changeset<T: WriteTx>(
     core: Option<&Arc<dyn ModuleHandler>>,
     period: Option<Period>,
 ) -> Result<(), StoreError> {
+    let before: Vec<(String, String)> = if cfg!(debug_assertions) {
+        module_names(operations).collect()
+    } else {
+        Vec::new()
+    };
     let mut by_module: Vec<(Arc<dyn ModuleHandler>, Vec<&mut ModuleOperation>)> = Vec::new();
-    for op in operations {
+    for op in &mut *operations {
         if let Operation::Module(operation) = op.inner_mut()
             && let Some(handler) = handler_of(modules, core, operation)
         {
@@ -935,7 +940,20 @@ async fn prepare_changeset<T: WriteTx>(
             .prepare_changeset(tx.module_tx(), &mut ops, period)
             .await?;
     }
+    // The hook completes the bodies only (amendment 16).
+    debug_assert!(
+        module_names(operations).eq(before),
+        "prepare_changeset changed the module or the name of an operation"
+    );
     Ok(())
+}
+
+/// The module and the name of each operation of a module in `operations`, in their order.
+fn module_names(operations: &[Operation]) -> impl Iterator<Item = (String, String)> + '_ {
+    operations.iter().filter_map(|op| match op.inner() {
+        Operation::Module(m) => Some((m.module.clone(), m.name.clone())),
+        _ => None,
+    })
 }
 
 /// Completes `op`, if an operation of a module, on the state of the transaction.

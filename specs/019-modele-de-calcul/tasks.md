@@ -1724,7 +1724,19 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     neuve (`STALE_VERSION`, rejeu de la 22p de la 021) ; test
     `derivation::settings_rederive_replayed` (deux transactions : un lot qui tient le
     verrou du cluster change les labels pendant que le changeset l'attend ; rien n'est
-    posé des labels lus d'abord ; le test échoue sans la relecture).
+    posé des labels lus d'abord ; le test échoue sans la relecture). Validation :
+    `settings_rederive_rights` complété (la proposition appliquée par un validateur qui
+    tient `kube.settings.apply` et `prop.custom.exposure.apply`, sous le RBAC de la
+    base : crochet rejoué, valeur posée dans le changeset validé) ;
+    `settings_rederive_workloads` vérifie que `kube.namespace` garde sa version. Mineurs :
+    `complete_changeset` reprend `completed_of` ; `debug_assert` dans le pipeline que le
+    crochet garde le module, le nom et le nombre des opérations ; doc de `applied`
+    (`module_pipeline.rs`) remise en place.
+  - reste (revue) : un changeset de paramètres n'a pas de plafond de workloads re-dérivés
+    (une correspondance d'un label très répandu en concerne des milliers, autant
+    d'opérations du noyau) : à cadrer avec les budgets de la 16 ; côté lot, un `upsert`
+    préparé avant la validation d'un changeset de paramètres dérive encore sur les
+    paramètres lus (la relecture ne vaut que du côté des paramètres).
   - reste : les verrous sont pris après `prepare` et `prepare_changeset` (comme tous les
     verrous du pipeline) : un lot préparé avant la validation d'un changeset de
     paramètres dérive sur les paramètres qu'il a lus, et inversement, jusqu'au prochain

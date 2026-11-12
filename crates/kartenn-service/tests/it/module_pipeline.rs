@@ -463,7 +463,6 @@ async fn named_lock_keys_do_not_deadlock(pool: PgPool) {
     assert_eq!(count(&pool, "SELECT count(*) FROM dummy.thing").await, 20);
 }
 
-/// Applies `operations`, returns the changeset.
 /// ADR 0026, amendment 16 (019/Q-019-42): once each operation is prepared, a module
 /// completes its operations of the changeset together, in their order, those of a
 /// `Within` included, on the state of the transaction; a changeset without an operation
@@ -517,6 +516,7 @@ async fn module_prepares_changeset(pool: PgPool) {
     );
 }
 
+/// Applies `operations`, returns the changeset.
 async fn applied(store: &PgStore, author: Uuid, operations: Vec<Operation>) -> Uuid {
     let outcome = submit(
         store,
