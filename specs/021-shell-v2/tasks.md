@@ -3624,10 +3624,21 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     figées à l'ouverture ; « aucune valeur » sous une clé privée (U+E000), Reka refusant
     `""` ; drapeau et `bool` montrés `true`/`false` comme leur cellule ; la valeur tenue
     hors de la liste montrée telle quelle sur le bouton ; l'emplacement `editor` reste pour
-    un éditeur de l'hôte (non utilisé).
+    un éditeur de l'hôte (non utilisé) ; liste ouverte (`DataGrid` `choice-open`) montrée
+    seule (`isolated`), passée à axe avec la seule exception `aria-hidden-focus` (020-11) :
+    faux positif, Reka tient le focus dans la liste et bloque le pointeur dehors (skill,
+    piège du `Select` ouvert).
+  - passe de correction (revue, 2026-11-12) : `choice-open` isolé et vérifié par axe ;
+    `draftNature` du parcours `draft` choisit « Conteneur » dans la liste (il tapait la
+    clé, passée par la recherche à la saisie de Reka) ; un `enum` déclaré sans valeurs
+    garde l'éditeur de texte (`propertyChoices`). Vérifié : `draft.spec.ts` et
+    `edit.spec.ts` entiers sous les deux navigateurs (42 réussis),
+    `accessibility.spec.ts -g "every journey runs axe"` (2 réussis), `k-web2-check --base
+    main`.
   - reste : une liste d'`enum` lue au focus de la cellule : Entrée avant sa réponse ouvre
-    l'éditeur de texte ; axe signale `aria-hidden-focus` tant qu'un `Select` de Reka est
-    ouvert (modal, `hideOthers`) : non vérifié dans le parcours pendant l'ouverture ; après
+    l'éditeur de texte ; le parcours ne passe pas axe liste ouverte (`aria-hidden-focus`,
+    vérifié au catalogue) ; `update:modelValue` de Reka réécrit `draft` après la fermeture
+    de l'éditeur (sans effet : l'ouverture suivante le relit) ; après
     un refus, la liste reste fermée (Entrée la rouvre) ; Tab sur une option désactivée
     valide la valeur tenue ; restitution par un lecteur d'écran non éprouvée (nom du bouton
     par `aria-label`, valeur montrée ; alerte d'un refus pendant que la liste se démonte) ;
