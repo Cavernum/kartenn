@@ -77,6 +77,8 @@ export const DATED_PATHS: ReadonlySet<string> = new Set([
   "/v1/kube-admitted-values/{id}/properties",
   "/v1/kube-admitted-values/{id}/properties/{key}/explanation",
   "/v1/kube-admitted-values/{id}/properties/{key}/suggestion",
+  "/v1/kube-clusters",
+  "/v1/kube-clusters/{id}",
   "/v1/kube-clusters/{id}/history",
   "/v1/kube-clusters/{id}/properties",
   "/v1/kube-clusters/{id}/properties/{key}/explanation",

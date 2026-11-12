@@ -142,6 +142,12 @@ static TYPES: &[ObjectType] = &[
     global(TRACKED_LABEL, "kube-tracked-labels"),
 ];
 
+/// The type of the clusters, as its routes serve it.
+#[cfg(feature = "rest")]
+pub(crate) fn cluster_type() -> &'static ObjectType {
+    &TYPES[0]
+}
+
 /// A setting of the module (Q-019-35): no anchor, no parent, written under the global
 /// `kube.settings.edit`.
 const fn global(kind: &'static str, collection: &'static str) -> ObjectType {

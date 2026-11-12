@@ -164,6 +164,10 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/interfaces/{id}/history": [],
   "/v1/issuer-attachments": [],
   "/v1/kube-admitted-values/{id}/history": [],
+  "/v1/kube-clusters": [
+    { name: "slug", type: "string" },
+    { name: "q", type: "string" },
+  ],
   "/v1/kube-clusters/{id}/history": [],
   "/v1/kube-clusters/{id}/observations": [
     { name: "ip", type: "string" },
