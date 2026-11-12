@@ -1630,6 +1630,45 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     Q-019-36 ; la dérivation de la 7d2 ;
     `crates/kartenn-kube/src/handler.rs` (`prepare` des opérations des paramètres)
   - dépend de : 7d2
+  - découpée (2026-11-12, arbitrage Q-019-42 : crochet par changeset, amendement 16 de
+    l'ADR 0026) en 7d3a (noyau) et 7d3b (`kube`).
+- [ ] 7d3a. Crochet `prepare_changeset` (amendement 16 de l'ADR 0026, Q-019-42) :
+  `ModuleHandler::prepare_changeset(tx, operations, period)`, sans effet par défaut,
+  appelé une fois par module qui a au moins une opération dans le changeset, après les
+  `prepare` par opération et avant `plan`, avec ses opérations dans l'ordre (celles d'un
+  `within` comprises), qu'il peut compléter ; pas d'appel pour un module sans opération ;
+  rejoué à la validation d'un changeset en attente — verify :
+  `module_prepares_changeset` (un module de test voit toutes ses opérations, dans l'ordre,
+  et l'état combiné qu'il écrit dans la dernière ; un changeset sans opération du module
+  ne l'appelle pas)
+  - où : `crates/kartenn-service/src/module.rs` (`ModuleHandler::prepare`) ;
+    `crates/kartenn-service/src/pipeline.rs` (`prepare`, `prepare_operation`) ;
+    module de test voisin dans `crates/kartenn-service/tests/it/` (handler de test qui
+    implémente `prepare`) ; ADR 0026 amendement 16
+  - dépend de : 7d2
+- [ ] 7d3b. Re-dérivation par les paramètres (Q-019-36, 42) : dans `prepare_changeset`,
+  les workloads concernés par toutes les opérations de paramètres du changeset
+  (correspondances, valeurs admises, labels suivis ; labels stockés, index GIN
+  `workload_labels`) re-dérivés sur l'état final des paramètres, une seule fois par
+  workload (faits dans la dernière opération de paramètres), par `derive` de la 7d2
+  inchangé ; verrous des clusters des workloads concernés (concurrence avec un lot) ;
+  précision datée de Q-019-36 (refus sans `prop.<axe>.edit` sur l'effet, proposition sans
+  `approval.self`, par le pipeline) éprouvée sous le RBAC de la base ; `mirrors`
+  d'`authorship.rs` sans les objets des paramètres ; lectures de `kube.sync` regroupées
+  par lot par le même crochet si c'est simple, sinon noté pour la 16 — REQ-019-34
+  (re-dérivation) — verify : `settings_rederive_workloads` (correspondance et valeurs
+  admises dans un même changeset : posée ; correspondance close : retirée ; label suivi
+  ajouté : posée ; `kube.label.not_admitted` levée et close), `settings_rederive_rights`
+  (RBAC de la base : sans `prop.<axe>.edit`, refus ; sans `approval.self`, proposition ;
+  connecteur au rôle équivalent à `kube_connector` non bloqué par une correspondance vers
+  un axe `custom.*`)
+  - où : design « Opérations », « Politique et flux » (Labels) ; `decisions.md`
+    Q-019-36, 42 ; `crates/kartenn-kube/src/derivation.rs` (`prepare`, `derive`) ;
+    `crates/kartenn-kube/src/settings.rs` (`prepare`, `plan`) ;
+    `crates/kartenn-kube/src/handler.rs` (`prepare`, `plan`, `provenance`) ;
+    `crates/kartenn-kube/src/authorship.rs` (`mirrors`) ; tests voisins
+    `crates/kartenn-kube/tests/it/derivation.rs`, `settings.rs`
+  - dépend de : 7d3a
 - [ ] 8. Routes REST et imports : collections du module par `{id}` (clé naturelle en
   filtre, `?slug=`), filtres, chaîne d'exécution (`GET /v1/workloads/{id}/chain`), paramètres (`If-Match`), permissions
   de lecture ajoutées aux rôles livrés (lecteur, éditeur, approbateur ; `apply` à

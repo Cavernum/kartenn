@@ -551,6 +551,23 @@ premier dans l'ordre du registre. Source : `crates/kartenn-service/src/declarati
 (`ModuleDeclarations`, `external_systems`, `core_declarations_for`). Test :
 `kartenn-service` `declarations::module_declares_external_system`.
 
+### Amendement 16 — 2026-11-12, opérations d'un module complétées ensemble (019/Q-019-42)
+
+Un ajout additif au contrat, **arbitré par l'utilisateur le 2026-11-12**
+(019/Q-019-42), livré par les tâches 019-7d3a (noyau) et 7d3b (`kube`) :
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `ModuleHandler::prepare_changeset(tx, operations, period)`, sans effet par défaut : appelé une fois par module dont le changeset porte au moins une opération, après les `prepare` de toutes les opérations et avant toute planification, avec les opérations de ce module, dans leur ordre, complétées par `prepare` | 6 | un effet qui dépend de plusieurs opérations d'un même changeset (les paramètres de `kube` qui re-dérivent les axes des workloads, Q-019-36) ne se calcule pas opération par opération sur l'état d'avant le changeset |
+
+Ce que le module peut y faire : lire l'état de la transaction (comme `prepare`, sans
+écrire) et compléter le corps de ses opérations ; les opérations complétées sont celles que
+le changeset enregistre et que `plan` reçoit, qui ne lit toujours aucune base. Il ne
+change ni leur nombre, ni leur ordre, ni leur module ou leur nom. Les opérations d'un
+module dans un `within` y figurent, comme pour `prepare` ; celles qu'un plan ajoute
+(clause 6) n'y figurent pas, n'étant pas préparées. Rejoué avec `prepare` à la validation
+d'un changeset en attente (REQ-004-21).
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :
