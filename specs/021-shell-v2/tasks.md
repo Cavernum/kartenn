@@ -3898,13 +3898,35 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     parcours `edit` (nouveau : Échap, compteur, lien de la navigation ; Continuer la
     saisie garde la saisie et la page ; Abandonner ferme, rien d'écrit), `draft` (Échap
     dans le résumé tapé) ; `accessibility.spec.ts` (axe dans chaque parcours).
+    La clause « `CommitForm` : motif saisi » tombe : `CommitForm` ne sert que dans les
+    maquettes ; le motif du shell est celui de `DraftSubmit`.
+  - passe de correction (revue, 2026-11-12 ; Q-021-22 : aucune perte de saisie sans
+    question) :
+    - une nouvelle demande d'édition (`c`, `e`, « Modifier », « Clore… ») qui
+      remplacerait une édition modifiée passe par `ask()` (`guardEdit` de
+      `views/edit/panel.ts`, posé par le cadre) ; « Continuer la saisie » l'écarte ;
+    - les onglets des panneaux restent montés une fois montrés (`Tabs` `keepMounted`,
+      `unmountOnHide` de Reka à faux, contenu monté à la première montre : rien n'est lu
+      plus tôt) ; un ouvreur dans un onglet caché compte pour parti (`closeEdit`), et
+      `DraftOperations` attend que son onglet se montre pour rendre le focus à sa ligne ;
+    - le motif du brouillon est gardé hors du formulaire (`draft/motive.ts`), revu sur
+      l'autre onglet comme sur la page `/drafts/:id` ; le cadre dit le panneau modifié
+      tant qu'un motif tapé est gardé hors de la page du brouillon, et le jette sur
+      `close` (« Abandonner ») ; une raison relue n'écrase plus un motif tapé ;
+    - un VID proposé pour le groupe d'un VLAN ne compte pas pour une saisie ; une
+      question de la garde retirée parce que `modified` est repassé à faux laisse la
+      navigation se faire.
+    Tests : Vitest `ui/test/tabs-keep.test.ts` ; parcours `edit` (onglet et retour, `c`
+    qui demande, « Abandonner » sur une navigation), `draft` (motif revu après l'onglet
+    Détail) ; parcours `admin` et `shortcuts` rejoués.
   - choix : un registre de sources (`frame/modified.ts`) plutôt qu'un événement par
-    formulaire ; la garde ne demande que pour une édition (le motif du brouillon reste
-    au pied du panneau d'une page à l'autre).
+    formulaire ; la garde de route ne demande que pour une édition (le motif du
+    brouillon, gardé hors du formulaire, ne se perd pas d'une page à l'autre) ; onglets
+    gardés montés plutôt qu'une question au changement d'onglet.
   - reste : `]` au clavier non joué dans un parcours (même chemin que le compteur) ;
     « Annuler » du formulaire d'édition ferme l'édition sans demander (hors de Q-021-22) ;
-    le motif du brouillon perdu sans demander en ouvrant `/drafts/:id` du même brouillon
-    (le pied se masque) ; changer d'onglet du panneau démonte le formulaire de l'autre.
+    ni changement de date ni `ClosePanel` modifié joués dans un parcours ; le motif
+    gardé d'un brouillon abandonné ailleurs reste en mémoire jusqu'au rechargement.
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
