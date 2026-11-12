@@ -22,8 +22,10 @@
 // (`ownsEscape`). `modified` (Q-021-22): a modified panel asks « Abandonner les
 // modifications ? » before Escape, the cross, the back button or the host's `close()`
 // close it, an intact one closes at once (`usePanelClose`, `PanelLeave`); the host's
-// guard asks the same by `ask()`. Closed, it leaves nothing behind. On a narrow window the host sets `cover`: the panel
-// takes the whole width of its container, over it, without handle (spec 021, « Cadre » :
+// guard asks the same by `ask()`. Its tabs stay mounted once shown (`keepMounted`): a
+// form typed in survives a change of tab. Closed, it leaves nothing behind. On a narrow
+// window the host sets `cover`: the panel takes the whole width of its container, over
+// it, without handle (spec 021, « Cadre » :
 // at 768 px the panel covers the surface). With `rail`, the closed panel leaves a strip
 // in the flow at the end of its container (the same `auto` track): a chevron button,
 // « Ouvrir le panneau », reopens it on its last tab and moves the focus there; closing it
@@ -293,7 +295,14 @@ function onPointerup(event: PointerEvent): void {
         @pointerup="onPointerup"
         @pointercancel="onPointerup"
       ></div>
-      <Tabs v-model="tab" :tabs="props.tabs" :label="t('panelTabs')" class="k-side-panel__tabs">
+      <!-- Its tabs stay mounted once shown: a form typed in survives a change of tab. -->
+      <Tabs
+        v-model="tab"
+        :tabs="props.tabs"
+        :label="t('panelTabs')"
+        class="k-side-panel__tabs"
+        keep-mounted
+      >
         <template v-for="item in props.tabs" :key="item.value" #[item.value]>
           <slot :name="item.value" />
         </template>

@@ -257,7 +257,14 @@ function onPointerup(event: PointerEvent): void {
         @pointerup="onPointerup"
         @pointercancel="onPointerup"
       ></div>
-      <Tabs v-model="tab" :tabs="props.tabs" :label="t('panelTabs')" class="k-bottom-panel__tabs">
+      <!-- Its tabs stay mounted once shown: a form typed in survives a change of tab. -->
+      <Tabs
+        v-model="tab"
+        :tabs="props.tabs"
+        :label="t('panelTabs')"
+        class="k-bottom-panel__tabs"
+        keep-mounted
+      >
         <template v-for="item in props.tabs" :key="item.value" #[item.value]>
           <slot :name="item.value" />
         </template>
