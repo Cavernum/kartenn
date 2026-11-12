@@ -209,6 +209,31 @@ impl Env {
         .unwrap()
     }
 
+    /// Whether the namespace `id` living now is absent from its cluster.
+    async fn absent(&self, id: Uuid) -> bool {
+        sqlx::query_scalar(
+            "SELECT absent_since IS NOT NULL FROM kube.namespace
+              WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// Whether an anomaly of `rule` is open on `object`.
+    async fn anomaly(&self, object: Uuid, rule: &str) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM anomaly
+                             WHERE object_id = $1 AND rule_id = $2 AND closed_at IS NULL)",
+        )
+        .bind(object)
+        .bind(rule)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
     /// The versions of `id` in `table`, current and past.
     async fn versions(&self, table: &str, id: Uuid) -> i64 {
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
@@ -564,15 +589,53 @@ async fn settings_written_by_changeset(pool: PgPool) {
         env.refused(vec![operation], "kube.operation.invalid", says)
             .await;
     }
-    // The namespace stays while admitted values cite it.
-    let outcome = env.submit(vec![namespace(env.cluster, "close")]).await;
+    // The namespace stays while admitted values cite it: closed by hand, refused.
+    let by_hand = Operation::Close {
+        kind: ObjectKind::Module(
+            kartenn_service::operations::ModuleKind::parse("kube.namespace").unwrap(),
+        ),
+        id: Ref::Id(env.payments),
+        expected: None,
+        cascade: false,
+    };
+    let outcome = env.submit(vec![by_hand.clone()]).await;
     assert_eq!(rules(&outcome), ["core.object.dependents"], "{outcome:?}");
+    // Closed by the connector, marked absent instead, the batch accepted
+    // (`kube.namespace.held`), twice the same.
+    for _ in 0..2 {
+        let outcome = env.submit(vec![namespace(env.cluster, "close")]).await;
+        let Outcome::Applied { warnings, .. } = &outcome else {
+            panic!("not applied: {outcome:?}");
+        };
+        let held: Vec<_> = warnings
+            .iter()
+            .filter(|w| w.rule.id == "kube.namespace.held")
+            .collect();
+        assert_eq!(held.len(), 1, "{outcome:?}");
+        assert!(
+            held[0].message.contains(admitted_id.as_str().unwrap()),
+            "{held:?}"
+        );
+        assert_eq!(
+            env.id("kube.namespace", "name", "payments").await,
+            env.payments
+        );
+        assert!(env.absent(env.payments).await, "absent");
+        assert!(env.anomaly(env.payments, "kube.namespace.held").await);
+    }
     env.applied(vec![admitted(env.payments, EXPOSURE, &[])])
         .await;
     assert!(env.living("kube.admitted_values").await.is_empty());
+    assert!(
+        !env.anomaly(env.payments, "kube.namespace.held").await,
+        "let go"
+    );
     // Nothing admitted already: nothing written.
     env.applied(vec![admitted(env.payments, EXPOSURE, &[])])
         .await;
+    // Let go, the connector closes it.
+    env.applied(vec![namespace(env.cluster, "close")]).await;
+    assert!(env.living("kube.namespace").await.is_empty());
 
     // Tracked labels.
     env.applied(vec![tracked(&["tier", "app", "tier"])]).await;

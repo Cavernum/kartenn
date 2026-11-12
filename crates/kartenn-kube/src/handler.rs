@@ -35,7 +35,7 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::module::{
-    ADDRESS, CLUSTER, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
+    ADDRESS, ADMITTED_VALUES, CLUSTER, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
 };
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
 use crate::owner::WorkloadKind;
@@ -44,8 +44,8 @@ use crate::pg::{
 };
 use crate::rules::{
     CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, INGRESS_BACKEND_MISSING, INGRESS_DUPLICATE,
-    NAME_INVALID, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE, OBJECT_ABSENT, OPERATION_INVALID,
-    SERVICE_DUPLICATE, WORKLOAD_DUPLICATE,
+    NAME_INVALID, NAMESPACE_HELD, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE, OBJECT_ABSENT,
+    OPERATION_INVALID, SERVICE_DUPLICATE, WORKLOAD_DUPLICATE,
 };
 use crate::tracked::{PathType, Protocol, ServiceType};
 
@@ -142,6 +142,10 @@ struct Completed {
     /// state unchanged writes no version (a full list repeated in fallback mode, REQ-019-25).
     #[serde(default)]
     absent: bool,
+    /// The living admitted values that cite the namespace a `sync` closes: it is marked
+    /// absent instead (`kube.namespace.held`, Q-019-35).
+    #[serde(default)]
+    held: Vec<Uuid>,
     /// The living namespace a `sync` of a workload or a service names, by its name in the
     /// cluster.
     #[serde(default)]
@@ -1641,6 +1645,24 @@ impl Handler {
                 let existing = completed
                     .existing
                     .ok_or_else(|| missing(kind, home, &name))?;
+                // Cited by admitted values, a namespace stays, absent, until an
+                // administrator lets it go (`kube.namespace.held`, Q-019-35): a refused
+                // closure would refuse every batch of the cluster.
+                if !completed.held.is_empty() {
+                    return Ok(ModulePlan {
+                        kind,
+                        object: existing,
+                        creates: false,
+                        domains: vec![anchor],
+                        keys,
+                        core: Vec::new(),
+                        data: if completed.absent {
+                            json!({ "noop": true })
+                        } else {
+                            json!({ "absent": true })
+                        },
+                    });
+                }
                 // A closed workload leaves the selection of its services, without refusal
                 // (design « Références », mise à nul): the core clears a reference only in
                 // a cascade, which would close other dependents.
@@ -1841,6 +1863,53 @@ async fn absences(
     Ok(mirrors.into_iter().map(|o| (o, OBJECT_ABSENT.id)).collect())
 }
 
+/// The namespaces the changeset writes, or whose admitted values it writes, evaluated
+/// anew: one gone from its cluster (absent) and cited by admitted values warns, naming
+/// them; its anomaly closes once they let it go or it is present again
+/// (`kube.namespace.held`, Q-019-35).
+async fn held(
+    conn: &mut PgConnection,
+    context: &CheckContext<'_>,
+    found: &mut Vec<Violation>,
+) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
+    let of = |wanted: &str| -> Vec<Uuid> {
+        context
+            .touched
+            .iter()
+            .filter(|(kind, _)| kind.as_str() == wanted)
+            .map(|(_, id)| *id)
+            .collect()
+    };
+    let (namespaces, admitted) = (of(NAMESPACE), of(ADMITTED_VALUES));
+    if namespaces.is_empty() && admitted.is_empty() {
+        return Ok(Vec::new());
+    }
+    let rows = pg::held_namespaces(conn, &namespaces, &admitted).await?;
+    for (namespace, _, values) in rows
+        .iter()
+        .filter(|(_, absent, v)| *absent && !v.is_empty())
+    {
+        let named = values
+            .iter()
+            .map(Uuid::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        found.push(
+            Violation::new(
+                &NAMESPACE_HELD,
+                format!(
+                    "the namespace {namespace} is gone from its cluster, kept absent while the admitted values {named} cite it: set them to no value to let it close"
+                ),
+            )
+            .with_subjects(std::iter::once(*namespace).chain(values.iter().copied())),
+        );
+    }
+    Ok(rows
+        .into_iter()
+        .map(|(namespace, ..)| (namespace, NAMESPACE_HELD.id))
+        .collect())
+}
+
 impl ModuleHandler for Handler {
     #[allow(clippy::too_many_lines)] // one block per type of object a sync reads
     fn prepare<'a>(
@@ -1918,6 +1987,18 @@ impl ModuleHandler for Handler {
                         (table, completed.existing, text("action"))
                     {
                         completed.absent = pg::is_absent(conn, table, existing, at).await?;
+                    }
+                    // A namespace the admitted values cite is not closed by the connector,
+                    // which would refuse its whole batch: marked absent (Q-019-35).
+                    if let (Some(NAMESPACE_TABLE), Some(existing), Some("close")) =
+                        (table, completed.existing, text("action"))
+                    {
+                        completed.held =
+                            pg::referrers(conn, ADMITTED_VALUES, NAMESPACE, existing, at).await?;
+                        if !completed.held.is_empty() {
+                            completed.absent =
+                                pg::is_absent(conn, NAMESPACE_TABLE, existing, at).await?;
+                        }
                     }
                     if table == Some(NODE_TABLE) {
                         completed.pod_containers = pg::pod_containers(conn, cluster, at).await?;
@@ -2252,6 +2333,7 @@ impl ModuleHandler for Handler {
             let conn = connection(tx)?;
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
             let mut reevaluated = absences(conn, context, &mut found).await?;
+            reevaluated.extend(held(conn, context, &mut found).await?);
             // The machines the changeset writes, whatever else it writes (REQ-019-3).
             let lookalikes = crate::lookalike::check(conn, context).await?;
             found.extend(lookalikes.violations);

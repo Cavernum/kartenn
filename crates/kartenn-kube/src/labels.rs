@@ -171,6 +171,10 @@ pub(crate) static ENGLISH: English = English {
             "A Kubernetes object cited by a dependent is present in its cluster.",
         ),
         (
+            "kube.namespace.held",
+            "A namespace gone from its cluster is no longer cited by admitted values.",
+        ),
+        (
             "kube.ingress.backend_missing",
             "An ingress rule targets a service present in its namespace.",
         ),

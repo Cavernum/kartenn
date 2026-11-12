@@ -998,6 +998,33 @@ pub(crate) async fn absent(
     Ok(found)
 }
 
+/// The namespaces among `namespaces`, and those of the admitted values among `admitted`,
+/// and their admitted values: `(namespace, absent, admitted values)` for each that lives
+/// now, its admitted values living now (`kube.namespace.held`, Q-019-35).
+pub(crate) async fn held_namespaces(
+    conn: &mut PgConnection,
+    namespaces: &[Uuid],
+    admitted: &[Uuid],
+) -> Result<Vec<(Uuid, bool, Vec<Uuid>)>, StoreError> {
+    sqlx::query_as(
+        "WITH wanted (id) AS (
+             SELECT unnest($1::uuid[])
+             UNION SELECT namespace_id FROM kube.admitted_values WHERE id = ANY($2))
+         SELECT n.id, n.absent_since IS NOT NULL,
+                ARRAY(SELECT a.id FROM kube.admitted_values a
+                       WHERE a.namespace_id = n.id AND a.valid_period @> now()
+                       ORDER BY a.id)
+           FROM kube.namespace n JOIN wanted w ON w.id = n.id
+          WHERE n.valid_period @> now()
+          ORDER BY n.id",
+    )
+    .bind(namespaces)
+    .bind(admitted)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The living objects of the module that cite `target` by the reference `from` → `to`
 /// from `at` on.
 pub(crate) async fn referrers(
