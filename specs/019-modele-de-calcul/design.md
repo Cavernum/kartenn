@@ -296,7 +296,9 @@ propriété sensible ; son axe est une liste fermée portée par `kube.workload`
 une valeur vivante de cette liste ; les valeurs admises sont des valeurs vivantes de la
 liste de l'axe (`kube.operation.invalid` sinon) ; écrire des valeurs admises demande
 aussi `kube.namespace.read` sur leur namespace (tâche 7c). Le changeset qui écrit un paramètre
-re-dérive les affectations des workloads concernés (Q-019-36, tâche 7d3).
+re-dérive les affectations des workloads concernés (Q-019-36, tâche 7d3), sur l'état
+final de tous ses paramètres, une fois par workload (`prepare_changeset`, Q-019-42), sous
+les verrous de leurs clusters.
 
 Une écriture suit la grammaire de la 024 (M7) : `edit` crée et soumet le changeset,
 `approval.self` l'applique dans la même requête, `apply` applique celui d'un autre.
@@ -515,8 +517,13 @@ refusés, objets absents, mode de repli.
   disparu ou une correspondance close ne justifie plus ; une valeur non admise est
   ignorée et lève `kube.label.not_admitted`. Le changeset qui écrit un paramètre
   re-dérive de même les workloads concernés, par leurs labels stockés (index GIN
-  `workload_labels`), dans sa transaction ; son auteur doit tenir les droits de
-  propriété sur l'effet, sinon le changeset reste une proposition. Une affectation de
+  `workload_labels`), dans sa transaction, sur l'état final de tous ses paramètres
+  (Q-019-42) ; son auteur doit tenir les droits de propriété sur l'effet : refus sans
+  `prop.<axe>.edit`, proposition sans `prop.<axe>.approval.self` (précision de Q-019-36).
+  Sont concernés les workloads qui portent le label d'une correspondance écrite, ceux du
+  namespace de valeurs admises écrites qui portent le label d'une correspondance de leur
+  axe, et ceux qui portent une clé dont le suivi change ; la re-dérivation ne pose pas
+  `kube.namespace`. Une affectation de
   provenance `input` sur le même workload l'emporte : la dérivation ne la remplace ni ne
   la retire. Le connecteur ne lit les paramètres que pour savoir quelles clés suivre
   (X4) ; il n'envoie jamais d'affectation d'axe. Seul un label dont la clé est suivie

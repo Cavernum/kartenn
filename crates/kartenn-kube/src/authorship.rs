@@ -47,7 +47,7 @@ fn closed_mirror(operation: &Operation, cluster: ModuleKind) -> Option<&Ref> {
 }
 
 /// The violations of authorship of the changeset: its mirrors are the objects of the
-/// module it writes but its clusters.
+/// module it writes but its clusters and the settings.
 pub(crate) async fn check(
     conn: &mut PgConnection,
     context: &CheckContext<'_>,
@@ -79,7 +79,7 @@ pub(crate) async fn check(
     let mirrors: Vec<Uuid> = context
         .touched
         .iter()
-        .filter(|(kind, _)| *kind != cluster)
+        .filter(|(kind, _)| *kind != cluster && crate::settings::table(*kind).is_none())
         .map(|(_, id)| *id)
         .collect();
     // Only `kube.sync` writes the tracked fields of a mirror: a restoration (an

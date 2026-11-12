@@ -13,6 +13,11 @@
 //! not admitted is ignored and warns (`kube.label.not_admitted`), labels in conflict warn
 //! (`kube.label.conflict`), both rules of the final state; an assignment or a removal of
 //! `kube.namespace` the author writes is refused (`kube.namespace.managed`).
+//!
+//! A changeset of the settings re-derives the workloads they concern from their stored
+//! labels, on the final state of all its settings, once per workload (Q-019-36, 42; task
+//! 019-7d3b): [`rederive`], from the module's `prepare_changeset` (ADR 0026, amendment
+//! 16), with the same [`derive`]; it sets no `kube.namespace`.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,7 +25,7 @@ use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::CheckContext;
 use kartenn_service::operations::{
-    ModuleKind, Operation, RawInput, Ref, is_module_provenance, module_provenance,
+    ModuleKind, ModuleOperation, Operation, RawInput, Ref, is_module_provenance, module_provenance,
 };
 use kartenn_service::port::StoreError;
 use serde::{Deserialize, Serialize};
@@ -172,19 +177,71 @@ pub(crate) async fn prepare(
     let labels = given_labels(body)
         .or_else(|| facts.stored.clone())
         .unwrap_or_default();
+    complete(
+        conn,
+        &mut facts,
+        &labels,
+        (namespace, existing.or(reopened)),
+        &Changes::default(),
+        &mut BTreeMap::new(),
+        at,
+    )
+    .await?;
+    Ok(facts)
+}
+
+/// The settings a changeset writes, as its operations give them (Q-019-36, 42): the
+/// derivation of the workloads they concern reads them over the stored ones.
+#[derive(Debug, Default)]
+pub(crate) struct Changes {
+    /// The mappings upserted, by (label key, label value, axis), to their value; closed,
+    /// to `None`.
+    mappings: BTreeMap<(String, String, String), Option<String>>,
+    /// The admitted values replaced, by (namespace, axis); empty, closed.
+    admitted: BTreeMap<(Uuid, String), Vec<String>>,
+    /// The tracked label keys of the module, replaced.
+    tracked: Option<BTreeSet<String>>,
+}
+
+/// What the derivation of a workload a changeset of the settings concerns reads (Q-019-36,
+/// 42): the facts of [`derive`], without the slug of the cluster (the settings do not set
+/// `kube.namespace`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Rederived {
+    pub(crate) workload: Uuid,
+    pub(crate) cluster: Uuid,
+    /// The name of its namespace.
+    pub(crate) namespace: String,
+    pub(crate) facts: Facts,
+}
+
+/// Completes `facts` for a workload of `labels`, in `namespace`, of the living or reopened
+/// `workload`: the mappings of its tracked labels, their axes (read once per changeset in
+/// `axes`), the admitted values of its namespace and its current assignments, the settings
+/// `changes` over the stored ones.
+async fn complete(
+    conn: &mut PgConnection,
+    facts: &mut Facts,
+    labels: &BTreeMap<String, String>,
+    (namespace, workload): (Option<Uuid>, Option<Uuid>),
+    changes: &Changes,
+    axes: &mut BTreeMap<String, Option<crate::settings::Axis>>,
+    at: Option<OffsetDateTime>,
+) -> Result<(), StoreError> {
     let (keys, values): (Vec<&str>, Vec<&str>) = labels
         .iter()
         .filter(|(k, _)| facts.tracked.contains(*k))
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .unzip();
+    let mut mappings: Vec<(String, String, String, String)> = Vec::new();
     if !keys.is_empty() {
-        facts.mappings = sqlx::query_as(
+        mappings = sqlx::query_as(
             "SELECT m.label_key, m.label_value, m.axis_key, m.axis_value
                FROM kube.label_mapping m
                JOIN unnest($1::text[], $2::text[]) AS l(k, v)
                  ON m.label_key = l.k AND m.label_value = l.v
-              WHERE m.valid_period @> coalesce($3::timestamptz, now())
-              ORDER BY 1, 3",
+              WHERE m.valid_period @> coalesce($3::timestamptz, now())",
         )
         .bind(&keys)
         .bind(&values)
@@ -193,21 +250,37 @@ pub(crate) async fn prepare(
         .await
         .map_err(|e| store(&e))?;
     }
-    let wanted: BTreeSet<&str> = facts
+    // The mappings the changeset writes replace the stored ones of their identity.
+    mappings.retain(|(k, v, axis, _)| {
+        !changes
+            .mappings
+            .contains_key(&(k.clone(), v.clone(), axis.clone()))
+    });
+    mappings.extend(changes.mappings.iter().filter_map(|((k, v, axis), value)| {
+        let carried = facts.tracked.contains(k) && labels.get(k) == Some(v);
+        value
+            .as_ref()
+            .filter(|_| carried)
+            .map(|value| (k.clone(), v.clone(), axis.clone(), value.clone()))
+    }));
+    mappings.sort_unstable_by(|a, b| (&a.0, &a.2).cmp(&(&b.0, &b.2)));
+    facts.mappings = mappings;
+    let wanted: BTreeSet<String> = facts
         .mappings
         .iter()
-        .map(|(_, _, axis, _)| axis.as_str())
+        .map(|(_, _, axis, _)| axis.clone())
         .collect();
     for axis in wanted {
-        let declared = crate::settings::axis_of(conn, axis, at).await?;
-        if let Ok(declared) = crate::settings::checked_axis(axis, declared.as_ref()) {
-            facts.axes.insert(
-                axis.to_owned(),
-                Axis {
-                    set: declared.set,
-                    values: declared.values.clone(),
-                },
-            );
+        if !axes.contains_key(&axis) {
+            let declared = crate::settings::axis_of(conn, &axis, at).await?;
+            axes.insert(axis.clone(), declared);
+        }
+        if let Ok(declared) = crate::settings::checked_axis(&axis, axes[&axis].as_ref()) {
+            let given = Axis {
+                set: declared.set,
+                values: declared.values.clone(),
+            };
+            facts.axes.insert(axis, given);
         }
     }
     if let Some(namespace) = namespace {
@@ -221,6 +294,17 @@ pub(crate) async fn prepare(
         .await
         .map_err(|e| store(&e))?;
         facts.admitted = admitted.into_iter().collect();
+        for ((_, axis), values) in changes
+            .admitted
+            .iter()
+            .filter(|((n, _), _)| *n == namespace)
+        {
+            if values.is_empty() {
+                facts.admitted.remove(axis);
+            } else {
+                facts.admitted.insert(axis.clone(), values.clone());
+            }
+        }
     }
     let properties: Vec<String> = std::iter::once(NAMESPACE_AXIS.to_owned())
         .chain(facts.axes.keys().cloned())
@@ -235,10 +319,210 @@ pub(crate) async fn prepare(
     .await
     .map_err(|e| store(&e))?;
     facts.properties = declared.into_iter().collect();
-    if let Some(workload) = existing.or(reopened) {
-        current(conn, workload, &properties, at, &mut facts).await?;
+    if let Some(workload) = workload {
+        current(conn, workload, &properties, at, facts).await?;
     }
-    Ok(facts)
+    Ok(())
+}
+
+/// The settings `operations` (those of a changeset, in their order) write, over the
+/// stored ones; a closure of a mapping by its identifier read on its stored row. An
+/// operation the plan refuses is read as it is: the changeset is refused anyway.
+async fn changes(
+    conn: &mut PgConnection,
+    operations: &[&ModuleOperation],
+    at: Option<OffsetDateTime>,
+) -> Result<Changes, StoreError> {
+    let mut changes = Changes::default();
+    for operation in operations {
+        let body = &operation.body;
+        let text = |field: &str| body.get(field).and_then(Value::as_str).map(str::to_owned);
+        let texts = |field: &str| {
+            body.get(field)
+                .cloned()
+                .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+        };
+        let id = |field: &str| match body
+            .get(field)
+            .cloned()
+            .and_then(|v| serde_json::from_value::<Ref>(v).ok())
+        {
+            Some(Ref::Id(id)) => Some(id),
+            _ => None,
+        };
+        match (operation.name.as_str(), text("action").as_deref()) {
+            ("set_label_mapping", Some("upsert")) => {
+                if let (Some(k), Some(v), Some(axis), Some(value)) = (
+                    text("label_key"),
+                    text("label_value"),
+                    text("axis"),
+                    text("value"),
+                ) {
+                    changes.mappings.insert((k, v, axis), Some(value));
+                }
+            }
+            ("set_label_mapping", Some("close")) => {
+                let Some(id) = id("id") else { continue };
+                let row: Option<(String, String, String)> = sqlx::query_as(
+                    "SELECT label_key, label_value, axis_key FROM kube.label_mapping
+                      WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+                )
+                .bind(id)
+                .bind(at)
+                .fetch_optional(&mut *conn)
+                .await
+                .map_err(|e| store(&e))?;
+                if let Some(identity) = row {
+                    changes.mappings.insert(identity, None);
+                }
+            }
+            ("set_admitted_values", _) => {
+                if let (Some(namespace), Some(axis), Some(values)) =
+                    (id("namespace"), text("axis"), texts("values"))
+                {
+                    let values: BTreeSet<String> = values.into_iter().collect();
+                    changes
+                        .admitted
+                        .insert((namespace, axis), values.into_iter().collect());
+                }
+            }
+            ("set_tracked_labels", _) => {
+                if let Some(keys) = texts("keys") {
+                    changes.tracked = Some(keys.into_iter().collect());
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(changes)
+}
+
+/// The workloads the settings `operations` of a changeset concern, with what their
+/// derivation reads on the final state of the settings (Q-019-36, 42): those whose stored
+/// labels (index `workload_labels`) carry a label of a mapping written, those of a
+/// namespace whose admitted values are written that carry a label of a mapping of the
+/// axis, stored or written, and those that carry a key whose tracking changes.
+pub(crate) async fn rederive(
+    conn: &mut PgConnection,
+    operations: &[&ModuleOperation],
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<Rederived>, StoreError> {
+    let changes = changes(conn, operations, at).await?;
+    let stored: BTreeSet<String> = crate::settings::tracked(conn, at)
+        .await?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect();
+    let tracked = changes.tracked.clone().unwrap_or_else(|| stored.clone());
+    let keys: Vec<&String> = tracked.symmetric_difference(&stored).collect();
+    let pair = |k: &str, v: &str| Value::Object(Map::from_iter([(k.to_owned(), v.into())]));
+    let mut labels: Vec<Value> = changes
+        .mappings
+        .keys()
+        .map(|(k, v, _)| pair(k, v))
+        .collect();
+    // By namespace, the labels of the mappings of the axes its admitted values write.
+    let axes: Vec<&str> = changes.admitted.keys().map(|(_, a)| a.as_str()).collect();
+    let mut of_axis: Vec<(String, String, String)> = if axes.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as(
+            "SELECT axis_key, label_key, label_value FROM kube.label_mapping
+              WHERE axis_key = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(&axes)
+        .bind(at)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?
+    };
+    of_axis.extend(
+        changes
+            .mappings
+            .keys()
+            .map(|(k, v, axis)| (axis.clone(), k.clone(), v.clone())),
+    );
+    let (mut namespaces, mut scoped) = (Vec::new(), Vec::new());
+    for (namespace, axis) in changes.admitted.keys() {
+        for (_, k, v) in of_axis.iter().filter(|(a, ..)| a == axis) {
+            namespaces.push(*namespace);
+            scoped.push(pair(k, v));
+        }
+    }
+    if labels.is_empty() && keys.is_empty() && scoped.is_empty() {
+        return Ok(Vec::new());
+    }
+    labels.dedup();
+    let rows = concerned(conn, (&labels, &keys), (&namespaces, &scoped), at).await?;
+    let mut axes = BTreeMap::new();
+    let mut rederived = Vec::with_capacity(rows.len());
+    for (workload, cluster, namespace, name, cluster_keys, labels) in rows {
+        let mut facts = Facts {
+            stored: Some(labels.0),
+            tracked: tracked.iter().cloned().chain(cluster_keys).collect(),
+            ..Facts::default()
+        };
+        let labels = facts.stored.clone().unwrap_or_default();
+        complete(
+            conn,
+            &mut facts,
+            &labels,
+            (Some(namespace), Some(workload)),
+            &changes,
+            &mut axes,
+            at,
+        )
+        .await?;
+        rederived.push(Rederived {
+            workload,
+            cluster,
+            namespace: name,
+            facts,
+        });
+    }
+    Ok(rederived)
+}
+
+/// A living workload a changeset of the settings concerns: its identifier, its cluster,
+/// its namespace (identifier and name), the label keys its cluster tracks, its labels.
+type Concerned = (
+    Uuid,
+    Uuid,
+    Uuid,
+    String,
+    Vec<String>,
+    sqlx::types::Json<BTreeMap<String, String>>,
+);
+
+/// The living workloads that carry one of `labels` or a label of one of `keys`, or, in
+/// `namespaces[i]`, the label `scoped[i]`.
+async fn concerned(
+    conn: &mut PgConnection,
+    (labels, keys): (&[Value], &[&String]),
+    (namespaces, scoped): (&[Uuid], &[Value]),
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<Concerned>, StoreError> {
+    sqlx::query_as(
+        "SELECT w.id, n.cluster_id, n.id, n.name, c.tracked_label_keys, w.labels
+           FROM kube.workload w
+           JOIN kube.namespace n
+             ON n.id = w.namespace_id AND n.valid_period @> coalesce($5::timestamptz, now())
+           JOIN kube.cluster c
+             ON c.id = n.cluster_id AND c.valid_period @> coalesce($5::timestamptz, now())
+          WHERE w.valid_period @> coalesce($5::timestamptz, now())
+            AND (w.labels @> ANY($1::jsonb[]) OR w.labels ?| $2::text[]
+                 OR EXISTS (SELECT 1 FROM unnest($3::uuid[], $4::jsonb[]) AS s(n, l)
+                             WHERE s.n = w.namespace_id AND w.labels @> s.l))
+          ORDER BY w.id",
+    )
+    .bind(labels)
+    .bind(keys)
+    .bind(namespaces)
+    .bind(scoped)
+    .bind(at)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| store(&e))
 }
 
 /// The current assignments of `workload` of `properties`, and those of the provenance of
