@@ -73,9 +73,11 @@ import {
   onMounted,
   ref,
   shallowRef,
+  useTemplateRef,
   watch,
 } from "vue";
 import { useI18n } from "vue-i18n";
+import { editModified, panelModified } from "./modified.ts";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
@@ -91,6 +93,7 @@ import {
   goToPeriod,
   probePath,
   refusalOnField,
+  timeOf,
   toPresent,
   useTime,
   type Period,
@@ -293,6 +296,27 @@ closeEditWithPage(
   () => time.value,
 );
 
+// A form of the panel changed and not written (Q-021-22, task 12qb): the panel asks
+// « Abandonner les modifications ? » before Escape, its cross, `]` or the counter close it
+// (`close()`, never the model), and before a navigation that would drop the edit (the
+// criterion of `closeEditWithPage`); « Continuer la saisie » stays on the page.
+const modified = panelModified();
+const sidePanel = useTemplateRef<InstanceType<typeof SidePanel>>("sidePanel");
+function closePanel(): void {
+  if (sidePanel.value) sidePanel.value.close();
+  else panelOpen.value = false;
+}
+onBeforeUnmount(
+  router.beforeEach(async (to, from) => {
+    if (!sidePanel.value || !editModified()) return true;
+    const now = timeOf(to.query);
+    const before = timeOf(from.query);
+    const moved = now.validAt !== before.validAt || now.asOf !== before.asOf;
+    if (to.path === from.path && !(moved && !now.present)) return true;
+    return await sidePanel.value.ask();
+  }),
+);
+
 // The drafts of the user (spec 024 § A): the list for the menu of the counter, the active
 // one of the tab for its count.
 const drafting = computed(() => session.value.me !== null && session.value.rights.hasAny(EDITS));
@@ -320,7 +344,7 @@ const tabs = computed<TabItem[]>(() => [
 ]);
 /** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
-  if (panelOpen.value) panelOpen.value = false;
+  if (panelOpen.value) closePanel();
   else {
     panelOpen.value = true;
     panelTab.value = "draft";
@@ -687,7 +711,8 @@ function openDraft(): void {
 /** `]`: the panel opened or closed; nothing out of a session, which has none. */
 function togglePanel(): boolean {
   if (!signedIn.value) return false;
-  panelOpen.value = !panelOpen.value;
+  if (panelOpen.value) closePanel();
+  else panelOpen.value = true;
   return true;
 }
 /**
@@ -898,9 +923,11 @@ onBeforeUnmount(
         <SidePanel
           v-if="signedIn"
           :id="PANEL"
+          ref="sidePanel"
           v-model:open="panelOpen"
           v-model:tab="panelTab"
           v-model:width="panelWidth"
+          :modified="modified"
           :label="t('app.rightPanel')"
           :tabs="tabs"
           :cover="width === 'narrow'"

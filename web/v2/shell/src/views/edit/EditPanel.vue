@@ -83,6 +83,7 @@ import {
 import { VLAN_PROPERTY } from "../parts/vlan.ts";
 import type { Refusal } from "./inline.ts";
 import { useMoves, type MoveOutcome } from "./moves.ts";
+import { reportModified } from "../../frame/modified.ts";
 import { closeEdit, type FormRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import {
@@ -495,6 +496,17 @@ const {
   },
   refused,
 });
+// A field changed since the form opened, or a motive of the user's own: the panel asks
+// before it drops them, and so does a navigation to another page (Q-021-22).
+reportModified(
+  () =>
+    filled.value &&
+    (writing.motiveTyped.value ||
+      fields.value.some(
+        (field) => textOf(values.value[field.name]) !== textOf(opened.value[field.name]),
+      )),
+  true,
+);
 /**
  * What the refusal of a replacement says: the draft gone (404), or changed so that the
  * operation is no longer at its place (412, read again by the SDK).

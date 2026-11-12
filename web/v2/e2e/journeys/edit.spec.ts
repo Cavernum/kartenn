@@ -648,6 +648,68 @@ test("the same edit panel from a node of the topography and from the list of add
   expect(await fieldsOf(fromList)).toEqual(nodeFields);
 });
 
+// A field changed in the edit panel (Q-021-22, task 021-12qb): Escape, the counter and a
+// navigation that would drop the edit ask « Abandonner les modifications ? » first;
+// « Continuer la saisie » keeps the input, the field and the page; « Abandonner » drops it,
+// nothing written.
+test("a field changed: Escape, the counter and a navigation ask first; abandoned, nothing written", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  await page.goto("/addresses");
+  await expect(page.getByRole("grid", { name: "Adresses" })).toBeVisible();
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    const url = r.url();
+    const written = /\/v1\/(addresses|drafts|changesets)(?!\/simulate)/.test(url);
+    if (r.method() !== "GET" && written && !url.includes("simulate")) writes.push(url);
+  });
+  await page.keyboard.press("c");
+  const form = page.getByRole("form", { name: "Créer : Adresse" });
+  const value = form.getByRole("textbox", { name: /^Valeur/ });
+  const panel = page.getByRole("complementary", { name: "Panneau droit" });
+  const ask = page.getByRole("alertdialog", { name: "Abandonner les modifications ?" });
+  const keep = ask.getByRole("button", { name: "Continuer la saisie" });
+  await value.focus();
+  await page.keyboard.type("192.0.2.77");
+
+  // Escape from the field asks; « Continuer la saisie » gives the field back, as typed.
+  await page.keyboard.press("Escape");
+  await expect(keep).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Enter");
+  await expect(value).toBeFocused();
+  await expect(value).toHaveValue("192.0.2.77");
+
+  // The counter asks too, and so does a page that would drop the edit (it stays here).
+  await page
+    .getByRole("button", { name: /^Brouillon/ })
+    .first()
+    .click();
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Navigation principale" })
+    .getByRole("link", { name: "Préfixes", exact: true })
+    .click();
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/addresses/);
+  await expect(value).toHaveValue("192.0.2.77");
+
+  // « Abandonner »: the panel closes, the input dropped, nothing written.
+  await value.focus();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Tab");
+  await expect(ask.getByRole("button", { name: "Abandonner" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(panel).toBeHidden();
+  await expect(form).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+
 test("without approval.self, « Appliquer » stays visible, refused, its permission said at the keyboard", async ({
   page,
   login,

@@ -32,6 +32,7 @@ import {
 import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
+import { reportModified } from "../frame/modified.ts";
 import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
@@ -160,6 +161,16 @@ watch(
   },
   { immediate: true },
 );
+// A motive typed (other than the one kept with the draft, or the generic one prefilled):
+// the panel asks before it drops it (Q-021-22).
+reportModified(() => {
+  const kept = draft.value?.reason;
+  const typed = summary.value.trim();
+  return (
+    (typed !== (kept?.summary ?? "") && typed !== t("drafts.defaultSummary")) ||
+    description.value.trim() !== (kept?.description ?? "")
+  );
+});
 
 const busy = ref(false);
 const refusal = shallowRef<Refusal>();
