@@ -1096,7 +1096,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   borne ; un jour est détaché et supprimé quand tous les clusters l'ont dépassé ;
   partitions de jours créées d'avance) — REQ-019-16 (audit par lot, rétention) —
   verify : `altered_batch_detected`, `purge_drops_old_partitions`,
-  `open_observation_never_purged`
+  `open_observation_never_purged`, `lowered_retention_waits_for_the_former`,
+  `row_cites_batch_of_its_transaction` (correction Q-019-27)
   - où : design « Données » (garde-fous) ; ADR 0023 et `crates/kartenn-server/src/jobs.rs`
     (tâches de module, 016/G6), `Module::jobs` ; ADR 0043 (décisions 5, 8 : la décision 8
     dit encore « sans DELETE de masse » — l'amender selon Q-019-20, purge par cluster par
@@ -1134,13 +1135,48 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     copie fait l'empreinte attendue ; `Outcome::Failure`, cible le cluster ; un lot altéré
     est signalé à chaque passage ; audit par `ModuleTx::audit` plutôt que par `Findings`
     ou un chemin propre au serveur.
-  - reste : la vérification relit chaque jour tous les lots entiers de la rétention
-    (jusqu'à 400 jours ; aucun banc ne la mesure) ; une fermeture datée d'avant la borne
-    de son cluster recrée un jour supprimé, purgé au passage suivant, et rend son lot
-    non vérifiable ; la purge tient un verrou exclusif sur `pod_observation_closed`
-    jusqu'à sa validation quand elle crée ou supprime un jour (les lots attendent) ; un
-    cluster sans version (supprimé de `kube.cluster`) garde sa dernière borne et retient
-    la suppression des jours ; pas d'événement d'audit ni de compteur pour une purge.
+  - correction de revue (Q-019-27, le journal tient contre un rôle `kartenn_app`
+    compromis) : l'empreinte attendue est celle de l'unique événement scellé du lot,
+    retrouvé par le détail `batch` (plus par `recorded_at`), la copie seulement pour un
+    mois purgé par l'audit (`audit.purge`) ; `earliest` scellé (détail de
+    `observation.batch.recorded`, catalogue régénéré, ajout seul) ; nouvel événement
+    `observation.journal.purged` (INFO, haute : `cluster`, `before`, `after`, `deleted`,
+    `dropped`) scellé par la tâche de purge, `observation_purge()` rendant une ligne par
+    cluster ; la vérification contrôle chaque borne contre la dernière purge scellée et
+    juge un lot entier selon la borne scellée ; écarts distingués par `reason`
+    (`content`, `event_missing`, `event_duplicated`, `received_at`, `earliest`,
+    `purge_bound`, module `jobs::reasons`) ; rétention effective = la plus grande des
+    versions du cluster (temps valide et `kube.cluster_history`) en vigueur dans la
+    fenêtre de leur propre rétention ; déclencheurs `pod_observation_of_its_batch`
+    (lot de la même transaction, par `xmin`) et `observation_batch_received_now` ;
+    `Recorded::earliest`, `observations::rfc3339` public ; ADR 0043 (amendement complété,
+    décision 5), ADR 0026 (amendement 13 ratifié), `decisions.md` (Q-019-27), design.
+    Tests : `altered_batch_detected` (ligne supprimée, événement manquant puis mois purgé
+    par l'audit, événement dupliqué, `received_at` décalé, `earliest` baissé, copie
+    seule réécrite sans effet), `purge_drops_old_partitions` (purges scellées ; fonction
+    appelée sans la tâche : `purge_bound` pour chaque cluster ; rescellée par la tâche),
+    `lowered_retention_waits_for_the_former`, `row_cites_batch_of_its_transaction`
+    (ouverture et fermeture sous un ancien lot, lot daté de la veille : `42501`) ; le
+    test 6a de la fermeture sans lot attend `42501` (le déclencheur passe avant la clé
+    étrangère).
+  - choix (correction) : vérification en une seule requête lue par un curseur (`FETCH
+    500`), sans dépendance nouvelle ; un seul écart par lot, le premier trouvé
+    (événements, instant, `earliest`, contenu) ; `expected`/`found` d'un écart
+    d'événements : leur nombre (`1`/`0`, `1`/`n`) ; écart de borne : événement
+    `observation.batch.altered` sans `batch` ; détails scellés lus avec
+    `pg_input_is_valid`, pour qu'un événement forgé illisible ne bloque pas la
+    vérification ; mois purgé de l'audit jugé sur `date_trunc('month', received_at)` comme
+    la purge de l'audit.
+  - reste : toute la rétention relue chaque jour dans une seule transaction et une seule
+    requête (jusqu'à 400 jours ; non mesuré, aucun banc) ; un cluster retiré de
+    `kube.cluster` fige la borne minimale et retient la suppression des jours ; une ligne
+    fermée insérée directement (hors fermeture) sous un lot de la transaction peut citer
+    un ancien `opened_batch` : la vérification la voit tant que ce lot est entier ; un
+    événement de purge purgé par l'audit (criticité haute) laisse sa borne sans
+    correspondance ; une fermeture datée d'avant la borne de son cluster recrée un jour
+    supprimé, purgé au passage suivant, et rend son lot non vérifiable ; la purge tient
+    un verrou exclusif sur `pod_observation_closed` jusqu'à sa validation quand elle crée
+    ou supprime un jour (les lots attendent) ; pas de compteur pour une purge.
 - [x] 6d. Lectures du journal : `who_had` (port de lecture) et
   `GET /v1/kube-clusters/{id}/observations?ip=&at=`, `GET /v1/workloads/{id}/observations`
   sous `kube.observation.read` (permission déclarée, évaluée sur le `pod_domain` du
