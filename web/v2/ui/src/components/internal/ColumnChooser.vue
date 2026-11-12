@@ -8,7 +8,7 @@
 // checkboxes, « Colonnes », lists the columns that may hide, checked when they show (read
 // on the header cells when the menu opens); a choice holds whatever the width. The row of
 // the chooser shows only where something is hidden: under `md` (`lg` when a column has
-// priority 3), or when the user hid a column.
+// priority 3), or once the user chose a column (hidden or shown).
 import { computed, ref } from "vue";
 import { t } from "../../i18n.ts";
 import {
@@ -53,7 +53,9 @@ function onSelect(id: string): void {
 }
 
 const max = computed(() => maxPriority(props.columns));
-const chosen = computed(() => Object.values(visibility.value).some((v) => v === false));
+// Any choice, a column shown as well as hidden: the way back to it stays at every width
+// (a column of a property added by the shell, 021-12i, hides nothing once all are shown).
+const chosen = computed(() => Object.keys(visibility.value).length > 0);
 </script>
 
 <template>

@@ -80,7 +80,8 @@ export interface CollectionEdit {
  * panel (`e`), never typed in a cell. For a property of the record (`properties.ts`):
  * `masked`, a value the user may not read; `typed`, a value no cell types (a reference, a
  * set); `unpatched`, a kind whose merge patch writes no property; `undeclared`, a property
- * whose declaration is not read.
+ * whose declaration is not read; `unread`, a value of a column of a list not read yet;
+ * `unreadable`, one whose read was refused.
  */
 export type FixedReason =
   | "immutable"
@@ -91,7 +92,9 @@ export type FixedReason =
   | "masked"
   | "typed"
   | "unpatched"
-  | "undeclared";
+  | "undeclared"
+  | "unread"
+  | "unreadable";
 
 /**
  * The values of a form: a text, a whole number as its digits, a key of a closed list, a

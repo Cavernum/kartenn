@@ -116,7 +116,9 @@
       "untyped": "Filtre non reconnu : {names}",
       "declarationsFailed": "Les propriétés déclarées n'ont pas pu être lues : {names} reste sans type",
       "notRead": "La liste n'est pas lue sans ce filtre. Retirez sa pastille, ou corrigez l'adresse.",
-      "restarted": "Le curseur de la liste a été refusé : la liste repart du début."
+      "restarted": "Le curseur de la liste a été refusé : la liste repart du début.",
+      "propertyReading": "Lecture de la valeur",
+      "propertyUnreadable": "Illisible"
     },
     "record": {
       "sections": "Sections de la fiche",
@@ -454,7 +456,9 @@
       "masked": "Valeur masquée : sans son droit de lecture, elle ne se modifie pas ici.",
       "typed": "Une valeur de ce type (référence, ensemble) ne se saisit pas dans une cellule.",
       "unpatched": "Les propriétés de cette sorte d'objet ne se modifient pas en place.",
-      "undeclared": "Propriété dont la déclaration n'est pas lue : elle ne se modifie pas ici."
+      "undeclared": "Propriété dont la déclaration n'est pas lue : elle ne se modifie pas ici.",
+      "unread": "Valeur pas encore lue : elle se modifie une fois lue.",
+      "unreadable": "Valeur illisible : sa lecture a été refusée, relisez la liste pour la modifier."
     },
     "vlan": {
       "vidProposed": "Prochain VID libre du groupe {group}.",

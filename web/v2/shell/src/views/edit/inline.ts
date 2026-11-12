@@ -8,10 +8,19 @@ import {
   type Draft,
   type Entry,
   type PendingReason,
+  type QuickWrite,
   type Refusal as SdkRefusal,
 } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, RowState } from "@kartenn/ui";
-import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from "vue";
+import {
+  computed,
+  onScopeDispose,
+  ref,
+  shallowReactive,
+  shallowRef,
+  watch,
+  type ShallowRef,
+} from "vue";
 import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
@@ -140,6 +149,85 @@ export function whyWords(why: NotEditable | null, t: (key: string) => string): s
   if (why.kind === "past") return t("edit.why.past");
   if (why.kind === "dated") return t("edit.why.inPlaceDated");
   return t(`edit.why.${why.reason}`);
+}
+
+/** What a cell shows of a write applied now, as `quickWrite` renders its answer. */
+export interface QuickCell {
+  /** Under way: the value shown before the answer (D-7, at the present only). */
+  pending(): void;
+  /** Applied (200). */
+  applied(): void;
+  /** Held in review (202), and why. */
+  held(reason: string | undefined): void;
+  /** Refused by its violations (422), on the cell. */
+  invalid(error: { error: string; code?: string }): void;
+  /** Back to the value read (412, 403, a failure). */
+  clear(): void;
+}
+
+/** A write applied now (Ctrl+Enter), the motive given: of a field, or of a property. */
+export interface QuickRun<A extends QuickAsk> {
+  /** The line of the motive, and what it asks. */
+  asking: ShallowRef<A | null>;
+  ask: A;
+  /** The value as typed, kept in the line whatever the answer. */
+  text: string;
+  request: QuickWrite;
+  /** What the write is said as (`edit.what`). */
+  what: string;
+  cell: QuickCell;
+  /** After a 412: the rows read again, then the value and version read now. */
+  reread: () => void;
+  current: (refusal: Refusal) => Promise<{ text: string | null; version: string | null }>;
+  t: InlineDeps["t"];
+  sentence: InlineDeps["sentence"];
+  say: InlineSay;
+}
+
+/**
+ * The write applied now under `If-Match` (`write.quick`), rendered by its answer, the same
+ * for a field of a list (`useInlineEdit`) and a property (`usePropertyEdit`): 200 applied,
+ * 202 « en revue » and why, the line closed; 412 the input kept beside the value read
+ * again, 422 its violations on the cell, else the refusal on the line, which stays.
+ */
+export async function quickWrite<A extends QuickAsk>(run: QuickRun<A>): Promise<boolean> {
+  const { asking, ask, text, cell } = run;
+  asking.value = { ...ask, value: text, busy: true };
+  cell.pending();
+  const outcome = await write
+    .quick(run.request)
+    .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
+  if (outcome.kind === "applied") {
+    cell.applied();
+    asking.value = null;
+    run.say.applied(run.what, outcome.changeset);
+    return true;
+  }
+  if (outcome.kind === "proposed") {
+    cell.held(heldWords(run.t, outcome.reason));
+    asking.value = null;
+    run.say.proposed(run.what, outcome.changeset, outcome.reason);
+    return true;
+  }
+  if (outcome.kind === "conflict") {
+    cell.clear();
+    // The rows read again; the line keeps the input beside its new value.
+    run.reread();
+    const current = await run.current(outcome);
+    asking.value = {
+      ...ask,
+      value: text,
+      busy: false,
+      refusal: outcome,
+      current: current.text,
+      version: current.version ?? ask.version,
+    };
+    return false;
+  }
+  if (outcome.kind === "invalid") cell.invalid(cellErrorOf(outcome, run.sentence));
+  else cell.clear();
+  asking.value = { ...ask, value: text, busy: false, refusal: outcome };
+  return false;
 }
 
 export function useInlineEdit({
@@ -399,58 +487,42 @@ export function useInlineEdit({
     const field = ask.field;
     const value = valueOf(field, text);
     const key = keyOf(ask.row, field.name);
-    asking.value = { ...ask, value: text, busy: true };
-    // Optimism at the present (D-7): the value shown before the answer, under way.
-    shown.set(key, { state: "pending", value, version: ask.version });
-    const outcome = await write
-      .quick({
+    const set = (state: CellState | undefined, held?: string) =>
+      void shown.set(key, { state, value, version: ask.version, ...(held ? { held } : {}) });
+    return quickWrite({
+      asking,
+      ask,
+      text,
+      request: {
         key: keys.object(of.kind, ask.row),
         patch: patchOf([field], { [field.name]: value }),
         motive,
         ...(ask.version ? { ifMatch: `"${ask.version}"` } : {}),
-      })
-      .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
-    const words = what(field.name, ask.name);
-    if (outcome.kind === "applied") {
-      // Shown until the list is read again, unless it already is.
-      if (versionOf(rowById.value.get(ask.row)) === ask.version) {
-        shown.set(key, { state: undefined, value, version: ask.version });
-      } else shown.delete(key);
-      asking.value = null;
-      say.applied(words, outcome.changeset);
-      return true;
-    }
-    if (outcome.kind === "proposed") {
-      shown.set(key, {
-        state: "review",
-        value,
-        version: ask.version,
-        held: heldWords(t, outcome.reason),
-      });
-      asking.value = null;
-      say.proposed(words, outcome.changeset, outcome.reason);
-      return true;
-    }
-    if (outcome.kind === "conflict") {
-      shown.delete(key);
-      const current = await currentOf(of, ask.row, outcome);
-      // The rows read again; the line keeps the input beside its new value.
-      reread(ask.row, of);
-      asking.value = {
-        ...ask,
-        value: text,
-        busy: false,
-        refusal: outcome,
-        current: current ? textOf(current.data[field.name]) : null,
-        version: current?.version ?? ask.version,
-      };
-      return false;
-    }
-    if (outcome.kind === "invalid") {
-      shown.set(key, { state: cellErrorOf(outcome, sentence), value, version: ask.version });
-    } else shown.delete(key);
-    asking.value = { ...ask, value: text, busy: false, refusal: outcome };
-    return false;
+      },
+      what: what(field.name, ask.name),
+      cell: {
+        pending: () => set("pending"),
+        // Shown until the list is read again, unless it already is.
+        applied: () =>
+          versionOf(rowById.value.get(ask.row)) === ask.version
+            ? set(undefined)
+            : shown.delete(key),
+        held: (reason) => set("review", reason),
+        invalid: (error) => set(error),
+        clear: () => void shown.delete(key),
+      },
+      reread: () => reread(ask.row, of),
+      current: async (refusal) => {
+        const current = await currentOf(of, ask.row, refusal);
+        return {
+          text: current ? textOf(current.data[field.name]) : null,
+          version: current?.version ?? null,
+        };
+      },
+      t,
+      sentence,
+      say,
+    });
   }
 
   /** The line of the motive closed without applying: the cell back to the value read. */

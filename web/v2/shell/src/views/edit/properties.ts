@@ -4,7 +4,6 @@ import {
   keys,
   queryClient,
   reads,
-  write,
   type components,
   type Draft,
   type Entry,
@@ -32,8 +31,7 @@ import {
   type FixedReason,
   type NotEditable,
 } from "./fields.ts";
-import { cellErrorOf, whyWords, type InlineDeps, type QuickAsk, type Refusal } from "./inline.ts";
-import { heldWords } from "./say.ts";
+import { cellErrorOf, quickWrite, whyWords, type InlineDeps, type QuickAsk } from "./inline.ts";
 
 // The tab « Propriétés » of a record edited in place (task 12h; REQ-021-15, 16, 37; 003,
 // Q-021-19): the value of a property of one object, typed in its cell and checked by the
@@ -297,14 +295,39 @@ export function originOf(explanation: Explanation, id: string): Origin {
     : { kind: "inherited", source: null };
 }
 
-/** A row of the tab: a property of the object, its value as read and as its cell holds it. */
-export interface PropertyRow extends Record<string, unknown> {
-  key: string;
+/** A property of an object as read: its value as an editor holds it, as read, masked. */
+export interface PropertyRead {
   /** The value as the editor of its cell holds it. */
   value: string;
   /** The value read (or drafted, or under way), as `PropertyValue` shows it. */
   read: unknown;
   masked: boolean;
+}
+
+/** A row of the tab: a property of the object, its value as read and as its cell holds it. */
+export interface PropertyRow extends Record<string, unknown>, PropertyRead {
+  key: string;
+}
+
+/** An object whose properties are edited, as a write needs it. */
+export interface PropertyObject {
+  id: string;
+  /** What it is named (`192.0.2.0/24`). */
+  name: string;
+  /** Its version as read: what a write expects (`If-Match`, the `expected` of its guard). */
+  version: string | null;
+}
+
+/** The cell of a property: the object and the key. */
+export interface PropertyCell {
+  id: string;
+  key: string;
+}
+
+/** The motive asked for a property: the cell of the grid, and the object and key it holds. */
+export interface PropertyAsk extends QuickAsk {
+  object: string;
+  key: string;
 }
 
 /** What a cell shows of an edit of this session. */
@@ -319,27 +342,33 @@ interface Shown {
 
 export interface PropertyEditDeps extends Pick<InlineDeps, "t" | "sentence" | "say"> {
   collection: () => Collection;
-  id: () => string;
-  /** What the object is named (`192.0.2.0/24`). */
-  name: () => string;
-  /** The version of the object read with its record (`If-Match`). */
-  version: () => string | null;
-  rows: () => readonly PropertyRow[];
+  /** The objects edited: the record's in its tab, the rows' in a list (task 12i). */
+  objects: () => readonly PropertyObject[];
+  /** The property `key` of the object `id` as read, `undefined` while it is not. */
+  property: (id: string, key: string) => PropertyRead | undefined;
+  /** Whether the read of the properties of `id` was refused (it will not come by itself). */
+  unreadable?: (id: string) => boolean;
   declaration: (key: string) => Declared | undefined;
   declarationById: (id: string) => Declared | undefined;
   /** The label of a property, its key without one. */
   label: (key: string) => string;
   /** The label of a value of the closed list of a property, if any. */
   valueLabel: (key: string, value: string) => string | null;
-  /** The properties read again (after a 412). */
-  reread: () => void;
+  /** The properties of the object `id` read again (after a 412). */
+  reread: (id: string) => void;
 }
 
 const fixed = (reason: FixedReason): NotEditable => ({
   kind: "fixed",
   reason,
 });
+const cellKey = (id: string, key: string) => `${id}\n${key}`;
 
+/**
+ * The properties of objects edited in place: of one record (its tab, `recordGrid`), or of
+ * the rows of a list, one column a property (task 12i, `propertyColumns.ts`). Every rule
+ * is the same for both; a cell is an object and a key.
+ */
 export function usePropertyEdit(deps: PropertyEditDeps) {
   const { t } = deps;
   const session = useSession();
@@ -347,6 +376,9 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
   const present = computed(() => time.value.present);
   const rights = computed(() => session.value.rights);
   const dates = () => ({ validAt: time.value.validAt, asOf: time.value.asOf });
+  const objectById = computed(() => new Map(deps.objects().map((o) => [o.id, o])));
+  const objectOf = (id: string): PropertyObject =>
+    objectById.value.get(id) ?? { id, name: id, version: null };
 
   // The active draft of the tab: what it changes shows in the cells, « en brouillon ».
   const active = ref<string | null>(drafts.active());
@@ -355,13 +387,23 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     ...drafts.get(active.value ?? "-"),
     enabled: active.value !== null,
   }));
-  const drafted = computed(() =>
-    draftedProperties(
-      (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations,
-      deps.id(),
-      (id) => deps.declarationById(id)?.key,
-    ),
-  );
+  // By object: what the draft changes in the properties of each object edited.
+  const drafted = computed(() => {
+    const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
+    const touched = new Set<string>();
+    for (const operation of operations ?? []) {
+      const id = ((operation as Record<string, unknown>).object as { id?: unknown } | undefined)
+        ?.id;
+      if (typeof id === "string" && objectById.value.has(id)) touched.add(id);
+    }
+    const out = new Map<string, Map<string, Raw | null>>();
+    for (const id of touched) {
+      const values = draftedProperties(operations, id, (d) => deps.declarationById(d)?.key);
+      if (values.size > 0) out.set(id, values);
+    }
+    return out;
+  });
+  const isDrafted = (id: string, key: string) => drafted.value.get(id)?.has(key) === true;
 
   // The origin of the values (their explanation, the cache's, as the popover reads it) and
   // the name of the object an inherited one comes from; the whole list of a closed list.
@@ -381,21 +423,21 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
       : undefined;
     sources.set(node.id, entry ? nameOf(entry.data) : null);
   }
-  /** The origin of the value of `key`, read when not known yet. */
-  async function explain(key: string): Promise<Origin | undefined> {
-    const known = explained.get(key);
+  /** The origin of the value of `key` of the object `id`, read when not known yet. */
+  async function explain(id: string, key: string): Promise<Origin | undefined> {
+    const known = explained.get(cellKey(id, key));
     if (known) return known;
     const read = reads.sub<Explanation>(
       deps.collection().kind,
-      deps.id(),
+      id,
       `properties/${encodeURIComponent(key)}/explanation`,
       null,
       dates(),
     );
     const entry = await queryClient.fetchQuery(read).catch(() => undefined);
     if (!entry) return undefined;
-    const origin = originOf(entry.data, deps.id());
-    explained.set(key, origin);
+    const origin = originOf(entry.data, id);
+    explained.set(cellKey(id, key), origin);
     if (origin.kind === "inherited" && origin.source) void sourceName(origin.source);
     return origin;
   }
@@ -412,57 +454,65 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     );
   }
   /** The cell of the focus: its origin and, for a closed list, its values are read. */
-  const focus = ref<string | null>(null);
-  watch(focus, (key) => {
-    const declaration = key ? deps.declaration(key) : undefined;
-    if (!key || !declaration) return;
-    void explain(key);
-    if (declaration.type === "enum") void listOf(key);
+  const focus = ref<PropertyCell | null>(null);
+  watch(focus, (cell) => {
+    const declaration = cell ? deps.declaration(cell.key) : undefined;
+    if (!cell || !declaration) return;
+    void explain(cell.id, cell.key);
+    if (declaration.type === "enum") void listOf(cell.key);
   });
 
   // The edits of this session not yet in the properties read.
   const shown = shallowReactive(new Map<string, Shown>());
-  // Another object, other dates, another version: what was known of the values goes.
-  watch([deps.id, deps.version, () => time.value.validAt, () => time.value.asOf], () => {
+  // Other dates: what was known of the values goes.
+  watch([() => time.value.validAt, () => time.value.asOf], () => {
     explained.clear();
-    for (const [key, entry] of [...shown]) {
-      if (entry.version !== deps.version()) shown.delete(key);
+    if (focus.value) void explain(focus.value.id, focus.value.key);
+  });
+  // Another version of an object (or the object gone): what was known of its values goes.
+  let versions = new Map<string, string | null>();
+  watch(objectById, (byId) => {
+    for (const [at, entry] of [...shown]) {
+      if (byId.get(at.split("\n")[0]!)?.version !== entry.version) shown.delete(at);
     }
-    if (focus.value) void explain(focus.value);
+    for (const at of [...explained.keys()]) {
+      const id = at.split("\n")[0]!;
+      if (!byId.has(id) || versions.get(id) !== byId.get(id)!.version) explained.delete(at);
+    }
+    versions = new Map([...byId].map(([id, object]) => [id, object.version]));
+    if (focus.value && !explained.has(cellKey(focus.value.id, focus.value.key))) {
+      void explain(focus.value.id, focus.value.key);
+    }
   });
 
-  const rowOf = (key: string) => deps.rows().find((row) => row.key === key);
+  /** The property as the grid shows it: the value of the draft, then the one under way. */
+  function shownValue(id: string, key: string): PropertyRead | undefined {
+    const read = deps.property(id, key);
+    const entry = shown.get(cellKey(id, key));
+    if (entry && (entry.state === undefined || entry.state === "pending")) {
+      return { value: entry.text, read: entry.raw, masked: false };
+    }
+    const values = drafted.value.get(id);
+    if (!values?.has(key)) return read;
+    const value = values.get(key)!;
+    return { value: propertyText(value), read: value, masked: false };
+  }
 
-  /** The rows as the grid shows them: the values of the draft, then those under way. */
-  const shownRows = computed<PropertyRow[]>(() =>
-    deps.rows().map((row) => {
-      const entry = shown.get(row.key);
-      if (entry && (entry.state === undefined || entry.state === "pending")) {
-        return { ...row, value: entry.text, read: entry.raw };
-      }
-      const value = drafted.value.get(row.key);
-      return value === undefined ? row : { ...row, value: propertyText(value), read: value };
-    }),
-  );
-
-  /** Why the value of `row` offers no editor, or `null` when it does. */
-  function why(row: PropertyRow): NotEditable | null {
-    if (row.masked) return fixed("masked");
-    const declaration = deps.declaration(row.key);
+  /** Why the value of `key` of the object `id` offers no editor, or `null` when it does. */
+  function why(id: string, key: string): NotEditable | null {
+    const read = deps.property(id, key);
+    if (read?.masked) return fixed("masked");
+    const declaration = deps.declaration(key);
     if (!declaration) return fixed("undeclared");
     if (!typedInPlace(declaration)) return fixed("typed");
     const of = deps.collection();
     if (!PROPERTIES_PATCHED[of.id]) return fixed("unpatched");
-    const editable = editability(rights.value, writesOf(time.value), of, `prop.${row.key}`);
+    const editable = editability(rights.value, writesOf(time.value), of, `prop.${key}`);
     if (!editable.editable) return editable.why;
-    return explained.get(row.key)?.kind === "computed" ? fixed("computed") : null;
+    // A value not read (a row of a list): never typed over blind; its read refused, said so.
+    if (!read) return fixed(deps.unreadable?.(id) ? "unreadable" : "unread");
+    return explained.get(cellKey(id, key))?.kind === "computed" ? fixed("computed") : null;
   }
-  const whyOf = (key: string) => {
-    const row = rowOf(key);
-    return row ? why(row) : null;
-  };
-  const editable = (row: PropertyRow, column: GridColumn) =>
-    column.id === "value" && why(row) === null;
   /** The permission Ctrl+Enter needs: the approval of the property's own (024). */
   const applyRight = (key: string) => approvalOf(propertyRight(key));
   const mayApply = (key: string) => rights.value.has(applyRight(key));
@@ -480,16 +530,16 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
       ) ?? text
     );
   }
-  const owned = (key: string): boolean | undefined => {
-    const origin = explained.get(key);
+  const owned = (id: string, key: string): boolean | undefined => {
+    const origin = explained.get(cellKey(id, key));
     return origin ? origin.kind === "own" : undefined;
   };
-  /** The refusal of a text typed for `key`, in words, or nothing. */
-  function refusalOf(key: string, text: string): string | undefined {
+  /** The refusal of a text typed for `key` of the object `id`, in words, or nothing. */
+  function refusalOf(id: string, key: string, text: string): string | undefined {
     const declaration = deps.declaration(key);
     if (!declaration) return undefined;
     const list = choices.get(key) ?? null;
-    const refused = checkProperty(declaration, parse(declaration, text), owned(key), list);
+    const refused = checkProperty(declaration, parse(declaration, text), owned(id, key), list);
     return refused
       ? t(refused.key, {
           field: deps.label(key),
@@ -498,15 +548,12 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
         })
       : undefined;
   }
-  const validate = (row: PropertyRow, column: GridColumn, text: string) =>
-    column.id === "value" ? refusalOf(row.key, text) : undefined;
-
   /**
    * What an edit of the cell of `key` writes, said before it is sent (Q-021-19): over an
    * inherited value, a value of the object's own; of its own, emptied, removed.
    */
-  function noteOf(key: string): string | undefined {
-    const origin = explained.get(key);
+  function noteOf(id: string, key: string): string | undefined {
+    const origin = explained.get(cellKey(id, key));
     if (origin?.kind === "own") return t("edit.property.own");
     if (origin?.kind !== "inherited") return undefined;
     if (!origin.source) return t("edit.property.overridesUnreadable");
@@ -516,122 +563,140 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     return source ? t("edit.property.overrides", { source }) : t("edit.property.overridesUnnamed");
   }
 
-  function cellState(row: PropertyRow, column: GridColumn): CellState | undefined {
-    if (column.id !== "value") return undefined;
-    const entry = shown.get(row.key);
+  function cellState(id: string, key: string): CellState | undefined {
+    const entry = shown.get(cellKey(id, key));
     if (entry) return entry.state;
-    return drafted.value.has(row.key) ? "draft" : undefined;
+    return isDrafted(id, key) ? "draft" : undefined;
   }
-  function stateReason(row: PropertyRow, column: GridColumn): string | undefined {
-    const entry = column.id === "value" ? shown.get(row.key) : undefined;
-    return entry?.state === "review" ? entry.held : undefined;
-  }
-  function rowState(row: PropertyRow): RowState | undefined {
-    if (shown.get(row.key)?.state === "review") return "review";
-    return drafted.value.has(row.key) ? "draft" : undefined;
-  }
-  /** Why a row is in review: the reason of its value held, said by its first cell. */
-  function rowReason(row: PropertyRow): string | undefined {
-    const entry = shown.get(row.key);
-    return entry?.state === "review" ? entry.held : undefined;
-  }
-  /** Why the cell of `key` is held in review, said under the grid too. */
-  const heldOf = (key: string) => {
-    const entry = shown.get(key);
+  /** Why the cell of `key` of `id` is held in review (its 202), said under the grid too. */
+  const heldOf = (id: string, key: string) => {
+    const entry = shown.get(cellKey(id, key));
     return entry?.state === "review" ? entry.held : undefined;
   };
+  /**
+   * The state of the row of the object `id`: in review when one of its values is held, in
+   * the draft when the draft changes one; of the value of `key` alone (a row of the tab).
+   */
+  function rowState(id: string, key?: string): RowState | undefined {
+    const keys = key === undefined ? null : [key];
+    for (const [at, entry] of shown) {
+      const [of, k] = at.split("\n");
+      if (entry.state === "review" && of === id && (!keys || keys.includes(k!))) return "review";
+    }
+    if (key !== undefined) return isDrafted(id, key) ? "draft" : undefined;
+    return drafted.value.has(id) ? "draft" : undefined;
+  }
+  /** Why the row of the object `id` is in review: the reasons of its values held, once each. */
+  function rowReasons(id: string): string[] {
+    const held = new Set<string>();
+    for (const [at, entry] of shown) {
+      if (entry.state === "review" && entry.held && at.startsWith(`${id}\n`)) held.add(entry.held);
+    }
+    return [...held];
+  }
 
-  const what = (key: string) => t("edit.what", { field: deps.label(key), name: deps.name() });
+  const what = (id: string, key: string) =>
+    t("edit.what", { field: deps.label(key), name: objectOf(id).name });
 
   /** Enter: an operation added to the active draft, the cell under way until it is saved. */
-  async function toDraft(declaration: Declared, text: string, note = ""): Promise<void> {
+  async function toDraft(
+    id: string,
+    declaration: Declared,
+    text: string,
+    note = "",
+  ): Promise<void> {
     if (!present.value) return;
     const key = declaration.key;
+    const at = cellKey(id, key);
     const raw = propertyValueOf(declaration, text);
-    const version = deps.version();
-    shown.set(key, { state: "pending", text, raw, version });
+    const version = objectOf(id).version;
+    shown.set(at, { state: "pending", text, raw, version });
     const kind = deps.collection().kind;
-    const op = propertyOperation(kind, deps.id(), declaration.id, raw);
+    const op = propertyOperation(kind, id, declaration.id, raw);
     // Made from the draft it goes to (read again after a 412): its guard only once.
-    const outcome = await addToActiveDraft((current) =>
-      guarded(current, kind, deps.id(), version, op),
-    );
+    const outcome = await addToActiveDraft((current) => guarded(current, kind, id, version, op));
     if (outcome.kind === "saved") {
-      shown.delete(key);
-      const said = t("edit.drafted", { what: what(key) });
+      shown.delete(at);
+      const said = t("edit.drafted", { what: what(id, key) });
       deps.say.status(note ? `${note} ${said}` : said);
     } else {
-      shown.set(key, { state: cellErrorOf(outcome, deps.sentence), text, raw, version });
+      shown.set(at, { state: cellErrorOf(outcome, deps.sentence), text, raw, version });
     }
   }
 
   /** The motive asked in line (Ctrl+Enter), `null` when none. */
-  const asking = shallowRef<QuickAsk | null>(null);
+  const asking = shallowRef<PropertyAsk | null>(null);
 
-  async function onCommit(commit: GridCommit): Promise<void> {
-    const row = rowOf(commit.row);
-    const declaration = row ? deps.declaration(row.key) : undefined;
-    if (!row || !declaration || commit.column !== "value" || why(row) !== null) return;
+  /** A commit of the grid on the cell of `key` of the object `id`. */
+  async function onCommit(commit: GridCommit, { id, key }: PropertyCell): Promise<void> {
+    const declaration = deps.declaration(key);
+    if (!declaration || why(id, key) !== null) return;
     // Its origin known before it is written: a computed value has no editor.
-    await explain(row.key);
-    const late = why(row);
+    await explain(id, key);
+    const late = why(id, key);
     if (late !== null) {
       // Known only now (a computed value): refused, and said.
       deps.say.status(whyWords(late, t) ?? t("edit.notNow"));
       return;
     }
+    const at = cellKey(id, key);
+    const version = objectOf(id).version;
     const text = parse(declaration, commit.value);
+    const raw = propertyValueOf(declaration, text);
     // Checked again now that the origin is known: emptied, a value inherited has none to remove.
-    const refused = refusalOf(row.key, commit.value);
+    const refused = refusalOf(id, key, commit.value);
     if (refused) {
-      const raw = propertyValueOf(declaration, text);
-      shown.set(row.key, { state: { error: refused }, text, raw, version: deps.version() });
+      shown.set(at, { state: { error: refused }, text, raw, version });
       deps.say.status(refused);
       return;
     }
-    if (commit.now && mayApply(row.key)) {
+    if (commit.now && mayApply(key)) {
       const open = asking.value;
-      if (open && (open.busy || open.refusal) && open.row !== commit.row) {
-        const refused = t("edit.askOpen", { what: what(open.row), value: commit.value });
-        shown.set(row.key, {
-          state: { error: refused },
-          text,
-          raw: propertyValueOf(declaration, text),
-          version: deps.version(),
+      if (
+        open &&
+        (open.busy || open.refusal) &&
+        (open.row !== commit.row || open.column !== commit.column)
+      ) {
+        const refused = t("edit.askOpen", {
+          what: what(open.object, open.key),
+          value: commit.value,
         });
+        shown.set(at, { state: { error: refused }, text, raw, version });
         deps.say.status(refused);
         return;
       }
-      const list = choices.get(row.key);
+      const list = choices.get(key);
       const field: EditField = list
-        ? { name: row.key, kind: "choice", options: list }
-        : { name: row.key, kind: "text" };
+        ? { name: key, kind: "choice", options: list }
+        : { name: key, kind: "text" };
       asking.value = {
-        row: row.key,
+        row: commit.row,
         column: commit.column,
+        object: id,
+        key,
         collection: deps.collection(),
         field,
-        label: deps.label(row.key),
-        check: (value) => refusalOf(row.key, value),
-        note: noteOf(row.key),
-        name: deps.name(),
+        label: deps.label(key),
+        check: (value) => refusalOf(id, key, value),
+        note: noteOf(id, key),
+        name: objectOf(id).name,
         value: text,
-        version: deps.version(),
+        version,
         refusal: null,
         current: null,
         busy: false,
       };
       return;
     }
-    const note = commit.now ? t("edit.applyForbidden", { permission: applyRight(row.key) }) : "";
-    void toDraft(declaration, text, note);
+    const note = commit.now ? t("edit.applyForbidden", { permission: applyRight(key) }) : "";
+    void toDraft(id, declaration, text, note);
   }
 
-  /** The value of `key` read again (after a 412), as its cell holds it. */
-  async function currentOf(key: string): Promise<string | null> {
+  /** The value of `key` of `id` read again (after a 412), as its cell holds it. */
+  async function currentOf(id: string, key: string): Promise<string | null> {
     const read = reads.sub<Schemas["Resolved"]>(
       deps.collection().kind,
-      deps.id(),
+      id,
       "properties",
       null,
       dates(),
@@ -644,78 +709,61 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
   async function confirm(motive: string, text: string): Promise<boolean> {
     const ask = asking.value;
     if (!ask || ask.busy) return false;
-    const key = ask.row;
+    const { object: id, key } = ask;
     const declaration = deps.declaration(key);
-    if (!declaration || whyOf(key) !== null || !mayApply(key)) {
+    if (!declaration || why(id, key) !== null || !mayApply(key)) {
       cancel();
       deps.say.status(t("edit.notNow"));
       return false;
     }
     const typed = parse(declaration, text);
     const raw = propertyValueOf(declaration, typed);
-    asking.value = { ...ask, value: typed, busy: true };
-    shown.set(key, { state: "pending", text: typed, raw, version: ask.version });
-    const of = deps.collection();
-    const outcome = await write
-      .quick({
-        key: keys.object(of.kind, deps.id()),
+    const at = cellKey(id, key);
+    const set = (state: CellState | undefined, held?: string) =>
+      void shown.set(at, {
+        state,
+        text: typed,
+        raw,
+        version: ask.version,
+        ...(held ? { held } : {}),
+      });
+    return quickWrite({
+      asking,
+      ask,
+      text: typed,
+      request: {
+        key: keys.object(deps.collection().kind, id),
         patch: propertyPatch(key, raw),
         motive,
         ...(ask.version ? { ifMatch: `"${ask.version}"` } : {}),
-      })
-      .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
-    if (outcome.kind === "applied") {
-      if (deps.version() === ask.version) {
-        shown.set(key, { state: undefined, text: typed, raw, version: ask.version });
-      } else shown.delete(key);
-      asking.value = null;
-      deps.say.applied(what(key), outcome.changeset);
-      return true;
-    }
-    if (outcome.kind === "proposed") {
-      shown.set(key, {
-        state: "review",
-        text: typed,
-        raw,
-        version: ask.version,
-        held: heldWords(t, outcome.reason),
-      });
-      asking.value = null;
-      deps.say.proposed(what(key), outcome.changeset, outcome.reason);
-      return true;
-    }
-    if (outcome.kind === "conflict") {
-      shown.delete(key);
-      const current = outcome.current as Entry<Item> | undefined;
-      const version = typeof current?.data.version === "string" ? current.data.version : null;
-      deps.reread();
-      asking.value = {
-        ...ask,
-        value: typed,
-        busy: false,
-        refusal: outcome,
-        current: await currentOf(key),
-        version: version ?? ask.version,
-      };
-      return false;
-    }
-    if (outcome.kind === "invalid") {
-      shown.set(key, {
-        state: cellErrorOf(outcome, deps.sentence),
-        text: typed,
-        raw,
-        version: ask.version,
-      });
-    } else shown.delete(key);
-    asking.value = { ...ask, value: typed, busy: false, refusal: outcome };
-    return false;
+      },
+      what: what(id, key),
+      cell: {
+        pending: () => set("pending"),
+        applied: () => (objectOf(id).version === ask.version ? set(undefined) : shown.delete(at)),
+        held: (reason) => set("review", reason),
+        invalid: (error) => set(error),
+        clear: () => void shown.delete(at),
+      },
+      reread: () => deps.reread(id),
+      current: async (refusal) => {
+        const entry = (refusal.kind === "conflict" ? refusal.current : undefined) as
+          Entry<Item> | undefined;
+        const version = typeof entry?.data.version === "string" ? entry.data.version : null;
+        return { text: await currentOf(id, key), version };
+      },
+      t,
+      sentence: deps.sentence,
+      say: deps.say,
+    });
   }
 
   /** The line of the motive closed without applying: the cell back to the value read. */
   function cancel(): void {
     const ask = asking.value;
     if (!ask) return;
-    if (typeof shown.get(ask.row)?.state === "object") shown.delete(ask.row);
+    const at = cellKey(ask.object, ask.key);
+    if (typeof shown.get(at)?.state === "object") shown.delete(at);
     asking.value = null;
   }
   watch(present, (now) => {
@@ -723,17 +771,14 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
   });
 
   return {
-    shownRows,
+    shownValue,
     cellState,
-    stateReason,
-    rowState,
-    rowReason,
-    editable,
-    validate,
-    why,
-    whyOf,
-    noteOf,
     heldOf,
+    rowState,
+    rowReasons,
+    validate: refusalOf,
+    why,
+    noteOf,
     mayApply,
     applyRight,
     focus,
@@ -745,3 +790,51 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
 }
 
 export type PropertyEdit = ReturnType<typeof usePropertyEdit>;
+
+/**
+ * The grid of the tab « Propriétés » of a record (task 12h): its rows are the properties of
+ * the one object `id`, its column `value` edits them.
+ */
+export function recordGrid(
+  edit: PropertyEdit,
+  id: () => string,
+  rows: () => readonly PropertyRow[],
+) {
+  const value = (column: GridColumn) => column.id === "value";
+  const has = (key: string) => rows().some((row) => row.key === key);
+  return {
+    shownRows: computed<PropertyRow[]>(() =>
+      rows().map((row) => {
+        const shown = edit.shownValue(id(), row.key);
+        return shown ? { ...row, ...shown, masked: row.masked } : row;
+      }),
+    ),
+    editable: (row: PropertyRow, column: GridColumn) =>
+      value(column) && edit.why(id(), row.key) === null,
+    validate: (row: PropertyRow, column: GridColumn, text: string) =>
+      value(column) ? edit.validate(id(), row.key, text) : undefined,
+    cellState: (row: PropertyRow, column: GridColumn) =>
+      value(column) ? edit.cellState(id(), row.key) : undefined,
+    stateReason: (row: PropertyRow, column: GridColumn) =>
+      value(column) ? edit.heldOf(id(), row.key) : undefined,
+    rowState: (row: PropertyRow) => edit.rowState(id(), row.key),
+    /** Why a row is in review: the reason of its value held, said by its first cell. */
+    rowReason: (row: PropertyRow) => edit.heldOf(id(), row.key),
+    why: (row: PropertyRow) => edit.why(id(), row.key),
+    whyOf: (key: string) => (has(key) ? edit.why(id(), key) : null),
+    noteOf: (key: string) => edit.noteOf(id(), key),
+    heldOf: (key: string) => edit.heldOf(id(), key),
+    mayApply: edit.mayApply,
+    applyRight: edit.applyRight,
+    /** The key of the cell of the focus: its origin and its list are read. */
+    focus: computed<string | null>({
+      get: () => edit.focus.value?.key ?? null,
+      set: (key) => (edit.focus.value = key === null ? null : { id: id(), key }),
+    }),
+    asking: edit.asking,
+    onCommit: (commit: GridCommit) =>
+      commit.column === "value" ? edit.onCommit(commit, { id: id(), key: commit.row }) : undefined,
+    confirm: edit.confirm,
+    cancel: edit.cancel,
+  };
+}

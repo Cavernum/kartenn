@@ -300,6 +300,75 @@ test("a property inherited, said overridden before it is sent, edited at the key
   await expectAccessible(page);
 });
 
+test("a column of a property added by « Colonnes », kept, its inherited value edited to the draft", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = await newDomain(page, unique(browserName));
+  const domains = (await call(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  // A text of the test's own, inherited from the domain (task 12i, Q-021-18, Q-021-19).
+  const key = `custom.room_${browserName}_${Date.now().toString(36)}`;
+  const declared = await call(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end property column",
+    operations: [
+      {
+        op: "declare_property",
+        local: 0,
+        key,
+        type: "text",
+        max_len: 16,
+        cardinality: "single",
+        carriers: ["domain", "prefix"],
+        inherit: "addressing",
+      },
+      {
+        op: "assign_property",
+        object: { id: domains.items[0]!.id },
+        kind: "domain",
+        property: { local: 0 },
+        values: ["nord"],
+      },
+    ],
+  });
+  expect(declared.status, JSON.stringify(declared.body)).toBe(201);
+
+  await page.goto(`/prefixes?domain=${slug}`);
+  await expect(cellOf(page, "value")).toContainText("198.51.100.0/24");
+  // No column of a property by default; « Colonnes » offers it, unchecked.
+  const column = `prop.${key}`;
+  await expect(prefixes(page).locator(`[data-column="${column}"]`)).toHaveCount(0);
+  await page.getByRole("button", { name: "Colonnes" }).click();
+  const choice = page.getByRole("menuitemcheckbox", { name: key });
+  await expect(choice).toHaveAttribute("aria-checked", "false");
+  await choice.click();
+  await page.keyboard.press("Escape");
+  const cell = cellOf(page, column);
+  await expect(cell).toContainText("nord");
+
+  // Kept for the user and the view: there again once the page is read again.
+  await page.reload();
+  await expect(cellOf(page, column)).toContainText("nord");
+  await cellOf(page, column).click();
+  await expect(page.locator(".k-keyboard-hint")).toContainText(
+    `Une valeur saisie ici surcharge la valeur héritée de ${slug}.`,
+  );
+  await page.keyboard.press("Enter");
+  const editor = prefixes(page).getByRole("textbox");
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("sud");
+  await page.keyboard.press("Enter");
+  await expect(cellOf(page, column)).toHaveAttribute("data-state", "draft");
+  await expect(cellOf(page, column)).toContainText("sud");
+  // Its guard (`expect`) not counted (Q-021-21): one operation.
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
+  await expectAccessible(page);
+});
+
 test("two tabs on the same prefix: the second gets 412 and keeps its input, then applies", async ({
   page,
   login,

@@ -151,6 +151,17 @@ describe("column priorities", () => {
     // The last column keeps its index among all of them, the hidden one counted.
     expect(chosen).toMatch(/data-column="owner"[^>]*aria-colindex="4"/);
     expect(chosen).toContain('data-chosen="true"');
+    // A column shown by choice alone, nothing hidden: the chooser stays, the way back to it
+    // at every width (021-12i).
+    const shown = await render(DataGrid, {
+      label: "Adresses",
+      columns,
+      rows,
+      rowKey: "value",
+      columnVisibility: { site: true },
+    });
+    expect(shown).toContain('data-chosen="true"');
+    expect(html).not.toContain("data-chosen");
   });
 
   it("DataGrid: no chooser when no column may hide", async () => {
