@@ -46,6 +46,8 @@ pub const PREFIX: &str = "prefix";
 /// An address of the core: a cluster IP or an external address of a service, an address
 /// of an ingress.
 pub const ADDRESS: &str = "address";
+/// The name of the module: the namespace of its keys and of its provenances.
+pub const MODULE: &str = "kube";
 /// The axis of the namespace of a workload, an external reference of the system `kube`
 /// that `kube.sync` alone sets (REQ-019-33; Q-019-37 to 39).
 pub const NAMESPACE_AXIS: &str = "kube.namespace";
@@ -59,7 +61,7 @@ pub const SYSTEM: &str = "kube";
 fn module_declarations() -> ModuleDeclarations {
     let axis = Declaration {
         key: PropertyKey::parse(NAMESPACE_AXIS).expect("a valid key"),
-        declarant: Declarant::Module("kube".into()),
+        declarant: Declarant::Module(MODULE.into()),
         spec: TypeSpec::ExternalRef,
         cardinality: Cardinality::Single,
         carriers: BTreeSet::from([WORKLOAD.to_owned()]),
@@ -68,7 +70,7 @@ fn module_declarations() -> ModuleDeclarations {
         expected: None,
     };
     ModuleDeclarations {
-        module: "kube".into(),
+        module: MODULE.into(),
         version: env!("CARGO_PKG_VERSION").into(),
         properties: vec![(axis, Vec::new())],
         labels: BTreeMap::from([(
@@ -451,7 +453,7 @@ pub struct Kube;
 
 impl Module for Kube {
     fn name(&self) -> &'static str {
-        "kube"
+        MODULE
     }
     fn version(&self) -> &'static str {
         env!("CARGO_PKG_VERSION")

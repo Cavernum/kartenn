@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use kartenn_core::objects::Nature;
+use kartenn_core::values::Cardinality;
 use kartenn_kube::Kube;
 use kartenn_machines::Machines;
 use kartenn_service::authz::Unrestricted;
@@ -111,8 +112,9 @@ impl Env {
             namespace(env.cluster, "shop"),
         ])
         .await;
-        env.applied(declaration(EXPOSURE, &["externe", "interne"]))
+        env.applied(declaration(EXPOSURE, Cardinality::Single))
             .await;
+        env.applied(vec![tracked(&["tier"])]).await;
         env
     }
 
@@ -243,6 +245,24 @@ impl Env {
         .unwrap()
     }
 
+    /// The keys of the set of `key` on `object` living now, and its provenance.
+    async fn set_of(&self, object: Uuid, key: &str) -> Option<(Vec<String>, String)> {
+        sqlx::query_as(
+            "SELECT ARRAY(SELECT v.key FROM property_enum_value v
+                           WHERE v.id = ANY(a.v_uuids) AND v.valid_period @> now()
+                           ORDER BY v.key),
+                    a.provenance
+               FROM property_assignment a
+               JOIN property_declaration d ON d.id = a.property_id AND d.valid_period @> now()
+              WHERE a.object_id = $1 AND d.key = $2 AND a.valid_period @> now()",
+        )
+        .bind(object)
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap()
+    }
+
     /// The changeset of the living version of the workload `id`.
     async fn written_by(&self, id: Uuid) -> Uuid {
         sqlx::query_scalar(
@@ -281,13 +301,15 @@ impl Env {
     }
 }
 
-fn declaration(key: &str, values: &[&str]) -> Vec<Operation> {
+/// The closed list `key` of the values `externe` and `interne`, carried by the workloads.
+fn declaration(key: &str, cardinality: Cardinality) -> Vec<Operation> {
+    let values = ["externe", "interne"];
     let mut operations = vec![Operation::DeclareProperty {
         local: Some(1),
         declaration: DeclarationInput {
             key: key.into(),
             value_type: TypeInput::Enum { values_of: None },
-            cardinality: kartenn_core::values::Cardinality::Single,
+            cardinality,
             carriers: vec!["kube.workload".into()],
             inherit: None,
             module: None,
@@ -336,6 +358,18 @@ fn deployment(cluster: Uuid, namespace: &str, name: &str, labels: Option<Value>)
     op("sync", body)
 }
 
+/// The mapping of the label `<key>=db` to `<axis>: <value>`.
+fn mapping_of(key: &str, axis: &str, value: &str) -> Operation {
+    op(
+        "set_label_mapping",
+        json!({
+            "action": "upsert", "label_key": key, "label_value": "db", "axis": axis,
+            "value": value,
+        }),
+    )
+}
+
+/// The mapping of the label `tier=<label>` to `<axis>: <value>`.
 fn mapping(label: &str, axis: &str, value: &str) -> Operation {
     op(
         "set_label_mapping",
@@ -347,10 +381,18 @@ fn mapping(label: &str, axis: &str, value: &str) -> Operation {
 }
 
 fn admitted(namespace: Uuid, values: &[&str]) -> Operation {
+    admitted_on(namespace, EXPOSURE, values)
+}
+
+fn admitted_on(namespace: Uuid, axis: &str, values: &[&str]) -> Operation {
     op(
         "set_admitted_values",
-        json!({"namespace": {"id": namespace}, "axis": EXPOSURE, "values": values}),
+        json!({"namespace": {"id": namespace}, "axis": axis, "values": values}),
     )
+}
+
+fn tracked(keys: &[&str]) -> Operation {
+    op("set_tracked_labels", json!({"keys": keys}))
 }
 
 fn workload_kind() -> ObjectKind {
@@ -510,4 +552,109 @@ async fn namespace_axis_managed(pool: PgPool) {
     let kept = env.assignment(ledger, NAMESPACE).await.expect("kept");
     assert_eq!(kept.external, set.external);
     assert_eq!(kept.changeset, set.changeset);
+}
+
+/// Q-019-40: two tracked labels on one axis. On the set `custom.zones`, the union of
+/// their admitted values, of a provenance that names both, written once for a batch
+/// repeated; on the single value `custom.exposure`, nothing when they disagree, the value
+/// the module had set removed and `kube.label.conflict` naming both labels, lifted once a
+/// label leaves.
+#[kartenn_testing::pg_test]
+async fn labels_union_or_nothing(pool: PgPool) {
+    const ZONES: &str = "custom.zones";
+    let env = Env::new(&pool).await;
+    let payments = env.namespace("payments").await;
+    env.applied(declaration(ZONES, Cardinality::Set)).await;
+    env.applied(vec![
+        tracked(&["app", "tier"]),
+        mapping_of("app", EXPOSURE, "interne"),
+        mapping_of("tier", EXPOSURE, "externe"),
+        mapping_of("app", ZONES, "interne"),
+        mapping_of("tier", ZONES, "externe"),
+        admitted(payments, &["externe", "interne"]),
+        admitted_on(payments, ZONES, &["externe", "interne"]),
+    ])
+    .await;
+    let upsert = |labels: Value| deployment(env.cluster, "payments", "ledger", Some(labels));
+    env.applied(vec![upsert(json!({"tier": "db"}))]).await;
+    let ledger = env.workload("ledger").await;
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("one label");
+    assert_eq!(exposure.value.as_deref(), Some("externe"));
+    assert_eq!(
+        env.set_of(ledger, ZONES).await,
+        Some((vec!["externe".into()], "module:kube#label:tier".into()))
+    );
+    // Both labels: the union on the set, nothing on the single value.
+    let both = || json!({"app": "db", "tier": "db"});
+    env.applied(vec![upsert(both())]).await;
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+    assert!(env.anomaly(ledger, "kube.label.conflict").await);
+    let message: String = sqlx::query_scalar(
+        "SELECT message FROM anomaly
+          WHERE object_id = $1 AND rule_id = 'kube.label.conflict' AND closed_at IS NULL",
+    )
+    .bind(ledger)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        message.contains("app=db") && message.contains("tier=db"),
+        "{message}"
+    );
+    assert_eq!(
+        env.set_of(ledger, ZONES).await,
+        Some((
+            vec!["externe".into(), "interne".into()],
+            "module:kube#label:app,tier".into()
+        ))
+    );
+    // The same batch again: neither axis written anew.
+    let (zones, exposures) = (
+        env.versions(ledger, ZONES).await,
+        env.versions(ledger, EXPOSURE).await,
+    );
+    env.applied(vec![upsert(both())]).await;
+    env.applied(vec![deployment(env.cluster, "payments", "ledger", None)])
+        .await;
+    assert_eq!(env.versions(ledger, ZONES).await, zones);
+    assert_eq!(env.versions(ledger, EXPOSURE).await, exposures);
+    // A label gone: the conflict lifted, the value of the other set.
+    env.applied(vec![upsert(json!({"app": "db"}))]).await;
+    assert!(!env.anomaly(ledger, "kube.label.conflict").await);
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("one label");
+    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.provenance, "module:kube#label:app");
+}
+
+/// Q-019-41: a label whose key is not tracked gives nothing, and warns of nothing; once
+/// tracked, the next upsert sets its value.
+#[kartenn_testing::pg_test]
+async fn untracked_label_ignored(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (payments, shop) = (env.namespace("payments").await, env.namespace("shop").await);
+    env.applied(vec![
+        mapping_of("app", EXPOSURE, "interne"),
+        admitted(payments, &["interne"]),
+        admitted(shop, &["externe"]),
+    ])
+    .await;
+    let app = || Some(json!({"app": "db"}));
+    env.applied(vec![
+        deployment(env.cluster, "payments", "ledger", app()),
+        deployment(env.cluster, "shop", "cart", app()),
+    ])
+    .await;
+    let (ledger, cart) = (env.workload("ledger").await, env.workload("cart").await);
+    assert!(env.assignment(ledger, EXPOSURE).await.is_none());
+    assert!(!env.anomaly(cart, "kube.label.not_admitted").await);
+    env.applied(vec![tracked(&["app", "tier"])]).await;
+    env.applied(vec![
+        deployment(env.cluster, "payments", "ledger", None),
+        deployment(env.cluster, "shop", "cart", None),
+    ])
+    .await;
+    let exposure = env.assignment(ledger, EXPOSURE).await.expect("tracked");
+    assert_eq!(exposure.value.as_deref(), Some("interne"));
+    assert_eq!(exposure.provenance, "module:kube#label:app");
+    assert!(env.anomaly(cart, "kube.label.not_admitted").await);
 }

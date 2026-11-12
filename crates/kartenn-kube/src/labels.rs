@@ -183,6 +183,10 @@ pub(crate) static ENGLISH: English = English {
             "The axis value of a label is admitted in the namespace of the workload that carries it.",
         ),
         (
+            "kube.label.conflict",
+            "The tracked labels of a workload do not give two different values of a single-valued axis.",
+        ),
+        (
             "kube.namespace.managed",
             "The kube.namespace axis of a workload is assigned or removed by kube.sync only.",
         ),

@@ -1,16 +1,18 @@
 //! The values of axes the server derives for a workload (spec 019, REQ-019-33, 34;
-//! Q-019-33, 34, 37 to 39; design « Politique et flux », Labels; task 019-7d2). At each
+//! Q-019-33, 34, 37 to 41; design « Politique et flux », Labels; task 019-7d2). At each
 //! `upsert` of a workload, `kube.sync` sets its axis `kube.namespace` (external
 //! reference of the system `kube`, `<cluster id>/<name>`, labelled `<cluster slug>/<name>`)
-//! and derives, from its labels, the values the mappings (`kube.label_mapping`) give and
-//! the admitted values of its namespace (`kube.admitted_values`) admit: assignments and
-//! removals of the core it adds to the changeset (ADR 0026, clause 6), under their own
-//! rights, of the provenance `module:kube#label:<key>` (amendment 14). The derivation
-//! reads the provenance of the current assignments: it replaces or removes only what the
-//! module set, never a value typed (`input`) nor a default value. A value not admitted is
-//! ignored and warns (`kube.label.not_admitted`, a rule of the final state); an
-//! assignment or a removal of `kube.namespace` the author writes is refused
-//! (`kube.namespace.managed`).
+//! and derives, from its tracked labels (Q-019-41), the values the mappings
+//! (`kube.label_mapping`) give and the admitted values of its namespace
+//! (`kube.admitted_values`) admit: assignments and removals of the core it adds to the
+//! changeset (ADR 0026, clause 6), under their own rights, of the provenance
+//! `module:kube#label:<keys>` (amendment 14). Two labels on one axis give the union of
+//! their values to a set, nothing to a single value they disagree on (Q-019-40). The
+//! derivation reads the provenance of the current assignments: it replaces or removes
+//! only what the module set, never a value typed (`input`) nor a default value. A value
+//! not admitted is ignored and warns (`kube.label.not_admitted`), labels in conflict warn
+//! (`kube.label.conflict`), both rules of the final state; an assignment or a removal of
+//! `kube.namespace` the author writes is refused (`kube.namespace.managed`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -27,10 +29,10 @@ use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::module::{NAMESPACE_AXIS, SYSTEM};
+use crate::module::{MODULE, NAMESPACE_AXIS, SYSTEM, WORKLOAD};
 use crate::names::parse_labels;
 use crate::pg::store;
-use crate::rules::{LABEL_NOT_ADMITTED, NAMESPACE_MANAGED};
+use crate::rules::{LABEL_CONFLICT, LABEL_NOT_ADMITTED, NAMESPACE_MANAGED};
 
 /// The motif of the provenance of `kube.namespace`, which no label gives.
 const NAMESPACE_MOTIF: &str = "namespace";
@@ -43,12 +45,26 @@ pub(crate) struct Current {
     key: String,
     /// Its provenance as stored.
     provenance: String,
-    /// The key of its value of a closed list, or the identifier of its external reference;
-    /// `None` for a "no value" or a value closed since.
-    value: Option<String>,
-    /// The label of its external reference.
+    /// The keys of its living values of a closed list, one or a set, sorted; empty for a
+    /// "no value" or another type.
+    #[serde(default)]
+    values: Vec<String>,
+    /// The identifier and the label of its external reference.
+    #[serde(default)]
+    external: Option<String>,
     #[serde(default)]
     label: Option<String>,
+}
+
+/// An axis a label may give (a closed list carried by the workloads, neither sensitive
+/// nor `kube.namespace`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Axis {
+    /// Whether it takes a set of values.
+    set: bool,
+    /// The living values of its list: a value closed since is ignored.
+    values: Vec<String>,
 }
 
 /// What [`prepare`] reads for the derivation of a workload an `upsert` writes, for the
@@ -62,19 +78,21 @@ pub(crate) struct Facts {
     /// The labels of the living workload, which an `upsert` without `labels` keeps.
     #[serde(default)]
     stored: Option<BTreeMap<String, String>>,
+    /// The tracked label keys: those of the module (`kube.tracked_label`) and those its
+    /// cluster adds (019/X4); only they give a value (Q-019-41).
+    #[serde(default)]
+    tracked: BTreeSet<String>,
     /// The properties the derivation may write, by key: `kube.namespace` and the axes of
     /// the mappings.
     #[serde(default)]
     properties: BTreeMap<String, Uuid>,
-    /// The living mappings of the labels of the workload: (label key, label value, axis,
-    /// value of the axis).
+    /// The living mappings of the tracked labels of the workload: (label key, label value,
+    /// axis, value of the axis).
     #[serde(default)]
     mappings: Vec<(String, String, String, String)>,
-    /// The axes of these mappings a label may give (a closed list carried by the workloads,
-    /// neither sensitive nor `kube.namespace`), with the living values of their list: a
-    /// value closed since is ignored.
+    /// The axes of these mappings a label may give.
     #[serde(default)]
-    axes: BTreeMap<String, Vec<String>>,
+    axes: BTreeMap<String, Axis>,
     /// The values admitted in the namespace of the workload, by axis.
     #[serde(default)]
     admitted: BTreeMap<String, Vec<String>>,
@@ -96,6 +114,36 @@ fn given_labels(body: &Map<String, Value>) -> Option<BTreeMap<String, String>> {
     )
 }
 
+/// What the derivation reads of `cluster`: its slug and the tracked label keys, those of
+/// the module and those it adds.
+async fn of_cluster(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Facts, StoreError> {
+    let mut facts = Facts::default();
+    let row: Option<(String, Vec<String>)> = sqlx::query_as(
+        "SELECT slug, tracked_label_keys FROM kube.cluster
+          WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+    )
+    .bind(cluster)
+    .bind(at)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(|e| store(&e))?;
+    if let Some((slug, keys)) = row {
+        facts.slug = Some(slug);
+        facts.tracked.extend(keys);
+    }
+    facts.tracked.extend(
+        crate::settings::tracked(conn, at)
+            .await?
+            .into_iter()
+            .map(|(key, _)| key),
+    );
+    Ok(facts)
+}
+
 /// Reads what the derivation of the workload of an `upsert` of `body` in `cluster` needs:
 /// `namespace` is its living namespace, `workload` the living (or closed, opened again)
 /// workload of its identity.
@@ -108,18 +156,7 @@ pub(crate) async fn prepare(
     at: Option<OffsetDateTime>,
 ) -> Result<Facts, StoreError> {
     let (existing, reopened) = workload;
-    let mut facts = Facts {
-        slug: sqlx::query_scalar(
-            "SELECT slug FROM kube.cluster
-              WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
-        )
-        .bind(cluster)
-        .bind(at)
-        .fetch_optional(&mut *conn)
-        .await
-        .map_err(|e| store(&e))?,
-        ..Facts::default()
-    };
+    let mut facts = of_cluster(conn, cluster, at).await?;
     if let Some(workload) = existing {
         let stored: Option<sqlx::types::Json<BTreeMap<String, String>>> = sqlx::query_scalar(
             "SELECT labels FROM kube.workload
@@ -135,8 +172,11 @@ pub(crate) async fn prepare(
     let labels = given_labels(body)
         .or_else(|| facts.stored.clone())
         .unwrap_or_default();
-    let (keys, values): (Vec<&str>, Vec<&str>) =
-        labels.iter().map(|(k, v)| (k.as_str(), v.as_str())).unzip();
+    let (keys, values): (Vec<&str>, Vec<&str>) = labels
+        .iter()
+        .filter(|(k, _)| facts.tracked.contains(*k))
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .unzip();
     if !keys.is_empty() {
         facts.mappings = sqlx::query_as(
             "SELECT m.label_key, m.label_value, m.axis_key, m.axis_value
@@ -161,7 +201,13 @@ pub(crate) async fn prepare(
     for axis in wanted {
         let declared = crate::settings::axis_of(conn, axis, at).await?;
         if let Ok(declared) = crate::settings::checked_axis(axis, declared.as_ref()) {
-            facts.axes.insert(axis.to_owned(), declared.values.clone());
+            facts.axes.insert(
+                axis.to_owned(),
+                Axis {
+                    set: declared.set,
+                    values: declared.values.clone(),
+                },
+            );
         }
     }
     if let Some(namespace) = namespace {
@@ -196,7 +242,8 @@ pub(crate) async fn prepare(
 }
 
 /// The current assignments of `workload` of `properties`, and those of the provenance of
-/// the module, with their properties, into `facts`.
+/// the module, with their properties, into `facts`: a value of a closed list, one
+/// (`v_uuid`) or a set (`v_uuids`), by the keys of its living values.
 async fn current(
     conn: &mut PgConnection,
     workload: Uuid,
@@ -204,14 +251,21 @@ async fn current(
     at: Option<OffsetDateTime>,
     facts: &mut Facts,
 ) -> Result<(), StoreError> {
-    type Row = (String, Uuid, String, Option<String>, Option<String>);
+    type Row = (
+        String,
+        Uuid,
+        String,
+        Vec<String>,
+        Option<String>,
+        Option<String>,
+    );
     let current: Vec<Row> = sqlx::query_as(
         "SELECT d.key, a.property_id, a.provenance,
-                coalesce((SELECT v.key FROM public.property_enum_value v
-                           WHERE v.id = a.v_uuid
-                             AND v.valid_period @> coalesce($3::timestamptz, now())),
-                         a.v_json ->> 'id'),
-                a.v_json ->> 'label'
+                ARRAY(SELECT v.key FROM public.property_enum_value v
+                       WHERE (v.id = a.v_uuid OR v.id = ANY(a.v_uuids))
+                         AND v.valid_period @> coalesce($3::timestamptz, now())
+                       ORDER BY v.key),
+                a.v_json ->> 'id', a.v_json ->> 'label'
            FROM public.property_assignment a
            JOIN public.property_declaration d
              ON d.id = a.property_id
@@ -235,11 +289,17 @@ async fn current(
     );
     facts.current = current
         .into_iter()
-        .map(|(key, _, provenance, value, label)| Current {
-            key,
-            provenance,
-            value,
-            label,
+        .map(|(key, _, provenance, mut values, external, label)| {
+            // Sorted as the plan sorts the values it wants, whatever the collation.
+            values.sort_unstable();
+            values.dedup();
+            Current {
+                key,
+                provenance,
+                values,
+                external,
+                label,
+            }
         })
         .collect();
     Ok(())
@@ -247,6 +307,36 @@ async fn current(
 
 /// An operation of the core the derivation adds, with the provenance of its value.
 pub(crate) type Derived = (Operation, Option<String>);
+
+/// The values of the axes the tracked `labels` give on `facts`, admitted and living: by
+/// axis, each value with the label keys that give it.
+fn given<'a>(
+    facts: &'a Facts,
+    labels: Option<&BTreeMap<String, String>>,
+) -> BTreeMap<&'a str, BTreeMap<&'a str, BTreeSet<&'a str>>> {
+    let mut given: BTreeMap<&str, BTreeMap<&str, BTreeSet<&str>>> = BTreeMap::new();
+    for (label_key, label_value, axis, value) in &facts.mappings {
+        let carried = facts.tracked.contains(label_key)
+            && labels.and_then(|l| l.get(label_key)) == Some(label_value);
+        let living = facts
+            .axes
+            .get(axis)
+            .is_some_and(|a| a.values.contains(value));
+        let admitted = facts
+            .admitted
+            .get(axis)
+            .is_some_and(|values| values.contains(value));
+        if carried && living && admitted && axis != NAMESPACE_AXIS {
+            given
+                .entry(axis.as_str())
+                .or_default()
+                .entry(value.as_str())
+                .or_default()
+                .insert(label_key.as_str());
+        }
+    }
+    given
+}
 
 /// The assignments and removals of the core the `upsert` of `workload`, of `labels`, in
 /// the namespace `namespace` (by name) of `cluster`, adds to the changeset, on `facts`;
@@ -268,10 +358,10 @@ pub(crate) fn derive(
     if let (Some(property), Some(slug)) = (facts.properties.get(NAMESPACE_AXIS), &facts.slug) {
         let id = format!("{cluster}/{namespace}");
         let label = format!("{slug}/{namespace}");
-        let provenance = module_provenance(SYSTEM, NAMESPACE_MOTIF);
+        let provenance = module_provenance(MODULE, NAMESPACE_MOTIF);
         let unchanged = current(NAMESPACE_AXIS).is_some_and(|c| {
             c.provenance == provenance
-                && c.value.as_deref() == Some(id.as_str())
+                && c.external.as_deref() == Some(id.as_str())
                 && c.label.as_deref() == Some(label.as_str())
         });
         if !unchanged {
@@ -290,38 +380,30 @@ pub(crate) fn derive(
             ));
         }
     }
-    // The value each axis receives from the labels: admitted in the namespace, of the
-    // smallest label key that gives one.
+    // What each axis receives (Q-019-40): the union of the values of its labels for a set,
+    // the value they agree on for a single value, nothing when they disagree.
     let labels = labels.or(facts.stored.as_ref());
-    let mut wanted: BTreeMap<&str, (&str, &str)> = BTreeMap::new();
-    for (label_key, label_value, axis, value) in &facts.mappings {
-        let carried = labels.and_then(|l| l.get(label_key)) == Some(label_value);
-        let living = facts
-            .axes
-            .get(axis)
-            .is_some_and(|values| values.contains(value));
-        let admitted = facts
-            .admitted
-            .get(axis)
-            .is_some_and(|values| values.contains(value));
-        if carried && living && admitted && axis != NAMESPACE_AXIS {
-            wanted
-                .entry(axis.as_str())
-                .or_insert((label_key.as_str(), value.as_str()));
+    let mut wanted: BTreeMap<&str, (Vec<&str>, BTreeSet<&str>)> = BTreeMap::new();
+    for (axis, values) in given(facts, labels) {
+        let set = facts.axes.get(axis).is_some_and(|a| a.set);
+        if set || values.len() == 1 {
+            let keys = values.values().flatten().copied().collect();
+            wanted.insert(axis, (values.into_keys().collect(), keys));
         }
     }
     let derived_by_module =
-        |c: &Current| is_module_provenance(&c.provenance, SYSTEM) && c.key != NAMESPACE_AXIS;
-    for (axis, (label_key, value)) in &wanted {
+        |c: &Current| is_module_provenance(&c.provenance, MODULE) && c.key != NAMESPACE_AXIS;
+    for (axis, (values, keys)) in &wanted {
         let Some(property) = facts.properties.get(*axis) else {
             continue;
         };
-        let provenance = module_provenance(SYSTEM, &format!("label:{label_key}"));
+        let keys: Vec<&str> = keys.iter().copied().collect();
+        let provenance = module_provenance(MODULE, &format!("label:{}", keys.join(",")));
         let replace = match current(axis) {
             None => true,
             // Typed or a default: it wins, neither replaced nor removed (Q-019-34).
             Some(c) if !derived_by_module(c) => false,
-            Some(c) => c.provenance != provenance || c.value.as_deref() != Some(*value),
+            Some(c) => c.provenance != provenance || c.values != *values,
         };
         if replace {
             derived.push((
@@ -329,14 +411,17 @@ pub(crate) fn derive(
                     object,
                     kind,
                     property: Ref::Id(*property),
-                    values: vec![RawInput::Text((*value).to_owned())],
+                    values: values
+                        .iter()
+                        .map(|v| RawInput::Text((*v).to_owned()))
+                        .collect(),
                 },
                 Some(provenance),
             ));
         }
     }
-    // What the module set that no label justifies any more: a label gone, a mapping or
-    // admitted values closed or changed.
+    // What the module set that no label justifies any more: a label gone or untracked, a
+    // mapping or admitted values closed or changed, labels now in conflict.
     for c in facts
         .current
         .iter()
@@ -374,18 +459,13 @@ fn assigned(operation: &Operation) -> Option<(&Ref, &Ref)> {
     }
 }
 
-/// The rules of the derivation on the final state: an assignment or a removal of
-/// `kube.namespace` the author writes is refused (`kube.namespace.managed`, Q-019-39), the
-/// operations `kube.sync` plans not being among the author's; a workload of `workloads`
-/// that carries a label whose mapping gives a value its namespace does not admit warns
-/// (`kube.label.not_admitted`), evaluated anew: its anomaly closes once the value is
-/// admitted, the label or the mapping gone.
-pub(crate) async fn check(
+/// `kube.namespace.managed` (Q-019-39): an assignment or a removal of `kube.namespace`
+/// the author writes, the operations `kube.sync` plans not being among the author's.
+async fn managed(
     conn: &mut PgConnection,
     context: &CheckContext<'_>,
-    workloads: &[Uuid],
     found: &mut Vec<Violation>,
-) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
+) -> Result<(), StoreError> {
     let properties: Vec<(usize, Option<Uuid>, Uuid)> = context
         .operations
         .iter()
@@ -401,63 +481,98 @@ pub(crate) async fn check(
             _ => None,
         })
         .collect();
-    if !properties.is_empty() {
-        let managed: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT DISTINCT id FROM public.property_declaration WHERE key = $1",
-        )
-        .bind(NAMESPACE_AXIS)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| store(&e))?;
-        for (i, object, _) in properties.iter().filter(|(.., p)| managed.contains(p)) {
-            found.push(
-                Violation::new(
-                    &NAMESPACE_MANAGED,
-                    format!(
-                        "the operation at position {i} writes {NAMESPACE_AXIS}, which kube.sync alone sets on a workload from its namespace"
-                    ),
-                )
-                .with_subjects(*object),
-            );
-        }
+    if properties.is_empty() {
+        return Ok(());
     }
+    let managed: Vec<Uuid> =
+        sqlx::query_scalar("SELECT DISTINCT id FROM public.property_declaration WHERE key = $1")
+            .bind(NAMESPACE_AXIS)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| store(&e))?;
+    for (i, object, _) in properties.iter().filter(|(.., p)| managed.contains(p)) {
+        found.push(
+            Violation::new(
+                &NAMESPACE_MANAGED,
+                format!(
+                    "the operation at position {i} writes {NAMESPACE_AXIS}, which kube.sync alone sets on a workload from its namespace"
+                ),
+            )
+            .with_subjects(*object),
+        );
+    }
+    Ok(())
+}
+
+/// A tracked label of a workload with a living mapping to a living value of a valid axis:
+/// workload, label key, label value, axis, value, whether the axis takes a set, whether
+/// its namespace admits the value.
+type Given = (Uuid, String, String, String, String, bool, bool);
+
+/// The rules of the derivation on the final state: `kube.namespace.managed`; a workload
+/// of `workloads` whose tracked label gives, by a mapping, a value its namespace does not
+/// admit warns (`kube.label.not_admitted`), as one whose tracked labels give different
+/// admitted values to a single-valued axis (`kube.label.conflict`, Q-019-40); both
+/// evaluated anew, their anomalies close once the cause is gone.
+pub(crate) async fn check(
+    conn: &mut PgConnection,
+    context: &CheckContext<'_>,
+    workloads: &[Uuid],
+    found: &mut Vec<Violation>,
+) -> Result<Vec<(Uuid, &'static str)>, StoreError> {
+    managed(conn, context, found).await?;
     if workloads.is_empty() {
         return Ok(Vec::new());
     }
-    let refused: Vec<(Uuid, String, String, String, String)> = sqlx::query_as(
-        "SELECT w.id, m.label_key, m.label_value, m.axis_key, m.axis_value
+    let rows: Vec<Given> = sqlx::query_as(
+        "SELECT w.id, m.label_key, m.label_value, m.axis_key, m.axis_value,
+                d.cardinality = 'set',
+                EXISTS (SELECT 1 FROM kube.admitted_values a
+                         WHERE a.namespace_id = w.namespace_id
+                           AND a.axis_key = m.axis_key
+                           AND m.axis_value = ANY(a.axis_values)
+                           AND a.valid_period @> now())
            FROM kube.workload w
+           JOIN kube.namespace n ON n.id = w.namespace_id AND n.valid_period @> now()
+           JOIN kube.cluster c ON c.id = n.cluster_id AND c.valid_period @> now()
            JOIN kube.label_mapping m
              ON w.labels ->> m.label_key = m.label_value AND m.valid_period @> now()
            JOIN public.property_declaration d
              ON d.key = m.axis_key AND d.valid_period @> now()
           WHERE w.id = ANY($1) AND w.valid_period @> now()
+            AND (m.label_key = ANY(c.tracked_label_keys)
+                 OR EXISTS (SELECT 1 FROM kube.tracked_label t
+                             WHERE t.label_key = m.label_key AND t.valid_period @> now()))
             AND m.axis_key <> $2
             AND d.value_type = 'enum' AND NOT d.sensitive AND $3 = ANY(d.carriers)
             AND EXISTS (SELECT 1 FROM public.property_enum_value v
                          WHERE v.property_id = public.kartenn_values_owner(d.id)
                            AND v.key = m.axis_value AND v.valid_period @> now())
-            AND NOT EXISTS (SELECT 1 FROM kube.admitted_values a
-                             WHERE a.namespace_id = w.namespace_id
-                               AND a.axis_key = m.axis_key
-                               AND m.axis_value = ANY(a.axis_values)
-                               AND a.valid_period @> now())
-          ORDER BY 1, 2, 4",
+          ORDER BY 1, 4, 5, 2",
     )
     .bind(workloads)
     .bind(NAMESPACE_AXIS)
-    .bind(crate::module::WORKLOAD)
+    .bind(WORKLOAD)
     .fetch_all(&mut *conn)
     .await
     .map_err(|e| store(&e))?;
-    let mut by_workload: BTreeMap<Uuid, Vec<String>> = BTreeMap::new();
-    for (workload, label_key, label_value, axis, value) in refused {
-        by_workload
-            .entry(workload)
-            .or_default()
-            .push(format!("{label_key}={label_value} gives {axis}: {value}"));
+    let mut refused: BTreeMap<Uuid, Vec<String>> = BTreeMap::new();
+    // By workload and single-valued axis, the admitted values and the labels giving them.
+    let mut single: BTreeMap<(Uuid, &str), BTreeMap<&str, Vec<String>>> = BTreeMap::new();
+    for (workload, label_key, label_value, axis, value, set, admitted) in &rows {
+        let given = format!("{label_key}={label_value} gives {axis}: {value}");
+        if !admitted {
+            refused.entry(*workload).or_default().push(given);
+        } else if !set {
+            single
+                .entry((*workload, axis.as_str()))
+                .or_default()
+                .entry(value.as_str())
+                .or_default()
+                .push(given);
+        }
     }
-    for (workload, labels) in by_workload {
+    for (workload, labels) in refused {
         found.push(
             Violation::new(
                 &LABEL_NOT_ADMITTED,
@@ -469,9 +584,29 @@ pub(crate) async fn check(
             .with_subjects([workload]),
         );
     }
+    let mut conflicts: BTreeMap<Uuid, Vec<String>> = BTreeMap::new();
+    for ((workload, axis), values) in single.into_iter().filter(|(_, v)| v.len() > 1) {
+        let labels: Vec<String> = values.into_values().flatten().collect();
+        conflicts
+            .entry(workload)
+            .or_default()
+            .push(format!("{axis} ({})", labels.join(", ")));
+    }
+    for (workload, axes) in conflicts {
+        found.push(
+            Violation::new(
+                &LABEL_CONFLICT,
+                format!(
+                    "the labels of the workload give different values to a single-valued axis, none set: {}",
+                    axes.join("; ")
+                ),
+            )
+            .with_subjects([workload]),
+        );
+    }
     Ok(workloads
         .iter()
-        .map(|w| (*w, LABEL_NOT_ADMITTED.id))
+        .flat_map(|w| [(*w, LABEL_NOT_ADMITTED.id), (*w, LABEL_CONFLICT.id)])
         .collect())
 }
 
@@ -479,37 +614,49 @@ pub(crate) async fn check(
 mod tests {
     use super::*;
 
+    const EXPOSURE: &str = "custom.exposure";
+    const ZONES: &str = "custom.zones";
+
     fn facts() -> Facts {
+        let both = || vec!["externe".to_owned(), "interne".to_owned()];
         Facts {
             slug: Some("prod".into()),
             stored: None,
+            tracked: BTreeSet::from(["app".into(), "tier".into()]),
             properties: BTreeMap::from([
                 (NAMESPACE_AXIS.into(), Uuid::from_u128(1)),
-                ("custom.exposure".into(), Uuid::from_u128(2)),
+                (EXPOSURE.into(), Uuid::from_u128(2)),
                 ("custom.tier".into(), Uuid::from_u128(3)),
+                (ZONES.into(), Uuid::from_u128(4)),
             ]),
             mappings: vec![
-                (
-                    "app".into(),
-                    "db".into(),
-                    "custom.exposure".into(),
-                    "interne".into(),
-                ),
+                ("app".into(), "db".into(), EXPOSURE.into(), "interne".into()),
+                ("app".into(), "db".into(), ZONES.into(), "interne".into()),
                 (
                     "tier".into(),
                     "db".into(),
-                    "custom.exposure".into(),
+                    EXPOSURE.into(),
                     "externe".into(),
                 ),
+                ("tier".into(), "db".into(), ZONES.into(), "externe".into()),
             ],
-            axes: BTreeMap::from([(
-                "custom.exposure".into(),
-                vec!["externe".into(), "interne".into()],
-            )]),
-            admitted: BTreeMap::from([(
-                "custom.exposure".into(),
-                vec!["externe".into(), "interne".into()],
-            )]),
+            axes: BTreeMap::from([
+                (
+                    EXPOSURE.into(),
+                    Axis {
+                        set: false,
+                        values: both(),
+                    },
+                ),
+                (
+                    ZONES.into(),
+                    Axis {
+                        set: true,
+                        values: both(),
+                    },
+                ),
+            ]),
+            admitted: BTreeMap::from([(EXPOSURE.into(), both()), (ZONES.into(), both())]),
             current: Vec::new(),
         }
     }
@@ -518,104 +665,113 @@ mod tests {
         ModuleKind::parse("kube.workload").unwrap()
     }
 
+    fn derived(facts: &Facts, labels: &[(&str, &str)]) -> Vec<Derived> {
+        let labels: BTreeMap<String, String> = labels
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect();
+        derive(
+            facts,
+            kind(),
+            Uuid::from_u128(9),
+            Uuid::nil(),
+            "payments",
+            Some(&labels),
+        )
+    }
+
     fn provenances(derived: &[Derived]) -> Vec<Option<&str>> {
         derived.iter().map(|(_, p)| p.as_deref()).collect()
     }
 
-    /// Two labels give the same axis: the smallest key wins; the namespace is set once.
+    fn texts(values: &[&str]) -> Vec<RawInput> {
+        values.iter().map(|v| RawInput::Text((*v).into())).collect()
+    }
+
+    /// Two labels on one axis (Q-019-40): the union for a set, nothing for a single value
+    /// they disagree on; the namespace is set once.
     #[test]
-    fn smallest_label_key_wins() {
-        let labels = BTreeMap::from([
-            ("app".to_owned(), "db".to_owned()),
-            ("tier".to_owned(), "db".to_owned()),
-        ]);
-        let derived = derive(
-            &facts(),
-            kind(),
-            Uuid::from_u128(9),
-            Uuid::nil(),
-            "payments",
-            Some(&labels),
-        );
+    fn union_or_nothing() {
+        let derived = derived(&facts(), &[("app", "db"), ("tier", "db")]);
         assert_eq!(
             provenances(&derived),
-            [Some("module:kube#namespace"), Some("module:kube#label:app")]
+            [
+                Some("module:kube#namespace"),
+                Some("module:kube#label:app,tier")
+            ]
         );
         assert!(matches!(
             &derived[1].0,
-            Operation::AssignProperty { values, .. } if values == &[RawInput::Text("interne".into())]
+            Operation::AssignProperty { property: Ref::Id(p), values, .. }
+                if *p == Uuid::from_u128(4) && *values == texts(&["externe", "interne"])
         ));
     }
 
-    /// A typed value wins; a value the module set and no label justifies is removed; a
-    /// value unchanged is not written again.
+    /// A typed value wins; a value the module set and no label justifies is removed, as
+    /// one its labels now disagree on; a value unchanged is not written again.
     #[test]
     fn typed_wins_derived_removed() {
         let mut facts = facts();
-        let namespace = Current {
-            key: NAMESPACE_AXIS.into(),
-            provenance: "module:kube#namespace".into(),
-            value: Some(format!("{}/payments", Uuid::nil())),
-            label: Some("prod/payments".into()),
+        let derived_value = |key: &str, provenance: &str, values: &[&str]| Current {
+            key: key.into(),
+            provenance: provenance.into(),
+            values: values.iter().map(|&v| v.to_owned()).collect(),
+            external: None,
+            label: None,
         };
         facts.current = vec![
-            namespace,
             Current {
-                key: "custom.exposure".into(),
-                provenance: "input".into(),
-                value: Some("externe".into()),
-                label: None,
+                key: NAMESPACE_AXIS.into(),
+                provenance: "module:kube#namespace".into(),
+                values: Vec::new(),
+                external: Some(format!("{}/payments", Uuid::nil())),
+                label: Some("prod/payments".into()),
             },
-            Current {
-                key: "custom.tier".into(),
-                provenance: "module:kube#label:tier".into(),
-                value: Some("front".into()),
-                label: None,
-            },
+            derived_value(EXPOSURE, "module:kube#label:app", &["interne"]),
+            derived_value("custom.tier", "module:kube#label:tier", &["front"]),
+            derived_value(ZONES, "module:kube#label:app,tier", &["externe", "interne"]),
         ];
-        let labels = BTreeMap::from([("app".to_owned(), "db".to_owned())]);
-        let derived = derive(
-            &facts,
-            kind(),
-            Uuid::from_u128(9),
-            Uuid::nil(),
-            "payments",
-            Some(&labels),
-        );
-        assert_eq!(derived.len(), 1, "{derived:?}");
-        assert!(matches!(
-            &derived[0].0,
-            Operation::UnassignProperty { property: Ref::Id(p), .. } if *p == Uuid::from_u128(3)
-        ));
+        let derived = derived(&facts, &[("app", "db"), ("tier", "db")]);
+        let removed: Vec<Uuid> = derived
+            .iter()
+            .map(|(o, _)| match o {
+                Operation::UnassignProperty {
+                    property: Ref::Id(p),
+                    ..
+                } => *p,
+                other => panic!("not a removal: {other:?}"),
+            })
+            .collect();
+        assert_eq!(removed, [Uuid::from_u128(2), Uuid::from_u128(3)]);
+        // Typed: neither replaced nor removed.
+        facts.current[1].provenance = "input".into();
+        let derived = self::derived(&facts, &[("app", "db")]);
+        assert_eq!(derived.len(), 2, "{derived:?}");
     }
 
-    /// Not admitted, or a value closed since: ignored.
+    /// Not admitted, a value closed since or a label not tracked: ignored.
     #[test]
-    fn not_admitted_ignored() {
+    fn ignored() {
+        let only_namespace = [Some("module:kube#namespace")];
         let mut facts = facts();
         facts.admitted.clear();
-        let labels = BTreeMap::from([("app".to_owned(), "db".to_owned())]);
-        let derived = derive(
-            &facts,
-            kind(),
-            Uuid::from_u128(9),
-            Uuid::nil(),
-            "payments",
-            Some(&labels),
+        assert_eq!(
+            provenances(&derived(&facts, &[("app", "db")])),
+            only_namespace
         );
-        assert_eq!(provenances(&derived), [Some("module:kube#namespace")]);
         let mut facts = self::facts();
-        facts
-            .axes
-            .insert("custom.exposure".into(), vec!["externe".into()]);
-        let derived = derive(
-            &facts,
-            kind(),
-            Uuid::from_u128(9),
-            Uuid::nil(),
-            "payments",
-            Some(&labels),
+        for axis in facts.axes.values_mut() {
+            axis.values = vec!["externe".into()];
+        }
+        assert_eq!(
+            provenances(&derived(&facts, &[("app", "db")])),
+            only_namespace
         );
-        assert_eq!(provenances(&derived), [Some("module:kube#namespace")]);
+        let mut facts = self::facts();
+        facts.tracked.remove("app");
+        assert_eq!(
+            provenances(&derived(&facts, &[("app", "db")])),
+            only_namespace
+        );
     }
 }

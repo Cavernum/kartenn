@@ -105,6 +105,10 @@ pub(crate) struct Axis {
     value_type: String,
     carriers: Vec<String>,
     sensitive: bool,
+    /// Whether it takes a set of values (`cardinality = 'set'`): two labels give the union
+    /// of their values (Q-019-40).
+    #[serde(default)]
+    pub(crate) set: bool,
     /// The living values of its closed list (its own, or those it borrows).
     pub(crate) values: Vec<String>,
 }
@@ -164,8 +168,9 @@ pub(crate) async fn axis_of(
     key: &str,
     at: Option<OffsetDateTime>,
 ) -> Result<Option<Axis>, StoreError> {
-    let row: Option<(String, Vec<String>, bool, Vec<String>)> = sqlx::query_as(
-        "SELECT d.value_type, d.carriers, d.sensitive,
+    type Row = (String, Vec<String>, bool, bool, Vec<String>);
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT d.value_type, d.carriers, d.sensitive, d.cardinality = 'set',
                 ARRAY(SELECT v.key FROM public.property_enum_value v
                        WHERE v.property_id = public.kartenn_values_owner(d.id)
                          AND v.valid_period @> coalesce($2::timestamptz, now())
@@ -178,16 +183,19 @@ pub(crate) async fn axis_of(
     .fetch_optional(conn)
     .await
     .map_err(|e| pg::store(&e))?;
-    Ok(row.map(|(value_type, carriers, sensitive, values)| Axis {
-        value_type,
-        carriers,
-        sensitive,
-        values,
-    }))
+    Ok(
+        row.map(|(value_type, carriers, sensitive, set, values)| Axis {
+            value_type,
+            carriers,
+            sensitive,
+            set,
+            values,
+        }),
+    )
 }
 
 /// The tracked labels living at `at`, by key.
-async fn tracked(
+pub(crate) async fn tracked(
     conn: &mut PgConnection,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<(String, Uuid)>, StoreError> {
@@ -621,6 +629,7 @@ mod tests {
             value_type: value_type.into(),
             carriers: carriers.iter().map(|&c| c.to_owned()).collect(),
             sensitive,
+            set: false,
             values: vec!["interne".into()],
         }
     }
