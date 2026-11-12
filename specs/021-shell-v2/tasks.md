@@ -1123,7 +1123,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     il passerait dans un morceau commun refusé par `build.test.ts`).
   - reste : aucun raccourci ni touche réservée pour les messages passagers (décision
     ouverte) ; F8 et les touches de fonction restent libres au registre.
-- [ ] 11. Référentiel (dépend aussi de 28 et 29) : accueil en tableau de bord
+- [x] 11. Référentiel (dépend aussi de 28 et 29) : accueil en tableau de bord
   (`GET /v1/stats`, tuiles `widget`), Topographie (arbre des préfixes en `TreeGrid`,
   colonnes de plugins, « + » sur un nœud ; 024), listes
   (`DataGrid`, filtres typés tirés du contrat : `filters.ts` généré comme `dated.ts`,
@@ -1219,6 +1219,73 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     trie, plafonné ; rien pour un objet hors domaine), pas de filtre par porteur ni de
     recherche par clé sur `GET /v1/property-declarations` (toutes les pages lues pour
     typer un filtre).
+  - fait le 2026-11-13 — relevé contre le code (main `94430d28`) : le livré du 2026-11-01
+    tient, et le reste ci-dessus est levé ou réparti. Levés : occupation de la Topographie
+    (11a, 11b : `TopologyView.vue`, `views/occupancy.ts`) ; « + » d'un nœud (12, 11b) ;
+    filtre `object` des anomalies (11k, `record/AnomaliesTab.vue`) ; actions des plugins
+    sur `changeset` (14 : `changesets/ChangesetView.vue`, `useExtensions("action",
+    "changeset")`) ; onglet `notes` sur un VLAN (17 : `plugins.spec.ts`). Répartis : colonnes
+    des plugins sur le `TreeGrid` → 11o ; tuile VLAN et occupation des groupes → reste de
+    la 17 (« groupes les plus remplis ») ; captures E0 à E3 des vrais écrans → 12l
+    (banc de captures à API simulée, transverse) ; manques du contrat (source des valeurs et
+    lacunes d'un objet, motif et auteur de l'historique, tri, comptes des onglets,
+    déclarations par porteur ou par clé) et acceptation de REQ-021-18 → 11p, à
+    l'utilisateur. `verify` tenu : parcours `records` et `tree` réécrits (lien filtré
+    copié rouvert à l'identique dans une autre session, « a filtered link copied… ») ;
+    ajouté ici, l'acceptation de REQ-021-18 telle que le modèle la permet : parcours
+    `records` « prefixes filtered by their site and their owner… » (site et entité
+    propriétaire choisis parmi les suggestions de l'API, dans un domaine ; lien rouvert
+    dans une autre session : mêmes lignes, mêmes pastilles). Ce parcours a levé un écart :
+    une pastille de référence (`core.owner`, `core.site`, `domain` et `entity` des
+    anomalies et lacunes) rouverte par un lien disait l'identifiant de l'objet, son nom
+    n'étant connu que des suggestions de la session ; `views/filters.ts` lit désormais
+    l'objet une fois par son identifiant (`cacheObject`, `GET /v1/<collection>/{id}` par la
+    cache) et la pastille suit (noms réactifs) ; Vitest `shell/test/views.test.ts` (« names
+    a reference of a link opened afresh… »).
+  - choix : nom d'une pastille de référence lu par l'objet, une fois par identifiant et par
+    modèle, seulement pour une valeur en forme d'UUID et une collection du cœur
+    (`COLLECTIONS`) ; lecture refusée ou objet inconnu : l'identifiant reste montré ;
+    l'acteur du journal d'audit, filtré en texte (`AuditView.vue`), inchangé.
+- [ ] 11o. Colonnes des plugins sur l'arbre de la Topographie (reste de la 11) : le
+  `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, une
+  `ExtensionElement` par cellule, son `status`), `TopologyView.vue` y met
+  `gridColumns("prefix")` après les colonnes du cœur — REQ-021-13, REQ-021-9 — verify :
+  Vitest du `TreeGrid` (colonne d'élément, ligne virtualisée), script
+  `e2e/components/tree-grid.spec.ts` (cellule d'élément atteinte au clavier) ; parcours
+  `plugins` (colonne de `notes` sur la Topographie)
+  - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (imiter la colonne d'élément de
+    `DataGrid/DataGrid.vue`, `elementProps`), `TreeGrid.catalogue.ts` ;
+    `web/v2/shell/src/views/TopologyView.vue`, `web/v2/shell/src/plugins/slots.ts`
+    (`gridColumns`) ; plugin de test `web/v2/e2e/plugins/notes` (une colonne sur `prefix`) ;
+    `e2e/journeys/plugins.spec.ts` ; inventaire de `specs/020-systeme-de-design/design.md`
+    et de la skill `kartenn-ui`
+  - dépend de : 11
+- [ ] 11p. Manques du contrat du référentiel, à arbitrer par l'utilisateur (reportés de la
+  11, cochée le 2026-11-13) : (1) fiche, colonne « Source » des propriétés et encart
+  « propriété attendue manque » (maquette E2) : `Resolved` ne sert pas la source d'une
+  valeur, `GET /v1/property-gaps` n'a pas de filtre `object` (seulement `domain`,
+  `entity`) — ajout au contrat (source par valeur, `object` comme A37 pour les anomalies,
+  recommandé) ou lectures côté client (explication par ligne, lacunes du domaine triées,
+  plafonnées) ; (2) motif et auteur de l'historique : `Version.changeset` ne porte que
+  `id` et `href` — les servir dans `Version` (recommandé) ou lire chaque changeset d'une
+  page ; (3) tri des listes : aucun paramètre au contrat — un `sort` déclaré (index,
+  curseur, banc) ou l'ordre de la clé seul et la maquette amendée (recommandé tant
+  qu'aucun besoin ne le demande) ; (4) comptes des onglets de la fiche (maquette E2) :
+  aucun total servi — compter ce qui est lu (propriétés, anomalies de l'objet), un total
+  au contrat, ou les retirer de la maquette ; (5) déclarations sans filtre par porteur ni
+  recherche par clé (`GET /v1/property-declarations`, dix pages lues au plus pour typer
+  un filtre) — les ajouter ou garder le plafond ; (6) acceptation de REQ-021-18 :
+  « Adresses filtrées par `site = <site>` » est impossible, `core.site` n'étant porté que
+  par les préfixes et non hérité (REQ-002-20, `core_declarations`), et tout filtre de
+  propriété demande un domaine (`kartenn-rest`, `filter::parse`) — l'amender en
+  « Préfixes d'un domaine filtrés par `core.site` et `core.owner` » (recommandé, prouvé par
+  le parcours `records`) ou rendre `core.site` hérité — verify : décisions consignées dans
+  `decisions.md` de la 021, REQ-021-18 amendée, sous-tâches écrites avec `où :` et `verify`
+  - où : tâche 11 (« reste » et relevé du 2026-11-13) ; contrat 006
+    (`crates/kartenn-rest/src/properties.rs`, `versions.rs`, `anomalies.rs`) ;
+    `web/v2/shell/src/views/record/{PropertiesTab,HistoryTab}.vue`, `RecordView.vue`,
+    `views/data.ts` (`useDeclarations`)
+  - dépend de : 11
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
