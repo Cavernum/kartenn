@@ -1324,8 +1324,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   `unobserved` pour un workload jamais observé, lecture journalisée (`record_read`) ;
   règle `kube.machine.looks_like_pod` (déjà déclarée, REQ-019-3) évaluée par le module
   kube sur les opérations de machines du changeset (`CheckContext::operations`, aucun
-  crochet dans machines), observations ouvertes seules, le pod jamais nommé : « ressemble
-  à un pod d'un cluster » quel que soit le droit de l'auteur (Q-019-32, amendé) —
+  crochet dans machines), observations ouvertes seules, levée pour le seul auteur qui
+  tient `kube.observation.read` sur le domaine des pods, le pod jamais nommé :
+  « ressemble à un pod d'un cluster » (Q-019-32, deux amendements) —
   REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
   - où : design « Port de lecture », « Règles », chaîne modélisée (« Vue d'ensemble ») ;
     `decisions.md` Q-019-31, 32 ; `rest.rs` (`allowed`, `record_read` des lectures de la
@@ -1345,10 +1346,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     hyperviseur ; avant les pods, ni maillon ni motif ; `retention`, `unobserved`,
     `closed` non journalisé ; rien pour un workload inconnu, un lecteur sans le droit sur
     le domaine des pods (RBAC réel et `Nothing`) et kartenn lui-même ; cinq lectures
-    journalisées avec leurs pods), `looks_like_pod_warns` (auteur sans le droit :
-    « looks like a pod of a cluster » ; auteur qui le tient : le même message, dans
-    l'avertissement et dans l'anomalie ; anomalie ouverte puis close une fois la machine déplacée ; pod parti ou autre nom :
-    rien).
+    journalisées avec leurs pods), `looks_like_pod_warns` (auteur sans le droit : aucun
+    avertissement ; auteur qui le tient, même machine : « looks like a pod of a
+    cluster », dans l'avertissement et dans l'anomalie ; réécrite par l'auteur sans le
+    droit, toujours ressemblante : anomalie gardée ; déplacée par lui : anomalie close ;
+    pod parti ou autre nom : rien).
   - choix : `execution_chain(conn, authorizer, Reading { context, journal, audit },
     workload, valid_at)` ; le lecteur est le sujet du `RequestContext` (kartenn lui-même
     ne lit rien) ; `None` pour un workload inconnu ou sans le droit (le 404/403 reste à
@@ -1372,6 +1374,13 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - correction (2026-11-12) : le pod n'est plus jamais nommé (amendement de Q-019-32,
     la fuite par l'anomalie) ; le droit de l'auteur n'est plus lu, `pg` ne tire plus
     `kartenn-store-pg`.
+  - correction de revue (2026-11-12) : contre l'oracle, l'avertissement n'est levé que
+    pour un auteur qui tient `kube.observation.read` sur le domaine des pods du cluster
+    du nœud (second amendement de Q-019-32 ; droit relu sur la connexion du changeset
+    par `kartenn_store_pg::rbac::outside_now`, une fois par domaine, `pg` tire de nouveau
+    `kartenn-store-pg`) ; une machine qui n'y ressemble plus est réévaluée quel que soit
+    l'auteur, une qui y ressemble encore n'est pas réévaluée pour un auteur sans le
+    droit ; `execution_chain` lit en SQL les seules observations tenues à la date.
   - reste : la jointure
     des observations ouvertes d'un cluster par nœud et nom n'a pas d'index dédié (index
     `(cluster_id, pod_uid, ip)` de la partition ouverte), non mesurée ; la chaîne lit

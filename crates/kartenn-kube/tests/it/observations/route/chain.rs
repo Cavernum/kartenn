@@ -308,12 +308,12 @@ async fn execution_chain_at_date(pool: PgPool) {
     assert_eq!(audited(&pool, "data.objects.read").await.len(), 5);
 }
 
-/// REQ-019-3 (Q-019-32 and its amendment): a machine `container` hosted by the machine of
+/// REQ-019-3 (Q-019-32 and its amendments): a machine `container` hosted by the machine of
 /// a node and named as a pod observed there warns `kube.machine.looks_like_pod`, the
-/// changeset applied; the warning and its anomaly say « looks like a pod of a cluster »,
-/// never the pod, even to an author who holds `kube.observation.read` on the pod domain;
-/// the anomaly closes once the machine is moved; a pod gone, or another name, does not
-/// warn.
+/// changeset applied, to an author who holds `kube.observation.read` on the pod domain
+/// only; the warning and its anomaly say « looks like a pod of a cluster », never the
+/// pod; an author without the right gets no warning and leaves the anomaly as it is, but
+/// closes it by moving the machine; a pod gone, or another name, does not warn.
 #[kartenn_testing::pg_test]
 async fn looks_like_pod_warns(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -370,16 +370,14 @@ async fn looks_like_pod_warns(pool: PgPool) {
         )
     };
 
-    // An author without the right on the journal: the pod is not named.
+    // An author without the right on the journal: no warning, which would answer whether
+    // such a pod runs there.
     let generic = "the container machine web-1 looks like a pod of a cluster";
     let outcome = submitted(&env, env.admin, vec![container("web-1", vm1)]).await;
     let ct = machine(&env, "web-1").await;
-    let found = lookalikes(&outcome);
-    assert_eq!(found.len(), 1, "{outcome:?}");
-    assert_eq!(found[0].1, [ct]);
-    assert_eq!(found[0].0, generic);
-    assert!(anomaly(&pool, ct).await);
-    // An author who holds it: not named either, nor in the anomaly (Q-019-32, amended).
+    assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
+    assert!(!anomaly(&pool, ct).await);
+    // An author who holds it, the same machine: the warning, generic, and its anomaly.
     let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
     let rehost = |host: Uuid| {
         machines(
@@ -390,9 +388,16 @@ async fn looks_like_pod_warns(pool: PgPool) {
     let outcome = submitted(&env, who, vec![rehost(vm1)]).await;
     let found = lookalikes(&outcome);
     assert_eq!(found.len(), 1, "{outcome:?}");
+    assert_eq!(found[0].1, [ct]);
     assert_eq!(found[0].0, generic);
     assert_eq!(anomaly_message(&pool, ct).await, generic);
-    // Moved off the machine of the node: no warning, the anomaly closed.
+    // Written again by the author without the right, still alike: no warning, the
+    // anomaly kept.
+    let outcome = submitted(&env, env.admin, vec![rehost(vm1)]).await;
+    assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
+    assert!(anomaly(&pool, ct).await);
+    // Moved off the machine of the node by that author: the anomaly closed, which
+    // reveals nothing.
     let outcome = submitted(&env, env.admin, vec![rehost(hv1)]).await;
     assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
     assert!(!anomaly(&pool, ct).await);

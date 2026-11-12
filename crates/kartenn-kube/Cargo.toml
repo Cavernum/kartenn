@@ -14,8 +14,9 @@ workspace = true
 
 [features]
 # The handler in the write pipeline and the storage in PostgreSQL (design 019, « Crates »);
-# the port of reading of the 009 for the chain of execution (task 019-7b).
-pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:time", "dep:kartenn-machines"]
+# the port of reading of the 009 for the chain of execution, and the RBAC on the
+# connection of a changeset for `kube.machine.looks_like_pod` (task 019-7b).
+pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:time", "dep:kartenn-machines", "dep:kartenn-store-pg"]
 # Its routes under `/v1`, mounted by kartenn-server (design 019, « Routes »).
 rest = ["pg", "dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:time", "dep:utoipa"]
 
