@@ -1302,22 +1302,33 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     lecture des workloads d'un cluster parcourt ses namespaces par l'index d'exclusion
     (`cluster_id`, `name`), non mesurée.
 - [ ] 7b. Chaîne d'exécution et trace d'un inventaire antérieur :
-  `execution_chain(workload, valid_at)` (nœuds par le journal, `read::of_workload` de la
-  6d, puis machines par `kube.runs_on`, hyperviseurs et clusters de virtualisation par
-  les arêtes de la 009) ; règle `kube.machine.looks_like_pod` (déjà déclarée, REQ-019-3)
-  — REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
+  `execution_chain(workload, valid_at, reader)` (nœuds par le journal,
+  `read::of_workload` de la 6d, puis machines par `kube.runs_on`, hyperviseurs et
+  clusters de virtualisation par les arêtes de la 009), encadrée comme `who_had`
+  (Q-019-31) : `kube.observation.read` sur le `pod_domain` du cluster, motif `retention`
+  au-delà de la rétention, `closed` pour un objet clos, chaîne vide et motif
+  `unobserved` pour un workload jamais observé, lecture journalisée (`record_read`) ;
+  règle `kube.machine.looks_like_pod` (déjà déclarée, REQ-019-3) évaluée par le module
+  kube sur les opérations de machines du changeset (`CheckContext::operations`, aucun
+  crochet dans machines), observations ouvertes seules, le pod nommé seulement à un
+  auteur qui tient `kube.observation.read`, sinon « ressemble à un pod d'un cluster »
+  (Q-019-32) — REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
   - où : design « Port de lecture », « Règles », chaîne modélisée (« Vue d'ensemble ») ;
+    `decisions.md` Q-019-31, 32 ; `rest.rs` (`allowed`, `record_read` des lectures de la
+    6d) ;
     `crates/kartenn-kube/src/read.rs` (`of_workload`), `edges.rs`, `rules.rs` ;
     `crates/kartenn-machines/src/read.rs` (`hosted_by`, `members_of`, `edges_of`) ;
     test voisin `tests/it/edges.rs` (`execution_chain_edges`)
   - dépend de : 6d, 4d
 - [ ] 7c. Paramètres du module : correspondances (clé, valeur de label) → valeur d'axe,
-  valeurs d'axe admises par namespace, labels suivis du module (X4) ; tables (migration
-  suivante), opérations `kube.set_label_mapping` et `kube.set_admitted_values`,
-  permission `kube.settings.edit` (`apply`, `approval.self`) par
-  `operation_permissions` — REQ-019-34 (paramètres) — verify :
+  valeurs d'axe admises par namespace, labels suivis du module (X4) ; tables
+  `kube.label_mapping`, `kube.admitted_value` et `kube.tracked_label` (migration
+  suivante), opérations `kube.set_label_mapping`, `kube.set_admitted_values` et
+  `kube.set_tracked_labels`, permission `kube.settings.edit` (`apply`, `approval.self`)
+  par `operation_permissions` — REQ-019-34 (paramètres) — verify :
   `label_mapping_needs_kube_settings`
-  - où : `decisions.md` X4, X11 ; spec 027 (P4, P5, REQ-027-5, 6) ;
+  - où : design « Données » (tables des paramètres), « Opérations » ; `decisions.md`
+    X4, X11 ; spec 027 (P4, P5, REQ-027-5, 6) ;
     `crates/kartenn-policy/src/module.rs` (`SETTINGS_EDIT`, `typed`) ;
     `crates/kartenn-service/src/module.rs` (`operation_permissions`)
   - dépend de : 4

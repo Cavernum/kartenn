@@ -428,6 +428,43 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   (`content`, `event_missing`, `event_duplicated`, `received_at`, `earliest`,
   `purge_bound`) ; l'amendement 13 de l'ADR 0026 (`ModuleTx::audit`) est ratifié.
 
+### Q-019-30 — Niveau « arbre » des axes d'un workload (tâche 7a)
+- Constat : REQ-019-32 compose la valeur d'un axe d'un workload « sinon par la valeur
+  héritée de l'arbre d'adressage sur la plage de pods ». La plage où tournent les pods
+  d'un workload n'est connue que par le journal (nœuds observés), hors du référentiel,
+  borné par la rétention et sous `kube.observation.read` ; `axis_values` sert la
+  politique, lue sans ce droit.
+- Options : A. les conteneurs de plages de pods du cluster (`pod_container_ids`, le
+  référentiel, à la date) ; B. les plages des nœuds où le journal voit les pods.
+- Décision (l'utilisateur, 2026-11-12) : A. Le niveau arbre lit les conteneurs de pods du
+  cluster, jamais les plages observées par le journal ; chaque conteneur qui a une valeur
+  en donne une, leur union est au lecteur (comme REQ-010-31). Un cluster sans conteneur
+  déclaré lit le domaine des pods (`pod_domain_id`), toujours dans le référentiel (revue
+  de la 7a).
+
+### Q-019-31 — Cadre de `execution_chain` (tâche 7b)
+- Constat : la chaîne d'exécution d'un workload part de ses nœuds, que seul le journal
+  connaît ; le design la donnait sans lecteur ni motif, alors que `who_had` est borné au
+  droit, à la rétention et aux objets vivants (Q-019-23, 25, 28).
+- Options : A. encadrée comme `who_had` ; B. lecture libre du port, au lecteur de filtrer.
+- Décision (l'utilisateur, 2026-11-12) : A. `execution_chain` prend un lecteur et exige
+  `kube.observation.read` sur le `pod_domain` du cluster ; au-delà de la rétention elle
+  rend `reason: retention`, pour un objet clos `closed` ; chaque lecture est journalisée
+  (`record_read`) ; un workload jamais observé rend une chaîne vide avec
+  `reason: unobserved`.
+
+### Q-019-32 — Évaluation de `kube.machine.looks_like_pod` (tâche 7b)
+- Constat : la règle (REQ-019-3) porte sur une écriture de la 009 (une machine
+  `container` hébergée par la machine d'un nœud) et lit des noms de pods dans le journal :
+  qui l'évalue, et que dit l'avertissement à un auteur sans droit sur le journal ?
+- Options : A. le module kube l'évalue sur les opérations de machines du changeset ; B.
+  un crochet dans le module machines.
+- Décision (l'utilisateur, 2026-11-12) : A. Évaluée par le module kube sur les
+  opérations de machines du changeset (`CheckContext::operations`), aucun crochet dans
+  machines ; l'avertissement ne nomme le pod que si l'auteur tient
+  `kube.observation.read`, sinon il dit « ressemble à un pod d'un cluster » ; seules les
+  observations ouvertes comptent.
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
