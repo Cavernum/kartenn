@@ -2,7 +2,7 @@
 import { queryClient, reads } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { checkFilter, filtersToParams, type Filter } from "@kartenn/ui";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView, type Router } from "vue-router";
 import { crumbsOf } from "../src/frame/breadcrumb.ts";
@@ -32,6 +32,7 @@ import {
   sentFilters,
   type DeclarationOfModel,
   type FilterWords,
+  type ObjectRead,
   type SuggestRead,
 } from "../src/views/filters.ts";
 import { keepRecordName } from "../src/views/names.ts";
@@ -122,6 +123,32 @@ describe("the model of the filters of a list", () => {
     // The value is the identifier; its label, once suggested, is the slug.
     expect(owners[0]).toMatchObject({ value: ENTITY, label: "exemple" });
     expect(owner.valueLabel!(ENTITY)).toBe("exemple");
+  });
+
+  it("names a reference of a link opened afresh by reading its object, once", async () => {
+    const asked: { path: string; id: string }[] = [];
+    const object: ObjectRead = async (path, id) => {
+      asked.push({ path, id });
+      return { id, slug: "exemple" };
+    };
+    const { read } = suggestions([]);
+    const fresh = listFilterModel("/v1/addresses", DECLARATIONS, WORDS, read, object);
+    const owner = fresh.find((p) => p.key === "prop.core.owner")!;
+    // Never suggested in this session: its identifier until its object is read.
+    expect(owner.valueLabel!(ENTITY)).toBeUndefined();
+    await vi.waitFor(() => expect(owner.valueLabel!(ENTITY)).toBe("exemple"));
+    expect(asked).toEqual([{ path: "/v1/entities", id: ENTITY }]);
+    // A value that is no identifier is never read; neither is one read already.
+    expect(owner.valueLabel!("pas-un-uuid")).toBeUndefined();
+    owner.valueLabel!(ENTITY);
+    expect(asked).toHaveLength(1);
+    // The domain of the anomalies, the same way; a refused read keeps the identifier.
+    const refused: ObjectRead = async () => Promise.reject(new Error("403"));
+    const anomalies = listFilterModel("/v1/anomalies", [], WORDS, read, refused);
+    const domain = anomalies.find((p) => p.key === "domain")!;
+    expect(domain.valueLabel!(ENTITY)).toBeUndefined();
+    await Promise.resolve();
+    expect(domain.valueLabel!(ENTITY)).toBeUndefined();
   });
 
   it("asks the identifier of a domain or an entity on the anomalies", () => {

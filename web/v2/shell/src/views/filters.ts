@@ -22,8 +22,10 @@ import {
   type ListOption,
   type Suggest,
 } from "@kartenn/ui";
+import { shallowReactive } from "vue";
 import type { LocationQuery, LocationQueryRaw } from "vue-router";
 import { STATES } from "../changesets/model.ts";
+import { COLLECTIONS } from "./collections.ts";
 
 // The typed filters of a list (REQ-021-18; design « Filtres, libellés, codes »; 020
 // decision A7): one model per list, for the bar (`FilterPicker`) and the filters of the
@@ -136,6 +138,67 @@ const DECLARED: Readonly<Record<string, FilterType>> = {
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value : String(value ?? ""));
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What reads an object a filter holds by its identifier, to name its chip. */
+export type ObjectRead = (
+  path: ListPath,
+  id: string,
+) => Promise<Readonly<Record<string, unknown>> | undefined>;
+
+/** Through the cache of the SDK (`GET /v1/entities/{id}`); none for an unknown collection. */
+export const cacheObject: ObjectRead = async (path, id) => {
+  const kind = COLLECTIONS.find((collection) => collection.path === path)?.kind;
+  if (kind === undefined) return undefined;
+  return (await queryClient.fetchQuery(reads.object<Record<string, unknown>>(kind, id))).data;
+};
+
+/** How a reference names its object: its slug or value in fixed pitch, else its name. */
+function referenceLabel(item: Readonly<Record<string, unknown>>): {
+  label: string;
+  mono: boolean;
+} {
+  const coded = item.slug ?? item.value;
+  // A name in words (a person), a slug or a value in fixed pitch.
+  return {
+    label: text(coded ?? item.name ?? item.id),
+    mono: coded !== undefined || item.name === undefined,
+  };
+}
+
+/** The names of the objects the reference filters of a model hold, by identifier. */
+interface ReferenceNames {
+  keep(id: string, label: string): void;
+  /** Its name, `undefined` until known; an identifier never suggested is read once. */
+  of(path: ListPath, id: string): string | undefined;
+}
+
+/**
+ * Those the suggestions listed, and those of a link opened afresh, read by their
+ * identifier: a chip says the same words in any session (REQ-021-18, the link copied).
+ * Reactive: the chip follows when the name arrives.
+ */
+function referenceNames(object: ObjectRead): ReferenceNames {
+  const names = shallowReactive(new Map<string, string>());
+  const asked = new Set<string>();
+  return {
+    keep: (id, label) => void names.set(id, label),
+    of(path, id) {
+      const known = names.get(id);
+      if (known === undefined && UUID.test(id) && !asked.has(id)) {
+        asked.add(id);
+        object(path, id).then(
+          (item) => {
+            if (item && !names.has(id)) names.set(id, referenceLabel(item).label);
+          },
+          () => undefined,
+        );
+      }
+      return known;
+    },
+  };
+}
+
 const options = (values: readonly string[], label: (value: string) => string | undefined) =>
   values.map((value): ListOption => ({ value, label: label(value) ?? value }));
 
@@ -181,14 +244,11 @@ function slugSuggest(path: ListPath, read: SuggestRead): Suggest {
  * is the identifier of the object, its label the slug (or value, or name: an identity) the
  * list shows of it.
  */
-function referenceSuggest(path: ListPath, read: SuggestRead, names: Map<string, string>): Suggest {
+function referenceSuggest(path: ListPath, read: SuggestRead, names: ReferenceNames): Suggest {
   return (query, signal) =>
     suggestFrom(path, query, read, signal, (item) => {
-      const coded = item.slug ?? item.value;
-      const label = text(coded ?? item.name ?? item.id);
-      names.set(text(item.id), label);
-      // A name in words (a person), a slug or a value in fixed pitch.
-      const mono = coded !== undefined || item.name === undefined;
+      const { label, mono } = referenceLabel(item);
+      names.keep(text(item.id), label);
       return { value: text(item.id), label, detail: text(item.id), mono };
     });
 }
@@ -212,7 +272,7 @@ function propertyFilter(
   declaration: DeclarationOfModel | undefined,
   words: FilterWords,
   read: SuggestRead,
-  names: Map<string, string>,
+  names: ReferenceNames,
 ): FilterProperty {
   const tests = new Set(fields.map((field) => field.property!.test));
   const operators: FilterOperator[] = [];
@@ -236,7 +296,7 @@ function propertyFilter(
     const target = collectionOf(text(declaration?.params?.target));
     if (target) {
       property.suggest = referenceSuggest(target as ListPath, read, names);
-      property.valueLabel = (value) => names.get(value);
+      property.valueLabel = (value) => names.of(target as ListPath, value);
     } else property.type = "text";
   }
   return property;
@@ -251,9 +311,10 @@ export function listFilterModel(
   declarations: readonly DeclarationOfModel[],
   words: FilterWords,
   read: SuggestRead = cacheSuggest,
+  object: ObjectRead = cacheObject,
 ): FilterModel {
   const fields = filterModel(path, declarations);
-  const names = new Map<string, string>();
+  const names = referenceNames(object);
   const values = VALUE_TYPES[path] ?? {};
   const within = fields.some((field) => field.name === "within");
   const valued = Object.keys(values).find((name) => fields.some((field) => field.name === name));
@@ -281,8 +342,9 @@ export function listFilterModel(
     else if (INSTANTS[path]?.[field.name]) property.type = "date";
     else if (BY_ID[path]?.[field.name]) {
       property.type = "enum";
-      property.suggest = referenceSuggest(BY_ID[path][field.name] as ListPath, read, names);
-      property.valueLabel = (value) => names.get(value);
+      const target = BY_ID[path][field.name] as ListPath;
+      property.suggest = referenceSuggest(target, read, names);
+      property.valueLabel = (value) => names.of(target, value);
     } else if (PROPERTY_KEYS[path] === field.name) {
       property.type = "enum";
       property.options = declarations.map((d) => ({
