@@ -538,6 +538,14 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   `kube.set_tracked_labels {keys}` (remplace la liste). Les valeurs admises citent leur
   namespace en `Refuse` (D33). Pas de `kube.settings.read` (X16). Une correspondance vers
   `kube.namespace` ou vers une propriété sensible est refusée.
+- Précision (session principale, 2026-11-12, revue de la tâche 7c ; application de la
+  décision, choix réversible) : le `close` d'un namespace cité par des valeurs admises,
+  envoyé par `kube.sync`, aurait fait refuser chaque lot du cluster jusqu'au retrait des
+  valeurs. Le serveur le convertit en `mark_absent`, le lot est accepté, et
+  l'avertissement `kube.namespace.held` sur le namespace nomme les valeurs admises à
+  retirer ; leur retrait ferme l'anomalie, le `close` suivant du connecteur clôt le
+  namespace. Le connecteur n'en sait rien. Une clôture à la main reste refusée
+  (`Refuse`), comme la cascade de la clôture d'un cluster, qui n'est pas un lot.
 
 ### Q-019-36 — Effet d'un changement de paramètres (tâche 7d)
 - Constat : une correspondance ou une valeur admise ajoutée, changée ou retirée change la

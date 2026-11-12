@@ -286,7 +286,7 @@ triée par (`pod_uid`, `ip`), instants en RFC 3339 UTC à la microseconde.
 | `op` | Auteur, permission | Rôle |
 |---|---|---|
 | `kube.create_cluster` / `update_cluster` | administrateur, `kube.cluster.edit` | déclaration du cluster (domaines, plages, rétention, labels suivis propres, fenêtre de lot, groupe du connecteur) ; `owner`, `site` planifiés |
-| `kube.sync` | connecteur (membre du groupe du connecteur), `kube.<type>.edit` des objets écrits | lot : `upsert` et `close` d'objets par identifiant externe, `mark_absent`, `clear_absent` ; crée et clôt les réseaux de plages et les adresses `vip` qu'il cite ; à l'`upsert` d'un workload, pose `kube.namespace` et **dérive** les valeurs d'axes de ses labels suivis, admises dans son namespace (`AssignProperty`, `UnassignProperty` du noyau planifiés, ADR 0026 clause 6, sous leurs propres droits ; Q-019-33) |
+| `kube.sync` | connecteur (membre du groupe du connecteur), `kube.<type>.edit` des objets écrits | lot : `upsert` et `close` d'objets par identifiant externe, `mark_absent`, `clear_absent` ; crée et clôt les réseaux de plages et les adresses `vip` qu'il cite ; à l'`upsert` d'un workload, pose `kube.namespace` et **dérive** les valeurs d'axes de ses labels suivis, admises dans son namespace (`AssignProperty`, `UnassignProperty` du noyau planifiés, ADR 0026 clause 6, sous leurs propres droits ; Q-019-33) ; le `close` d'un namespace cité par des valeurs admises devient un `mark_absent`, avertissement `kube.namespace.held` (précision de Q-019-35, 2026-11-12) |
 | `kube.set_label_mapping {action: upsert\|close, …}` | `kube.settings.edit` (globale, 027/P4, P5 ; par `type_permissions` du type `kube.label_mapping`, Q-019-35) | `upsert {label_key, label_value, axis, value}` crée la correspondance de (clé, valeur de label, axe) ou change sa valeur d'axe ; `close {id}` la clôt |
 | `kube.set_admitted_values {namespace: {id}, axis, values}` | idem (`kube.admitted_values`) | remplace l'ensemble des valeurs admises de l'axe dans le namespace ; un ensemble vide clôt l'objet |
 | `kube.set_tracked_labels {keys}` | idem (`kube.tracked_label`) | remplace la liste des clés de labels suivies du module : crée les clés nouvelles, clôt les absentes |
@@ -324,6 +324,7 @@ domaines touchés.
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
 | `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace : règle du serveur, levée par la dérivation de `kube.sync` ou du changeset des paramètres (Q-019-33) |
 | `kube.namespace.managed` | erreur | affectation ou retrait de `kube.namespace` autre que ceux que planifie `kube.sync` (`CheckContext::operations`, Q-019-39) |
+| `kube.namespace.held` (ajoutée à la tâche 7c) | avertissement | namespace absent de son cluster que des valeurs admises gardent : le `close` du connecteur est devenu un `mark_absent` ; l'avertissement nomme les valeurs admises à retirer, son anomalie se ferme à leur retrait ou au retour du namespace (précision de Q-019-35, 2026-11-12) |
 | `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; levée seulement pour un auteur qui tient `kube.observation.read` sur le domaine des pods du cluster du nœud, sans quoi elle ferait oracle ; le pod n'est jamais nommé, l'avertissement et son anomalie disent « ressemble à un pod d'un cluster » ; réévaluée quel que soit l'auteur sur une machine qui n'y ressemble plus (close, renommée, déplacée), dont l'anomalie se ferme (Q-019-32, deux amendements) |
 | `kube.sync.stale` | avertissement | cluster sans lot ni signet depuis 10 min (connecteur arrêté) |
 
@@ -409,7 +410,7 @@ tâche 7a).
 | nœud | réseau de plage (noyau) | refus ; cascade : clôt le réseau avec le nœud (le connecteur) |
 | service, ingress | adresse `vip` (noyau) | refus ; cascade : clôt l'adresse avec son dernier porteur (partagée entre les services et ingress d'un cluster, Q-019-17, ADR 0026 amendement 10) |
 | service | workload | mise à nul (retrait de la sélection) |
-| valeurs admises (`kube.admitted_values`) | namespace | refus (Q-019-35) |
+| valeurs admises (`kube.admitted_values`) | namespace | refus (Q-019-35) ; le `close` de `kube.sync` devient un `mark_absent` (`kube.namespace.held`) |
 | cluster | domaines, conteneurs, réseaux | refus |
 | flux (011) | workload, namespace, service | refus ; le connecteur passe l'objet absent (REQ-019-22) |
 

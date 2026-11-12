@@ -1451,9 +1451,29 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     unicité vérifiée avant l'écriture (`pg::taken`) ; le test des droits prend un axe
     `custom.*` (paramètres du noyau) : `policy.exposure` n'est pas encore porté par
     `kube.workload` (tâche 12).
-  - reste : `close` d'un namespace (connecteur) ou d'un cluster (cascade) refusé tant
-    que des valeurs admises le citent : le connecteur le marque absent (REQ-019-22),
-    l'administrateur clôt d'abord ses valeurs admises ; aucun index propre aux lectures
+  - correction de revue (2026-11-12) : le `close` d'un namespace cité par des valeurs
+    admises, envoyé par `kube.sync`, devient un `mark_absent` (le lot n'est plus refusé)
+    avec l'avertissement `kube.namespace.held` (nouvelle règle, `rules.rs`, libellés,
+    `docs/spec/regles-modules.md` régénéré), qui nomme les valeurs admises ; réévaluée
+    sur les namespaces écrits et ceux des valeurs admises écrites, son anomalie se ferme
+    à leur retrait (précision de Q-019-35, design « Opérations », « Règles »,
+    « Références ») ; `handler.rs` (`Completed::held`, `held`), `pg.rs`
+    (`held_namespaces`). Test : `settings_written_by_changeset` complété (clôture à la
+    main refusée, `core.object.dependents` ; clôture du connecteur deux fois acceptée,
+    namespace vivant et absent, avertissement et anomalie qui nomment les valeurs ;
+    valeurs retirées : anomalie close, le `close` suivant clôt le namespace).
+  - reste : la cascade de la clôture d'un cluster dont un namespace est cité par des
+    valeurs admises reste refusée (pas un lot) ; le verrou `kube.settings` est pris
+    après `prepare` et `plan` : deux créations concurrentes de la même identité
+    finissent sur l'exclusion (message de stockage, pas `kube.operation.invalid`) ; un
+    `upsert` ou un remplacement sans changement écrit une version ; `mirrors`
+    d'`authorship.rs` compte les objets des paramètres parmi les miroirs (à revoir en
+    7d3) ; la collection `kube-admitted-values` n'est pas dans le design des routes (à
+    trancher en 8) ; Q-019-36 dit « proposition » sans les droits de propriété, alors
+    qu'un auteur sans droit d'édition est refusé (à préciser en 7d3) ; la lecture des
+    objets globaux des paramètres par un connecteur dont le rôle est borné aux domaines
+    de son cluster n'est pas tenue (8 ou 9) ; `held_namespaces` lit l'état à `now()`,
+    pas à la période du changeset ; aucun index propre aux lectures
     de la dérivation (7d2) hors des exclusions ; une valeur d'axe close après coup reste
     dans une correspondance ou des valeurs admises (la dérivation l'ignorera) ; une
     correspondance ne se change que par son identité (route `PATCH /{id}` de la 8 à
