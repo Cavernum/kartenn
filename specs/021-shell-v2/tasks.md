@@ -3552,7 +3552,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   d'API ; il faudrait un banc de captures à API simulée, transverse (les 11, 14 et 17
   l'attendent aussi), plutôt qu'une tâche de la 12 — à la session principale ou à
   l'utilisateur de le placer.
-- [ ] 12m. Infobulle de raison d'une cellule accessible (relevés de l'`a11y-auditor` sur
+- [x] 12m. Infobulle de raison d'une cellule accessible (relevés de l'`a11y-auditor` sur
   la 12e, communs à `readonlyReason` et `stateReason`) : ouverte aussi au focus de la
   cellule (WCAG 1.4.13 : au survol et au focus, REQ-021-37) et au toucher (un appui, ou
   une autre voie visible), survolable (le pointeur passé de la cellule à l'infobulle la
@@ -3563,6 +3563,40 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (`onCellEnter`, `onCellLeave`,
     `closeTip`, `reasonTip`), `Tooltip/` (`useTooltip`), `DataGrid.catalogue.ts`
   - dépend de : 12e
+  - fait le 2026-11-12 — `DataGrid` seul, sans changement d'API : l'infobulle de raison
+    (`tipOf` : les phrases de `notesOf`, rien pendant l'édition de la cellule ni sur une
+    erreur, qui a sa bulle) s'ouvre aussitôt au focus clavier de la cellule
+    (`:focus-visible`, `focusTip` : aussi quand la raison vient sous le focus, une
+    écriture retenue après son commit) et se ferme quand le focus part, sauf si le
+    pointeur la garde ; un appui (ou un clic) l'épingle (`pinTip`, `useTooltip.pin`)
+    jusqu'à un appui ailleurs ; survolable : ouverte sur une cellule, elle y reste
+    (`hold`) et ne passe à la cellule entrée qu'après le délai, le pointeur traversant la
+    ligne d'en dessous pour l'atteindre (`switching`) ; son texte suit la raison de sa
+    cellule, et se ferme si elle part (`anchorTip`) ; Échap la ferme et s'arrête
+    (`closeTip` : ni la grille ni une couche autour ne l'entendent, même sous le focus de
+    la cellule) ; l'éditeur qui s'ouvre (Entrée, F2, double clic) la ferme, même sous le
+    pointeur (point du reste de la 12e, vérifié : elle restait), et le pointeur revenu sur
+    une cellule en édition ne la rouvre pas. 020 design (inventaire, contrat d'édition),
+    skill (ligne `DataGrid`). Tests : `data-grid.spec.ts` (focus → infobulle, Échap la
+    ferme sans autre effet puis va son chemin, autre cellule, sortie de la grille ;
+    pointeur de la cellule à l'infobulle par la cellule d'en dessous → gardée, à la même
+    place ; Entrée sous le pointeur → fermée, Échap atteint l'éditeur), `touch.spec.ts`
+    (un appui sur la cellule en revue dit le motif, un appui sur la bulle la garde, un
+    autre ailleurs la ferme).
+  - choix : comportement local à la grille plutôt que `reasonTip.listeners()` (une
+    infobulle pour toutes les cellules, dont les écouteurs de survol existaient déjà) ;
+    Échap arrêté même sous le focus (la tâche le demande ; `useTooltip` le laisse aller à
+    la couche, défaut empêché) : la grille n'a pas de `passEscape` ; un clic épingle aussi
+    (comme une action refusée), le pointeur qui part la ferme ; une cellule en erreur ne
+    montre plus l'infobulle de sa raison (sa seule bulle, comme dit la 12e) ; pas de
+    capture nouvelle (rendu de la grille inchangé, infobulle à délai).
+  - reste : placement sous la cellule, au-dessus de la ligne suivante (où va la flèche
+    Bas, et que le pointeur doit traverser) : au-dessus pour les cellules du focus, à
+    arbitrer avec une capture de référence (relevé `ui-reviewer`) ; l'infobulle ouverte
+    par le focus sur la cellule A cède à celle du survol d'une cellule B, sans revenir à
+    A quand le pointeur part ; ancre détachée (ligne virtualisée sortie) non surveillée,
+    hormis le défilement qui la ferme (`Tooltip.vue`) ; restitution par un vrai lecteur
+    d'écran non éprouvée.
 - [ ] 12n. Le pourquoi d'un état partout où une grille le porte (relevés de la revue de
   la 12e) : `ExpandableGrid` transmet `stateReason` et `readonlyReason` (avec `editable`)
   à ses deux `DataGrid` ; une ligne en revue (`rowState`) dit son motif (description de

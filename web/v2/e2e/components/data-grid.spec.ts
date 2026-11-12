@@ -265,6 +265,99 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(tip).toBeHidden();
   });
 
+  test("the reason of a cell: at the keyboard focus, Escape closes it and does nothing else", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    const tip = page.locator(".k-tooltip").filter({ hasText: "vient du site du préfixe" });
+    // Escape reaching past the grid (a panel, a dialog around it) is counted.
+    await page.evaluate(() => {
+      const w = window as unknown as { escapes: number };
+      w.escapes = 0;
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") w.escapes += 1;
+      });
+    });
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    // The focus alone opens it, at once (WCAG 1.4.13, REQ-021-37).
+    const env = grid.locator(`[data-row="${first}"][data-column="env"]`);
+    await expect(env).toBeFocused();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    await expect(env).toBeFocused();
+    expect(await page.evaluate(() => (window as unknown as { escapes: number }).escapes)).toBe(0);
+    // Without it, Escape goes on as before.
+    await page.keyboard.press("Escape");
+    expect(await page.evaluate(() => (window as unknown as { escapes: number }).escapes)).toBe(1);
+    // Another cell with a reason opens it again; one without closes it.
+    await page.keyboard.press("ArrowDown");
+    await expect(grid.locator(`[data-row="${row(1)}"][data-column="env"]`)).toBeFocused();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(tip).toBeHidden();
+    // Leaving the grid closes it.
+    await page.keyboard.press("ArrowRight");
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Shift+Tab");
+    await expect(tip).toBeHidden();
+  });
+
+  test("the reason of a cell: hoverable, the pointer crossing the cells under it", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    const tip = page.locator(".k-tooltip").filter({ hasText: "vient du site du préfixe" });
+    await grid.locator(`[data-row="${row(2)}"][data-column="env"]`).hover();
+    await expect(tip).toBeVisible();
+    const before = await tip.boundingBox();
+    // Down onto the bubble, over the cell of the next row (a reason too) on the way.
+    const cell = await grid.locator(`[data-row="${row(2)}"][data-column="env"]`).boundingBox();
+    await page.mouse.move(cell!.x + cell!.width / 2, before!.y + before!.height / 2, { steps: 8 });
+    await page.waitForTimeout(500);
+    await expect(tip).toBeVisible();
+    expect(await tip.boundingBox()).toEqual(before);
+    await page.mouse.move(0, 0);
+    await expect(tip).toBeHidden();
+  });
+
+  test("the reason of a cell leaves when its editor opens under the pointer", async ({ page }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    const cell = grid.locator(`[data-row="${first}"][data-column="label"]`);
+    await page.keyboard.press("Enter");
+    await page.keyboard.type(" sud");
+    await page.keyboard.press("Control+Enter");
+    await expect(cell).toHaveAttribute("data-state", "review");
+    const held = page.locator(".k-tooltip").filter({ hasText: "politique d'approbation" });
+    // Open at the focus as the reason comes, kept by the pointer over the cell; Enter edits.
+    await expect(held).toBeVisible();
+    await cell.hover();
+    await expect(held).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(cell.getByRole("textbox")).toBeFocused();
+    await page.waitForTimeout(500);
+    await expect(held).toBeHidden();
+    // The pointer back over the cell under edit: no tooltip over its editor.
+    await page.mouse.move(0, 0);
+    await cell.hover();
+    await page.waitForTimeout(500);
+    await expect(held).toBeHidden();
+    // Escape reaches the editor: cancelled, the focus back on the cell, its reason said.
+    await page.keyboard.press("Escape");
+    await expect(cell).toBeFocused();
+    await expect(held).toBeVisible();
+    await expect(cell.getByRole("textbox")).toHaveCount(0);
+  });
+
   test("leaving the editor: unchanged, no commit; another window, still open; elsewhere, committed", async ({
     page,
   }) => {
