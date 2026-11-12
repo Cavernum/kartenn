@@ -1,7 +1,7 @@
 //! The background tasks of the journal of the pods observed (task 019-6c; REQ-019-16;
-//! ADR 0043, decisions 5 and 8; 019/Q-019-20, Q-019-24, Q-019-27), run under the lease of
+//! ADR 0043, decisions 5 and 8; 019/Q-019-20, Q-019-24, Q-019-29), run under the lease of
 //! the core's tasks (ADR 0023). The journal holds against a compromised role of the
-//! application (Q-019-27): what the verification trusts is sealed in the audit.
+//! application (Q-019-29): what the verification trusts is sealed in the audit.
 //!
 //! - `kube.observations_purge` deletes, cluster by cluster, the closed observations past
 //!   the retention of their cluster, moves its purge bound, drops the days every cluster
@@ -268,7 +268,7 @@ fn checked_batch(row: &PgRow, checked: &mut u64) -> Result<Option<Altered>, Stor
         }))
     };
     let expected = match (events, audit_purged) {
-        // The audit purged its month by its retention: the copy stands in (Q-019-27).
+        // The audit purged its month by its retention: the copy stands in (Q-019-29).
         (0, true) => hex(&copy),
         (0, false) => return gap(reasons::EVENT_MISSING, "1".into(), "0".into()),
         (1, _) => {
@@ -304,7 +304,7 @@ fn checked_batch(row: &PgRow, checked: &mut u64) -> Result<Option<Altered>, Stor
 }
 
 /// Checks the journal against what the audit sealed of it (ADR 0043, decision 5;
-/// Q-019-24, Q-019-27): each purge bound against the last sealed purge of its cluster;
+/// Q-019-24, Q-019-29): each purge bound against the last sealed purge of its cluster;
 /// each batch against its one sealed event, found by its identifier (its instant, its
 /// earliest instant), and, while the sealed bound has not reached it, its fingerprint
 /// recomputed from its rows. A batch without event counts only in a month the audit has
@@ -364,7 +364,7 @@ pub async fn verify(conn: &mut PgConnection) -> Result<Verified, StoreError> {
 }
 
 /// Purges the journal at the instant of the transaction, by the function of the owner of
-/// the schema `kube.observation_purge` (Q-019-20, Q-019-27): by cluster, under the largest
+/// the schema `kube.observation_purge` (Q-019-20, Q-019-29): by cluster, under the largest
 /// retention of its recent versions, the closed observations ended before its bound, an
 /// open one never; its bound moved; the days of the coming week created; the days every
 /// cluster has passed dropped.

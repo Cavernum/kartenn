@@ -1,9 +1,9 @@
 -- The retention of the journal of the pods observed (REQ-019-16; ADR 0043, decisions 4,
--- 5 and 8, amended on 2026-11-12; 019/Q-019-20, Q-019-24, Q-019-27; task 019-6c): the
+-- 5 and 8, amended on 2026-11-12; 019/Q-019-20, Q-019-24, Q-019-29; task 019-6c): the
 -- days of the closed observations stay common to the clusters, the purge goes by cluster,
 -- under a bound it writes for each one; the verification recomputes the batches the purge
 -- has not touched. The journal holds against a compromised role of the application
--- (Q-019-27): that role still has neither DELETE nor TRUNCATE nor UPDATE of a batch, and
+-- (Q-019-29): that role still has neither DELETE nor TRUNCATE nor UPDATE of a batch, and
 -- what it writes cites only a batch of its own transaction.
 
 -- The earliest instant of a batch: the smallest start it opened and end it set, its own
@@ -21,7 +21,7 @@ UPDATE observation_batch b
 ALTER TABLE observation_batch ALTER COLUMN earliest SET NOT NULL,
     ADD CONSTRAINT observation_batch_earliest CHECK (earliest <= received_at);
 
--- A batch is received at the instant of its transaction (Q-019-27): its event is recorded
+-- A batch is received at the instant of its transaction (Q-019-29): its event is recorded
 -- then, and the month of that instant tells whether the audit has purged it.
 CREATE FUNCTION observation_batch_received_now() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog AS $$
@@ -45,7 +45,7 @@ $$;
 GRANT EXECUTE ON FUNCTION observation_batch_of_this_transaction(uuid) TO kartenn_app;
 
 -- An observation opens under a batch of its own transaction, and closes under one
--- (Q-019-27): no row is ever ascribed to an older batch, whose fingerprint is sealed. A
+-- (Q-019-29): no row is ever ascribed to an older batch, whose fingerprint is sealed. A
 -- closing moves the row to the partition of its day, which fires this trigger there with
 -- the closing batch set.
 CREATE FUNCTION pod_observation_of_its_batch() RETURNS trigger
@@ -80,9 +80,11 @@ GRANT SELECT ON observation_purge_bound TO kartenn_app;
 -- - the retention of a cluster is the largest of its versions in force, in valid time
 --   and in system time (its history), within their own retention up to now: a retention
 --   lowered, or rewritten by a correction, applies once the former one has run out
---   (Q-019-27); a cluster without such a version keeps that of its latest version;
+--   (Q-019-29); a cluster without such a version keeps that of its latest version;
 -- - its bound moves to now minus that retention, never back;
--- - its closed observations ended before the bound are deleted, an open one never;
+-- - its closed observations ended before the bound are deleted, an open one never while
+--   the cluster lives; a cluster closed before its bound loses its open ones too, which
+--   no connector will close (019-6d);
 -- - the days from today to a week ahead are created, so that a batch seldom creates one
 --   under the lock of the closed observations (task 019-6a);
 -- - a day is dropped once every cluster has passed its end.
@@ -96,6 +98,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
 DECLARE
     part record;
     n bigint;
+    m bigint;
     after timestamptz;
     passed timestamptz;
     today date := (now() AT TIME ZONE 'UTC')::date;
@@ -121,10 +124,11 @@ BEGIN
                AND v.known && tstzrange(now() - make_interval(days => v.retention_days), now(), '[]')
              GROUP BY v.id),
         latest AS (
-            SELECT DISTINCT ON (k.id) k.id, k.retention_days AS days
+            SELECT DISTINCT ON (k.id) k.id, k.retention_days AS days,
+                   upper(k.valid_period) AS closed_at
               FROM kube.cluster k
              ORDER BY k.id, upper(k.valid_period) DESC NULLS FIRST)
-        SELECT l.id, coalesce(r.days, l.days) AS days, p.purged_before AS before
+        SELECT l.id, coalesce(r.days, l.days) AS days, p.purged_before AS before, l.closed_at
           FROM latest l
           LEFT JOIN recent r ON r.id = l.id
           LEFT JOIN kube.observation_purge_bound p ON p.cluster_id = l.id
@@ -138,6 +142,11 @@ BEGIN
         DELETE FROM kube.pod_observation_closed o
          WHERE o.cluster_id = moved.id AND upper(o.observed) < after;
         GET DIAGNOSTICS n = ROW_COUNT;
+        IF moved.closed_at IS NOT NULL AND moved.closed_at < after THEN
+            DELETE FROM kube.pod_observation_open o WHERE o.cluster_id = moved.id;
+            GET DIAGNOSTICS m = ROW_COUNT;
+            n := n + m;
+        END IF;
         ids := ids || moved.id;
         befores := befores || moved.before;
         afters := afters || after;

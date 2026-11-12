@@ -195,7 +195,7 @@ pub struct Recorded {
     /// The longest advance of those lines on the instant of the batch, in milliseconds;
     /// 0 without any.
     pub skew_max_ms: u64,
-    /// Its earliest instant, sealed with it (task 019-6c, Q-019-27).
+    /// Its earliest instant, sealed with it (task 019-6c, Q-019-29).
     pub earliest: OffsetDateTime,
 }
 

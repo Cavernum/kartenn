@@ -516,7 +516,7 @@ async fn app_role_cannot_rewrite_or_delete(pool: PgPool) {
     }
     // An end that only a batch accepted may set: a closing that cites no batch is refused
     // by the database, so no end stands outside a fingerprint; the trigger of task 019-6c
-    // (a batch of the same transaction, Q-019-27) refuses it before the foreign key.
+    // (a batch of the same transaction, Q-019-29) refuses it before the foreign key.
     let mut tx = as_app(&pool).await;
     let unknown = sqlx::query(
         "UPDATE kube.pod_observation

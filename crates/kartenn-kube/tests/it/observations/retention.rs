@@ -1,5 +1,5 @@
 //! The background tasks of the journal (task 019-6c; REQ-019-16; ADR 0043, decisions 4,
-//! 5 and 8 as amended; Q-019-20, Q-019-24, Q-019-27): the verification checks the journal
+//! 5 and 8 as amended; Q-019-20, Q-019-24, Q-019-29): the verification checks the journal
 //! against what the audit sealed of it (one event by batch, its instant, its earliest
 //! instant, its fingerprint; the bound of each purge); the purge goes by cluster under a
 //! bound it seals, under the largest recent retention, drops a day every cluster has
@@ -14,6 +14,7 @@ use kartenn_kube::jobs::{self, reasons};
 use kartenn_kube::observations::{Batch, Opening, Recorded, record, rfc3339};
 use kartenn_service::audit::{Instance, Outcome, RequestContext};
 use kartenn_service::module::run_job;
+use kartenn_service::{ObjectKind, Operation, Ref};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -186,7 +187,7 @@ async fn owner(pool: &PgPool, sql: &'static str, id: Uuid) {
     sqlx::query(sql).bind(id).execute(pool).await.unwrap();
 }
 
-/// ADR 0043, decision 5, and Q-019-27: the daily verification finds each batch's one
+/// ADR 0043, decision 5, and Q-019-29: the daily verification finds each batch's one
 /// sealed event by its identifier and reports, under its `reason`, a row deleted outside
 /// the application (`content`, against the sealed fingerprint, whatever the copy says), a
 /// missing event (`event_missing`; the copy stands in only for a month the audit purged),
@@ -360,7 +361,7 @@ async fn altered_batch_detected(pool: PgPool) {
     }
 }
 
-/// Q-019-20, Q-019-27: the purge goes by cluster, each under its own retention and bound,
+/// Q-019-20, Q-019-29: the purge goes by cluster, each under its own retention and bound,
 /// which never moves back; each move is sealed (`observation.journal.purged`); a day is
 /// dropped once every cluster has passed it, a day one cluster still keeps stays for it;
 /// the days of the coming week are created. A batch the sealed bound has reached is no
@@ -511,7 +512,7 @@ async fn purge_drops_old_partitions(pool: PgPool) {
     assert_eq!(bound(&pool, env.prod).await, Some(prod_bound), "never back");
 }
 
-/// Q-019-27: a retention lowered applies once the former one has run out: the purge right
+/// Q-019-29: a retention lowered applies once the former one has run out: the purge right
 /// after deletes nothing the former retention still kept.
 #[kartenn_testing::pg_test]
 async fn lowered_retention_waits_for_the_former(pool: PgPool) {
@@ -534,6 +535,61 @@ async fn lowered_retention_waits_for_the_former(pool: PgPool) {
     );
     let kept = bound(&pool, env.prod).await.unwrap();
     assert!(((now - days(30)) - kept).abs() < hours(1), "{kept}");
+}
+
+/// 019-6d, Q-019-29: a closed cluster is purged at its retention: its closed observations
+/// past it at once, and, once its closure is past its bound, its open ones, which no
+/// connector will close any more.
+#[kartenn_testing::pg_test]
+async fn closed_cluster_purged_at_its_retention(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let now = OffsetDateTime::now_utc();
+    let seen = |pod: u128, ip: &str| Opening {
+        from: now - days(50),
+        ..env.pod(pod, ip)
+    };
+    sealed(
+        &env,
+        &Batch {
+            opened: vec![seen(1, "198.51.100.17"), seen(2, "198.51.100.18")],
+            closed: vec![closing(2, "198.51.100.18", now - days(40))],
+        },
+    )
+    .await;
+    env.applied(
+        env.admin,
+        vec![Operation::Close {
+            kind: ObjectKind::from_name("kube.cluster").unwrap(),
+            id: Ref::Id(env.prod),
+            expected: None,
+            cascade: true,
+        }],
+    )
+    .await;
+    assert!(run_job(&env.store, PURGE).await.unwrap());
+    let u = Uuid::from_u128;
+    assert_eq!(
+        rows(&pool, env.prod).await,
+        [(u(1), true)],
+        "its closed rows past the retention go, its open one stays while the closure is recent"
+    );
+    // Its closure moved 40 days back: past its bound.
+    owner(
+        &pool,
+        "UPDATE kube.cluster
+            SET valid_period = tstzrange(lower(valid_period) - interval '60 days',
+                                         now() - interval '40 days')
+          WHERE id = $1",
+        env.prod,
+    )
+    .await;
+    assert!(run_job(&env.store, PURGE).await.unwrap());
+    assert!(
+        rows(&pool, env.prod).await.is_empty(),
+        "its open one goes too"
+    );
+    let sealed: Vec<Value> = purges(&pool).await;
+    assert_eq!(sealed.last().unwrap()["deleted"], 1);
 }
 
 /// ADR 0043, decision 8: an open observation is never purged, whatever its age and the
@@ -569,7 +625,7 @@ async fn open_observation_never_purged(pool: PgPool) {
     assert_eq!(rows(&env.pool, env.prod).await, [(u(1), false)]);
 }
 
-/// Q-019-27: under the role of the application, a row opens and closes only under a batch
+/// Q-019-29: under the role of the application, a row opens and closes only under a batch
 /// of its own transaction, and a batch is received at the instant of its transaction.
 #[kartenn_testing::pg_test]
 async fn row_cites_batch_of_its_transaction(pool: PgPool) {
