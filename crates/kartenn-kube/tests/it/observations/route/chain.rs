@@ -1,8 +1,7 @@
 //! The chain of execution of a workload (task 019-7b; REQ-019-11; Q-019-31): its nodes by
 //! the journal, their machines and what hosts them at the date, framed as `who_had` and
 //! journaled; and `kube.machine.looks_like_pod` (REQ-019-3; Q-019-32), evaluated by the
-//! module on the machines a changeset writes, the pod named only to an author who may read
-//! the journal.
+//! module on the machines a changeset writes, the pod never named (Q-019-32, amended).
 
 use kartenn_kube::observations::{Batch, Opening};
 use kartenn_kube::read::{Chain, Cut, Link, Reading, execution_chain};
@@ -96,6 +95,19 @@ async fn anomaly(pool: &PgPool, object: Uuid) -> bool {
         "SELECT EXISTS (SELECT 1 FROM anomaly
                          WHERE object_id = $1 AND rule_id = 'kube.machine.looks_like_pod'
                            AND closed_at IS NULL)",
+    )
+    .bind(object)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// The message of the open anomaly `kube.machine.looks_like_pod` of `object`.
+async fn anomaly_message(pool: &PgPool, object: Uuid) -> String {
+    sqlx::query_scalar(
+        "SELECT message FROM anomaly
+          WHERE object_id = $1 AND rule_id = 'kube.machine.looks_like_pod'
+            AND closed_at IS NULL",
     )
     .bind(object)
     .fetch_one(pool)
@@ -296,11 +308,12 @@ async fn execution_chain_at_date(pool: PgPool) {
     assert_eq!(audited(&pool, "data.objects.read").await.len(), 5);
 }
 
-/// REQ-019-3 (Q-019-32): a machine `container` hosted by the machine of a node and named
-/// as a pod observed there warns `kube.machine.looks_like_pod`, the changeset applied;
-/// the warning names the pod to an author who holds `kube.observation.read` on the pod
-/// domain, says « looks like a pod of a cluster » to anyone else; its anomaly closes once
-/// the machine is moved; a pod gone, or another name, does not warn.
+/// REQ-019-3 (Q-019-32 and its amendment): a machine `container` hosted by the machine of
+/// a node and named as a pod observed there warns `kube.machine.looks_like_pod`, the
+/// changeset applied; the warning and its anomaly say « looks like a pod of a cluster »,
+/// never the pod, even to an author who holds `kube.observation.read` on the pod domain;
+/// the anomaly closes once the machine is moved; a pod gone, or another name, does not
+/// warn.
 #[kartenn_testing::pg_test]
 async fn looks_like_pod_warns(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -358,17 +371,15 @@ async fn looks_like_pod_warns(pool: PgPool) {
     };
 
     // An author without the right on the journal: the pod is not named.
+    let generic = "the container machine web-1 looks like a pod of a cluster";
     let outcome = submitted(&env, env.admin, vec![container("web-1", vm1)]).await;
     let ct = machine(&env, "web-1").await;
     let found = lookalikes(&outcome);
     assert_eq!(found.len(), 1, "{outcome:?}");
     assert_eq!(found[0].1, [ct]);
-    assert_eq!(
-        found[0].0,
-        "the container machine web-1 looks like a pod of a cluster"
-    );
+    assert_eq!(found[0].0, generic);
     assert!(anomaly(&pool, ct).await);
-    // An author who holds it: the pod, its namespace and its node.
+    // An author who holds it: not named either, nor in the anomaly (Q-019-32, amended).
     let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
     let rehost = |host: Uuid| {
         machines(
@@ -379,8 +390,8 @@ async fn looks_like_pod_warns(pool: PgPool) {
     let outcome = submitted(&env, who, vec![rehost(vm1)]).await;
     let found = lookalikes(&outcome);
     assert_eq!(found.len(), 1, "{outcome:?}");
-    assert!(found[0].0.contains("payments/web-1"), "{}", found[0].0);
-    assert!(found[0].0.contains(&env.node.to_string()), "{}", found[0].0);
+    assert_eq!(found[0].0, generic);
+    assert_eq!(anomaly_message(&pool, ct).await, generic);
     // Moved off the machine of the node: no warning, the anomaly closed.
     let outcome = submitted(&env, env.admin, vec![rehost(hv1)]).await;
     assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");

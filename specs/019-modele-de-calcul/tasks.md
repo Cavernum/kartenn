@@ -1324,9 +1324,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   `unobserved` pour un workload jamais observé, lecture journalisée (`record_read`) ;
   règle `kube.machine.looks_like_pod` (déjà déclarée, REQ-019-3) évaluée par le module
   kube sur les opérations de machines du changeset (`CheckContext::operations`, aucun
-  crochet dans machines), observations ouvertes seules, le pod nommé seulement à un
-  auteur qui tient `kube.observation.read`, sinon « ressemble à un pod d'un cluster »
-  (Q-019-32) — REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
+  crochet dans machines), observations ouvertes seules, le pod jamais nommé : « ressemble
+  à un pod d'un cluster » quel que soit le droit de l'auteur (Q-019-32, amendé) —
+  REQ-019-3, 11 — verify : `execution_chain_at_date`, `looks_like_pod_warns`
   - où : design « Port de lecture », « Règles », chaîne modélisée (« Vue d'ensemble ») ;
     `decisions.md` Q-019-31, 32 ; `rest.rs` (`allowed`, `record_read` des lectures de la
     6d) ;
@@ -1337,8 +1337,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - fait (2026-11-12) : `kartenn-kube` `read.rs` (`Framed`, `framed`, `Link`, `Chain`,
     `Reading`, `execution_chain`, `Cut::Unobserved`), `lookalike.rs` (la règle, appelée
     par `Handler::check`), `rest.rs` (`workload_observations` lit son cadre par `framed`),
-    `edges.rs` (`instant` partagé) ; `Cargo.toml` (`pg` tire `kartenn-machines`,
-    `kartenn-store-pg` et `time`) ; design (« Port de lecture ») ; tests
+    `edges.rs` (`instant` partagé) ; `Cargo.toml` (`pg` tire `kartenn-machines` et
+    `time`) ; design (« Port de lecture », « Règles ») ; tests
     `observations::route::chain::execution_chain_at_date` (deux nœuds à la date, l'un sur
     une VM d'un hyperviseur, l'autre sur une VM d'un cluster de virtualisation ; après le
     départ d'un pod et le déplacement de la VM, le maillon restant sur le nouvel
@@ -1346,8 +1346,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `closed` non journalisé ; rien pour un workload inconnu, un lecteur sans le droit sur
     le domaine des pods (RBAC réel et `Nothing`) et kartenn lui-même ; cinq lectures
     journalisées avec leurs pods), `looks_like_pod_warns` (auteur sans le droit :
-    « looks like a pod of a cluster » ; auteur qui le tient : `payments/web-1` et le nœud ;
-    anomalie ouverte puis close une fois la machine déplacée ; pod parti ou autre nom :
+    « looks like a pod of a cluster » ; auteur qui le tient : le même message, dans
+    l'avertissement et dans l'anomalie ; anomalie ouverte puis close une fois la machine déplacée ; pod parti ou autre nom :
     rien).
   - choix : `execution_chain(conn, authorizer, Reading { context, journal, audit },
     workload, valid_at)` ; le lecteur est le sujet du `RequestContext` (kartenn lui-même
@@ -1364,11 +1364,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`Within` compris), sur les machines `machines.machine` de `CheckContext::objects`,
     vivantes à partir de maintenant, de sorte `container`, hébergées par la machine d'un
     nœud vivant, nommées exactement comme un pod d'une observation ouverte de ce nœud ;
-    un avertissement par machine (le premier pod par namespace et nom), sujet la
-    machine, chaque machine écrite réévaluée ; le droit de l'auteur lu sur la connexion
-    du changeset (`kartenn_store_pg::rbac::outside_now`), une fois par domaine des pods.
-  - reste : le message d'un avertissement qui nomme le pod devient celui de l'anomalie,
-    lue ensuite par quiconque lit la machine, sans `kube.observation.read` ; la jointure
+    un avertissement par machine, sujet la machine, chaque machine écrite réévaluée.
+  - correction (2026-11-12) : le pod n'est plus jamais nommé (amendement de Q-019-32,
+    la fuite par l'anomalie) ; le droit de l'auteur n'est plus lu, `pg` ne tire plus
+    `kartenn-store-pg`.
+  - reste : la jointure
     des observations ouvertes d'un cluster par nœud et nom n'a pas d'index dédié (index
     `(cluster_id, pod_uid, ip)` de la partition ouverte), non mesurée ; la chaîne lit
     les arêtes nœud par nœud (deux requêtes par nœud) ; un changeset qui ne touche que le

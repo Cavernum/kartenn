@@ -312,7 +312,7 @@ domaines touchés.
 | `kube.object.absent` | avertissement | objet cité disparu du cluster |
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
 | `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace |
-| `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; le pod n'est nommé qu'à un auteur qui tient `kube.observation.read`, sinon « ressemble à un pod d'un cluster » (Q-019-32) |
+| `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; le pod n'est jamais nommé, l'avertissement et son anomalie disent « ressemble à un pod d'un cluster » quel que soit le droit de l'auteur (Q-019-32, amendé) |
 | `kube.sync.stale` | avertissement | cluster sans lot ni signet depuis 10 min (connecteur arrêté) |
 
 Hors règles : `kube.observation.invalid` est le code du Problem Details (422) d'un lot
