@@ -1315,7 +1315,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     identifiant donné deux fois laisse sa seconde entrée vide ; une valeur posée sur la
     plage d'un nœud n'est pas vue par cette lecture (conteneurs seuls) ; le commit
     05c532e7 mêle le découpage de la 7 et la fonctionnalité.
-- [ ] 7b. Chaîne d'exécution et trace d'un inventaire antérieur :
+- [x] 7b. Chaîne d'exécution et trace d'un inventaire antérieur :
   `execution_chain(workload, valid_at, reader)` (nœuds par le journal,
   `read::of_workload` de la 6d, puis machines par `kube.runs_on`, hyperviseurs et
   clusters de virtualisation par les arêtes de la 009), encadrée comme `who_had`
@@ -1334,6 +1334,46 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-machines/src/read.rs` (`hosted_by`, `members_of`, `edges_of`) ;
     test voisin `tests/it/edges.rs` (`execution_chain_edges`)
   - dépend de : 6d, 4d
+  - fait (2026-11-12) : `kartenn-kube` `read.rs` (`Framed`, `framed`, `Link`, `Chain`,
+    `Reading`, `execution_chain`, `Cut::Unobserved`), `lookalike.rs` (la règle, appelée
+    par `Handler::check`), `rest.rs` (`workload_observations` lit son cadre par `framed`),
+    `edges.rs` (`instant` partagé) ; `Cargo.toml` (`pg` tire `kartenn-machines`,
+    `kartenn-store-pg` et `time`) ; design (« Port de lecture ») ; tests
+    `observations::route::chain::execution_chain_at_date` (deux nœuds à la date, l'un sur
+    une VM d'un hyperviseur, l'autre sur une VM d'un cluster de virtualisation ; après le
+    départ d'un pod et le déplacement de la VM, le maillon restant sur le nouvel
+    hyperviseur ; avant les pods, ni maillon ni motif ; `retention`, `unobserved`,
+    `closed` non journalisé ; rien pour un workload inconnu, un lecteur sans le droit sur
+    le domaine des pods (RBAC réel et `Nothing`) et kartenn lui-même ; cinq lectures
+    journalisées avec leurs pods), `looks_like_pod_warns` (auteur sans le droit :
+    « looks like a pod of a cluster » ; auteur qui le tient : `payments/web-1` et le nœud ;
+    anomalie ouverte puis close une fois la machine déplacée ; pod parti ou autre nom :
+    rien).
+  - choix : `execution_chain(conn, authorizer, Reading { context, journal, audit },
+    workload, valid_at)` ; le lecteur est le sujet du `RequestContext` (kartenn lui-même
+    ne lit rien) ; `None` pour un workload inconnu ou sans le droit (le 404/403 reste à
+    la route de la 8, par `allowed`) ; clos d'abord (motif `closed`, non journalisé
+    comme le 410), puis rétention, puis jamais observé ; le port journalise lui-même par
+    `objects_read` et `AuditJournal::record` (l'événement de `kit::record_read`, sans
+    dépendre de `kartenn-rest`), cibles les pods des observations retenues, critères
+    `{read: "kube.execution_chain", workload, valid_at}` ; un maillon par nœud (tri par
+    identifiant), sa machine et son hôte lus par `edges::of` puis
+    `kartenn_machines::read::edges_of` à la date, `as_of` courant ; « à la date » :
+    les observations dont la période contient `valid_at` ; la règle : déclenchée par un
+    `machines.create_machine` ou `update_machine` parmi les opérations de l'auteur
+    (`Within` compris), sur les machines `machines.machine` de `CheckContext::objects`,
+    vivantes à partir de maintenant, de sorte `container`, hébergées par la machine d'un
+    nœud vivant, nommées exactement comme un pod d'une observation ouverte de ce nœud ;
+    un avertissement par machine (le premier pod par namespace et nom), sujet la
+    machine, chaque machine écrite réévaluée ; le droit de l'auteur lu sur la connexion
+    du changeset (`kartenn_store_pg::rbac::outside_now`), une fois par domaine des pods.
+  - reste : le message d'un avertissement qui nomme le pod devient celui de l'anomalie,
+    lue ensuite par quiconque lit la machine, sans `kube.observation.read` ; la jointure
+    des observations ouvertes d'un cluster par nœud et nom n'a pas d'index dédié (index
+    `(cluster_id, pod_uid, ip)` de la partition ouverte), non mesurée ; la chaîne lit
+    les arêtes nœud par nœud (deux requêtes par nœud) ; un changeset qui ne touche que le
+    nœud (`kube.sync` qui désigne la machine hôte) ne réévalue pas la règle, ni un lot
+    d'observations qui ouvre un pod du nom d'une machine.
 - [ ] 7c. Paramètres du module : correspondances (clé, valeur de label) → valeur d'axe,
   valeurs d'axe admises par namespace, labels suivis du module (X4) ; tables
   `kube.label_mapping`, `kube.admitted_value` et `kube.tracked_label` (migration

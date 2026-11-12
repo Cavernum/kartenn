@@ -1,7 +1,8 @@
 //! The read port of the module (spec 019, design « Port de lecture »): the reads of the
 //! journal of the pods observed (REQ-019-16, 17; ADR 0043, decisions 6, 8; Q-019-23, 25;
-//! task 019-6d), and the workloads of a namespace, a service or a cluster with the values
-//! of their axes (REQ-019-32, 019/X11; task 019-7a). The journal has no dated read
+//! task 019-6d), the chain of execution of a workload, framed as those reads (REQ-019-11;
+//! Q-019-31; task 019-7b), and the workloads of a namespace, a service or a cluster with
+//! the values of their axes (REQ-019-32, 019/X11; task 019-7a). The journal has no dated read
 //! (`as_of`): it answers what is stored, within the retention of each cluster, and a
 //! question about an instant past that retention answers nothing, with the reason
 //! [`Cut::Retention`], whether or not the purge has dropped the rows yet. The workloads
@@ -12,17 +13,28 @@ use std::net::IpAddr;
 use kartenn_core::addr::Prefix;
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
+use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject};
+use kartenn_service::reads::{ReadAudit, objects_read};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::time::Duration;
 
 use sqlx::types::time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::edges::{snapshot, time};
 use crate::module::OBSERVATION_READ_PERMISSION;
+use crate::observations::JOURNAL;
 use crate::pg::{CLUSTER_TABLE, NAMESPACE_TABLE, SERVICE_TABLE, WORKLOAD_TABLE, store};
+
+/// The edge from a node to its machine (REQ-019-11).
+const RUNS_ON: &str = "kube.runs_on";
+/// The edge from a machine to the machine that hosts it (REQ-009-17).
+const HOSTED_ON: &str = "machines.hosted_on";
+/// The edge from a machine to the cluster of machines that hosts it (REQ-009-17).
+const HOSTED_IN: &str = "machines.hosted_in";
 
 /// A row of the journal: a pod seen with an IP, or without one in `hostNetwork`, over a
 /// period.
@@ -90,6 +102,9 @@ pub enum Cut {
     /// The cluster is closed: its rows may still be stored, within its retention, but a
     /// closed cluster is not read (Q-019-28).
     Closed,
+    /// The journal holds no observation of the workload within the retention of its
+    /// cluster: [`execution_chain`] only (Q-019-31).
+    Unobserved,
 }
 
 impl Cut {
@@ -99,6 +114,7 @@ impl Cut {
         match self {
             Self::Retention => "retention",
             Self::Closed => "closed",
+            Self::Unobserved => "unobserved",
         }
     }
 }
@@ -325,6 +341,226 @@ pub async fn who_had(
         observations,
         reason,
     })
+}
+
+/// A workload as its journal is read: the pod domain and the retention of its cluster,
+/// whether the workload and its cluster both live now (each in its last version begun),
+/// and the instant of the database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Framed {
+    /// The pod domain of its cluster, where `kube.observation.read` is held.
+    pub pod_domain: Uuid,
+    /// The retention of its cluster, in days.
+    pub retention_days: i16,
+    /// Whether the workload and its cluster live now: a closed one is not read
+    /// (Q-019-28).
+    pub living: bool,
+    /// Now, as the database reads it.
+    pub now: OffsetDateTime,
+}
+
+/// The frame of the reads of the journal of the workload `workload` (see [`Framed`]);
+/// `None` for a workload never begun.
+///
+/// # Errors
+///
+/// The database.
+pub async fn framed(
+    executor: impl sqlx::PgExecutor<'_>,
+    workload: Uuid,
+) -> Result<Option<Framed>, sqlx::Error> {
+    // The workload, its namespace and its cluster, each in its last version begun.
+    let row: Option<(Uuid, i16, bool, OffsetDateTime)> = sqlx::query_as(
+        "SELECT c.pod_domain_id, c.retention_days,
+                w.valid_period @> now() AND c.valid_period @> now(), now()
+           FROM (SELECT namespace_id, valid_period FROM kube.workload
+                  WHERE id = $1 AND lower(valid_period) <= now()
+                  ORDER BY lower(valid_period) DESC LIMIT 1) w
+          CROSS JOIN LATERAL (
+                SELECT cluster_id FROM kube.namespace
+                 WHERE id = w.namespace_id AND lower(valid_period) <= now()
+                 ORDER BY lower(valid_period) DESC LIMIT 1) n
+          CROSS JOIN LATERAL (
+                SELECT pod_domain_id, retention_days, valid_period FROM kube.cluster
+                 WHERE id = n.cluster_id AND lower(valid_period) <= now()
+                 ORDER BY lower(valid_period) DESC LIMIT 1) c",
+    )
+    .bind(workload)
+    .fetch_optional(executor)
+    .await?;
+    Ok(row.map(|(pod_domain, retention_days, living, now)| Framed {
+        pod_domain,
+        retention_days,
+        living,
+        now,
+    }))
+}
+
+/// A link of the chain of execution of a workload (REQ-019-11): a node it was seen
+/// running on at the date, the machine the node runs on (`kube.runs_on`), and what hosts
+/// that machine (`machines.hosted_on`, `machines.hosted_in`), all at the date.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link {
+    /// The node, from the journal.
+    pub node: Uuid,
+    /// Its machine; none for a node matched to no machine.
+    pub machine: Option<Uuid>,
+    /// The hypervisor that hosts the machine.
+    pub hypervisor: Option<Uuid>,
+    /// The virtualisation cluster that hosts the machine.
+    pub cluster: Option<Uuid>,
+}
+
+/// What [`execution_chain`] answers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Chain {
+    /// One link per node, by node.
+    pub links: Vec<Link>,
+    /// Why the chain is empty though the workload may have run (Q-019-31):
+    /// [`Cut::Closed`] for a closed workload or cluster, [`Cut::Retention`] for a date
+    /// past the retention of its cluster, [`Cut::Unobserved`] for a workload the journal
+    /// never saw within that retention.
+    pub reason: Option<Cut>,
+}
+
+/// Who reads, and where the read is journaled: the request, its journal and the bound of
+/// the identifiers it records (REQ-012-18).
+#[derive(Debug)]
+pub struct Reading<'a, J> {
+    /// The request; its subject is the reader.
+    pub context: &'a RequestContext,
+    /// The journal of the read.
+    pub journal: &'a J,
+    /// The bound of the identifiers recorded.
+    pub audit: ReadAudit,
+}
+
+/// The chain of execution of the workload `workload` at `valid_at` (REQ-019-11; design
+/// « Port de lecture »; Q-019-31): the nodes the journal saw it running on at that date
+/// (its observations within the retention of its cluster, [`of_workload`]), then the
+/// machine of each node and what hosts that machine, by the edges of the modules at that
+/// date. Framed as [`who_had`]: `None` for a workload never begun, or when the reader does
+/// not hold `kube.observation.read` on the pod domain of its cluster; a closed workload or
+/// cluster answers an empty chain with [`Cut::Closed`], unjournaled, as the routes answer
+/// 410 without journaling; a date past the retention, [`Cut::Retention`]; a workload
+/// never observed within the retention, [`Cut::Unobserved`]. Every other read, empty or
+/// not, is journaled as the routes do (`data.objects.read`, the pods it relied on).
+///
+/// # Errors
+///
+/// The database, the authorizer, or the journal: then nothing is answered.
+pub async fn execution_chain(
+    conn: &mut PgConnection,
+    authorizer: &impl Authorizer,
+    reading: Reading<'_, impl AuditJournal>,
+    workload: Uuid,
+    valid_at: OffsetDateTime,
+) -> Result<Option<Chain>, StoreError> {
+    let Some(frame) = framed(&mut *conn, workload).await.map_err(|e| store(&e))? else {
+        return Ok(None);
+    };
+    // Kartenn itself is no reader: it holds no right on the journal.
+    let Some(reader) = reading.context.subject() else {
+        return Ok(None);
+    };
+    let denied = authorizer
+        .authorize_many(&reader, OBSERVATION_READ_PERMISSION, &[frame.pod_domain])
+        .await?;
+    if !denied.is_empty() {
+        return Ok(None);
+    }
+    if !frame.living {
+        return Ok(Some(Chain {
+            links: Vec::new(),
+            reason: Some(Cut::Closed),
+        }));
+    }
+    let (pods, chain) = if within_retention(valid_at, frame.now, frame.retention_days) {
+        let seen = of_workload(conn, workload, frame.now, frame.retention_days, None, None)
+            .await
+            .map_err(|e| store(&e))?;
+        if seen.is_empty() {
+            let chain = Chain {
+                links: Vec::new(),
+                reason: Some(Cut::Unobserved),
+            };
+            (Vec::new(), chain)
+        } else {
+            linked(conn, &seen, valid_at).await?
+        }
+    } else {
+        let chain = Chain {
+            links: Vec::new(),
+            reason: Some(Cut::Retention),
+        };
+        (Vec::new(), chain)
+    };
+    let at = valid_at
+        .format(&Rfc3339)
+        .map_err(|e| StoreError(e.to_string()))?;
+    let criteria = serde_json::json!({
+        "read": "kube.execution_chain",
+        "workload": workload,
+        "valid_at": at,
+    });
+    let event = objects_read(reading.context, JOURNAL, &pods, criteria, reading.audit)
+        .map_err(|e| StoreError(e.to_string()))?;
+    reading.journal.record(&event).await?;
+    Ok(Some(chain))
+}
+
+/// The links of the observations `seen` that held at `valid_at`, and the pods they come
+/// from, sorted.
+async fn linked(
+    conn: &mut PgConnection,
+    seen: &[Observation],
+    valid_at: OffsetDateTime,
+) -> Result<(Vec<Uuid>, Chain), StoreError> {
+    let held: Vec<&Observation> = seen
+        .iter()
+        .filter(|o| o.from <= valid_at && o.until.is_none_or(|until| valid_at < until))
+        .collect();
+    let mut pods: Vec<Uuid> = held.iter().map(|o| o.pod_uid).collect();
+    pods.sort_unstable();
+    pods.dedup();
+    let mut nodes: Vec<Uuid> = held.iter().filter_map(|o| o.node).collect();
+    nodes.sort_unstable();
+    nodes.dedup();
+    let at = crate::edges::instant(valid_at);
+    let mut links = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        let machine = crate::edges::of(conn, node, at, None)
+            .await?
+            .into_iter()
+            .find(|e| e.name == RUNS_ON && e.from == node)
+            .map(|e| e.to);
+        let (mut hypervisor, mut cluster) = (None, None);
+        if let Some(machine) = machine {
+            for edge in kartenn_machines::read::edges_of(conn, machine, at, None).await? {
+                if edge.from != machine {
+                    continue;
+                }
+                match edge.name {
+                    HOSTED_ON => hypervisor = Some(edge.to),
+                    HOSTED_IN => cluster = Some(edge.to),
+                    _ => {}
+                }
+            }
+        }
+        links.push(Link {
+            node,
+            machine,
+            hypervisor,
+            cluster,
+        });
+    }
+    Ok((
+        pods,
+        Chain {
+            links,
+            reason: None,
+        },
+    ))
 }
 
 /// What [`workloads_of`] lists the workloads of.

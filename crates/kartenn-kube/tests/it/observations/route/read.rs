@@ -26,7 +26,7 @@ use super::super::{Env, closing, hours, op, sync};
 use super::{app, audited, principal};
 
 /// An authorizer that grants nothing.
-struct Nothing;
+pub(super) struct Nothing;
 
 impl Authorizer for Nothing {
     fn authorize_many(
@@ -40,7 +40,7 @@ impl Authorizer for Nothing {
 }
 
 /// A person granted `permissions` on the domain `domain`, everywhere without one.
-async fn reader(pool: &PgPool, permissions: &[&str], domain: Option<Uuid>) -> Uuid {
+pub(super) async fn reader(pool: &PgPool, permissions: &[&str], domain: Option<Uuid>) -> Uuid {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
     )
@@ -489,7 +489,7 @@ fn app_as_account(pool: &PgPool, who: Uuid) -> Router {
 }
 
 /// The instant of the database, now.
-async fn clock(pool: &PgPool) -> OffsetDateTime {
+pub(super) async fn clock(pool: &PgPool) -> OffsetDateTime {
     sqlx::query_scalar("SELECT clock_timestamp()")
         .fetch_one(pool)
         .await

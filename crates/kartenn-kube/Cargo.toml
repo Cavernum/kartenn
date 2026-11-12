@@ -13,14 +13,17 @@ autotests = false
 workspace = true
 
 [features]
-# The handler in the write pipeline and the storage in PostgreSQL (design 019, « Crates »).
-pg = ["dep:sqlx", "dep:serde", "dep:serde_json"]
+# The handler in the write pipeline and the storage in PostgreSQL (design 019, « Crates »);
+# the port of reading of the 009 for the chain of execution, and the RBAC on the
+# connection of a changeset for `kube.machine.looks_like_pod` (task 019-7b).
+pg = ["dep:sqlx", "dep:serde", "dep:serde_json", "dep:time", "dep:kartenn-machines", "dep:kartenn-store-pg"]
 # Its routes under `/v1`, mounted by kartenn-server (design 019, « Routes »).
 rest = ["pg", "dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:time", "dep:utoipa"]
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }
 kartenn-core = { version = "0.1.0", path = "../kartenn-core" }
+kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["pg"], optional = true }
 kartenn-rest = { version = "0.1.0", path = "../kartenn-rest", optional = true }
 kartenn-service = { version = "0.1.0", path = "../kartenn-service" }
 kartenn-store-pg = { version = "0.1.0", path = "../kartenn-store-pg", optional = true }

@@ -2239,7 +2239,11 @@ impl ModuleHandler for Handler {
             // Who writes, whatever the changeset writes (019/X5, X10).
             let conn = connection(tx)?;
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
-            let reevaluated = absences(conn, context, &mut found).await?;
+            let mut reevaluated = absences(conn, context, &mut found).await?;
+            // The machines the changeset writes, whatever else it writes (REQ-019-3).
+            let lookalikes = crate::lookalike::check(conn, context).await?;
+            found.extend(lookalikes.violations);
+            reevaluated.extend(lookalikes.reevaluated);
             if clusters.is_empty()
                 && nodes.is_empty()
                 && ingresses.is_empty()
