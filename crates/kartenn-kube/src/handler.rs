@@ -191,6 +191,10 @@ struct Completed {
     /// The networks the node of a `sync` cites, with their prefixes.
     #[serde(default)]
     ranges: Vec<(String, Uuid)>,
+    /// What the derivation of the axes of the workload of an `upsert` reads (task
+    /// 019-7d2).
+    #[serde(default)]
+    derivation: Option<crate::derivation::Facts>,
 }
 
 fn decode<T: serde::de::DeserializeOwned>(value: Value, field: &str) -> Result<T, Violation> {
@@ -1603,7 +1607,12 @@ impl Handler {
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
                 let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
-                let owned = owned_columns(kind, &body, &completed, domain, &mut columns)?;
+                let mut owned = owned_columns(kind, &body, &completed, domain, &mut columns)?;
+                // The labels the upsert writes, as checked; else those stored.
+                let labels: Option<std::collections::BTreeMap<String, String>> = columns
+                    .get("labels")
+                    .cloned()
+                    .and_then(|l| serde_json::from_value(l).ok());
                 // An object of the same identity seen again in the cluster: present again
                 // (REQ-019-22), the absent one living or closed meanwhile.
                 columns.insert("absent_since".into(), Value::Null);
@@ -1630,6 +1639,29 @@ impl Handler {
                 data["scope"] = json!(cluster);
                 if let Some(cites) = owned.cites {
                     data["cites"] = json!(cites);
+                }
+                // The axes of a workload, derived by the server, after its own operations of
+                // the core: their provenances, by position, read back by `provenance`
+                // (Q-019-33, 34, 37).
+                if let (Some(facts), Some(namespace)) = (
+                    completed.derivation.as_ref(),
+                    body.get("namespace").and_then(Value::as_str),
+                ) && kind == workload_kind()
+                {
+                    let derived = crate::derivation::derive(
+                        facts,
+                        kind,
+                        target,
+                        cluster,
+                        namespace,
+                        labels.as_ref(),
+                    );
+                    let mut provenances = vec![None; owned.core.len()];
+                    for (operation, provenance) in derived {
+                        owned.core.push(operation);
+                        provenances.push(provenance);
+                    }
+                    data["provenances"] = json!(provenances);
                 }
                 Ok(ModulePlan {
                     kind,
@@ -1968,6 +2000,20 @@ impl ModuleHandler for Handler {
                                     pg::namespaced_closed(conn, identity, at).await?;
                             }
                         }
+                        // The axes of a workload written, derived by the server (Q-019-33).
+                        if namespaced == WORKLOAD_TABLE && text("action") == Some("upsert") {
+                            completed.derivation = Some(
+                                crate::derivation::prepare(
+                                    conn,
+                                    &operation.body,
+                                    cluster,
+                                    completed.namespace,
+                                    (completed.existing, completed.reopened),
+                                    at,
+                                )
+                                .await?,
+                            );
+                        }
                         // The services a closed workload leaves.
                         if let (Some(workload), true, Some("close")) = (
                             completed.existing,
@@ -2101,6 +2147,17 @@ impl ModuleHandler for Handler {
             scope: read(plan, "scope"),
             cites: read(plan, "cites"),
         }
+    }
+
+    /// The provenance of an axis the `upsert` of a workload derives (Q-019-34): from the
+    /// labels it received, by position in its operations of the core, never from a field
+    /// of the body.
+    fn provenance(&self, plan: &ModulePlan, index: usize) -> Option<String> {
+        plan.data
+            .get("provenances")?
+            .get(index)?
+            .as_str()
+            .map(str::to_owned)
     }
 
     fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
@@ -2334,6 +2391,10 @@ impl ModuleHandler for Handler {
             let mut found = crate::authorship::check(conn, context, cluster_kind()).await?;
             let mut reevaluated = absences(conn, context, &mut found).await?;
             reevaluated.extend(held(conn, context, &mut found).await?);
+            // The axes the server derives (Q-019-33, 39).
+            let workloads = of(workload_kind());
+            reevaluated
+                .extend(crate::derivation::check(conn, context, &workloads, &mut found).await?);
             // The machines the changeset writes, whatever else it writes (REQ-019-3).
             let lookalikes = crate::lookalike::check(conn, context).await?;
             found.extend(lookalikes.violations);

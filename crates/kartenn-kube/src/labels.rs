@@ -183,6 +183,10 @@ pub(crate) static ENGLISH: English = English {
             "The axis value of a label is admitted in the namespace of the workload that carries it.",
         ),
         (
+            "kube.namespace.managed",
+            "The kube.namespace axis of a workload is assigned or removed by kube.sync only.",
+        ),
+        (
             "kube.machine.looks_like_pod",
             "A container machine hosted by the machine of a node does not carry the name of an observed pod.",
         ),

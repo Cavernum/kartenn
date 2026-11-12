@@ -520,6 +520,17 @@ Tests : `kartenn-service` `module_pipeline::module_provenance_only_planned`,
 `kartenn-rest` `cycle::a_module_provenance_is_refused_in_input` et
 `operation::tests::a_provenance_in_input_is_refused`.
 
+Complément (019-7d2). Le crochet vaut aussi pour un « sans valeur » (`ClearProperty`)
+qu'un module ajoute, seul ou dans un `within` : il porte la provenance que le module lui
+donne, et n'est plus écrit `input` (le module le retire sûrement, comme une valeur). Le
+module kube l'emploie à l'`upsert` d'un workload : `module:kube#label:<clé>` pour une
+valeur dérivée d'un label, `module:kube#namespace` pour l'axe `kube.namespace` ; il lit
+la provenance des affectations courantes du workload pour ne remplacer ni retirer que
+les siennes. Source : `crates/kartenn-service/src/pipeline.rs`,
+`crates/kartenn-kube/src/derivation.rs`. Tests : `module_provenance_only_planned`
+complété (un « sans valeur » du module garde sa provenance), `kartenn-kube`
+`derivation::label_mapping_admitted`.
+
 ### Amendement 15 — 2026-11-12, systèmes externes déclarés par un module (019/Q-019-38)
 
 Un ajout additif au contrat, **arbitré par l'utilisateur le 2026-11-12**

@@ -3,10 +3,15 @@
 //! (feature `pg`). It depends on the machines module (REQ-019-4): a node designates a
 //! machine of the 009.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use kartenn_core::authz::{Permission, TypePermissions};
+use kartenn_core::labels::Compiled;
+use kartenn_core::properties::{Declarant, Declaration, PropertyKey, TypeSpec};
 use kartenn_core::rules::Rule;
+use kartenn_core::values::Cardinality;
+use kartenn_service::declarations::ModuleDeclarations;
 use kartenn_service::module::{
     EdgeType, JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType,
     Reference,
@@ -41,6 +46,41 @@ pub const PREFIX: &str = "prefix";
 /// An address of the core: a cluster IP or an external address of a service, an address
 /// of an ingress.
 pub const ADDRESS: &str = "address";
+/// The axis of the namespace of a workload, an external reference of the system `kube`
+/// that `kube.sync` alone sets (REQ-019-33; Q-019-37 to 39).
+pub const NAMESPACE_AXIS: &str = "kube.namespace";
+/// The external system of the namespaces, a value of `core.external_system` the module
+/// declares (Q-019-38).
+pub const SYSTEM: &str = "kube";
+
+/// The declarations of the module (design « Propriétés »): the axis `kube.namespace`,
+/// carried by the workloads, single-valued, not inherited, and the system `kube` it
+/// names (ADR 0026, amendment 15).
+fn module_declarations() -> ModuleDeclarations {
+    let axis = Declaration {
+        key: PropertyKey::parse(NAMESPACE_AXIS).expect("a valid key"),
+        declarant: Declarant::Module("kube".into()),
+        spec: TypeSpec::ExternalRef,
+        cardinality: Cardinality::Single,
+        carriers: BTreeSet::from([WORKLOAD.to_owned()]),
+        inherit: None,
+        obligations: BTreeSet::new(),
+        expected: None,
+    };
+    ModuleDeclarations {
+        module: "kube".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        properties: vec![(axis, Vec::new())],
+        labels: BTreeMap::from([(
+            NAMESPACE_AXIS.to_owned(),
+            Compiled::new("Namespace Kubernetes", "Kubernetes namespace"),
+        )]),
+        external_systems: BTreeMap::from([(
+            SYSTEM.to_owned(),
+            Compiled::new("Kubernetes", "Kubernetes"),
+        )]),
+    }
+}
 
 /// The types of the module so far (design « Types d'objets »): the cluster, root of the
 /// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces, and the
@@ -421,6 +461,9 @@ impl Module for Kube {
     }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
+    }
+    fn declarations(&self) -> Option<ModuleDeclarations> {
+        Some(module_declarations())
     }
     fn permissions(&self) -> &'static [&'static Permission] {
         PERMISSIONS

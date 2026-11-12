@@ -518,7 +518,12 @@ refusés, objets absents, mode de repli.
   propriété sur l'effet, sinon le changeset reste une proposition. Une affectation de
   provenance `input` sur le même workload l'emporte : la dérivation ne la remplace ni ne
   la retire. Le connecteur ne lit les paramètres que pour savoir quelles clés suivre
-  (X4) ; il n'envoie jamais d'affectation d'axe.
+  (X4) ; il n'envoie jamais d'affectation d'axe. Précisions de la tâche 7d2 (choix
+  réversibles) : sans valeurs admises pour un axe dans le namespace, rien n'y est admis ;
+  deux labels qui donnent un même axe : la valeur admise du label de la plus petite clé
+  l'emporte ; une correspondance dont l'axe ou la valeur n'est plus valide est ignorée sans
+  avertissement ; `kube.namespace` porte la provenance `module:kube#namespace` ; un
+  `upsert` qui ne change rien n'écrit aucune affectation.
 
 ### Routes
 
@@ -571,7 +576,7 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B8 | rôle livré par un module | ajout additif au contrat de module (ADR 0026 clause 8, ADR 0044), à fournir (tâche 11) |
 | B9 | identifiants des objets du noyau créés par un lot, cités par ses données | crochet `ModuleHandler::planned`, amendement 8 (additif, clause 6) de l'ADR 0026 (Q-019-14), fourni (tâche 3a) |
 | B10 | provenance d'une valeur dérivée d'un label, distincte d'une saisie | forme `module:<module>#<motif>` du noyau, portable par une opération planifiée par un module seulement, migration du `CHECK` de `0011_properties.sql` (`0078`), donnée par le crochet `ModuleHandler::provenance` : amendement 14 de l'ADR 0026 (Q-019-34), fourni (tâche 7d1) |
-| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations` (`external_systems`), valeurs de `core.external_system` par la synchronisation du noyau : amendement 15 de l'ADR 0026 (Q-019-38), fourni (tâche 7d1) ; la déclaration du système `kube` par le module vient avec la 7d2 |
+| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations` (`external_systems`), valeurs de `core.external_system` par la synchronisation du noyau : amendement 15 de l'ADR 0026 (Q-019-38), fourni (tâche 7d1) ; le module déclare le système `kube` et l'axe `kube.namespace` (tâche 7d2) |
 
 ## Erreurs et cas limites
 

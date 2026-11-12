@@ -30,7 +30,7 @@ use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, TRACKED_LABEL, WORKLOAD};
+use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, NAMESPACE_AXIS, TRACKED_LABEL, WORKLOAD};
 use crate::names::{LabelKey, LabelValue};
 use crate::pg::{
     self, ADMITTED_VALUES_TABLE, LABEL_MAPPING_TABLE, NAMESPACE_TABLE, TRACKED_LABEL_TABLE,
@@ -47,9 +47,6 @@ const OPERATIONS: [&str; 3] = [
 /// The lock key of the writes of the settings: two changesets of the settings do not
 /// cross.
 const LOCK: &str = "kube.settings";
-
-/// The axis of the namespace of a workload, set by `kube.sync` alone (Q-019-39).
-const NAMESPACE_AXIS: &str = "kube.namespace";
 
 /// The read of the namespace the admitted values cite.
 const NAMESPACE_READ: &str = "kube.namespace.read";
@@ -104,12 +101,12 @@ fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
 /// A property as declared at the start of the period, to judge it as an axis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Axis {
+pub(crate) struct Axis {
     value_type: String,
     carriers: Vec<String>,
     sensitive: bool,
     /// The living values of its closed list (its own, or those it borrows).
-    values: Vec<String>,
+    pub(crate) values: Vec<String>,
 }
 
 /// What [`prepare`] reads for the plan, which reads no database.
@@ -162,7 +159,7 @@ async fn living(
 }
 
 /// The property `key` declared at `at`, with the living values of its closed list.
-async fn axis_of(
+pub(crate) async fn axis_of(
     conn: &mut PgConnection,
     key: &str,
     at: Option<OffsetDateTime>,
@@ -303,8 +300,9 @@ fn text<'a>(body: &'a Map<String, Value>, field: &str) -> Result<&'a str, Violat
 }
 
 /// The axis `key`, as declared: a closed list carried by the workloads, neither sensitive
-/// nor `kube.namespace`.
-fn checked_axis<'a>(key: &str, axis: Option<&'a Axis>) -> Result<&'a Axis, Violation> {
+/// nor `kube.namespace`; the derivation of a workload ignores a mapping to another
+/// (task 019-7d2).
+pub(crate) fn checked_axis<'a>(key: &str, axis: Option<&'a Axis>) -> Result<&'a Axis, Violation> {
     if key == NAMESPACE_AXIS {
         return Err(invalid(format!(
             "axis: {NAMESPACE_AXIS} is set by kube.sync alone, no setting gives it"
