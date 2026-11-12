@@ -30,7 +30,7 @@ use sqlx::PgConnection;
 use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, TRACKED_LABEL, WORKLOAD};
+use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, NAMESPACE_AXIS, TRACKED_LABEL, WORKLOAD};
 use crate::names::{LabelKey, LabelValue};
 use crate::pg::{
     self, ADMITTED_VALUES_TABLE, LABEL_MAPPING_TABLE, NAMESPACE_TABLE, TRACKED_LABEL_TABLE,
@@ -47,9 +47,6 @@ const OPERATIONS: [&str; 3] = [
 /// The lock key of the writes of the settings: two changesets of the settings do not
 /// cross.
 const LOCK: &str = "kube.settings";
-
-/// The axis of the namespace of a workload, set by `kube.sync` alone (Q-019-39).
-const NAMESPACE_AXIS: &str = "kube.namespace";
 
 /// The read of the namespace the admitted values cite.
 const NAMESPACE_READ: &str = "kube.namespace.read";
@@ -104,12 +101,16 @@ fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
 /// A property as declared at the start of the period, to judge it as an axis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Axis {
+pub(crate) struct Axis {
     value_type: String,
     carriers: Vec<String>,
     sensitive: bool,
+    /// Whether it takes a set of values (`cardinality = 'set'`): two labels give the union
+    /// of their values (Q-019-40).
+    #[serde(default)]
+    pub(crate) set: bool,
     /// The living values of its closed list (its own, or those it borrows).
-    values: Vec<String>,
+    pub(crate) values: Vec<String>,
 }
 
 /// What [`prepare`] reads for the plan, which reads no database.
@@ -162,13 +163,14 @@ async fn living(
 }
 
 /// The property `key` declared at `at`, with the living values of its closed list.
-async fn axis_of(
+pub(crate) async fn axis_of(
     conn: &mut PgConnection,
     key: &str,
     at: Option<OffsetDateTime>,
 ) -> Result<Option<Axis>, StoreError> {
-    let row: Option<(String, Vec<String>, bool, Vec<String>)> = sqlx::query_as(
-        "SELECT d.value_type, d.carriers, d.sensitive,
+    type Row = (String, Vec<String>, bool, bool, Vec<String>);
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT d.value_type, d.carriers, d.sensitive, d.cardinality = 'set',
                 ARRAY(SELECT v.key FROM public.property_enum_value v
                        WHERE v.property_id = public.kartenn_values_owner(d.id)
                          AND v.valid_period @> coalesce($2::timestamptz, now())
@@ -181,16 +183,19 @@ async fn axis_of(
     .fetch_optional(conn)
     .await
     .map_err(|e| pg::store(&e))?;
-    Ok(row.map(|(value_type, carriers, sensitive, values)| Axis {
-        value_type,
-        carriers,
-        sensitive,
-        values,
-    }))
+    Ok(
+        row.map(|(value_type, carriers, sensitive, set, values)| Axis {
+            value_type,
+            carriers,
+            sensitive,
+            set,
+            values,
+        }),
+    )
 }
 
 /// The tracked labels living at `at`, by key.
-async fn tracked(
+pub(crate) async fn tracked(
     conn: &mut PgConnection,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<(String, Uuid)>, StoreError> {
@@ -303,8 +308,9 @@ fn text<'a>(body: &'a Map<String, Value>, field: &str) -> Result<&'a str, Violat
 }
 
 /// The axis `key`, as declared: a closed list carried by the workloads, neither sensitive
-/// nor `kube.namespace`.
-fn checked_axis<'a>(key: &str, axis: Option<&'a Axis>) -> Result<&'a Axis, Violation> {
+/// nor `kube.namespace`; the derivation of a workload ignores a mapping to another
+/// (task 019-7d2).
+pub(crate) fn checked_axis<'a>(key: &str, axis: Option<&'a Axis>) -> Result<&'a Axis, Violation> {
     if key == NAMESPACE_AXIS {
         return Err(invalid(format!(
             "axis: {NAMESPACE_AXIS} is set by kube.sync alone, no setting gives it"
@@ -623,6 +629,7 @@ mod tests {
             value_type: value_type.into(),
             carriers: carriers.iter().map(|&c| c.to_owned()).collect(),
             sensitive,
+            set: false,
             values: vec!["interne".into()],
         }
     }

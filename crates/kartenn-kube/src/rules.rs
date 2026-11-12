@@ -62,6 +62,10 @@ rules! {
         "Un namespace parti de son cluster n'est plus cité par des valeurs admises.";
     LABEL_NOT_ADMITTED = "kube.label.not_admitted", Warning, ["REQ-019-34"], "019/X11",
         "La valeur d'axe d'un label est admise dans le namespace du workload qui le porte.";
+    LABEL_CONFLICT = "kube.label.conflict", Warning, ["REQ-019-34"], "019/Q-019-40",
+        "Les labels suivis d'un workload ne donnent pas deux valeurs différentes d'un axe à valeur simple.";
+    NAMESPACE_MANAGED ="kube.namespace.managed", Error, ["REQ-019-33"], "019/Q-019-39",
+        "L'axe kube.namespace d'un workload n'est affecté ou retiré que par kube.sync.";
     MACHINE_LOOKS_LIKE_POD = "kube.machine.looks_like_pod", Warning, ["REQ-019-3"], "019/X2",
         "Une machine container hébergée par la machine d'un nœud ne porte pas le nom d'un pod observé.";
     SYNC_STALE = "kube.sync.stale", Warning, ["REQ-019-18", "REQ-019-20"], "019/X8",
@@ -100,7 +104,9 @@ mod tests {
             assert!(seen.contains(id), "{id} missing");
         }
         // The 18 of the design, the malformed operation (task 019-3b), the duplicate
-        // ingress (task 019-4c) and the namespace held by admitted values (task 019-7c).
-        assert_eq!(KUBE_RULES.len(), 21);
+        // ingress (task 019-4c), the namespace held by admitted values (task 019-7c) and
+        // the axis of the namespace managed by the server and the labels in conflict on an
+        // axis (task 019-7d2).
+        assert_eq!(KUBE_RULES.len(), 23);
     }
 }

@@ -1534,7 +1534,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     choisi par le handler (un module du build pourrait signer pour un autre, code de
     confiance) ; clés d'`external_systems` non validées à la construction du registre ;
     « jamais close » et « deux modules, même clé » sans test.
-- [ ] 7d2. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
+- [x] 7d2. Pose par `kube.sync` : axe livré `kube.namespace` (référence externe, système
   `kube` déclaré par le module, identifiant `<id du cluster>/<nom>`, libellé
   `<slug du cluster>/<nom>`, Q-019-37) posé à l'`upsert` de chaque workload ; à chaque
   `upsert` d'un workload, le serveur lit ses labels suivis, les correspondances et les
@@ -1557,6 +1557,69 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     reçus du connecteur, jamais d'un membre libre du corps ; un « sans valeur »
     (`ClearProperty`) posé par kube doit aussi porter sa provenance.
   - dépend de : 7c, 7d1
+  - fait (2026-11-12) : `kartenn-kube` `module.rs` (`declarations` : axe
+    `kube.namespace`, référence externe portée par `kube.workload`, simple, sans héritage,
+    libellés ; système `kube` dans `external_systems`), `derivation.rs` (nouveau :
+    `prepare` lit le slug du cluster, les labels stockés, les correspondances des labels,
+    les axes valides, les valeurs admises du namespace et les affectations courantes avec
+    leur provenance ; `derive`, sans base, planifie `AssignProperty` de `kube.namespace`
+    et des axes, `UnassignProperty` de ce que le module a posé et qu'aucun label ne
+    justifie plus ; `check` : `kube.namespace.managed` sur les opérations de l'auteur,
+    seules ou dans un `within`, et `kube.label.not_admitted` réévaluée sur les workloads
+    écrits), `handler.rs` (`Completed::derivation`, `prepare` et `plan_sync` de l'`upsert`
+    d'un workload, provenances par position dans `data.provenances`, crochet
+    `provenance`, `check`), `settings.rs` (`axis_of`, `checked_axis` partagés), `rules.rs`
+    et `labels.rs` (règle d'erreur `kube.namespace.managed`), `docs/spec/regles-modules.md`
+    régénéré ; `kartenn-service` `pipeline.rs` (le crochet vaut aussi pour un
+    `ClearProperty` ajouté par un module ; reste de la 7d1), doc de
+    `ModuleHandler::provenance` (`Within`, `ClearProperty`) ; ADR 0026 amendement 14
+    complété ; design B11 et « Politique et flux » (Labels) précisés. Tests
+    `derivation::label_mapping_admitted` (valeur admise posée dans le changeset du lot,
+    provenance `module:kube#label:tier`, `kube.namespace` `<cluster>/payments` libellé
+    `prod/payments` système `kube` ; non admise ignorée avec anomalie, posée et anomalie
+    close une fois admise ; lot répété sans nouvelle version ; label disparu et
+    correspondance close : retirée ; valeur `input` ni remplacée ni retirée),
+    `derivation::namespace_axis_managed` (affectation, « sans valeur », retrait et
+    `within` de l'auteur refusés), tests unitaires de `derive` (repris à la correction de
+    revue) ; `module_provenance_only_planned` complété (« sans valeur » du module).
+  - choix : provenance de `kube.namespace` `module:kube#namespace`, remplacée quelle que
+    soit la provenance d'une valeur antérieure ; sans valeurs admises pour un axe dans le
+    namespace, rien n'est admis ; une correspondance dont l'axe n'est plus une liste
+    fermée portée par le workload, ou dont la valeur est close, est ignorée sans
+    avertissement (la règle lit les mêmes conditions) ; les labels dérivés sont ceux que
+    l'`upsert` écrit (validés), sinon ceux stockés ; une valeur inchangée (même valeur ou
+    même ensemble, même provenance) n'est pas réécrite ; le motif vient des labels du plan,
+    jamais du corps, et nomme toutes les clés qui donnent la valeur, triées, séparées par
+    une virgule (`label:app,tier`) ; les lectures dans un module `derivation.rs` plutôt que
+    `pg.rs` ; les clés suivies sont celles de `kube.tracked_label` et celles du cluster
+    (`tracked_label_keys`, X4).
+  - correction de revue (2026-11-12, arbitrages Q-019-40, Q-019-41) : union ou rien
+    (axe à valeurs multiples : union des valeurs admises ; axe simple aux valeurs
+    différentes : aucune pose, la valeur du module retirée, avertissement nouveau
+    `kube.label.conflict` qui nomme les labels, `rules.rs`, `labels.rs`,
+    `regles-modules.md` régénéré) ; labels suivis seulement (un label non suivi ne donne
+    rien et ne lève rien) ; les affectations courantes d'un ensemble (`v_uuids`) sont
+    lues et comparées en ensembles (un lot répété ne réécrivait plus que l'ensemble) ;
+    constante `MODULE` du module pour sa provenance (`module.rs`) ; `settings::Axis`
+    gagne `set`. Tests `derivation::labels_union_or_nothing` (union sur `custom.zones`,
+    conflit sur `custom.exposure`, lot répété sans nouvelle version, conflit levé au
+    départ d'un label), `derivation::untracked_label_ignored`, unitaires `union_or_nothing`,
+    `typed_wins_derived_removed`, `ignored`. Puis (précisions de Q-019-39 et Q-019-41) :
+    clés suivies du module et du cluster gardées ; la restauration (`Restore`) d'une
+    affectation de `kube.namespace` par un auteur est refusée par
+    `kube.namespace.managed` (`derivation::assigned`) ; test
+    `namespace_axis_managed` complété (restauration refusée ; après renommage du cluster,
+    l'`upsert` du connecteur repose l'axe au nouveau libellé).
+  - reste : `kube.label.not_admitted`, `kube.label.conflict` et `kube.namespace.managed`
+    lisent l'état à `now()`, pas à la période du changeset (comme `held_namespaces`), et
+    `managed` lit `property_declaration` sans borne de période ; les labels du corps sont décodés deux fois (`prepare`, puis le plan) ; `prepare` fait
+    7 + A lectures par workload d'un lot (A axes distincts) sans mémoire par lot du slug,
+    des clés suivies, des déclarations et des valeurs admises par namespace (le handler
+    n'a pas d'état par changeset : à reprendre avec les budgets de la 16 ; aucun banc
+    lancé) ; un changement de slug du cluster ne change le libellé de `kube.namespace`
+    qu'au prochain `upsert` de chaque workload ; aucun test sous le RBAC de la base
+    (`Unrestricted` seul : les droits de propriété du connecteur sur ses workloads ne sont
+    pas éprouvés, à faire avant la 7d3).
 - [ ] 7d3. Re-dérivation par les paramètres (Q-019-36) : le changeset qui écrit une
   correspondance ou des valeurs admises re-dérive, dans sa transaction, les affectations
   des workloads concernés à partir de leurs labels stockés (index GIN

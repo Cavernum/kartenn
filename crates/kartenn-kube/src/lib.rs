@@ -17,6 +17,8 @@ pub mod tracked;
 #[cfg(feature = "pg")]
 mod authorship;
 #[cfg(feature = "pg")]
+mod derivation;
+#[cfg(feature = "pg")]
 mod edges;
 #[cfg(feature = "pg")]
 pub mod handler;

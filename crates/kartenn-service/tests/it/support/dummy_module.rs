@@ -219,6 +219,9 @@ struct Derive {
     value: String,
     #[serde(default)]
     provenance: Option<String>,
+    /// "No value" (`ClearProperty`) instead of `value`.
+    #[serde(default)]
+    clear: bool,
 }
 
 #[derive(Debug)]
@@ -299,11 +302,19 @@ impl ModuleHandler for Handler {
         // The provenance of each core operation, read back by `provenance`.
         let mut provenances = vec![None; core.len()];
         if let Some(derive) = thing.derive {
-            core.push(Operation::AssignProperty {
-                object: derive.domain,
-                kind: kartenn_service::ObjectKind::Domain,
-                property: derive.property,
-                values: vec![kartenn_service::operations::RawInput::Text(derive.value)],
+            core.push(if derive.clear {
+                Operation::ClearProperty {
+                    object: derive.domain,
+                    kind: kartenn_service::ObjectKind::Domain,
+                    property: derive.property,
+                }
+            } else {
+                Operation::AssignProperty {
+                    object: derive.domain,
+                    kind: kartenn_service::ObjectKind::Domain,
+                    property: derive.property,
+                    values: vec![kartenn_service::operations::RawInput::Text(derive.value)],
+                }
             });
             provenances.push(derive.provenance);
         }

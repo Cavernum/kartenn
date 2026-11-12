@@ -323,7 +323,8 @@ domaines touchés.
 | `kube.object.absent` | avertissement | objet cité disparu du cluster |
 | `kube.ingress.backend_missing` | avertissement | règle d'ingress vers un service absent |
 | `kube.label.not_admitted` | avertissement | valeur d'axe d'un label non admise dans le namespace : règle du serveur, levée par la dérivation de `kube.sync` ou du changeset des paramètres (Q-019-33) |
-| `kube.namespace.managed` | erreur | affectation ou retrait de `kube.namespace` autre que ceux que planifie `kube.sync` (`CheckContext::operations`, Q-019-39) |
+| `kube.label.conflict` (ajoutée à la tâche 7d2) | avertissement | deux labels suivis d'un workload donnent des valeurs admises différentes d'un axe à valeur simple : aucune n'est posée, l'avertissement nomme les labels (Q-019-40) |
+| `kube.namespace.managed` | erreur | affectation, retrait ou restauration de `kube.namespace` autre que ceux que planifie `kube.sync` (`CheckContext::operations`, Q-019-39) |
 | `kube.namespace.held` (ajoutée à la tâche 7c) | avertissement | namespace absent de son cluster que des valeurs admises gardent : le `close` du connecteur est devenu un `mark_absent` ; l'avertissement nomme les valeurs admises à retirer, son anomalie se ferme à leur retrait ou au retour du namespace (précision de Q-019-35, 2026-11-12) |
 | `kube.machine.looks_like_pod` | avertissement | machine `container` qui ressemble à un pod (REQ-019-3) : évaluée par le module kube sur les opérations de machines du changeset (`CheckContext::operations`), observations ouvertes seules ; levée seulement pour un auteur qui tient `kube.observation.read` sur le domaine des pods du cluster du nœud, sans quoi elle ferait oracle ; le pod n'est jamais nommé, l'avertissement et son anomalie disent « ressemble à un pod d'un cluster » ; réévaluée quel que soit l'auteur sur une machine qui n'y ressemble plus (close, renommée, déplacée), dont l'anomalie se ferme (Q-019-32, deux amendements) |
 | `kube.sync.stale` | avertissement | cluster sans lot ni signet depuis 10 min (connecteur arrêté) |
@@ -518,7 +519,19 @@ refusés, objets absents, mode de repli.
   propriété sur l'effet, sinon le changeset reste une proposition. Une affectation de
   provenance `input` sur le même workload l'emporte : la dérivation ne la remplace ni ne
   la retire. Le connecteur ne lit les paramètres que pour savoir quelles clés suivre
-  (X4) ; il n'envoie jamais d'affectation d'axe.
+  (X4) ; il n'envoie jamais d'affectation d'axe. Seul un label dont la clé est suivie
+  (`kube.tracked_label`) donne une valeur d'axe (Q-019-41). Deux labels vers un même axe
+  (Q-019-40) : axe à valeurs multiples, l'union des valeurs admises ; axe à valeur simple
+  aux valeurs différentes, aucune pose, avertissement `kube.label.conflict` qui nomme les
+  labels, et la valeur que le module avait posée est retirée. Précisions de la tâche 7d2
+  (choix réversibles) : sans valeurs admises pour un axe dans le namespace, rien n'y est
+  admis ; une correspondance dont l'axe ou la valeur n'est plus valide est ignorée sans
+  avertissement ; `kube.namespace` porte la provenance `module:kube#namespace` ; un
+  `upsert` qui ne change rien n'écrit aucune affectation ; la provenance nomme toutes les
+  clés des labels qui donnent la valeur, triées et séparées par une virgule
+  (`module:kube#label:app,tier`), une seule dans le cas ordinaire ; les clés suivies sont
+  celles de `kube.tracked_label` et celles que le cluster ajoute (`tracked_label_keys`,
+  X4).
 
 ### Routes
 
@@ -571,7 +584,7 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B8 | rôle livré par un module | ajout additif au contrat de module (ADR 0026 clause 8, ADR 0044), à fournir (tâche 11) |
 | B9 | identifiants des objets du noyau créés par un lot, cités par ses données | crochet `ModuleHandler::planned`, amendement 8 (additif, clause 6) de l'ADR 0026 (Q-019-14), fourni (tâche 3a) |
 | B10 | provenance d'une valeur dérivée d'un label, distincte d'une saisie | forme `module:<module>#<motif>` du noyau, portable par une opération planifiée par un module seulement, migration du `CHECK` de `0011_properties.sql` (`0078`), donnée par le crochet `ModuleHandler::provenance` : amendement 14 de l'ADR 0026 (Q-019-34), fourni (tâche 7d1) |
-| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations` (`external_systems`), valeurs de `core.external_system` par la synchronisation du noyau : amendement 15 de l'ADR 0026 (Q-019-38), fourni (tâche 7d1) ; la déclaration du système `kube` par le module vient avec la 7d2 |
+| B11 | système externe `kube` de l'axe `kube.namespace` | systèmes externes dans `ModuleDeclarations` (`external_systems`), valeurs de `core.external_system` par la synchronisation du noyau : amendement 15 de l'ADR 0026 (Q-019-38), fourni (tâche 7d1) ; le module déclare le système `kube` et l'axe `kube.namespace` (tâche 7d2) |
 
 ## Erreurs et cas limites
 

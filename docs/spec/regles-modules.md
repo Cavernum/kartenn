@@ -101,5 +101,7 @@ spécification du module.
 | `kube.ingress.backend_missing` | avertissement | Une règle d'ingress vise un service présent dans son namespace. | REQ-019-10 | 019 design, « Règles » |
 | `kube.namespace.held` | avertissement | Un namespace parti de son cluster n'est plus cité par des valeurs admises. | REQ-019-34 | 019/Q-019-35 |
 | `kube.label.not_admitted` | avertissement | La valeur d'axe d'un label est admise dans le namespace du workload qui le porte. | REQ-019-34 | 019/X11 |
+| `kube.label.conflict` | avertissement | Les labels suivis d'un workload ne donnent pas deux valeurs différentes d'un axe à valeur simple. | REQ-019-34 | 019/Q-019-40 |
+| `kube.namespace.managed` | erreur | L'axe kube.namespace d'un workload n'est affecté ou retiré que par kube.sync. | REQ-019-33 | 019/Q-019-39 |
 | `kube.machine.looks_like_pod` | avertissement | Une machine container hébergée par la machine d'un nœud ne porte pas le nom d'un pod observé. | REQ-019-3 | 019/X2 |
 | `kube.sync.stale` | avertissement | Un cluster reçoit un lot ou un signet de son connecteur au moins toutes les 10 minutes. | REQ-019-18, REQ-019-20 | 019/X8 |
