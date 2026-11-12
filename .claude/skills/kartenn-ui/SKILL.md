@@ -197,6 +197,10 @@ Version exacte épinglée ; toute montée repasse les scripts clavier et le parc
   sa classe, pas par son rôle. Select ouvert : Reka donne le focus à l'option choisie
   une fois la liste placée, et ses flèches le déplacent après ses microtâches : un script
   clavier attend l'option focalisée avant la touche suivante (sinon elle part de l'ancienne).
+  Ouvert, axe y voit `aria-hidden-focus` (les contrôles laissés derrière restent
+  focalisables) : faux positif, Reka tient le focus dans la liste et bloque le pointeur
+  dehors ; un état ouvert se déclare `isolated` et `catalogue.spec.ts` le passe à axe
+  avec cette seule exception (liste d'une cellule, `DataGrid` `choice-open`, comme `Select`).
 - Combobox : Reka met en avant une suggestion de lui-même (la première à la saisie, la
   choisie à l'ouverture) ; la sélection manuelle l'efface après ses microtâches
   (`pointerleave` sur la racine, `setTimeout` 0) ; Bas et Alt+Bas, Origine et Fin passent

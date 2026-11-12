@@ -515,6 +515,8 @@ export default {
       wide: true,
       interaction: "focus",
       target: ".k-cell-select",
+      // The open list is modal (Reka): shown alone, checked by axe as `Select`'s.
+      isolated: true,
     },
     {
       name: "resized",
