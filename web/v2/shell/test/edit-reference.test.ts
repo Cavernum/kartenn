@@ -23,8 +23,10 @@ interface Seen {
   method: string;
   url: string;
   body: Record<string, unknown> | null;
+  /** The read was cancelled before its answer (an answer `delay`ed). */
+  aborted?: boolean;
 }
-type Answer = { status?: number; body: unknown };
+type Answer = { status?: number; body: unknown; delay?: number };
 
 /** The domains of the fake API: a first page of one, `zeta` found by `q` only. */
 function domains(call: Seen): Answer | undefined {
@@ -72,6 +74,11 @@ describe("a reference of the edit panel, beyond the first page", () => {
       const out = call.url.startsWith("/v1/labels")
         ? { body: { lang: "fr", default_lang: "fr", revision: "1", spaces: {} } }
         : (answer(call) ?? { status: 404, body: { type: "about:blank", status: 404 } });
+      if ("delay" in out && out.delay) {
+        await new Promise((done) => setTimeout(done, out.delay));
+        call.aborted = init?.signal?.aborted === true;
+        if (call.aborted) throw new DOMException("cancelled", "AbortError");
+      }
       const status = out.status ?? 200;
       return new Response(JSON.stringify(out.body), {
         status,
@@ -226,5 +233,54 @@ describe("a reference of the edit panel, beyond the first page", () => {
       .poll(() => options().map((o) => o.textContent?.trim()))
       .toEqual(["Aucun", "atelier-nord"]);
     expect(seen.some((s) => s.url.startsWith("/v1/entities?") && s.url.includes("q=a"))).toBe(true);
+  });
+
+  it("reads the suggestions by a key of their own: one page, the ancestors' read never cancelled", async () => {
+    const E1 = "0b5e3c1a-0000-4000-8000-0000000000e1";
+    const E2 = "0b5e3c1a-0000-4000-8000-0000000000e2";
+    const entity = (id: string, slug: string) => ({
+      id,
+      slug,
+      parent: null,
+      version: "1",
+      href: `/v1/entities/${id}`,
+    });
+    const { root, seen } = await panel(
+      { mode: "move", collection: "entities", id: E1 },
+      (call) => {
+        const url = new URL(call.url, "http://kartenn.invalid");
+        if (url.pathname === `/v1/entities/${E1}`) return { body: entity(E1, "essai-a") };
+        if (url.pathname !== "/v1/entities") return undefined;
+        // The suggestions: a page of their own, at once.
+        if (url.searchParams.has("page_size")) {
+          return { body: { items: [entity(E2, "essai-b")], links: {} } };
+        }
+        // The ancestors of the move: three pages, slow.
+        const page = Number(url.searchParams.get("cursor") ?? "1");
+        return {
+          delay: 80,
+          body: {
+            items: [entity(`${E2.slice(0, -2)}f${page}`, `noeud-${page}`)],
+            links: page < 3 ? { next: `/v1/entities?cursor=${page + 1}` } : {},
+          },
+        };
+      },
+      ["core.entity.edit"],
+    );
+    const parent = field(root, "Parent");
+    // The field emptied while the ancestors are read: the first page of suggestions asked,
+    // then replaced by a newer text, which cancels it.
+    await type(parent, "");
+    await new Promise((done) => setTimeout(done, 200));
+    await type(parent, "e");
+    await expect.poll(() => options().map((o) => o.textContent?.trim())).toEqual(["essai-b"]);
+    const nodes = () =>
+      seen.filter((s) => s.url.startsWith("/v1/entities") && !s.url.includes("page_size"));
+    await expect.poll(() => nodes().filter((s) => s.aborted === false).length).toBe(3);
+    expect(nodes().some((s) => s.aborted)).toBe(false);
+    const suggested = seen.filter((s) => s.url.includes("page_size"));
+    expect(suggested.length).toBeGreaterThan(0);
+    // One page each: never a cursor followed for a suggestion.
+    expect(suggested.every((s) => !s.url.includes("cursor"))).toBe(true);
   });
 });

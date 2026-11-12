@@ -57,9 +57,17 @@ export type SuggestRead = (
   signal: AbortSignal,
 ) => Promise<readonly Record<string, unknown>[]>;
 
+/**
+ * The size of the page of a suggestion read, the contract's default written out: it gives
+ * the suggestions a key (and a URL) of their own, apart from the list a view or a panel
+ * reads of the same collection — so that they read one page, never the ten pages such a
+ * list keeps once stale, and a newer text cancels their read alone, never that list's.
+ */
+const SUGGESTION_PAGE = "100";
+
 /** Through the cache of the SDK, at the page's dates; `signal` cancels the read. */
 export const cacheSuggest: SuggestRead = async (path, filters, signal) => {
-  const options = reads.list(path, filters as never);
+  const options = reads.list(path, { ...filters, page_size: SUGGESTION_PAGE } as never);
   const cancel = () => void queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
   signal.addEventListener("abort", cancel, { once: true });
   try {
