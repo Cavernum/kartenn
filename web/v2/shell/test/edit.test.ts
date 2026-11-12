@@ -38,7 +38,7 @@ import {
   type InlineEdit,
   type InlineSay,
 } from "../src/views/edit/inline.ts";
-import { useNodeEdit } from "../src/views/edit/nodes.ts";
+import { CONTENT_GRID, TREE_GRID, useNodeEdit } from "../src/views/edit/nodes.ts";
 import {
   fieldErrors,
   NETWORK_VLAN_EDITS,
@@ -771,6 +771,59 @@ describe("a list edited in place", () => {
       refusal: { kind: "conflict" },
     });
   });
+
+  it("one editing for the tree and the content of a node: rows joined, both read again (12f2)", async () => {
+    const reread: string[] = [];
+    const contentReread: string[] = [];
+    // The content shows the range at another version than the tree's (another page read).
+    const content = shallowRef<Item[]>([{ ...NODES[1]!, version: V2 }]);
+    const grid = effectScope();
+    const { edit, rows } = await mounted(
+      ["core.range.edit", "core.range.approval.self"],
+      (call) =>
+        call.method === "PATCH"
+          ? {
+              status: 412,
+              body: { type: "urn:kartenn:problem:precondition-failed", title: "", status: 412 },
+            }
+          : call.url.startsWith(`/v1/ranges/${R1}`)
+            ? { status: 200, body: { ...NODES[1], usage: "reserved", version: V2 } }
+            : { status: 200, body: { items: [], links: {} } },
+      "/",
+      (deps) => {
+        const shared = nodeEdit(reread)(deps);
+        // The grid shared in a scope of its own, as a component beside the host.
+        grid.run(() =>
+          shared.share({
+            grid: CONTENT_GRID,
+            rows: () => content.value,
+            reread: (id) => void contentReread.push(id),
+          }),
+        );
+        return shared;
+      },
+    );
+    rows.value = [NODES[0]!, NODES[1]!];
+    await nextTick();
+    // Asked from a grid: its line goes under it, at the version that grid read.
+    edit().onCommit({ row: R1, column: "detail", value: "DHCP", now: true }, TREE_GRID);
+    expect(edit().asking.value).toMatchObject({ row: R1, grid: TREE_GRID, version: VR });
+    expect(edit().askOf(CONTENT_GRID)).toBeNull();
+    edit().onCommit({ row: R1, column: "detail", value: "DHCP", now: true }, CONTENT_GRID);
+    expect(edit().asking.value).toMatchObject({ row: R1, grid: CONTENT_GRID, version: V2 });
+    expect(edit().shownRow(NODES[1]!)).toBe(NODES[1]);
+    // 412: the node read again by the host and by the grid shared that shows it.
+    expect(await edit().confirm("motif", "dhcp")).toBe(false);
+    expect(reread).toEqual([R1]);
+    expect(contentReread).toEqual([R1]);
+    expect(edit().askOf(CONTENT_GRID)).toMatchObject({ refusal: { kind: "conflict" } });
+    // The grid gone, its line goes with it (nothing would show it, nor close it).
+    grid.stop();
+    expect(edit().asking.value).toBeNull();
+    // A row of no known kind has no editor (the kind under a type guard).
+    const odd = { id: "x", kind: "vlan", nature: "network", version: V1 } as Item;
+    expect(edit().editable(odd, column("detail"))).toBe(false);
+  });
 });
 
 describe("the content of a node edited in place (task 12a)", () => {
@@ -916,6 +969,212 @@ describe("the content of a node edited in place (task 12a)", () => {
       .poll(() => root.textContent)
       // The input kept is the one typed, beside the value read again.
       .toContain("maintenant dhcp, votre saisie reserved");
+  });
+});
+
+// The cells of the tree of the topography (task 12f2): why a cell has no editor or is held
+// in review, in its description; 202, 422 and 403 on a cell of the tree; one editing for
+// the tree and the content of the node chosen beside it.
+describe("a cell of the tree of the topography edited in place (task 12f2)", () => {
+  let app: App | undefined;
+  afterEach(() => {
+    app?.unmount();
+    app = undefined;
+    queryClient.clear();
+    resetContext();
+    sessionStorage.clear();
+    setFetch(null);
+    document.body.innerHTML = "";
+  });
+  const DOM = "0b5e3c1a-0000-4000-8000-0000000000e1";
+  const R3 = "0b5e3c1a-0000-4000-8000-0000000000a6";
+  const VR = "0b5e3c1a-0000-4000-8000-0000000000c6";
+  const ROOTS = [
+    { kind: "prefix", id: P1, value: "192.0.2.0/24", nature: "container", version: V1, href: "" },
+  ];
+  const CHILDREN = [
+    {
+      kind: "range",
+      id: R3,
+      first: "192.0.2.10",
+      last: "192.0.2.20",
+      usage: "static",
+      version: VR,
+      href: "",
+    },
+  ];
+  const HELD = "Une politique d'approbation retient la modification : elle attend une revue.";
+
+  /**
+   * The topography of a domain at the present, its prefix chosen and opened (its range in
+   * the tree and in the content beside it), a write applied now answered by `patch`.
+   */
+  async function topography(patch: { status: number; body: unknown }) {
+    const seen: { method: string; url: string; ifMatch: string | null }[] = [];
+    setFetch((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      seen.push({ method, url, ifMatch: new Headers(init?.headers).get("If-Match") });
+      const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: {
+            "Content-Type": status >= 400 ? "application/problem+json" : "application/json",
+          },
+        });
+      if (method === "PATCH") return json(patch.status, patch.body);
+      if (url.startsWith(`/v1/domains/${DOM}/roots`)) return json(200, { items: ROOTS, links: {} });
+      if (url.startsWith(`/v1/prefixes/${P1}/children`)) {
+        return json(200, { items: CHILDREN, links: {} });
+      }
+      if (url.startsWith("/v1/domains")) {
+        return json(200, { items: [{ id: DOM, slug: "lab" }], links: {} });
+      }
+      return json(200, { items: [], links: {} });
+    }) as typeof fetch);
+    await loadSession(async (url) =>
+      url === "/v1/me"
+        ? ({
+            identity: "alice",
+            kind: "person",
+            global_permissions: ["core.range.edit", "core.range.approval.self"],
+            bindings: [],
+          } as unknown as Me)
+        : null,
+    );
+    const { default: TopologyView } = await import("../src/views/TopologyView.vue");
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/", component: TopologyView }],
+    });
+    await router.push(`/?domain=${DOM}&node=${P1}`);
+    const root = document.createElement("div");
+    document.body.append(root);
+    app = createApp({ render: () => h(RouterView) });
+    app.use(createShellI18n("fr")).use(router);
+    app.mount(root);
+    await router.isReady();
+    const tree = () => root.querySelector<HTMLElement>("[data-k-tree]");
+    const cell = (grid: string, row: string, column = "detail") =>
+      root.querySelector<HTMLElement>(
+        `[${grid}] [data-row="${row}"][data-column="${column}"]:not([data-k-skeleton])`,
+      );
+    const description = (element: HTMLElement | null) =>
+      (element?.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ")
+        .trim();
+    // The prefix opened in the tree (Right on its node): its range is a row of the tree.
+    await expect.poll(() => cell("data-k-tree", P1, "")).not.toBeNull();
+    cell("data-k-tree", P1, "")!.focus();
+    cell("data-k-tree", P1, "")!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    );
+    await expect.poll(() => cell("data-k-tree", R3)?.textContent).toContain("Statique");
+    await expect.poll(() => cell("data-k-content", R3)?.textContent).toContain("Statique");
+
+    /** The editor of the range opened in the tree, `text` typed, then Ctrl+Enter. */
+    async function applyInTree(text: string): Promise<HTMLFormElement> {
+      const at = cell("data-k-tree", R3)!;
+      at.focus();
+      at.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await expect.poll(() => tree()!.querySelector("input")).not.toBeNull();
+      const input = tree()!.querySelector<HTMLInputElement>("input")!;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }),
+      );
+      await expect
+        .poll(() => root.querySelector("form[aria-label^='Appliquer maintenant']"))
+        .not.toBeNull();
+      const form = root.querySelector<HTMLFormElement>("form[aria-label^='Appliquer maintenant']")!;
+      form.requestSubmit();
+      await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);
+      return form;
+    }
+    return { root, seen, cell, description, applyInTree };
+  }
+
+  it("says why a cell has no editor; 202: the cell of the tree held, in both grids, and why", async () => {
+    const { root, seen, cell, description, applyInTree } = await topography({
+      status: 202,
+      body: {
+        changeset: { id: "cs-4", href: "/v1/changesets/cs-4" },
+        state: "pending",
+        kind: "approval",
+        diff: [],
+        reason: { code: "changeset.approval.self", message: "policy", objects: [] },
+      },
+    });
+    // Without `core.prefix.edit`, the nature of the prefix has no editor: its description
+    // says why, as in a list (no more by the status of the view alone).
+    expect(description(cell("data-k-tree", P1))).toBe("Lecture seule : il faut core.prefix.edit");
+    // The node's own cell: neither editor nor reason (Enter opens its record, 021/A20).
+    expect(cell("data-k-tree", R3, "")!.getAttribute("aria-describedby")).toBeNull();
+    expect(cell("data-k-tree", R3)!.getAttribute("aria-describedby")).toBeNull();
+
+    await applyInTree("DHCP");
+    const patch = seen.find((s) => s.method === "PATCH")!;
+    expect(patch.url).toBe(`/v1/ranges/${R3}?approval=self`);
+    expect(patch.ifMatch).toBe(`"${VR}"`);
+    // Held: the cell of the tree keeps the value read, says « en revue » and why.
+    await expect.poll(() => cell("data-k-tree", R3)!.dataset.state).toBe("review");
+    expect(cell("data-k-tree", R3)!.textContent).toContain("Statique");
+    expect(cell("data-k-tree", R3)!.textContent).toContain("(en revue)");
+    expect(description(cell("data-k-tree", R3))).toBe(HELD);
+    // Nothing on the node's cell, nor on the other cells.
+    expect(cell("data-k-tree", R3, "")!.getAttribute("aria-describedby")).toBeNull();
+    expect(cell("data-k-tree", R3, "occupancy")?.getAttribute("aria-describedby") ?? null).toBe(
+      null,
+    );
+    // One editing: the grid of the content says it too, and the line of the motive closed.
+    expect(cell("data-k-content", R3)!.dataset.state).toBe("review");
+    expect(description(cell("data-k-content", R3))).toContain(HELD);
+    expect(root.querySelector("form[aria-label^='Appliquer maintenant']")).toBeNull();
+  });
+
+  it("422: the violation on the cell of the tree, the line kept under the tree alone", async () => {
+    const { root, cell, applyInTree } = await topography({
+      status: 422,
+      body: {
+        type: "urn:kartenn:problem:invalid-changeset",
+        title: "",
+        status: 422,
+        violations: [
+          {
+            rule: "core.range.usage",
+            severity: "error",
+            detail: "Usage refusé.",
+            pointer: "/usage",
+          },
+        ],
+      },
+    });
+    const form = await applyInTree("DHCP");
+    await expect.poll(() => cell("data-k-tree", R3)!.dataset.state).toBe("error");
+    // The same cell refused in the content (one editing), its message in the bubble.
+    expect(cell("data-k-content", R3)!.dataset.state).toBe("error");
+    expect(root.textContent).toContain("Usage refusé.");
+    // The line stays, with the input, under the tree and not under the content too.
+    expect(form.isConnected).toBe(true);
+    expect(root.querySelectorAll("form[aria-label^='Appliquer maintenant']")).toHaveLength(1);
+    expect(root.querySelector("[data-k-content]")!.parentElement!.contains(form)).toBe(false);
+  });
+
+  it("403: a refusal in the line, the input kept, nothing shown as written on the cell", async () => {
+    const { root, cell, applyInTree } = await topography({
+      status: 403,
+      body: { type: "urn:kartenn:problem:forbidden", title: "Refusé", status: 403 },
+    });
+    const form = await applyInTree("DHCP");
+    await expect.poll(() => form.querySelector("[role='alert']")?.textContent ?? "").not.toBe("");
+    expect(form.isConnected).toBe(true);
+    expect(root.textContent).toContain("urn:kartenn:problem:forbidden");
+    expect(cell("data-k-tree", R3)!.dataset.state).toBeUndefined();
+    expect(cell("data-k-tree", R3)!.textContent).toContain("Statique");
+    expect(cell("data-k-content", R3)!.dataset.state).toBeUndefined();
   });
 });
 

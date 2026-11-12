@@ -10,7 +10,9 @@
 // prefix changes place by its value, through the draft, and the tree is read again.
 // Edited in place (task 12a, REQ-021-15, 16): the nature of a prefix, the usage of a range,
 // `expected` and `If-Match` the `version` its page served with it; Ctrl+Enter asks for its
-// motive at the foot of the tree, which says too why a cell has no editor. Enter on a node
+// motive at the foot of the tree, which says too why a cell has no editor or is held in
+// review, as the cell does (its description, task 12f2); one editing for the tree and the
+// content of the node chosen (`ContentTab`, its line under its own grid). Enter on a node
 // opens its record, Tab goes into its « + » (the tree's keys), `c` adds in the node of the
 // focus (021/A20); a refused « + », and the « Ajouter » of the chosen node, stay visible
 // and say their permission (REQ-021-37). The preview of the active draft (task 24b,
@@ -64,7 +66,13 @@ import { collectionById, pageOfObject, type Item } from "./collections.ts";
 import { editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
 import { whyWords } from "./edit/inline.ts";
-import { NODE_COLLECTIONS, nodeApplyRight, useNodeEdit, useNodeWords } from "./edit/nodes.ts";
+import {
+  NODE_COLLECTIONS,
+  nodeApplyRight,
+  TREE_GRID,
+  useNodeEdit,
+  useNodeWords,
+} from "./edit/nodes.ts";
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay } from "./edit/say.ts";
@@ -273,7 +281,20 @@ const cellState = (node: TreeNode, column: GridColumn) => {
   const row = rowOf(node.id);
   return row ? edit.cellState(row, column) : undefined;
 };
-const onCommit = (commit: GridCommit) => edit.onCommit(commit);
+// Why a cell of the tree has no editor, or is held in review: its description and its
+// tooltip, as in the grid of the content (task 12f2). The node's own cell has neither: its
+// value is not edited in place (021/A20).
+const readonlyReason = (node: TreeNode, column: GridColumn) => {
+  const row = rowOf(node.id);
+  return row ? whyWords(edit.why(column.id, row), t) : undefined;
+};
+const stateReason = (node: TreeNode, column: GridColumn) => {
+  const row = rowOf(node.id);
+  return row ? edit.stateReason(row, column) : undefined;
+};
+/** The line of the motive asked in the tree goes under it, that of the content under its grid. */
+const onCommit = (commit: GridCommit) => edit.onCommit(commit, TREE_GRID);
+const treeAsk = computed(() => edit.askOf(TREE_GRID));
 
 // The occupancy of a prefix comes with its page (021/A11): no read for a row. The node is
 // named by its value read (the tree places it by the present); its detail is the one shown.
@@ -637,12 +658,20 @@ const focusSaysWhy = computed(() => focusWhy.value !== null && focusWhy.value.ki
 const focusApplyLacks = computed(() =>
   focusRow.value && !edit.mayApply(focusRow.value) ? nodeApplyRight(focusRow.value) : null,
 );
-// The tree has no description for a cell without an editor (`readonlyReason`): its reason
-// is said by the status of the view when the focus comes to it (4.1.3).
+/** Why the cell of the focus is held in review, said at the foot too (seen, not only read). */
+const focusHeld = computed(() =>
+  activeCell.value && focusRow.value
+    ? edit.heldOf(focusRow.value, activeCell.value.column)
+    : undefined,
+);
+
+// The cell says why it has no editor (its description, read when the focus comes to it);
+// a reason that changes under the focus (the date, the rights) is said by the status,
+// a description changed in place being read by few screen readers.
 watch(
-  () => whyWords(focusWhy.value, t),
-  (words) => {
-    if (!words) return;
+  () => [activeCell.value?.row, activeCell.value?.column, whyWords(focusWhy.value, t)] as const,
+  ([row, column, words], [oldRow, oldColumn, oldWords]) => {
+    if (!words || words === oldWords || row !== oldRow || column !== oldColumn) return;
     said.value = "";
     void nextTick(() => (said.value = words));
   },
@@ -658,11 +687,11 @@ async function afterAsk(cell: CellRef): Promise<void> {
     ?.focus();
 }
 async function onConfirm(motive: string, value: string): Promise<void> {
-  const ask = edit.asking.value;
+  const ask = treeAsk.value;
   if (ask && (await edit.confirm(motive, value))) void afterAsk(edit.cellOf(ask));
 }
 function onCancelAsk(): void {
-  const ask = edit.asking.value;
+  const ask = treeAsk.value;
   edit.cancel();
   if (ask) void afterAsk(edit.cellOf(ask));
 }
@@ -774,6 +803,8 @@ onBeforeUnmount(() => stopIntent());
             :editable="editable"
             :validate="validate"
             :cell-state="cellState"
+            :readonly-reason="readonlyReason"
+            :state-reason="stateReason"
             parent-mode="derived"
             @load="onLoad"
             @activate="onActivate"
@@ -783,16 +814,16 @@ onBeforeUnmount(() => stopIntent());
         </div>
         <span class="k-visually-hidden" role="status">{{ said }}</span>
         <!-- Once a cell has had the focus: what Enter does there, or why it has no editor. -->
-        <template v-if="edit.asking.value || focusEditable || focusSaysWhy" #footer>
+        <template v-if="treeAsk || focusEditable || focusSaysWhy" #footer>
           <QuickApply
-            v-if="edit.asking.value"
-            :key="edit.asking.value.row + edit.asking.value.column"
-            :ask="edit.asking.value"
+            v-if="treeAsk"
+            :key="treeAsk.row + treeAsk.column"
+            :ask="treeAsk"
             :words="words"
             @confirm="onConfirm"
             @cancel="onCancelAsk"
           />
-          <EditHint v-else :why="focusWhy" :apply-lacks="focusApplyLacks" />
+          <EditHint v-else :why="focusWhy" :apply-lacks="focusApplyLacks" :held="focusHeld" />
         </template>
       </ViewPanel>
     </template>
@@ -822,6 +853,7 @@ onBeforeUnmount(() => stopIntent());
         :id="chosen.id"
         kind="prefix"
         :name="valueOf(chosen)"
+        :node-edit="edit"
       />
       <p v-else>{{ t("views.topology.leaf") }}</p>
     </ViewPanel>

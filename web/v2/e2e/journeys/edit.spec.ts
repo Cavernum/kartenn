@@ -468,6 +468,10 @@ test("a cell of the tree: a reader is told why, an author edits it to the draft,
   await reader.keyboard.press("F2");
   await expect(read.getByRole("textbox")).toHaveCount(0);
   await expect(treeCell(read, "detail")).toHaveAttribute("aria-readonly", "true");
+  // Said by the cell itself, as in a list (task 12f2), and seen at the foot of the tree.
+  await expect(treeCell(read, "detail")).toHaveAccessibleDescription(
+    "Lecture seule : il faut core.prefix.edit",
+  );
   await expect(reader.locator(".k-keyboard-hint")).toContainText("Lecture seule : il faut");
   await expect(reader.getByRole("button", { name: /core\.prefix\.edit/ })).toBeVisible();
   // The « + » of the node, reached by Tab from it, and « Ajouter » of the content: both
