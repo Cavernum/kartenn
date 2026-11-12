@@ -3526,13 +3526,46 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     qu'UTS #46 avec ses points, années 0 à 99). Tests : `properties-edit.test.ts` (garde,
     liste, retrait ; `हिन्दी.example`, « café » décomposé sous `max_len: 4`,
     `0050-01-01`), `kartenn-rest` `drafts.rs` (garde gardée, non comptée).
-- [ ] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), arbitrées par l'utilisateur le
+- [x] 12i. Colonnes de propriété d'une liste (`prop.<clé>`), arbitrées par l'utilisateur le
   2026-11-11 (Q-021-18) : aucune par défaut ; le sélecteur « Colonnes » propose les
   propriétés déclarées pour le type, le choix gardé par vue et par utilisateur comme les
   autres réglages de vue — verify : Vitest du sélecteur (propriétés déclarées proposées,
   choix gardé) ; parcours d'une liste avec une colonne de propriété ajoutée puis éditée. La règle d'éditabilité est déjà là (`fields.ts`).
   - où : `web/v2/shell/src/views/ListView.vue`, `views/collections.ts`, `views/edit/fields.ts`
   - dépend de : 12h
+  - fait le 2026-11-12 — `views/propertyColumns.ts` (nouveau, `usePropertyColumns`) :
+    propriétés déclarées pour la sorte (`declaredFor`, porteuses vides ou la nommant), une
+    colonne `prop.<clé>` chacune (libellé du filtre, clé sans libellé, « libellé (clé) »
+    entre homonymes ; priorité 3), cachées tant que non choisies (`withPropertiesHidden`) ;
+    valeurs lues par `/v1/<sorte>/{id}/properties` pour les lignes en vue et un écran autour
+    (`rowsToRead`, `useQueries` nouveau de `data/query.ts`, `limited` de la colonne VLAN) ;
+    grille fusionnée des champs (`useInlineEdit`) et des propriétés (`usePropertyEdit`).
+    `views/viewSettings.ts` (nouveau) : colonnes gardées sous
+    `kartenn.view.<identité>.<vue>.columns`. `edit/properties.ts` : `usePropertyEdit`
+    généralisé à plusieurs objets (cellule = objet × clé, `recordGrid` pour l'onglet de la
+    fiche), raisons `unread` et `unreadable` (`fields.ts`) ; `edit/inline.ts` : `quickWrite`,
+    Ctrl+Entrée commun aux champs et aux propriétés (le `confirm` doublé de la 12h
+    factorisé). `parts/PropertyCell.vue` (nouveau : lecture, illisible et son code,
+    masquée, absente, valeur). `ui` `ColumnChooser` : le sélecteur reste dès qu'un choix est
+    fait, une colonne montrée comprise (relevé de l'`a11y-auditor` : sinon, toutes les
+    propriétés cochées, plus de retour au-delà de 960 px). Design 021 « Édition en place ».
+    Tests : `shell/test/property-columns.test.ts` (propriétés proposées, décochées, aucune
+    lue sans colonne ; choix gardé par utilisateur et par vue, effacé à la déconnexion ;
+    valeur lue, éditeur avec `prop.<clé>.edit` seul), `ui/test/layout.test.ts` (sélecteur
+    gardé sur un choix montré), parcours `edit` (« a column of a property added by
+    « Colonnes »… » : ajoutée, gardée au rechargement, surcharge dite, modifiée au clavier →
+    brouillon à 1, axe), sous les deux navigateurs.
+  - choix : le choix gardé est celui de toute la grille de la vue (colonnes du cœur
+    comprises, la vue = la collection), effacé à la déconnexion comme les objets récents
+    (`clearSensitive`, aucune clé ajoutée à `KEPT_KEYS`) ; colonnes de propriétés après
+    celles des plugins ; une lecture par ligne (pas de lecture groupée au contrat), la même
+    clé de cache que l'onglet ; sans éditeur tant que la valeur n'est pas lue ; une seule
+    ligne de motif à la fois, celle d'un champ avant celle d'une propriété.
+  - reste : la surcharge n'est dite qu'à la focalisation (même reste que la 12h) ; un
+    choix de colonnes perdu à la déconnexion (le garder demanderait un arbitrage) ; deux
+    lignes de motif ouvertes à la fois (champ puis propriété) : la seconde attend la
+    première ; la cellule illisible n'a pas de `Request-Id` sans code (comme la colonne
+    VLAN) ; `reread` après un 412 relit toute la liste ; aucune capture (12l).
 - [ ] 12j. Référence au-delà de la première page dans le panneau d'édition : domaine et
   parent choisis par un `Combobox` qui interroge `q` de leur collection (`/v1/domains`,
   `/v1/prefixes`), non plus dans la première page lue — REQ-021-36 — verify : Vitest

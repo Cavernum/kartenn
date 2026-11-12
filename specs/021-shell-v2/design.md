@@ -439,6 +439,16 @@ sequenceDiagram
   (inférée, sans affectation), d'un type qui ne se saisit pas (référence, ensemble), d'une
   sorte dont le `PATCH` n'écrit pas de propriété (VLAN, groupe de VLAN), ou sans
   `prop.<clé>.edit`.
+- Colonnes de propriétés d'une liste (tâche 12i, Q-021-18) : aucune par défaut ; le
+  sélecteur « Colonnes » de la grille propose chaque propriété déclarée pour la sorte de la
+  liste (porteuses vides ou la nommant), par son libellé, sa clé sans libellé ; le choix
+  des colonnes de la vue (propriétés comprises) est gardé par vue et par utilisateur, en
+  `localStorage` sous l'identité (`kartenn.view.<identité>.<vue>.columns`), effacé à la
+  déconnexion comme les objets récents. Une colonne choisie lit les propriétés résolues de
+  ses lignes (`/v1/<sorte>/{id}/properties`, le cache de l'onglet et de la colonne VLAN),
+  pour les lignes en vue et un écran autour, quelques-unes à la fois ; ses cellules
+  s'éditent selon les règles de l'onglet ci-dessus (même composable), sans éditeur tant
+  que la valeur n'est pas lue.
 
 ## Déplacements dans les arbres (REQ-021-17, 32 à 34)
 
