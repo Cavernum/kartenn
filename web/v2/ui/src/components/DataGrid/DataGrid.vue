@@ -25,8 +25,9 @@
 // rather than add to the draft, the host's to decide; a cell without an editor described
 // by why, `readonlyReason`), and the host renders the cell's state then
 // (pending, draft, review — why it is held, `stateReason`, its description and its
-// tooltip like a reason —, error with its code, its message in a floating layer that
-// never resizes the cell: `CellError`; an error that follows a commit is said by an alert).
+// tooltip like a reason; a row's, `rowReason`, on its first cell —, error with its code,
+// its message in a floating layer that never resizes the cell: `CellError`; an error that
+// follows a commit is said by an alert).
 // Columns resizable by the keyboard (`resizable`: F2 on a header reaches its handle, a
 // Window Splitter: arrows, Home, End) and the pointer (drag, or a click for the next
 // token width, WCAG 2.5.7). A column of an extension holds a custom element per row.
@@ -137,6 +138,13 @@ const props = withDefaults(
      * the description of the cell and its tooltip under the pointer, as `readonlyReason`.
      */
     stateReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
+    /**
+     * Why a row is in its state (`rowState`): the reason a write of the row is held in
+     * review, whichever cell holds it (REQ-021-15). A sentence, or one per write held, the
+     * description of its first cell, which carries the row's hidden word, and its tooltip,
+     * as `stateReason`; a sentence the cell says already is said once.
+     */
+    rowReason?: ((row: R) => string | readonly string[] | undefined) | undefined;
     /** The local check of the text of an editor: its error, or nothing (contract types). */
     validate?: ((row: R, column: GridColumn, value: string) => string | undefined) | undefined;
     /**
@@ -164,6 +172,7 @@ const props = withDefaults(
     editable: undefined,
     readonlyReason: undefined,
     stateReason: undefined,
+    rowReason: undefined,
     validate: undefined,
     rowCount: undefined,
     rowOffset: 0,
@@ -403,17 +412,31 @@ function stateText(row: R, column: GridColumn): string | undefined {
   const state = stateOf(row, column);
   return state !== undefined && state !== "error" ? props.stateReason(row, column) : undefined;
 }
+/** Why the row is in its state, said by its first cell, the one with the row's mark. */
+function rowTexts(row: R, column: GridColumn): readonly (string | undefined)[] {
+  // The first rendered column: the cell of the row's mark and hidden word (`c === 0`).
+  if (!props.rowReason || column.id !== shown.value[0]?.id || !props.rowState?.(row)) return [];
+  const said = props.rowReason(row);
+  return typeof said === "string" ? [said] : (said ?? []);
+}
+/** Some reason may be said: a hidden sentence per text, and the tooltip. */
+const hasReasons = computed(
+  () => !!(props.editable && props.readonlyReason) || !!props.stateReason || !!props.rowReason,
+);
 /**
- * The sentences a cell says of itself besides its value: its state's reason, then why not,
- * each once (the same text from both is one sentence, one description, one tooltip line).
+ * The sentences a cell says of itself besides its value: its row's reason (first cell),
+ * its state's reason, then why not, each once (the same text twice is one sentence, one
+ * description, one tooltip line).
  */
 const notesOf = (row: R, column: GridColumn): string[] => [
   ...new Set(
-    [stateText(row, column), readonlyText(row, column)].filter((text): text is string => !!text),
+    [...rowTexts(row, column), stateText(row, column), readonlyText(row, column)].filter(
+      (text): text is string => !!text,
+    ),
   ),
 ];
 const reasons = computed<string[]>(() => {
-  if (!(props.editable && props.readonlyReason) && !props.stateReason) return [];
+  if (!hasReasons.value) return [];
   const found = new Set<string>();
   for (const part of parts.value) {
     if (!("index" in part)) continue;
@@ -1442,9 +1465,7 @@ onBeforeUnmount(() => observer?.disconnect());
     <div v-if="reasons.length" hidden>
       <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
     </div>
-    <Tooltip v-if="props.readonlyReason || props.stateReason" :control="reasonTip" decorative>{{
-      tipText
-    }}</Tooltip>
+    <Tooltip v-if="hasReasons" :control="reasonTip" decorative>{{ tipText }}</Tooltip>
   </div>
 </template>
 

@@ -188,6 +188,7 @@ function onCancelAsk(): void {
       :cell-state="edit.cellState"
       :state-reason="edit.stateReason"
       :row-state="edit.rowState"
+      :row-reason="edit.rowReason"
       @commit="edit.onCommit"
     >
       <template #cell="{ row, column }">

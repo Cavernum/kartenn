@@ -389,6 +389,8 @@ describe("a list edited in place", () => {
     expect(edit().cellState(ROW, column("value"))).toBe("pending");
     await expect.poll(() => edit().cellState(ROW, column("value"))).toBe("draft");
     expect(edit().rowState(ROW)).toBe("draft");
+    // A row in a draft is held by no one: no reason to say (task 021-12n).
+    expect(edit().rowReason(ROW)).toBeUndefined();
     expect(edit().shownRows.value[0]!.value).toBe("192.0.2.0/25");
     const post = seen.find((s) => s.method === "POST")!;
     expect((post.body as { operations: unknown[] }).operations).toEqual([
@@ -448,6 +450,8 @@ describe("a list edited in place", () => {
     // other cells nothing.
     expect(edit().stateReason(ROW, column("nature"))).toBe("edit.reason.held");
     expect(edit().stateReason(ROW, column("value"))).toBeUndefined();
+    // Its row says it too, whichever column shows it (its first cell, task 021-12n).
+    expect(edit().rowReason(ROW)).toEqual(["edit.reason.held"]);
     // The value read stays: the one proposed is not the object's.
     expect(edit().shownRows.value[0]!.nature).toBe("network");
     expect(said.applied).toEqual([]);

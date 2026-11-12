@@ -397,5 +397,11 @@ describe("the tab « Propriétés » edited in place", () => {
     expect(description("custom.code")).toBe(
       "Une politique d'approbation retient la modification : elle attend une revue.",
     );
+    // Its row says it too, on its first cell, beside « (en revue) » (task 021-12n).
+    const first = root.querySelector<HTMLElement>('[data-row="custom.code"][data-column="key"]')!;
+    expect(first.textContent).toContain("(en revue)");
+    expect(document.getElementById(first.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+      "Une politique d'approbation retient la modification : elle attend une revue.",
+    );
   });
 });
