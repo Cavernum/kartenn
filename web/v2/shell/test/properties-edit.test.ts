@@ -120,6 +120,8 @@ describe("a property edited in place", () => {
     // Not read yet, or only a part of it: typed, the server checking it.
     expect(propertyChoices(zone, undefined, { words, own: true, none })).toBeUndefined();
     expect(propertyChoices(zone, null, { words, own: true, none })).toBeUndefined();
+    // Declared without values: not a list of « no value » alone.
+    expect(propertyChoices(zone, [], { words, own: true, none })).toBeUndefined();
     expect(
       propertyChoices(declared("custom.code", "text"), null, { words, own: true, none }),
     ).toBeUndefined();

@@ -190,7 +190,8 @@ export function propertyChoices(
 ): ListOption[] | undefined {
   const bool = declaration.type === "bool";
   const keys = bool ? ["true", "false"] : declaration.type === "enum" ? list : null;
-  if (!keys) return undefined;
+  // An enum declared without values: nothing to choose, the text editor (the server says).
+  if (!keys || keys.length === 0) return undefined;
   const options: ListOption[] = keys.map((value) => {
     const label = bool ? null : o.words(value);
     return { value, label: label ?? value, mono: label === null };
