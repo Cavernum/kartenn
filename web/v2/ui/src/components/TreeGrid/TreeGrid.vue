@@ -19,7 +19,8 @@
 // one back to the node cell), Home and End to the ends of the row, Ctrl+Home and Ctrl+End
 // to the first and last rows (APG Treegrid). Space selects the row. Enter or F2 edits an
 // editable cell (`editable`; Escape cancels, Enter or Tab commits, Ctrl+Enter commits
-// marked `now`); else, on the node cell, Enter activates the row (`activate`: its record,
+// marked `now`; a cell of a closed list, `options`, has a list for an editor, as in
+// `DataGrid`); else, on the node cell, Enter activates the row (`activate`: its record,
 // as in the other grids, 021/A20) and Tab or F2 moves into its « + » (from there Tab
 // leaves the tree, Shift+Tab, Escape or F2 come back); on another cell, Enter or F2 moves
 // into its first widget, else Enter activates the row. The cell of the focus is a model
@@ -73,7 +74,9 @@ import IconButton from "../IconButton/IconButton.vue";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
+import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import type { ListOption } from "../Select/select.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import MoveDialog from "../internal/MoveDialog.vue";
 import NoValue from "../NoValue/NoValue.vue";
@@ -150,6 +153,12 @@ const props = withDefaults(
     /** The local check of the text of an editor: its error, or nothing. */
     validate?:
       ((node: TreeNode, column: GridColumn, value: string) => string | undefined) | undefined;
+    /**
+     * The closed list the value of a cell is one of: its editor a list, as `DataGrid`'s
+     * (an option's `value` held and committed, its `label` shown), read as it opens.
+     */
+    options?:
+      ((node: TreeNode, column: GridColumn) => readonly ListOption[] | undefined) | undefined;
     cellState?: ((node: TreeNode, column: GridColumn) => CellState | undefined) | undefined;
   }>(),
   {
@@ -165,6 +174,7 @@ const props = withDefaults(
     readonlyReason: undefined,
     stateReason: undefined,
     validate: undefined,
+    options: undefined,
     cellState: undefined,
   },
 );
@@ -427,6 +437,11 @@ const editor = useCellEditor({
     void alert(`${sayError(cell, { error })} ${t("editEscape")}`);
   },
   editorClass: "k-tree-grid__editor",
+  optionsOf(cell) {
+    const node = nodeOf(cell.row);
+    const column = columnOf(cell.column);
+    return node && column ? props.options?.(node, column) : undefined;
+  },
 });
 const draft = editor.draft;
 const editorLabel = (node: TreeNode, column: GridColumn) => `${column.label} — ${node.label}`;
@@ -962,7 +977,20 @@ onBeforeUnmount(() => observer?.disconnect());
                 data-size="md"
                 :data-invalid="messageOf(part.row.node, treeColumn) ? 'true' : undefined"
               >
+                <CellSelect
+                  v-if="editor.options.value"
+                  :options="editor.options.value"
+                  :value="draft"
+                  :label="editorLabel(part.row.node, treeColumn)"
+                  :invalid="!!messageOf(part.row.node, treeColumn)"
+                  :described-by="
+                    messageOf(part.row.node, treeColumn) ? errorId(part.index, '') : undefined
+                  "
+                  @update="(value: string) => (draft = value)"
+                  @done="editor.choose"
+                />
                 <input
+                  v-else
                   v-model="draft"
                   class="k-field-frame__input"
                   type="text"
@@ -1078,7 +1106,21 @@ onBeforeUnmount(() => observer?.disconnect());
                 data-size="md"
                 :data-invalid="messageOf(part.row.node, column) ? 'true' : undefined"
               >
+                <CellSelect
+                  v-if="editor.options.value"
+                  :options="editor.options.value"
+                  :value="draft"
+                  :label="editorLabel(part.row.node, column)"
+                  :mono="column.mono"
+                  :invalid="!!messageOf(part.row.node, column)"
+                  :described-by="
+                    messageOf(part.row.node, column) ? errorId(part.index, column.id) : undefined
+                  "
+                  @update="(value: string) => (draft = value)"
+                  @done="editor.choose"
+                />
                 <input
+                  v-else
                   v-model="draft"
                   class="k-field-frame__input"
                   :class="{ 'k-mono': column.mono }"

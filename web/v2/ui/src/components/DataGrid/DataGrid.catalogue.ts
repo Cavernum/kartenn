@@ -12,6 +12,7 @@ import EnvChip from "../EnvChip/EnvChip.vue";
 import KeyLabel from "../KeyLabel/KeyLabel.vue";
 import DataGrid from "./DataGrid.vue";
 import type {
+  CellRef,
   CellState,
   ColumnWidths,
   GridColumn,
@@ -215,6 +216,69 @@ const keyboard = defineComponent({
           { "data-demo": "window", "data-end": view.value.end },
           `En vue : lignes ${view.value.start + 1} à ${view.value.end} sur ${data.value.length}`,
         ),
+      ]);
+  },
+});
+
+/**
+ * A closed list in a cell (`options`, task 021-12g): the environment of a prefix is one of
+ * the environments, its key held, its label shown; the first prefix refuses development
+ * (the host's check), its error on the editor still open. The commit is said below.
+ */
+const ENVIRONMENTS = [
+  ...environments.map((env) => ({
+    value: env.key,
+    label: env.label ?? env.key,
+    mono: env.label === null,
+  })),
+  // No value (`""`): the environment removed.
+  { value: "", label: "Aucun environnement", mono: false },
+];
+const labelOfEnv = (key: string) => ENVIRONMENTS.find((env) => env.value === key)?.label ?? key;
+const choosing = defineComponent({
+  props: {
+    /** The editor of the second prefix's environment open (its list opens on its focus). */
+    open: Boolean,
+  },
+  setup(props) {
+    const data = ref(rows.map((row, i) => ({ ...row, env: environments[i % 3]!.key as string })));
+    const last = ref("");
+    const at = { row: prefixes[1]!, column: "env" };
+    const editing = ref<CellRef | undefined>(props.open ? at : undefined);
+    const active = ref<CellRef | undefined>(props.open ? at : undefined);
+    return () =>
+      h("div", [
+        h(
+          DataGrid as Component,
+          {
+            ...base,
+            rows: data.value,
+            editing: editing.value,
+            "onUpdate:editing": (next: CellRef | undefined) => (editing.value = next),
+            active: active.value,
+            "onUpdate:active": (next: CellRef | undefined) => (active.value = next),
+            editable: (_: Row, column: GridColumn) => column.id === "env",
+            options: (_: Row, column: GridColumn) =>
+              column.id === "env" ? ENVIRONMENTS : undefined,
+            validate: (row: Row, column: GridColumn, value: string) =>
+              column.id === "env" && row.prefix === prefixes[0] && value === "deve"
+                ? "Un préfixe de production ne passe pas en développement."
+                : undefined,
+            onCommit: (commit: GridCommit) => {
+              data.value = data.value.map((row) =>
+                row.prefix === commit.row ? { ...row, env: commit.value } : row,
+              );
+              last.value = `${commit.column} de ${commit.row} : ${commit.value}${commit.now ? " (appliquer maintenant)" : ""}`;
+            },
+          },
+          {
+            cell: ({ row, column }: { row: Row; column: GridColumn }) =>
+              column.id === "env"
+                ? labelOfEnv(String(row.env))
+                : String(row[column.id as keyof Row]),
+          },
+        ),
+        h("p", { "data-demo": "commit" }, last.value),
       ]);
   },
 });
@@ -433,6 +497,24 @@ export default {
         cellState,
       },
       wide: true,
+    },
+    {
+      name: "choice",
+      description:
+        "Liste fermée dans une cellule (options) : Entrée ouvre la liste, Entrée choisit et valide, Échap ferme la liste puis annule ; la clé gardée, le libellé montré",
+      props: {},
+      demo: choosing,
+      wide: true,
+    },
+    {
+      name: "choice-open",
+      description:
+        "Liste fermée ouverte dans la cellule de l'environnement, au moins aussi large qu'elle, la valeur cochée",
+      props: { open: true },
+      demo: choosing,
+      wide: true,
+      interaction: "focus",
+      target: ".k-cell-select",
     },
     {
       name: "resized",

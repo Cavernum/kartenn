@@ -344,6 +344,37 @@ const editingTree = defineComponent({
   },
 });
 
+/**
+ * A closed list in a cell of the tree (`options`, task 021-12g), as in `DataGrid`: the
+ * environment of a prefix chosen among three, the commit said below and shown.
+ */
+const ENVIRONMENTS = ["Production", "Recette", "Développement"].map((env) => ({
+  value: env,
+  label: env,
+}));
+const choosingTree = defineComponent({
+  setup() {
+    const tree = ref(nodes);
+    const committed = ref("");
+    function onCommit(commit: GridCommit): void {
+      committed.value = `${commit.row} : ${commit.value}${commit.now ? " (appliquer maintenant)" : ""}`;
+      tree.value = rename(tree.value, commit);
+    }
+    return () =>
+      h(Stack, { gap: "2", align: "stretch" }, () => [
+        h(TreeGrid as Component, {
+          ...base,
+          nodes: tree.value,
+          editable: (_: TreeNode, column: GridColumn) => column.id === "env",
+          options: (_: TreeNode, column: GridColumn) =>
+            column.id === "env" ? ENVIRONMENTS : undefined,
+          onCommit,
+        }),
+        committed.value ? h("p", { "data-demo": "commit" }, committed.value) : null,
+      ]);
+  },
+});
+
 const moveStates: Record<string, MoveState> = {
   n13: "pending",
   n21: {
@@ -430,6 +461,14 @@ export default {
         "Édition en place : éditeur ouvert, cellule en attente, en revue (son motif), en erreur (motif et code), sans éditeur (pourquoi)",
       props: {},
       demo: editingTree,
+      wide: true,
+    },
+    {
+      name: "choice",
+      description:
+        "Liste fermée dans une cellule (options), comme dans DataGrid : Entrée ouvre la liste, Entrée choisit et valide, Échap ferme la liste puis annule",
+      props: {},
+      demo: choosingTree,
       wide: true,
     },
     {

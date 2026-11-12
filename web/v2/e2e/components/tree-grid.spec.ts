@@ -143,6 +143,50 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     expect(await focusedCell(page)).toBe("p5|used");
   });
 
+  test("a closed list in a cell: Enter opens it, Enter chooses; Escape closes, then cancels; Tab goes on", async ({
+    page,
+  }) => {
+    await openState(page, "TreeGrid", "choice");
+    // Open, the list hides the rest of the page (modal): the tree read by its selector.
+    const tree = page.locator("[role='treegrid']");
+    const cell = tree.locator('[data-row="p1"][data-column="env"]');
+    const list = page.getByRole("listbox", { name: "Environnement — Serveurs" });
+    const option = (name: string) => list.getByRole("option", { name });
+    const commit = page.locator("[data-demo='commit']");
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    expect(await focusedCell(page)).toBe("p1|env");
+    // Enter opens the editor and its list on the value held; the arrows move (Reka moves
+    // the focus after its microtasks: the next key once it has); Enter chooses and commits.
+    await page.keyboard.press("Enter");
+    await expect(option("Production")).toBeFocused();
+    await expect(cell).toHaveAttribute("data-editing", "true");
+    await page.keyboard.press("ArrowDown");
+    await expect(option("Recette")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(commit).toHaveText("p1 : Recette");
+    await expect(cell).toBeFocused();
+    await expect(cell).toContainText("Recette");
+    // Escape closes the list, the editor open on its button; Escape again cancels.
+    await page.keyboard.press("F2");
+    await expect(option("Recette")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(list).toHaveCount(0);
+    await expect(cell.locator(".k-cell-select")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(cell).toBeFocused();
+    await expect(cell).not.toHaveAttribute("data-editing");
+    // Tab chooses, commits and goes on along the row.
+    await page.keyboard.press("Enter");
+    await expect(option("Recette")).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(option("Développement")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(commit).toHaveText("p1 : Développement");
+    expect(await focusedCell(page)).toBe("p1|used");
+  });
+
   test("editing: Ctrl+Enter commits marked « apply now », the focus back on the cell", async ({
     page,
   }) => {
