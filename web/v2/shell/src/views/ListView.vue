@@ -35,7 +35,7 @@ import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { applyRight, editRight } from "./edit/fields.ts";
-import { useInlineEdit } from "./edit/inline.ts";
+import { useInlineEdit, whyWords } from "./edit/inline.ts";
 import { openEdit } from "./edit/panel.ts";
 import EditHint from "./edit/EditHint.vue";
 import QuickApply from "./edit/QuickApply.vue";
@@ -145,8 +145,9 @@ useViewAction("filter", {
 
 // In-place editing, and the edit panel behind `c` and `e`.
 const said = ref("");
-// Emptied first: the same sentence twice is said twice.
+// Emptied first: the same sentence twice is said twice; « restarted » gives way to it.
 const say = useSay((text) => {
+  restarted.value = false;
   said.value = "";
   void nextTick(() => (said.value = text));
 });
@@ -194,11 +195,17 @@ watch(
   },
 );
 const mayEdit = () => session.value.rights.has(editRight(props.collection.type));
+/** Why `c` and `e` are refused here: the permission they lack (the list has no « Créer »). */
+const forbidden = () =>
+  whyWords({ kind: "forbidden", permission: editRight(props.collection.type) }, t);
 // `c` and `e` open the edit panel: under `valid_at` alone too, to the dated draft only
-// (REQ-021-5; `action.ts`), as « Modifier » of the record; never under `as_of`.
+// (REQ-021-5; `action.ts`), as « Modifier » of the record; never under `as_of`. Refused,
+// they say why by the status of the list.
 useViewAction("create", {
   label: () => t("edit.createAction", { kind: kindWords.value }),
   allowed: mayEdit,
+  why: forbidden,
+  say: say.status,
   run: () => openEdit({ mode: "create", collection: props.collection.id }),
   dated: true,
 });
@@ -211,6 +218,8 @@ const activeRow = computed(() =>
 useViewAction("edit", {
   label: () => t("edit.editAction", { kind: kindWords.value }),
   allowed: () => mayEdit() && activeRow.value !== undefined,
+  why: () => (activeRow.value === undefined ? undefined : forbidden()),
+  say: say.status,
   run: () => {
     if (activeRow.value) {
       openEdit({ mode: "edit", collection: props.collection.id, id: String(activeRow.value.id) });

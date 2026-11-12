@@ -614,6 +614,21 @@ useViewAction("create", {
       ? t("edit.addIn", { within: valueOf(targetPrefix.value) })
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
   allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
+  // Refused, `c` says why by the status of the view (off the present first, `view.ts`): no
+  // domain to add in, once the domains are read; else what the « + » says.
+  why: () => {
+    if (domain.value === undefined) {
+      return domains.isSuccess.value && domainItems.value.length === 0
+        ? t("views.topology.addNoDomain")
+        : undefined;
+    }
+    const refusal = addRefusal(targetPrefix.value);
+    if (!refusal) return undefined;
+    return "forbidden" in refusal
+      ? whyWords({ kind: "forbidden", permission: refusal.forbidden }, t)
+      : refusal.reason;
+  },
+  say: say.status,
   run: () => addIn(targetPrefix.value?.id),
   dated: true,
 });
@@ -639,6 +654,11 @@ useViewAction("edit", {
     t("edit.editThis", { kind: detailKind.value, name: chosen.value ? valueOf(chosen.value) : "" }),
   allowed: () =>
     chosen.value !== undefined && session.value.rights.has(editRight(`core.${chosen.value.kind}`)),
+  why: () =>
+    chosen.value
+      ? whyWords({ kind: "forbidden", permission: editRight(`core.${chosen.value.kind}`) }, t)
+      : undefined,
+  say: say.status,
   run: () => {
     if (chosen.value) {
       openEdit({
@@ -730,13 +750,13 @@ onBeforeUnmount(() => stopIntent());
     :error="domains.error.value"
     :retry="domains.refetch"
   />
-  <EmptyState
-    v-else-if="domains.isSuccess.value && domainItems.length === 0"
-    icon="domain"
-    :title="t('views.topology.noDomain')"
-  >
-    {{ t("views.topology.noDomainText") }}
-  </EmptyState>
+  <template v-else-if="domains.isSuccess.value && domainItems.length === 0">
+    <EmptyState icon="domain" :title="t('views.topology.noDomain')">
+      {{ t("views.topology.noDomainText") }}
+    </EmptyState>
+    <!-- The tree's status is not rendered here: `c` says here why it adds nothing. -->
+    <span class="k-visually-hidden" role="status">{{ said }}</span>
+  </template>
   <Split v-else side-size="lg" gap="3">
     <template #side>
       <ViewPanel :title="t('nav.prefixes')" :detail="domainSlug" mono flush>

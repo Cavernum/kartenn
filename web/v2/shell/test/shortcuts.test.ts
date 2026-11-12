@@ -30,7 +30,7 @@ import {
   shellShortcuts,
   type ShellActions,
 } from "../src/shortcuts/shell.ts";
-import { runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
+import { play, runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
 import { timeOf } from "../src/time/index.ts";
 
 // The shortcuts of the shell (REQ-021-3, 7, 8; design « Raccourcis »): the registry and its
@@ -422,6 +422,55 @@ describe("actions of the view", () => {
     expect(runnable("edit", timeOf({ valid_at, as_of }))).toBeNull();
     expect(runnable("edit", timeOf({ as_of }))).toBeNull();
     scope.stop();
+  });
+
+  it("says why a refused `c` or `e` does nothing, by the status of the view (task 12k)", () => {
+    const said: string[] = [];
+    const say = (text: string) => said.push(text);
+    const t = (key: string) => `<${key}>`;
+    const run = vi.fn();
+    let allowed = false;
+    let why: string | undefined = "Lecture seule : il faut core.prefix.edit";
+    const scope = effectScope();
+    scope.run(() => {
+      useViewAction("edit", {
+        label: () => "Modifier",
+        run,
+        allowed: () => allowed,
+        why: () => why,
+        say,
+        dated: true,
+      });
+      useViewAction("create", { label: () => "Créer", run, say });
+      useViewAction("filter", { label: () => "Filtrer", run, allowed: () => false });
+    });
+    const present = timeOf({});
+    const as_of = "2026-06-30T12:00:00Z";
+    const valid_at = "2026-01-01T00:00:00Z";
+    // Without the right: its permission said, the key taken, nothing run.
+    expect(play("edit", present, t)).toBe(true);
+    expect(said).toEqual(["Lecture seule : il faut core.prefix.edit"]);
+    // Under `as_of`: off the present before the right (as the cells say it).
+    expect(play("edit", timeOf({ as_of }), t)).toBe(true);
+    expect(said.at(-1)).toBe("<edit.why.past>");
+    // Nothing to act on (no row, no node): nothing said, the key let go, at any date.
+    why = undefined;
+    expect(play("edit", present, t)).toBe(false);
+    expect(play("edit", timeOf({ as_of }), t)).toBe(false);
+    expect(said).toHaveLength(2);
+    // Allowed: under `valid_at` alone a `dated` action runs, another says the present.
+    allowed = true;
+    expect(play("edit", timeOf({ valid_at }), t)).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(play("create", timeOf({ valid_at }), t)).toBe(true);
+    expect(said.at(-1)).toBe("<edit.why.past>");
+    expect(play("create", present, t)).toBe(true);
+    expect(run).toHaveBeenCalledTimes(2);
+    // A view without a status, or without the action: the key let go.
+    expect(play("filter", present, t)).toBe(false);
+    scope.stop();
+    expect(play("edit", present, t)).toBe(false);
+    expect(run).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the action of the view that came after", () => {

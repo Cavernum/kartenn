@@ -44,6 +44,7 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime, writesOf } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
+import { whyWords } from "./edit/inline.ts";
 import { moveEntryRefusal } from "./edit/moves.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
@@ -170,19 +171,32 @@ const actions = computed<MenuItem[]>(() => {
 const session = useSession();
 const editPermission = computed(() => editRight(props.collection.type));
 const mayEdit = computed(() => session.value.rights.has(editPermission.value));
+// Off the present before a permission missing, as the cells and the keys say it (task 12k).
 const blockedBy = (permission: string) =>
-  !session.value.rights.has(permission)
-    ? { forbidden: permission }
-    : !writes.value.draft
-      ? { reason: t("edit.why.past") }
+  !writes.value.draft
+    ? { reason: t("edit.why.past") }
+    : !session.value.rights.has(permission)
+      ? { forbidden: permission }
       : {};
 const editBlocked = computed(() => blockedBy(editPermission.value));
 function modify(): void {
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
+// Refused, `e` says why by the status of the record, as « Modifier » says it on its button
+// (`blockedBy`: off the present first, `view.ts`).
+const said = ref("");
 useViewAction("edit", {
   label: () => t("edit.editThis", { kind: kindWords.value, name: name.value }),
   allowed: () => mayEdit.value && item.value !== undefined,
+  why: () =>
+    item.value === undefined
+      ? undefined
+      : whyWords({ kind: "forbidden", permission: editPermission.value }, t),
+  // Emptied first: the same sentence twice is said twice.
+  say: (text) => {
+    said.value = "";
+    void nextTick(() => (said.value = text));
+  },
   run: modify,
   dated: true,
 });
@@ -285,6 +299,7 @@ const linkOf = (field: string) => {
 
 <template>
   <h1 class="k-visually-hidden">{{ kindWords }} {{ name }}</h1>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <ProblemState
     v-if="record.isError.value"
     :title="t('views.record.error', { kind: kindWords })"

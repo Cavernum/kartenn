@@ -122,7 +122,10 @@ const rows = computed<Row[]>(() =>
     return { ...(shown as Row), detail: detailOf(shown) };
   }),
 );
-const readonlyReason = (row: Row, column: GridColumn) => whyWords(edit.why(column.id, row), t);
+// Under a validity date, « Modifier » here changes the record or the node chosen, not the
+// row: the sentence of a cell names it (task 12k).
+const readonlyReason = (row: Row, column: GridColumn) =>
+  whyWords(edit.why(column.id, row), t, props.name);
 /** The cell of the focus, and what its keys do or why it has no editor, under the grid. */
 const active = ref<CellRef | undefined>();
 const activeRow = computed(() =>
@@ -226,7 +229,13 @@ function onCancelAsk(): void {
       @confirm="onConfirm"
       @cancel="onCancelAsk"
     />
-    <EditHint v-else-if="activeRow" :why="activeWhy" :apply-lacks="applyLacks" :held="activeHeld" />
+    <EditHint
+      v-else-if="activeRow"
+      :why="activeWhy"
+      :apply-lacks="applyLacks"
+      :held="activeHeld"
+      :of="props.name"
+    />
     <!-- Its own sentences; shared, the host's status says them. -->
     <span v-if="!shared" class="k-visually-hidden" role="status">{{ said }}</span>
   </template>
