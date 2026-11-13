@@ -452,6 +452,12 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   rend `reason: retention`, pour un objet clos `closed` ; chaque lecture est journalisée
   (`record_read`) ; un workload jamais observé rend une chaîne vide avec
   `reason: unobserved`.
+- Précision (session principale, 2026-11-13, revue de la tâche 8c) : un maillon ne
+  rend que ce que le lecteur lit dans le module machines ; une machine ou un hyperviseur
+  sans `machines.read`, un cluster de virtualisation sans `machines.cluster.read` sont
+  rendus `null`, comme absents (même principe que `Resolved.sources.origin`), chaque
+  référence pour elle-même ; le nœud reste, nommé par le journal que le lecteur a le droit
+  de lire.
 
 ### Q-019-32 — Évaluation de `kube.machine.looks_like_pod` (tâche 7b)
 - Constat : la règle (REQ-019-3) porte sur une écriture de la 009 (une machine

@@ -4760,6 +4760,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workloads/{id}/chain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The chain of execution of the workload at a date (REQ-019-11; Q-019-31): the nodes the journal saw it running on then, still within the retention of its cluster, the machine of each node and the hypervisor or the cluster of virtualisation that hosts that machine, as they were then; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). Past the retention, an empty chain with the reason `retention`; a workload never observed within it, `unobserved`. No `as_of`. A closed workload, or one of a closed cluster, is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`, the pods it relied on). */
+    get: operations["kube_workload_chain"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workloads/{id}/history": {
     parameters: {
       query?: never;
@@ -5815,6 +5832,14 @@ export interface components {
       /** @description Open streams per identity. */
       streams_per_identity: number;
     };
+    /** @description An object of the module machines in a chain of execution, by its identifier. */
+    ExecutionHostRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+    };
     /** @description The source of the expected values of a property (REQ-003-23). */
     Expected: {
       /** @description How its values apply. */
@@ -6681,6 +6706,29 @@ export interface components {
       valid_from?: string | null;
       /** @description The end of the period of the write, RFC 3339; unbounded by default. */
       valid_to?: string | null;
+    };
+    /** @description The chain of execution of a workload at a date. */
+    KubeExecutionChain: {
+      /** @description One link per node, by node. */
+      links: components["schemas"]["KubeExecutionLink"][];
+      reason: components["schemas"]["KubeExecutionChainReason"] | null;
+    };
+    /**
+     * @description Why a chain is empty though the workload may have run.
+     * @enum {string}
+     */
+    KubeExecutionChainReason: "retention" | "unobserved";
+    /**
+     * @description A link of the chain: a node the workload was seen running on at the date, its machine
+     *     (`kube.runs_on`) and what hosts that machine (`machines.hosted_on`,
+     *     `machines.hosted_in`), all at the date.
+     */
+    KubeExecutionLink: {
+      hypervisor: components["schemas"]["ExecutionHostRef"] | null;
+      machine: components["schemas"]["ExecutionHostRef"] | null;
+      /** @description The node, from the journal. */
+      node: components["schemas"]["KubeObjectRef"];
+      virtualization_cluster: components["schemas"]["ExecutionHostRef"] | null;
     };
     /** @description An ingress of a namespace (REQ-019-10). */
     KubeIngress: {
@@ -26814,6 +26862,44 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KubeWorkload"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_workload_chain: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The workload. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The chain, by node. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeExecutionChain"];
         };
       };
       /** @description A problem (RFC 9457). */

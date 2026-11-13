@@ -2484,6 +2484,20 @@
         ],
         "type": "object"
       },
+      "ExecutionHostRef": {
+        "description": "An object of the module machines in a chain of execution, by its identifier.",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Expected": {
         "description": "The source of the expected values of a property (REQ-003-23).",
         "properties": {
@@ -4705,6 +4719,91 @@
         },
         "required": [
           "motive"
+        ],
+        "type": "object"
+      },
+      "KubeExecutionChain": {
+        "description": "The chain of execution of a workload at a date.",
+        "properties": {
+          "links": {
+            "description": "One link per node, by node.",
+            "items": {
+              "$ref": "#/components/schemas/KubeExecutionLink"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeExecutionChainReason",
+                "description": "`retention` past the retention of its cluster, `unobserved` for a workload the\njournal never saw within it, the chain then empty (Q-019-31); `null` otherwise,\nan empty chain then saying that no pod of the workload ran at the date."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "links",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "KubeExecutionChainReason": {
+        "description": "Why a chain is empty though the workload may have run.",
+        "enum": [
+          "retention",
+          "unobserved"
+        ],
+        "type": "string"
+      },
+      "KubeExecutionLink": {
+        "description": "A link of the chain: a node the workload was seen running on at the date, its machine\n(`kube.runs_on`) and what hosts that machine (`machines.hosted_on`,\n`machines.hosted_in`), all at the date.",
+        "properties": {
+          "hypervisor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "The hypervisor (`machines.machine`) that hosts the machine; `null` without one, or\nfor one the caller may not read."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machine": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "Its machine (`machines.machine`); `null` for a node matched to no machine, or a\nmachine the caller may not read."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "node": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The node, from the journal."
+          },
+          "virtualization_cluster": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "The cluster of virtualisation (`machines.cluster`) that hosts the machine; `null`\nwithout one, or for one the caller may not read."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "node",
+          "machine",
+          "hypervisor",
+          "virtualization_cluster"
         ],
         "type": "object"
       },
@@ -44578,6 +44677,61 @@
           }
         },
         "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/workloads/{id}/chain": {
+      "get": {
+        "operationId": "kube_workload_chain",
+        "parameters": [
+          {
+            "description": "The workload.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeExecutionChain"
+                }
+              }
+            },
+            "description": "The chain, by node."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The chain of execution of the workload at a date (REQ-019-11; Q-019-31): the nodes the journal saw it running on then, still within the retention of its cluster, the machine of each node and the hypervisor or the cluster of virtualisation that hosts that machine, as they were then; under `kube.observation.read` on the pod domain of its cluster (403 otherwise; 404, as an absent one, for a workload the caller neither reads nor holds that right on). Past the retention, an empty chain with the reason `retention`; a workload never observed within it, `unobserved`. No `as_of`. A closed workload, or one of a closed cluster, is not read: 410 `gone` (Q-019-28). Each read is journaled (`data.objects.read`, the pods it relied on).",
         "tags": [
           "kube"
         ]

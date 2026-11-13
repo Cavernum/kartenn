@@ -11,7 +11,9 @@
 use std::net::IpAddr;
 
 use kartenn_core::addr::Prefix;
+use kartenn_core::authz::type_read_permission;
 use kartenn_core::period::Instant;
+use kartenn_machines::module::{CLUSTER as VIRTUALIZATION_CLUSTER, MACHINE};
 use kartenn_service::StoreError;
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject};
@@ -525,7 +527,9 @@ pub async fn execution_chain(
             let held = workload_at(conn, workload, valid_at)
                 .await
                 .map_err(|e| store(&e))?;
-            linked(conn, &held, valid_at).await?
+            let (pods, mut chain) = linked(conn, &held, valid_at).await?;
+            visible(authorizer, &reader, &mut chain.links).await?;
+            (pods, chain)
         }
     } else {
         let chain = Chain {
@@ -596,6 +600,56 @@ async fn linked(
             reason: None,
         },
     ))
+}
+
+/// `links` with every reference of the module machines the reader may not read made
+/// `None`, as an absent one (Q-019-31, precision of task 8c): a machine or a hypervisor
+/// under `machines.read`, a cluster of virtualisation under
+/// `machines.cluster.read`, each on its own. The nodes stay: the journal that names them is
+/// what the reader holds `kube.observation.read` on.
+async fn visible(
+    authorizer: &impl Authorizer,
+    reader: &Subject,
+    links: &mut [Link],
+) -> Result<(), StoreError> {
+    let machines: Vec<Uuid> = links
+        .iter()
+        .flat_map(|l| [l.machine, l.hypervisor])
+        .flatten()
+        .collect();
+    let clusters: Vec<Uuid> = links.iter().filter_map(|l| l.cluster).collect();
+    let hidden_machines = hidden(authorizer, reader, MACHINE, machines).await?;
+    let hidden_clusters = hidden(authorizer, reader, VIRTUALIZATION_CLUSTER, clusters).await?;
+    let hide = |id: &mut Option<Uuid>, hidden: &[Uuid]| {
+        if id.is_some_and(|id| hidden.binary_search(&id).is_ok()) {
+            *id = None;
+        }
+    };
+    for link in links {
+        hide(&mut link.machine, &hidden_machines);
+        hide(&mut link.hypervisor, &hidden_machines);
+        hide(&mut link.cluster, &hidden_clusters);
+    }
+    Ok(())
+}
+
+/// The objects of `ids`, of the type `ty`, the reader may not read, sorted.
+async fn hidden(
+    authorizer: &impl Authorizer,
+    reader: &Subject,
+    ty: &str,
+    mut ids: Vec<Uuid>,
+) -> Result<Vec<Uuid>, StoreError> {
+    ids.sort_unstable();
+    ids.dedup();
+    if ids.is_empty() {
+        return Ok(ids);
+    }
+    let mut denied = authorizer
+        .authorize_many(reader, &type_read_permission(ty), &ids)
+        .await?;
+    denied.sort_unstable();
+    Ok(denied)
 }
 
 /// What [`workloads_of`] lists the workloads of.
