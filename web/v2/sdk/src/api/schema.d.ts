@@ -5630,12 +5630,12 @@ export interface components {
     /** @description How the value of a property resolves on an object (REQ-003-14, 15). */
     Explanation: {
       /** @description The objects walked, nearest first; `null` for one the caller may not read. */
-      chain: (components["schemas"]["Node"] | null)[];
+      chain: (components["schemas"]["NodeRef"] | null)[];
       /** @description Links. */
       links: components["schemas"]["ObjectLinks"];
       /** @description The caller may not see the value (REQ-005-21). */
       masked: boolean;
-      origin?: components["schemas"]["Node"] | null;
+      origin: components["schemas"]["NodeRef"] | null;
       /** @description The property. */
       property: string;
       /**
@@ -5644,8 +5644,8 @@ export interface components {
        *     `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
        *     a label of a workload; ADR 0026, amendment 14).
        */
-      provenance?: string | null;
-      replaces?: components["schemas"]["Replaced"] | null;
+      provenance: string | null;
+      replaces: components["schemas"]["Replaced"] | null;
       /** @description The resolved value; `null` when masked or without value. */
       value: Record<string, never>;
     };
@@ -7574,6 +7574,21 @@ export interface components {
       slug?: string | null;
     };
     /**
+     * @description An object named by its kind, identifier and URL: one an explanation walks, or the
+     *     holder of a resolved value.
+     */
+    NodeRef: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its kind. */
+      kind: components["schemas"]["ObjectKind"];
+    };
+    /**
      * @description The kind of an object of the core.
      * @enum {string}
      */
@@ -8823,7 +8838,7 @@ export interface components {
     };
     /** @description The assignment an explicit one replaces. */
     Replaced: {
-      origin?: components["schemas"]["Node"] | null;
+      origin: components["schemas"]["NodeRef"] | null;
       /** @description Its value; `null` when masked. */
       value: Record<string, never>;
     };
@@ -9344,13 +9359,13 @@ export interface components {
     ValueSource: {
       /** @description The value is inherited: the object that carries it is another one. */
       inherited: boolean;
-      origin?: components["schemas"]["Node"] | null;
+      origin: components["schemas"]["NodeRef"] | null;
       /**
        * @description How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
        *     (the default of a source of expected values, REQ-003-22), or
        *     `module:<module>#<motif>` (derived by a module).
        */
-      provenance?: string | null;
+      provenance: string | null;
     };
     /** @description A version of an object, on both axes (REQ-004-18). */
     Version: {

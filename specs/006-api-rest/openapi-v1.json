@@ -2537,7 +2537,7 @@
             "items": {
               "oneOf": [
                 {
-                  "$ref": "#/components/schemas/Node"
+                  "$ref": "#/components/schemas/NodeRef"
                 },
                 {
                   "type": "null"
@@ -2557,7 +2557,7 @@
           "origin": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Node",
+                "$ref": "#/components/schemas/NodeRef",
                 "description": "The object the value comes from; `null` if the caller may not read it."
               },
               {
@@ -2580,7 +2580,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Replaced",
-                "description": "The assignment it replaces."
+                "description": "The assignment it replaces; `null` when it replaces none."
               },
               {
                 "type": "null"
@@ -2596,7 +2596,10 @@
           "property",
           "value",
           "masked",
+          "origin",
           "chain",
+          "provenance",
+          "replaces",
           "links"
         ],
         "type": "object"
@@ -7443,6 +7446,30 @@
         },
         "type": "object"
       },
+      "NodeRef": {
+        "description": "An object named by its kind, identifier and URL: one an explanation walks, or the\nholder of a resolved value.",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ObjectKind",
+            "description": "Its kind."
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "href"
+        ],
+        "type": "object"
+      },
       "ObjectKind": {
         "description": "The kind of an object of the core.",
         "enum": [
@@ -10846,7 +10873,7 @@
           "origin": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Node",
+                "$ref": "#/components/schemas/NodeRef",
                 "description": "Where it comes from; `null` if the caller may not read it."
               },
               {
@@ -10860,6 +10887,7 @@
           }
         },
         "required": [
+          "origin",
           "value"
         ],
         "type": "object"
@@ -12028,7 +12056,7 @@
           "origin": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/Node",
+                "$ref": "#/components/schemas/NodeRef",
                 "description": "The object that carries the assignment, the object itself or the origin it\ninherits from; `null` if the caller may not read it (REQ-005-19)."
               },
               {
@@ -12045,7 +12073,9 @@
           }
         },
         "required": [
-          "inherited"
+          "origin",
+          "inherited",
+          "provenance"
         ],
         "type": "object"
       },

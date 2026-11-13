@@ -390,12 +390,14 @@ struct Resolved {
 struct SourceDto {
     /// The object that carries the assignment, the object itself or the origin it
     /// inherits from; `null` if the caller may not read it (REQ-005-19).
+    #[schema(required = true)]
     origin: Option<Node>,
     /// The value is inherited: the object that carries it is another one.
     inherited: bool,
     /// How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
     /// (the default of a source of expected values, REQ-003-22), or
     /// `module:<module>#<motif>` (derived by a module).
+    #[schema(required = true)]
     provenance: Option<String>,
 }
 
@@ -527,8 +529,10 @@ async fn audit_read(
     Ok(())
 }
 
-/// An object an explanation walks.
+/// An object named by its kind, identifier and URL: one an explanation walks, or the
+/// holder of a resolved value.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = NodeRef)]
 struct Node {
     /// Its kind.
     #[schema(value_type = crate::openapi::enums::KindSchema)]
@@ -599,6 +603,7 @@ fn value_of(text: Option<&str>) -> Result<Value, Problem> {
 #[derive(Debug, Serialize, ToSchema)]
 struct Replaced {
     /// Where it comes from; `null` if the caller may not read it.
+    #[schema(required = true)]
     origin: Option<Node>,
     /// Its value; `null` when masked.
     #[schema(value_type = Object)]
@@ -624,6 +629,7 @@ struct ExplanationDto {
     /// The caller may not see the value (REQ-005-21).
     masked: bool,
     /// The object the value comes from; `null` if the caller may not read it.
+    #[schema(required = true)]
     origin: Option<Node>,
     /// The objects walked, nearest first; `null` for one the caller may not read.
     chain: Vec<Option<Node>>,
@@ -631,8 +637,10 @@ struct ExplanationDto {
     /// (the default of a source of expected values, REQ-003-22), or
     /// `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
     /// a label of a workload; ADR 0026, amendment 14).
+    #[schema(required = true)]
     provenance: Option<String>,
-    /// The assignment it replaces.
+    /// The assignment it replaces; `null` when it replaces none.
+    #[schema(required = true)]
     replaces: Option<Replaced>,
     /// Links.
     links: ObjectLinks,
