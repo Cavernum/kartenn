@@ -375,14 +375,35 @@ struct Resolved {
     /// The values by key; `null`: « no value » explicitly.
     #[schema(value_type = BTreeMap<String, Object>)]
     properties: BTreeMap<String, Option<Value>>,
+    /// Where each value of `properties` comes from, by the same keys; a key of `masked`
+    /// has none (task 021-11p1).
+    sources: BTreeMap<String, SourceDto>,
     /// The keys of the values the caller may not see (REQ-005-21).
     masked: BTreeSet<String>,
     /// Links.
     links: ResolvedLinks,
 }
 
-/// `GET /v1/<collection>/{id}/properties`: the resolved values of the object, those the
-/// caller may not see named in `masked`; 404 as the object.
+/// Where a resolved value comes from (task 021-11p1): its explanation in short.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = ValueSource)]
+struct SourceDto {
+    /// The object that carries the assignment, the object itself or the origin it
+    /// inherits from; `null` if the caller may not read it (REQ-005-19).
+    #[schema(required = true)]
+    origin: Option<Node>,
+    /// The value is inherited: the object that carries it is another one.
+    inherited: bool,
+    /// How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
+    /// (the default of a source of expected values, REQ-003-22), or
+    /// `module:<module>#<motif>` (derived by a module).
+    #[schema(required = true)]
+    provenance: Option<String>,
+}
+
+/// `GET /v1/<collection>/{id}/properties`: the resolved values of the object and where each
+/// comes from, its holder named only when the caller may read it; those the caller may not
+/// see named in `masked`; 404 as the object.
 async fn resolved(
     kind: Target,
     State(api): State<Api>,
@@ -405,8 +426,38 @@ async fn resolved(
     .await?
     .filter(|found| found.kind == kind.as_str())
     .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let holders: Vec<Uuid> = found
+        .sources
+        .values()
+        .map(|source| source.holder)
+        .filter(|holder| *holder != id)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut nodes = visible_nodes(&api, &context, &holders, &moment).await?;
+    nodes.insert(
+        id,
+        Node {
+            kind: kind.as_str(),
+            id,
+            href: kind.href(id),
+        },
+    );
+    let sources = found
+        .sources
+        .into_iter()
+        .map(|(key, source)| {
+            let shown = SourceDto {
+                origin: nodes.get(&source.holder).cloned(),
+                inherited: source.holder != id,
+                provenance: source.provenance,
+            };
+            (key, shown)
+        })
+        .collect();
     let body = Resolved {
         properties: found.properties,
+        sources,
         masked: found.masked,
         links: ResolvedLinks {
             this: format!("{}/properties", kind.href(id)),
@@ -478,8 +529,10 @@ async fn audit_read(
     Ok(())
 }
 
-/// An object an explanation walks.
+/// An object named by its kind, identifier and URL: one an explanation walks, or the
+/// holder of a resolved value.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = NodeRef)]
 struct Node {
     /// Its kind.
     #[schema(value_type = crate::openapi::enums::KindSchema)]
@@ -550,6 +603,7 @@ fn value_of(text: Option<&str>) -> Result<Value, Problem> {
 #[derive(Debug, Serialize, ToSchema)]
 struct Replaced {
     /// Where it comes from; `null` if the caller may not read it.
+    #[schema(required = true)]
     origin: Option<Node>,
     /// Its value; `null` when masked.
     #[schema(value_type = Object)]
@@ -575,6 +629,7 @@ struct ExplanationDto {
     /// The caller may not see the value (REQ-005-21).
     masked: bool,
     /// The object the value comes from; `null` if the caller may not read it.
+    #[schema(required = true)]
     origin: Option<Node>,
     /// The objects walked, nearest first; `null` for one the caller may not read.
     chain: Vec<Option<Node>>,
@@ -582,8 +637,10 @@ struct ExplanationDto {
     /// (the default of a source of expected values, REQ-003-22), or
     /// `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
     /// a label of a workload; ADR 0026, amendment 14).
+    #[schema(required = true)]
     provenance: Option<String>,
-    /// The assignment it replaces.
+    /// The assignment it replaces; `null` when it replaces none.
+    #[schema(required = true)]
     replaces: Option<Replaced>,
     /// Links.
     links: ObjectLinks,
@@ -812,18 +869,29 @@ pub(crate) fn masked_gap(key: &str) -> String {
     format!("{key}: the resolved value differs from the expected one")
 }
 
-/// The filter of the deviations: property, domain, entity.
-type GapFilter = (Option<String>, Option<Uuid>, Option<Uuid>);
+/// The filter of the deviations.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct GapFilter {
+    /// The property.
+    property: Option<String>,
+    /// The domain of the object.
+    domain: Option<Uuid>,
+    /// The entity of the object.
+    entity: Option<Uuid>,
+    /// The object (task 021-11p1, as 021/A37 for the anomalies).
+    object: Option<Uuid>,
+}
 
-/// `property`, `domain` and `entity` among the parameters left by the page, each at most
-/// once; anything else → 400.
+/// `property`, `domain`, `entity` and `object` among the parameters left by the page,
+/// each at most once; anything else → 400.
 fn gap_filter(params: &[(String, String)]) -> Result<GapFilter, Problem> {
-    let (mut property, mut domain, mut entity) = (None, None, None);
+    let (mut property, mut domain, mut entity, mut object) = (None, None, None, None);
     for (name, value) in params {
         let slot = match name.as_str() {
             "property" => &mut property,
             "domain" => &mut domain,
             "entity" => &mut entity,
+            "object" => &mut object,
             other => return Err(bad(format!("unknown parameter {other}"))),
         };
         if slot.replace(value.clone()).is_some() {
@@ -836,7 +904,12 @@ fn gap_filter(params: &[(String, String)]) -> Result<GapFilter, Problem> {
             .transpose()
             .map_err(|_| bad(format!("{name} must be a UUID")))
     };
-    Ok((property, id("domain", domain)?, id("entity", entity)?))
+    Ok(GapFilter {
+        property,
+        domain: id("domain", domain)?,
+        entity: id("entity", entity)?,
+        object: id("object", object)?,
+    })
 }
 
 /// A deviation between a resolved and an expected value.
@@ -895,8 +968,10 @@ impl Gap {
     }
 }
 
-/// `GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between
-/// resolved and expected values (REQ-003-24) whose object the caller may read now.
+/// `GET /v1/property-gaps?property=…&domain=…&entity=…&object=…`: the open deviations
+/// between resolved and expected values (REQ-003-24) whose object the caller may read now;
+/// those of one object as well (task 021-11p1), under the same filter of reading: an
+/// object the caller may not read gives an empty list, as an unknown one (ADR 0021).
 #[utoipa::path(
     get,
     path = "/property-gaps",
@@ -906,6 +981,7 @@ impl Gap {
         ("property" = Option<String>, Query, description = "The property."),
         ("domain" = Option<Uuid>, Query, description = "The domain of the object."),
         ("entity" = Option<Uuid>, Query, description = "The entity of the object."),
+        ("object" = Option<Uuid>, Query, description = "The object."),
         PageParams,
     ),
     responses((status = 200, description = "The open deviations.", body = Listing<Gap>))
@@ -919,7 +995,12 @@ async fn gaps(
 ) -> Result<Response, Problem> {
     const NAME: &str = "property-gaps";
     let (page, after) = crate::anomalies::anomaly_page(&api, query.as_deref(), NAME)?;
-    let (property, domain, entity) = gap_filter(&page.filters)?;
+    let GapFilter {
+        property,
+        domain,
+        entity,
+        object,
+    } = gap_filter(&page.filters)?;
     let moment = moment_of(&api, Dates::default()).await?;
     let scope = api
         .authorizer()
@@ -930,7 +1011,7 @@ async fn gaps(
         domain,
         entity,
         property: property.as_deref(),
-        object: None,
+        object,
     };
     let limit = i64::from(page.size) + 1;
     let mut found = anomalies::open_page(&api.pool, &wanted, &scope, after, Some(limit))
@@ -938,8 +1019,11 @@ async fn gaps(
         .map_err(|e| store(&e))?;
     let next = crate::anomalies::anomaly_next(&api, &page, NAME, &moment, &mut found);
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
-    let criteria =
-        json!({ "property_gaps": { "property": property, "domain": domain, "entity": entity } });
+    let criteria = json!({
+        "property_gaps": {
+            "property": property, "domain": domain, "entity": entity, "object": object,
+        }
+    });
     let event = objects_read(&context, "object", &ids, criteria, api.audit).map_err(audited)?;
     api.journal
         .record(&event)
@@ -984,6 +1068,31 @@ mod tests {
             ..gap
         };
         assert_eq!(gap_property(&detailed), Some("dns.zone"));
+    }
+
+    #[test]
+    fn the_gaps_filter_takes_a_property_a_domain_an_entity_and_an_object() {
+        let pairs = |query: &str| -> Vec<(String, String)> {
+            form_urlencoded::parse(query.as_bytes())
+                .map(|(n, v)| (n.into_owned(), v.into_owned()))
+                .collect()
+        };
+        let (entity, object) = (Uuid::now_v7(), Uuid::now_v7());
+        assert_eq!(
+            gap_filter(&pairs(&format!(
+                "property=dns.ttl&entity={entity}&object={object}"
+            )))
+            .unwrap(),
+            GapFilter {
+                property: Some("dns.ttl".to_owned()),
+                entity: Some(entity),
+                object: Some(object),
+                ..GapFilter::default()
+            }
+        );
+        assert!(gap_filter(&pairs("object=x")).is_err());
+        assert!(gap_filter(&pairs(&format!("object={object}&object={object}"))).is_err());
+        assert!(gap_filter(&pairs("rule=x")).is_err());
     }
 
     #[test]

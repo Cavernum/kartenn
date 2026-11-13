@@ -3845,8 +3845,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * `GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between
-     *     resolved and expected values (REQ-003-24) whose object the caller may read now.
+     * `GET /v1/property-gaps?property=…&domain=…&entity=…&object=…`: the open deviations
+     *     between resolved and expected values (REQ-003-24) whose object the caller may read now;
+     *     those of one object as well (task 021-11p1), under the same filter of reading: an
+     *     object the caller may not read gives an empty list, as an unknown one (ADR 0021).
      */
     get: operations["list_property_gaps"];
     put?: never;
@@ -5835,12 +5837,12 @@ export interface components {
     /** @description How the value of a property resolves on an object (REQ-003-14, 15). */
     Explanation: {
       /** @description The objects walked, nearest first; `null` for one the caller may not read. */
-      chain: (components["schemas"]["Node"] | null)[];
+      chain: (components["schemas"]["NodeRef"] | null)[];
       /** @description Links. */
       links: components["schemas"]["ObjectLinks"];
       /** @description The caller may not see the value (REQ-005-21). */
       masked: boolean;
-      origin?: components["schemas"]["Node"] | null;
+      origin: components["schemas"]["NodeRef"] | null;
       /** @description The property. */
       property: string;
       /**
@@ -5849,8 +5851,8 @@ export interface components {
        *     `module:<module>#<motif>` (derived by a module, as `module:kube#label:<key>` from
        *     a label of a workload; ADR 0026, amendment 14).
        */
-      provenance?: string | null;
-      replaces?: components["schemas"]["Replaced"] | null;
+      provenance: string | null;
+      replaces: components["schemas"]["Replaced"] | null;
       /** @description The resolved value; `null` when masked or without value. */
       value: Record<string, never>;
     };
@@ -8207,6 +8209,21 @@ export interface components {
       slug?: string | null;
     };
     /**
+     * @description An object named by its kind, identifier and URL: one an explanation walks, or the
+     *     holder of a resolved value.
+     */
+    NodeRef: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its kind. */
+      kind: components["schemas"]["ObjectKind"];
+    };
+    /**
      * @description The kind of an object of the core.
      * @enum {string}
      */
@@ -9456,7 +9473,7 @@ export interface components {
     };
     /** @description The assignment an explicit one replaces. */
     Replaced: {
-      origin?: components["schemas"]["Node"] | null;
+      origin: components["schemas"]["NodeRef"] | null;
       /** @description Its value; `null` when masked. */
       value: Record<string, never>;
     };
@@ -9488,6 +9505,13 @@ export interface components {
       /** @description The values by key; `null`: « no value » explicitly. */
       properties: {
         [key: string]: Record<string, never>;
+      };
+      /**
+       * @description Where each value of `properties` comes from, by the same keys; a key of `masked`
+       *     has none (task 021-11p1).
+       */
+      sources: {
+        [key: string]: components["schemas"]["ValueSource"];
       };
     };
     /** @description The links of the resolved values of an object. */
@@ -9965,6 +9989,18 @@ export interface components {
     Validation: {
       /** @description Operations a module declares « of review », applied with the proposal. */
       operations?: components["schemas"]["Operation"][];
+    };
+    /** @description Where a resolved value comes from (task 021-11p1): its explanation in short. */
+    ValueSource: {
+      /** @description The value is inherited: the object that carries it is another one. */
+      inherited: boolean;
+      origin: components["schemas"]["NodeRef"] | null;
+      /**
+       * @description How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
+       *     (the default of a source of expected values, REQ-003-22), or
+       *     `module:<module>#<motif>` (derived by a module).
+       */
+      provenance: string | null;
     };
     /** @description A version of an object, on both axes (REQ-004-18). */
     Version: {
@@ -23357,6 +23393,8 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The object. */
+        object?: string;
         /** @description The next page, from `links.next`; it freezes the dates and the filters. */
         cursor?: string;
         /** @description The size of a page, 1 to 1 000; 100 by default. */

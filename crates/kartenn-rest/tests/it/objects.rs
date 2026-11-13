@@ -1155,6 +1155,25 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     let secret = declare(&pool, "site.secret", true).await;
     assign(&pool, zone, top, "red", &[block, net]).await;
     assign(&pool, secret, top, "s3", &[block, net]).await;
+    // A value inherited from a visible ancestor, and one of its own (task 021-11p1); their
+    // keys after the others, for the pages of the schema below.
+    let near = declare(&pool, "zone.near", false).await;
+    let own = declare(&pool, "zone.own", false).await;
+    assign(&pool, near, block, "amber", &[net]).await;
+    assign(&pool, own, net, "green", &[]).await;
+    // The default of a source of expected values, carried by the invisible /8: its
+    // provenance is served, as by the explanation, its holder not named.
+    let far = declare(&pool, "zone.far", false).await;
+    assign(&pool, far, top, "grey", &[block, net]).await;
+    sqlx::query(
+        "UPDATE property_assignment SET provenance = 'source:inference@3'
+         WHERE object_id = $1 AND property_id = $2",
+    )
+    .bind(top)
+    .bind(far)
+    .execute(&pool)
+    .await
+    .unwrap();
     // With the right to the sensitive value and to the whole tree.
     let mut rights = READ_ALL.to_vec();
     rights.push("prop.site.secret.read");
@@ -1165,14 +1184,31 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
         person(&pool, &["core.prefix.read"], ("prefix", Some(block))).await,
     );
 
-    let body = ok(&app, &format!("/v1/prefixes/{net}/properties")).await;
+    let resolved = format!("/v1/prefixes/{net}/properties");
+    let body = ok(&app, &resolved).await;
     assert_eq!(
         body["properties"],
-        json!({ "policy.zone": "red" }),
+        json!({
+            "policy.zone": "red", "zone.far": "grey", "zone.near": "amber", "zone.own": "green",
+        }),
         "{body}"
     );
     assert_eq!(body["masked"], json!(["site.secret"]));
-
+    // The source of each value shown: the /8 that carries `policy.zone` is invisible, its
+    // existence undisclosed; the masked value has none.
+    let node = |kind: &str, id: Uuid| json!({ "kind": kind, "id": id, "href": format!("/v1/prefixes/{id}") });
+    assert_eq!(
+        body["sources"],
+        json!({
+            "policy.zone": { "origin": null, "inherited": true, "provenance": "input" },
+            "zone.far": {
+                "origin": null, "inherited": true, "provenance": "source:inference@3",
+            },
+            "zone.near": { "origin": node("prefix", block), "inherited": true, "provenance": "input" },
+            "zone.own": { "origin": node("prefix", net), "inherited": false, "provenance": "input" },
+        }),
+        "{body}"
+    );
     let uri = format!("/v1/prefixes/{net}/properties/policy.zone/explanation");
     let body = ok(&app, &uri).await;
     assert_eq!(body["value"], "red", "{body}");
@@ -1218,6 +1254,18 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
             .await
             .unwrap();
     assert_eq!(disclosed, 1);
+    // With the right to the whole tree, the origin of each value is named.
+    let body = ok(&everything, &resolved).await;
+    assert_eq!(
+        body["sources"]["policy.zone"]["origin"],
+        node("prefix", top),
+        "{body}"
+    );
+    assert_eq!(
+        body["sources"]["site.secret"]["origin"],
+        node("prefix", top),
+        "{body}"
+    );
 
     // The schema, for any caller.
     let body = ok(&app, "/v1/property-declarations?page_size=1").await;
@@ -1462,6 +1510,87 @@ async fn the_anomalies_of_one_object_read_by_its_filter(pool: PgPool) {
     // Not a UUID: 400.
     let response = get(&global, "/v1/anomalies?object=north").await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+/// The deviations of one object, as its anomalies (task 021-11p1, 021/A37): under the
+/// other filters, empty for an object the caller may not read as for an unknown one.
+#[kartenn_testing::pg_test]
+async fn the_deviations_of_one_object_read_by_its_filter(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let net = prefix(&pool, lab, "192.0.2.0/25").await;
+    let neighbour = prefix(&pool, lab, "192.0.2.128/25").await;
+    let hidden = prefix(&pool, dmz, "198.51.100.0/24").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    let gap = |object: Uuid, key: &'static str| {
+        let pool = pool.clone();
+        async move {
+            let id = anomaly(&pool, author, object, "prop.resolution.expected_mismatch").await;
+            sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
+                .bind(id)
+                .bind(format!("{key}: resolved a, expected b"))
+                .bind(json!({ "property": key }))
+                .execute(&pool)
+                .await
+                .unwrap();
+            id
+        }
+    };
+    let zone = gap(net, "policy.zone").await;
+    let env = gap(net, "policy.env").await;
+    gap(neighbour, "policy.zone").await;
+    gap(hidden, "policy.zone").await;
+    let lab_reader = app(
+        &pool,
+        person(&pool, &["core.prefix.read"], ("domain", Some(lab))).await,
+    );
+    let global = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    let mut own = ids_of(&ok(&lab_reader, &format!("/v1/property-gaps?object={net}")).await);
+    own.sort();
+    let mut wanted = vec![zone.to_string(), env.to_string()];
+    wanted.sort();
+    assert_eq!(own, wanted);
+    // The read is audited with its object among its criteria.
+    let criteria: Value = sqlx::query_scalar(
+        "SELECT details->'criteria' FROM audit.event WHERE name = 'data.objects.read'
+         ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        criteria["property_gaps"]["object"],
+        net.to_string(),
+        "{criteria}"
+    );
+    let uri = format!("/v1/property-gaps?object={net}&property=policy.zone");
+    assert_eq!(ids_of(&ok(&lab_reader, &uri).await), [zone.to_string()]);
+    // Page by page under the filter.
+    let uri = format!("/v1/property-gaps?object={net}&page_size=1");
+    let mut walked = walk(&lab_reader, &uri).await;
+    walked.sort();
+    assert_eq!(walked, wanted);
+    // An object the caller may not read: an empty list, as an unknown one.
+    let unreadable = ok(&lab_reader, &format!("/v1/property-gaps?object={hidden}")).await;
+    let unknown = ok(
+        &lab_reader,
+        &format!("/v1/property-gaps?object={}", Uuid::now_v7()),
+    )
+    .await;
+    assert_eq!(unreadable["items"], json!([]));
+    assert_eq!(unreadable["items"], unknown["items"]);
+    assert_eq!(unreadable["links"], unknown["links"]);
+    let uri = format!("/v1/property-gaps?object={hidden}");
+    assert_eq!(ids_of(&ok(&global, &uri).await).len(), 1);
+    // Not a UUID, or twice: 400.
+    for uri in [
+        "/v1/property-gaps?object=north".to_owned(),
+        format!("/v1/property-gaps?object={net}&object={net}"),
+    ] {
+        let response = get(&global, &uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+    }
 }
 
 /// The identifiers of every page of the list at `uri`, following `next`.

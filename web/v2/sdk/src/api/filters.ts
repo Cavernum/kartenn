@@ -296,6 +296,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "property", type: "string" },
     { name: "domain", type: "string" },
     { name: "entity", type: "string" },
+    { name: "object", type: "string" },
   ],
   "/v1/proposals": [],
   "/v1/ranges": [

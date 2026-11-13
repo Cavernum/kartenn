@@ -17,11 +17,7 @@ import { provenanceOf } from "./provenance.ts";
 
 type Explanation = components["schemas"]["Explanation"];
 /** A node of the chain, as the server writes it: its kind, identifier and URL. */
-interface ChainNode {
-  id: string;
-  kind?: string | null;
-  href?: string | null;
-}
+type ChainNode = components["schemas"]["NodeRef"];
 
 const props = defineProps<{ kind: string; id: string; property: string }>();
 const { t } = useI18n();
@@ -37,9 +33,9 @@ const explanation = useQuery(() =>
   ),
 );
 const facts = computed(() => explanation.data.value?.data);
-const origin = computed(() => (facts.value?.origin ?? null) as ChainNode | null);
-const chain = computed<ChainNode[]>(
-  () => (facts.value?.chain ?? []).filter((node) => node !== null) as unknown as ChainNode[],
+const origin = computed<ChainNode | null>(() => facts.value?.origin ?? null);
+const chain = computed<ChainNode[]>(() =>
+  (facts.value?.chain ?? []).filter((node): node is ChainNode => node !== null),
 );
 const direct = computed(() => origin.value !== null && origin.value.id === props.id);
 /** The provenance, when a module derived the value: said in its place of « direct ». */

@@ -289,11 +289,7 @@ export function draftedProperties(
 }
 
 /** A node of an explanation, as the server writes it. */
-interface ChainNode {
-  id: string;
-  kind?: string | null;
-  href?: string | null;
-}
+type ChainNode = Schemas["NodeRef"];
 
 /**
  * Where a resolved value comes from (REQ-003-14): the object's own, inherited (from
@@ -308,7 +304,7 @@ export type Origin =
 
 /** The origin of a value from its explanation, read on the object `id`. */
 export function originOf(explanation: Explanation, id: string): Origin {
-  const origin = explanation.origin as ChainNode | null | undefined;
+  const origin = explanation.origin;
   if (origin) return origin.id === id ? { kind: "own" } : { kind: "inherited", source: origin };
   if (explanation.provenance) return { kind: "computed" };
   // A value whose origin is withheld comes from an object the user may not read.

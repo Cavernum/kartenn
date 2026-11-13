@@ -189,6 +189,7 @@ pub async fn shown_object<A: Authorizer, J: AuditJournal>(
                 .is_empty()
             {
                 found.properties.remove(&key);
+                found.sources.remove(&key);
                 found.sensitive.remove(&key);
                 found.masked.insert(key);
             }
