@@ -10937,10 +10937,21 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueSource"
+            },
+            "description": "Where each value of `properties` comes from, by the same keys; a key of `masked`\nhas none (task 021-11p1).",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
           }
         },
         "required": [
           "properties",
+          "sources",
           "masked",
           "links"
         ],
@@ -12005,6 +12016,37 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ValueSource": {
+        "description": "Where a resolved value comes from (task 021-11p1): its explanation in short.",
+        "properties": {
+          "inherited": {
+            "description": "The value is inherited: the object that carries it is another one.",
+            "type": "boolean"
+          },
+          "origin": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Node",
+                "description": "The object that carries the assignment, the object itself or the origin it\ninherits from; `null` if the caller may not read it (REQ-005-19)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "description": "How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`\n(the default of a source of expected values, REQ-003-22), or\n`module:<module>#<motif>` (derived by a module).",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "inherited"
+        ],
         "type": "object"
       },
       "Version": {
@@ -35315,6 +35357,16 @@
             }
           },
           {
+            "description": "The object.",
+            "in": "query",
+            "name": "object",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "description": "The next page, from `links.next`; it freezes the dates and the filters.",
             "in": "query",
             "name": "cursor",
@@ -35360,7 +35412,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between\nresolved and expected values (REQ-003-24) whose object the caller may read now.",
+        "summary": "`GET /v1/property-gaps?property=…&domain=…&entity=…&object=…`: the open deviations\nbetween resolved and expected values (REQ-003-24) whose object the caller may read now;\nthose of one object as well (task 021-11p1), under the same filter of reading: an\nobject the caller may not read gives an empty list, as an unknown one (ADR 0021).",
         "tags": [
           "properties"
         ]

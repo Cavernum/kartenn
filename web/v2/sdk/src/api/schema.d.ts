@@ -3672,8 +3672,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * `GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between
-     *     resolved and expected values (REQ-003-24) whose object the caller may read now.
+     * `GET /v1/property-gaps?property=…&domain=…&entity=…&object=…`: the open deviations
+     *     between resolved and expected values (REQ-003-24) whose object the caller may read now;
+     *     those of one object as well (task 021-11p1), under the same filter of reading: an
+     *     object the caller may not read gives an empty list, as an unknown one (ADR 0021).
      */
     get: operations["list_property_gaps"];
     put?: never;
@@ -8854,6 +8856,13 @@ export interface components {
       properties: {
         [key: string]: Record<string, never>;
       };
+      /**
+       * @description Where each value of `properties` comes from, by the same keys; a key of `masked`
+       *     has none (task 021-11p1).
+       */
+      sources: {
+        [key: string]: components["schemas"]["ValueSource"];
+      };
     };
     /** @description The links of the resolved values of an object. */
     ResolvedLinks: {
@@ -9330,6 +9339,18 @@ export interface components {
     Validation: {
       /** @description Operations a module declares « of review », applied with the proposal. */
       operations?: components["schemas"]["Operation"][];
+    };
+    /** @description Where a resolved value comes from (task 021-11p1): its explanation in short. */
+    ValueSource: {
+      /** @description The value is inherited: the object that carries it is another one. */
+      inherited: boolean;
+      origin?: components["schemas"]["Node"] | null;
+      /**
+       * @description How the value was obtained, as stored: `input` (typed), `source:<id>@<version>`
+       *     (the default of a source of expected values, REQ-003-22), or
+       *     `module:<module>#<motif>` (derived by a module).
+       */
+      provenance?: string | null;
     };
     /** @description A version of an object, on both axes (REQ-004-18). */
     Version: {
@@ -22098,6 +22119,8 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The object. */
+        object?: string;
         /** @description The next page, from `links.next`; it freezes the dates and the filters. */
         cursor?: string;
         /** @description The size of a page, 1 to 1 000; 100 by default. */

@@ -1298,7 +1298,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - fait le 2026-11-13 — arbitrages consignés (`decisions.md`, Q-021-23 à 28), REQ-021-18
     amendée (87f0b795) ; découpée en 11p1 à 11p3 (serveur, contrat 006, ajouts seuls)
     puis 11p4 à 11p7 (shell), ci-dessous.
-- [ ] 11p1. Source par valeur et lacunes d'un objet au contrat (Q-021-23, ajout seul) :
+- [x] 11p1. Source par valeur et lacunes d'un objet au contrat (Q-021-23, ajout seul) :
   `Resolved` (`GET /v1/<collection>/{id}/properties`) sert `sources`, par clé de
   `properties`, `{origin, inherited, provenance}` : `origin` le nœud `{kind, id, href}` de
   l'objet qui porte l'assignation, `null` s'il n'est pas lisible (son existence n'est pas
@@ -1323,6 +1323,21 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     openapi`), `node web/sdk/scripts/gen.mjs`, `node web/v2/sdk/scripts/gen.mjs` ;
     `specs/006-api-rest/design.md` (valeurs résolues, écarts)
   - dépend de : 11p
+  - fait le 2026-11-13 — `read::properties_sql` rend le porteur et la provenance de
+    chaque valeur (`ValueSource` de `ObjectRead.sources`, retirée avec la valeur masquée
+    dans `shown_object`) ; `properties::resolved` nomme les porteurs par
+    `visible_nodes` (schéma `ValueSource`) ; `GapFilter` prend `object`, passé à
+    `AnomalyFilter` et à l'audit de la lecture ; contrat (ajouts : `Resolved.sources`,
+    `ValueSource`, paramètre `object`) et SDK régénérés ; design de la 006 suivi. Tests :
+    it `objects::properties_resolve_explain_and_mask` (source directe, héritée d'un
+    ancêtre lisible, d'un ancêtre illisible, clé masquée sans source, origines nommées
+    avec tous les droits), `objects::the_deviations_of_one_object_read_by_its_filter`
+    (objet seul, avec `property`, par pages, illisible comme inconnu, 400) ; unitaire
+    `the_gaps_filter_takes_a_property_a_domain_an_entity_and_an_object`.
+  - choix : `inherited` servi plutôt que déduit de `origin` (un porteur illisible reste
+    dit hérité) ; une clé masquée sans source du tout, plutôt qu'une origine sans valeur
+    (la provenance `source:` pourrait trahir la valeur) ; l'objet lui-même nommé sans
+    lecture de droits (il vient d'être lu sous les siens).
 - [ ] 11p2. Motif et auteur dans `Version` (Q-021-24, ajout seul) : chaque version servie
   (`GET /v1/<collection>/{id}/versions` et partout où le schéma `Version` est rendu)
   porte le motif et l'auteur de son changeset ; l'auteur est une référence d'identité

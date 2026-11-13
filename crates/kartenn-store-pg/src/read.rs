@@ -12,7 +12,16 @@ use kartenn_service::port::{AuditQuery, Reader, Resolved};
 use crate::diff::value_json;
 use crate::temporal::{TemporalError, snapshot};
 
-pub use kartenn_service::port::ObjectRead;
+pub use kartenn_service::port::{ObjectRead, ValueSource};
+
+/// One resolved property of an object: key, value, sensitive, holder, provenance.
+type PropertyRow = (
+    String,
+    Option<serde_json::Value>,
+    bool,
+    Uuid,
+    Option<String>,
+);
 
 fn sql_err(e: &TemporalError) -> sqlx::Error {
     sqlx::Error::Protocol(e.to_string())
@@ -79,7 +88,8 @@ fn objects_sql() -> Result<String, TemporalError> {
 }
 
 /// Resolved values of the properties of `$3`: through its origin for a heritable
-/// property, its own assignment otherwise.
+/// property, its own assignment otherwise; with the object that carries the assignment
+/// and its provenance.
 fn properties_sql() -> Result<String, TemporalError> {
     let declarations = snapshot(
         "property_declaration",
@@ -106,6 +116,7 @@ fn properties_sql() -> Result<String, TemporalError> {
             "v_dates",
             "v_json",
             "v_jsons",
+            "provenance",
         ],
     )?;
     let value = value_json("s.value_type = 'enum'");
@@ -116,7 +127,7 @@ fn properties_sql() -> Result<String, TemporalError> {
                     WHERE d.inherit_tree IS NOT NULL
                     UNION ALL
                     SELECT d.id, d.key, d.value_type, d.sensitive, $3 FROM d WHERE d.inherit_tree IS NULL)
-         SELECT s.key, {value}, s.sensitive FROM s
+         SELECT s.key, {value}, s.sensitive, s.holder, a.provenance FROM s
          -- per holder behind a fence, so that the lookup goes down the union to the
          -- indexes (a join hashed the whole table of assignments: 30 ms on the reference
          -- dataset)
@@ -169,22 +180,28 @@ pub async fn object_in(
     let Some((kind, fields)) = row else {
         return Ok(None);
     };
-    let properties: Vec<(String, Option<serde_json::Value>, bool)> =
+    let rows: Vec<PropertyRow> =
         sqlx::query_as(AssertSqlSafe(properties_sql().map_err(|e| sql_err(&e))?))
             .bind(valid_at)
             .bind(as_of)
             .bind(id)
             .fetch_all(&mut *conn)
             .await?;
-    let sensitive = properties
-        .iter()
-        .filter(|(_, _, sensitive)| *sensitive)
-        .map(|(key, _, _)| key.clone())
-        .collect();
+    let mut properties = std::collections::BTreeMap::new();
+    let mut sources = std::collections::BTreeMap::new();
+    let mut sensitive = std::collections::BTreeSet::new();
+    for (key, value, secret, holder, provenance) in rows {
+        if secret {
+            sensitive.insert(key.clone());
+        }
+        sources.insert(key.clone(), ValueSource { holder, provenance });
+        properties.insert(key, value);
+    }
     Ok(Some(ObjectRead {
         kind,
         fields,
-        properties: properties.into_iter().map(|(k, v, _)| (k, v)).collect(),
+        properties,
+        sources,
         sensitive,
         masked: std::collections::BTreeSet::new(),
     }))

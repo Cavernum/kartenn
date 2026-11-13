@@ -122,7 +122,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   - valeurs résolues (`…/{id}/properties`) : celles de la lecture de l'objet, datées
     (`valid_at`, `as_of`), `{properties: {clé: valeur | null}, masked: [clés]}` (`null` :
     « sans valeur » explicite ; une valeur sensible sans `prop.<clé>.read` est absente et
-    sa clé dans `masked`, REQ-005-21) ; ETag faible du contenu ;
+    sa clé dans `masked`, REQ-005-21) ; ETag faible du contenu ; *ajouté par la 021
+    (11p1, Q-021-23)* : `sources: {clé: {origin, inherited, provenance}}`, la source de
+    chaque valeur rendue (`origin` le nœud `{kind, id, href}` qui porte l'assignation,
+    l'objet ou l'origine dont il hérite, `null` s'il n'est pas lisible ; `inherited` vrai
+    quand ce porteur est un autre objet ; `provenance` comme l'explication) ; une clé de
+    `masked` n'en a pas ;
   - explication : objet gardé comme ses sous-ressources (404), propriété non déclarée à
     la date → 404 ; `{property, value, masked, origin, chain, provenance, replaces}`,
     nœuds `{kind, id, href}` ; un nœud de la chaîne que l'appelant ne lit pas vaut
@@ -133,7 +138,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     qu'aucun module n'en fournit ; calculée sur l'état courant à `valid_at` (`as_of`
     donné → 400) ; `{property, suggestion: {values, explanation} | null}`, masquée et
     auditée comme l'explication ;
-  - écarts : `GET /v1/property-gaps?property=…&domain=…&entity=…`, les anomalies
+  - écarts : `GET /v1/property-gaps?property=…&domain=…&entity=…&object=…` (`object`
+    *ajouté par la 021*, 11p1, Q-021-23, comme A37 pour `/v1/anomalies` : un objet
+    illisible donne une liste vide, comme un inconnu), les anomalies
     ouvertes de la règle `prop.resolution.expected_mismatch` dont l'objet est lisible,
     `{id, property, object, message, opened_at}`. Leur message cite la valeur résolue :
     pour une propriété sensible sans `prop.<clé>.read`, il est remplacé par un texte

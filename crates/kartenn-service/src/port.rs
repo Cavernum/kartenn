@@ -103,12 +103,24 @@ pub struct ObjectRead {
     /// Resolved value of each property the object carries or inherits, by key (closed-list
     /// keys); `None` for an explicit "no value".
     pub properties: BTreeMap<String, Option<serde_json::Value>>,
+    /// Where each value of `properties` comes from, by the same keys (task 021-11p1).
+    pub sources: BTreeMap<String, ValueSource>,
     /// Keys of `properties` declared sensitive (spec 003, REQ-003-27): reading them is
     /// audited (spec 012, REQ-012-18).
     pub sensitive: BTreeSet<String>,
     /// Keys of sensitive properties whose value the reader may not see (005,
-    /// REQ-005-21): absent from `properties`.
+    /// REQ-005-21): absent from `properties` and from `sources`.
     pub masked: BTreeSet<String>,
+}
+
+/// Where a resolved value comes from: the object that carries its assignment, itself or
+/// the origin it inherits from, and how the assignment was obtained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValueSource {
+    /// The object carrying the assignment.
+    pub holder: Uuid,
+    /// Its provenance, as stored: `input`, `source:<id>@<version>` or `module:…`.
+    pub provenance: Option<String>,
 }
 
 /// The resolution of one property for one object, explained (REQ-003-14, REQ-016-1).
