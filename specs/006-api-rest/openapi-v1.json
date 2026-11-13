@@ -3803,11 +3803,8 @@
             "type": "string"
           },
           "name": {
-            "description": "Its display name; `null` for a reader who may not read the identities\n(`core.rbac.read`).",
-            "type": [
-              "string",
-              "null"
-            ]
+            "description": "Its display name, as it reads now: `personne #…` once pseudonymised.",
+            "type": "string"
           }
         },
         "required": [
@@ -13427,14 +13424,14 @@
           },
           "author": {
             "$ref": "#/components/schemas/IdentityRef",
-            "description": "The author of that changeset, as the identities name it at the read (pseudonymised\nonce the person is, REQ-004-33)."
+            "description": "The author of that changeset, as the identities name it at the read (pseudonymised\nonce the person is, REQ-004-33), for whoever reads the object (Q-021-29)."
           },
           "changeset": {
             "$ref": "#/components/schemas/ChangesetRef",
             "description": "The changeset that wrote it."
           },
           "motive": {
-            "description": "The motive of that changeset.",
+            "description": "The motive of that changeset, served with the object (Q-021-30).",
             "type": "string"
           },
           "object": {

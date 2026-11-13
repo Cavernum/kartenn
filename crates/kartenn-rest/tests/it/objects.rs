@@ -541,8 +541,8 @@ async fn history_keeps_the_versions_valid_at_and_known_as_of(pool: PgPool) {
 
 /// The history of an object names the motive and the author of each changeset (task
 /// 021-11p2, Q-021-24): the author read from the identities at each read, so that once
-/// pseudonymised (REQ-004-33) the same history holds neither the name nor the email; a
-/// reader who may not read the identities gets the reference without the name.
+/// pseudonymised (REQ-004-33) the same history holds neither the name nor the email. A
+/// reader of the object reads both, without `core.rbac.read` (Q-021-29, 30).
 #[kartenn_testing::pg_test]
 async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPool) {
     let author: Uuid = sqlx::query_scalar(
@@ -572,12 +572,12 @@ async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPoo
     .await
     .unwrap();
     let uri = format!("/v1/domains/{lab}/history");
-    let mut rights = READ_ALL.to_vec();
-    rights.push("core.rbac.read");
-    let named = app(&pool, person(&pool, &rights, ("global", None)).await);
-    let unnamed = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let reader = app(
+        &pool,
+        person(&pool, &["core.domain.read"], ("global", None)).await,
+    );
 
-    let body = ok(&named, &uri).await;
+    let body = ok(&reader, &uri).await;
     let version = &body["items"][0];
     assert_eq!(version["changeset"]["id"], changeset.to_string(), "{body}");
     assert_eq!(version["motive"], "Bascule des VIP salle B");
@@ -589,12 +589,6 @@ async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPoo
             "name": "Camille Martin",
         })
     );
-    let body = ok(&unnamed, &uri).await;
-    let version = &body["items"][0];
-    assert_eq!(version["motive"], "Bascule des VIP salle B", "{body}");
-    assert_eq!(version["author"]["id"], author.to_string());
-    assert_eq!(version["author"]["name"], Value::Null);
-    assert!(!body.to_string().contains("Camille"), "{body}");
 
     let officer = app(
         &pool,
@@ -614,7 +608,7 @@ async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPoo
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = ok(&named, &uri).await;
+    let body = ok(&reader, &uri).await;
     let text = body.to_string();
     assert!(
         !text.contains("Camille") && !text.contains("Martin"),

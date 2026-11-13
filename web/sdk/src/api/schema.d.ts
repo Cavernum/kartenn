@@ -6417,11 +6417,8 @@ export interface components {
        * @description Identifier.
        */
       id: string;
-      /**
-       * @description Its display name; `null` for a reader who may not read the identities
-       *     (`core.rbac.read`).
-       */
-      name: string | null;
+      /** @description Its display name, as it reads now: `personne #…` once pseudonymised. */
+      name: string;
     };
     /** @description The body that changes the state of an identity. */
     IdentityWrite: components["schemas"]["Reserved"] & components["schemas"]["IdentityPatch"];
@@ -10076,12 +10073,12 @@ export interface components {
       asserted_to?: string | null;
       /**
        * @description The author of that changeset, as the identities name it at the read (pseudonymised
-       *     once the person is, REQ-004-33).
+       *     once the person is, REQ-004-33), for whoever reads the object (Q-021-29).
        */
       author: components["schemas"]["IdentityRef"];
       /** @description The changeset that wrote it. */
       changeset: components["schemas"]["ChangesetRef"];
-      /** @description The motive of that changeset. */
+      /** @description The motive of that changeset, served with the object (Q-021-30). */
       motive: string;
       /** @description The object, as it was. */
       object: components["schemas"]["CoreObject"];

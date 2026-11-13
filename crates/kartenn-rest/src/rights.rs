@@ -1660,14 +1660,12 @@ pub(crate) struct IdentityRef {
     id: Uuid,
     /// Its URL.
     href: String,
-    /// Its display name; `null` for a reader who may not read the identities
-    /// (`core.rbac.read`).
-    #[schema(required = true)]
-    name: Option<String>,
+    /// Its display name, as it reads now: `personne #…` once pseudonymised.
+    name: String,
 }
 
-/// The reference of identity `id`, with its `name` when the reader may read it.
-pub(crate) fn identity_ref(id: Uuid, name: Option<String>) -> IdentityRef {
+/// The reference of identity `id`, named `name`.
+pub(crate) fn identity_ref(id: Uuid, name: String) -> IdentityRef {
     IdentityRef {
         id,
         href: identity_href(id),

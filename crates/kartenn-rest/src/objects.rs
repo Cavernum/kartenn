@@ -25,9 +25,7 @@ use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::expected::Sources;
 use kartenn_service::module::{ModuleRegistry, ObjectType};
-use kartenn_service::reads::{
-    ReadAudit, identities_named, objects_read, read_permission, shown_object,
-};
+use kartenn_service::reads::{ReadAudit, objects_read, read_permission, shown_object};
 use kartenn_service::{RequestError, StoreError};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{self as engine, Condition, FilterError};
@@ -1214,18 +1212,17 @@ struct VersionDto {
     asserted_to: Option<String>,
     /// The changeset that wrote it.
     changeset: ChangesetRef,
-    /// The motive of that changeset.
+    /// The motive of that changeset, served with the object (Q-021-30).
     motive: String,
     /// The author of that changeset, as the identities name it at the read (pseudonymised
-    /// once the person is, REQ-004-33).
+    /// once the person is, REQ-004-33), for whoever reads the object (Q-021-29).
     author: IdentityRef,
     /// The object, as it was.
     object: ObjectDto,
 }
 
-/// A version as served, its author named when `named` (the reader may read the
-/// identities).
-fn version_of(kind: Kind, version: &Version, named: bool) -> Result<VersionDto, Problem> {
+/// A version as served, its author named for whoever reads the object (Q-021-29).
+fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
     let (Some(motive), Some(author)) = (&version.motive, &version.author) else {
         tracing::error!(
@@ -1242,7 +1239,7 @@ fn version_of(kind: Kind, version: &Version, named: bool) -> Result<VersionDto, 
         asserted_to: version.asserted_to.map(at),
         changeset: crate::changesets::summary(version.changeset),
         motive: motive.clone(),
-        author: identity_ref(author.id, named.then(|| author.name.clone())),
+        author: identity_ref(author.id, author.name.clone()),
         object: represent(kind, &version.fields, version.link.as_deref())?,
     })
 }
@@ -1345,7 +1342,6 @@ async fn history(
     if versions.is_empty() && after.is_none() {
         return Err(Problem::new(ProblemKind::NotFound));
     }
-    let named = identities_named(&api.authorizer(), &context).await?;
     let next = (versions.len() > size).then(|| {
         versions.truncate(size);
         let last = &versions[size - 1];
@@ -1364,7 +1360,7 @@ async fn history(
     });
     let items = versions
         .into_iter()
-        .map(|v| version_of(kind, &v, named))
+        .map(|v| version_of(kind, &v))
         .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =
