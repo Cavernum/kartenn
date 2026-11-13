@@ -86,10 +86,15 @@ const READ_ALL: [&str; 6] = [
 ];
 
 fn app(pool: &PgPool, who: Principal) -> Router {
+    app_bounded(pool, who, Duration::from_secs(60))
+}
+
+/// [`app`], the writes bounded by `bound`: past it, a read at `as_of` is frozen.
+fn app_bounded(pool: &PgPool, who: Principal, bound: Duration) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
-        bound: Duration::from_secs(60),
+        bound,
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
@@ -571,11 +576,31 @@ async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPoo
     .fetch_one(&pool)
     .await
     .unwrap();
+    let asserted: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let uri = format!("/v1/domains/{lab}/history");
-    let reader = app(
+    let past = format!(
+        "{uri}?as_of={}",
+        asserted
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+            .replace('+', "%2B")
+    );
+    // No bound on the writes: a second past `asserted`, a read at it is in the frozen
+    // past, and would be `immutable` were its authors not read now.
+    let reader = app_bounded(
         &pool,
         person(&pool, &["core.domain.read"], ("global", None)).await,
+        Duration::ZERO,
     );
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let before = get(&reader, &past).await;
+    assert_eq!(before.status(), StatusCode::OK);
+    assert_eq!(before.headers()["cache-control"], "private, no-cache");
+    let tag = before.headers()["etag"].clone();
+    assert!(json_of(before).await.to_string().contains("Camille Martin"));
 
     let body = ok(&reader, &uri).await;
     let version = &body["items"][0];
@@ -619,6 +644,27 @@ async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPoo
     assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
     assert_eq!(body["items"][0]["author"]["id"], author.to_string());
     assert_eq!(body["items"][0]["motive"], "Bascule des VIP salle B");
+
+    // The history at the same past `as_of` changed too: a new body, a new tag, no 304.
+    let after = reader
+        .clone()
+        .oneshot(common::bearer(
+            Request::get(&past)
+                .header("if-none-match", tag.clone())
+                .body(Body::empty())
+                .unwrap(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(after.status(), StatusCode::OK);
+    assert_eq!(after.headers()["cache-control"], "private, no-cache");
+    assert_ne!(after.headers()["etag"], tag);
+    let body = json_of(after).await;
+    assert_eq!(
+        body["items"][0]["author"]["name"],
+        pseudonym.as_str(),
+        "{body}"
+    );
 }
 
 /// A 404 without what differs from one request to another.

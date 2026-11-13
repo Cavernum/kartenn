@@ -1369,7 +1369,14 @@ async fn history(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
+    // The authors are named as the identities read now: never frozen, even at a past
+    // `as_of`, so that a pseudonymisation reaches the caches (REQ-004-33).
+    Ok(respond_page(
+        &headers,
+        &moment.live(),
+        &items,
+        next.as_deref(),
+    ))
 }
 
 #[cfg(test)]
