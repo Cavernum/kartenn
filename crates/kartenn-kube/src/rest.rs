@@ -1,6 +1,7 @@
 //! The routes of the module under `/v1` (feature `rest`; spec 019, design « Routes »),
 //! mounted by kartenn-server: so far the collection of the clusters (`clusters`), the
-//! reads of the objects the connector mirrors (`mirrors`), the
+//! reads of the objects the connector mirrors (`mirrors`), the chain of execution of a
+//! workload (`chain`, `GET /v1/workloads/{id}/chain`), the
 //! batch of observations of a cluster
 //! (`POST /v1/kube-clusters/{id}/observations`, REQ-019-16; ADR 0043, decisions 2, 3, 5;
 //! Q-019-21 to 23), outside the changesets. Its right, `kube.observation.record`, is
@@ -51,6 +52,8 @@ use crate::module::{
 use crate::observations::{self, Batch, Closing, Invalid, JOURNAL, Line, Opening, RecordError};
 use crate::read::{self, Key, Observation};
 
+/// The chain of execution of a workload (task 019-8c).
+mod chain;
 /// The collection of the clusters (task 019-8a).
 mod clusters;
 /// The reads of the mirrored objects (task 019-8b).
@@ -562,11 +565,13 @@ fn observation_dto(o: Observation) -> Result<ObservationDto, Problem> {
 /// 410 for the journal of a closed object (`what`), once the caller may read it: a closed
 /// cluster or workload is not read, but the answer says so (Q-019-28).
 fn closed(living: bool, what: &str) -> Result<(), Problem> {
-    if living {
-        return Ok(());
-    }
-    Err(Problem::new(ProblemKind::Gone)
-        .detail(format!("{what} is closed: its journal is no longer read")))
+    if living { Ok(()) } else { Err(gone(what)) }
+}
+
+/// 410 for the journal of the closed object `what` (see [`closed`]).
+fn gone(what: &str) -> Problem {
+    Problem::new(ProblemKind::Gone)
+        .detail(format!("{what} is closed: its journal is no longer read"))
 }
 
 /// A read of the journal: the page asked for in `collection`, read at `moment`.
@@ -818,7 +823,7 @@ pub fn routes() -> ModuleRouter {
     .answers("201", "Written.", "KubeObservationBatchRecorded")
     .refuses_batches("Refused whole: the lines that refuse it, by JSON pointer.")
     .build();
-    mirrors::routes(clusters::routes(ModuleRouter::new()))
+    chain::routes(mirrors::routes(clusters::routes(ModuleRouter::new())))
         .routes(documented(
             "/kube-clusters/{id}/observations",
             vec![(HttpMethod::Post, record_op), (HttpMethod::Get, held_op)],

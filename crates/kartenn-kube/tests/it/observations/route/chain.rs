@@ -3,6 +3,9 @@
 //! journaled; and `kube.machine.looks_like_pod` (REQ-019-3; Q-019-32), evaluated by the
 //! module on the machines a changeset writes, the pod never named (Q-019-32, amended).
 
+use axum::Router;
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
 use kartenn_kube::observations::{Batch, Opening};
 use kartenn_kube::read::{Chain, Cut, Link, Reading, execution_chain};
 use kartenn_service::audit::{Instance, RequestContext};
@@ -16,10 +19,11 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
+use tower::ServiceExt;
 
 use super::super::{Env, closing, hours, sync};
 use super::audited;
-use super::read::{Nothing, clock, reader};
+use super::read::{Nothing, as_person, clock, get, reader};
 
 /// `machines.<name>` from its JSON fields.
 fn machines(name: &str, fields: Value) -> Operation {
@@ -422,4 +426,179 @@ async fn looks_like_pod_warns(pool: PgPool) {
     let outcome = submitted(&env, env.admin, vec![close]).await;
     assert!(lookalikes(&outcome).is_empty(), "{outcome:?}");
     assert!(!anomaly(&pool, ct).await);
+}
+
+/// `GET uri` by `app` with `If-None-Match: etag` when given: its status and `ETag`.
+async fn revalidated(app: &Router, uri: &str, etag: Option<&str>) -> (StatusCode, Option<String>) {
+    let mut request = Request::builder()
+        .uri(uri)
+        .header(header::AUTHORIZATION, "Bearer test");
+    if let Some(etag) = etag {
+        request = request.header(header::IF_NONE_MATCH, etag);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let etag = response
+        .headers()
+        .get(header::ETAG)
+        .map(|v| v.to_str().unwrap().to_owned());
+    (response.status(), etag)
+}
+
+/// Task 019-8c (REQ-019-11; Q-019-28, 31): `GET /v1/workloads/{id}/chain` answers the
+/// links of the port at `valid_at` (now by default), with the reasons `retention` and
+/// `unobserved`, a weak `ETag` and a 304 on revalidation; no `as_of`; a workload unknown,
+/// or invisible to the caller, 404 unjournaled; visible without `kube.observation.read`
+/// on the pod domain, 403 journaled; closed, 410 to whoever may read it, unjournaled.
+/// Each chain answered is journaled once, by the port.
+#[kartenn_testing::pg_test]
+async fn chain_route_framed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let owner = json!({"id": env.acme});
+    env.applied(
+        env.admin,
+        vec![machines(
+            "create_machine",
+            json!({"name": "hv-1", "kind": "physical", "owner": owner}),
+        )],
+    )
+    .await;
+    let hv1 = machine(&env, "hv-1").await;
+    env.applied(
+        env.admin,
+        vec![machines(
+            "create_machine",
+            json!({"name": "vm-1", "kind": "virtual", "owner": owner,
+                   "host": {"machine": {"id": hv1}}}),
+        )],
+    )
+    .await;
+    let vm1 = machine(&env, "vm-1").await;
+    env.applied(
+        env.connector,
+        vec![
+            node_on(&env, ("worker-1", "192.0.2.21"), vm1, "198.51.100.0/26"),
+            sync(
+                "workload",
+                env.prod,
+                "api",
+                json!({"namespace": "payments", "kind": "deployment"}),
+            ),
+        ],
+    )
+    .await;
+    let worker1 = node(&env, "worker-1").await;
+    let api: Uuid = sqlx::query_scalar(
+        "SELECT id FROM kube.workload WHERE name = 'api' AND valid_period @> now()",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // A pod of `web` on `worker-1`, seen an hour ago.
+    env.recorded(&Batch {
+        opened: vec![env.pod(1, "198.51.100.17")],
+        closed: Vec::new(),
+    })
+    .await;
+    let now = clock(&pool).await;
+    let chain = |workload: Uuid| format!("/v1/workloads/{workload}/chain");
+    let at = |workload: Uuid, instant: OffsetDateTime| {
+        format!("{}?valid_at={}", chain(workload), super::rfc3339(instant))
+    };
+
+    let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
+    let app = as_person(&pool, who);
+    // Now: the node, its machine and the hypervisor of that machine.
+    let (status, body) = get(&app, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        json!({"links": [{"node": {"id": worker1}, "machine": {"id": vm1},
+                          "hypervisor": {"id": hv1}, "virtualization_cluster": null}],
+               "reason": null})
+    );
+    // Before its pod: no link, no reason.
+    let (status, body) = get(&app, &at(env.web, now - hours(2))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, json!({"links": [], "reason": null}));
+    // Past the retention of the cluster (30 days by default).
+    let (status, body) = get(&app, &at(env.web, now - hours(31 * 24))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, json!({"links": [], "reason": "retention"}));
+    // A workload never observed.
+    let (status, body) = get(&app, &chain(api)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, json!({"links": [], "reason": "unobserved"}));
+    // A weak tag of the content, revalidated.
+    let uri = at(env.web, now);
+    let (status, etag) = revalidated(&app, &uri, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let etag = etag.expect("an ETag");
+    assert!(etag.starts_with("W/"), "{etag}");
+    let (status, _) = revalidated(&app, &uri, Some(&etag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    // No `as_of`, no date without offset: 400.
+    for uri in [
+        format!("{}?as_of={}", chain(env.web), super::rfc3339(now)),
+        format!("{}?valid_at=2026-01-01T00:00:00", chain(env.web)),
+    ] {
+        let (status, problem) = get(&app, &uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {problem}");
+    }
+    // Each chain answered journaled once, by the port.
+    let reads = audited(&pool, "data.objects.read").await;
+    assert_eq!(reads.len(), 6, "{reads:?}");
+    assert!(
+        reads
+            .iter()
+            .all(|r| r.0["criteria"]["read"] == "kube.execution_chain"),
+        "{reads:?}"
+    );
+    assert_eq!(reads[0].2, [Uuid::from_u128(1)]);
+    assert_eq!(reads[0].1, Some(who));
+
+    // Unknown, or invisible to the caller: 404, unjournaled.
+    let nobody = as_person(&pool, reader(&pool, &[], None).await);
+    for (app, workload) in [(&app, Uuid::now_v7()), (&nobody, env.web)] {
+        let (status, problem) = get(app, &chain(workload)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    }
+    assert!(audited(&pool, "authz.access.denied").await.is_empty());
+    // Visible without the right on the pod domain: 403, journaled.
+    let workloads = as_person(&pool, reader(&pool, &["kube.workload.read"], None).await);
+    let (status, problem) = get(&workloads, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{problem}");
+    let denials: Vec<(Value, Vec<Uuid>)> = audited(&pool, "authz.access.denied")
+        .await
+        .into_iter()
+        .map(|(details, _, targets, _)| (details, targets))
+        .collect();
+    assert_eq!(
+        denials,
+        [(
+            json!({"permission": "kube.observation.read"}),
+            vec![env.web]
+        )]
+    );
+
+    // Closed by the connector: 410 to the reader, 404 to anyone else, neither journaled.
+    env.applied(
+        env.connector,
+        vec![super::super::op(
+            "sync",
+            json!({"action": "close", "type": "kube.workload", "cluster": {"id": env.prod},
+                   "name": "web", "namespace": "payments", "kind": "deployment"}),
+        )],
+    )
+    .await;
+    let (status, problem) = get(&app, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::GONE, "{problem}");
+    assert_eq!(problem["type"], "urn:kartenn:problem:gone");
+    let (status, problem) = get(&nobody, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    assert_eq!(audited(&pool, "data.objects.read").await.len(), 6);
+    assert_eq!(audited(&pool, "authz.access.denied").await.len(), 1);
 }

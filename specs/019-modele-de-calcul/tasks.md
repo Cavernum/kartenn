@@ -1856,7 +1856,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     d'un objet de namespace NULL hors des dates de son namespace ferait répondre 500 à la
     liste (improbable, à vérifier) ; ports `u16` au contrat sans maximum, `kind`, `type`,
     `protocol`, `path_type` en chaînes dans les DTO alors que les filtres sont énumérés.
-- [ ] 8c. Chaîne d'exécution `GET /v1/workloads/{id}/chain` sur
+- [x] 8c. Chaîne d'exécution `GET /v1/workloads/{id}/chain` sur
   `read::execution_chain` (Q-019-31) : workload invisible ou absent → 404, visible sans
   `kube.observation.read` sur le domaine des pods → 403 journalisé, clos → 410, motifs
   `retention` et `unobserved`, lecture journalisée par le port — REQ-019-17 (chaîne) —
@@ -1865,6 +1865,24 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`execution_chain`) ; `crates/kartenn-kube/src/rest.rs` (`allowed`,
     `workload_observations`) ; tests `observations/route/chain.rs`
   - dépend de : 8a
+  - fait (2026-11-13) : `kartenn-kube` `rest/chain.rs` (schémas `KubeExecutionChain`,
+    `KubeExecutionLink`, `KubeExecutionChainReason` ; `framed`, puis `allowed` et `closed`
+    de `rest.rs`, puis `read::execution_chain` à `valid_at`, qui journalise seul ; ETag
+    faible du contenu, 304 à la revalidation), `rest.rs` (`gone`, tiré de `closed` ;
+    montage) ; régénérés : `openapi-v1.json` (ajout seul), les deux `schema.d.ts` et
+    `dated.ts`. Test `observations::route::chain::chain_route_framed` (maillon nœud,
+    machine, hyperviseur maintenant ; vide sans motif avant le pod ; `retention` ;
+    `unobserved` ; ETag faible et 304 ; `as_of` et date sans décalage 400 ; six
+    `data.objects.read` pour six chaînes servies, une par lecture ; 404 inconnu et
+    invisible sans refus journalisé ; 403 sous `kube.workload.read` seul, refus journalisé
+    sur le workload ; clos : 410 au lecteur, 404 aux autres, rien de journalisé).
+  - choix : corps `{links, reason}`, maillon `{node, machine, hypervisor,
+    virtualization_cluster}` en références `{id}` (`virtualization_cluster` plutôt que
+    `cluster`, qui désigne partout ailleurs dans le module le cluster Kubernetes) ;
+    `reason` limité à `retention` et `unobserved`, `closed` répondant 410 ; pas d'`as_of`
+    (400) : le port lit les arêtes dans les assertions courantes et le journal n'a pas de
+    temps système ; paramètres inconnus ignorés, comme les lectures d'objet (`Dates`) ;
+    une chaîne close entre le cadre et la lecture répond aussi 410, un `None` du port 404.
 - [ ] 8d. Paramètres du module : `GET, POST /v1/kube-label-mappings`,
   `GET, PATCH, DELETE /v1/kube-label-mappings/{id}`, valeurs admises
   (`PUT /v1/kube-namespaces/{id}/admitted-values`), `GET, PUT /v1/kube-tracked-labels`,

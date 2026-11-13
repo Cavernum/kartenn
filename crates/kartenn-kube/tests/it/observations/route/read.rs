@@ -80,12 +80,12 @@ pub(super) async fn reader(pool: &PgPool, permissions: &[&str], domain: Option<U
 }
 
 /// The router as the person `who`.
-fn as_person(pool: &PgPool, who: Uuid) -> Router {
+pub(super) fn as_person(pool: &PgPool, who: Uuid) -> Router {
     app(pool, principal(who, IdentityKind::Person), None)
 }
 
 /// `GET uri` by `app`: its status and body.
-async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
+pub(super) async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
     let request = Request::builder()
         .uri(uri)
         .header(header::AUTHORIZATION, "Bearer test")
