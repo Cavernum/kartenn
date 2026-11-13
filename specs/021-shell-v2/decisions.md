@@ -488,3 +488,25 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   compteur du brouillon) passent par la même question (`close()` exposé), un changement
   de route qui perdrait la saisie aussi (`ask()` exposé, garde de l'hôte) ; `modified`
   repassé à faux retire la question. Bouton d'annulation : « Continuer la saisie ».
+- **Q-021-23 — Source d'une valeur et lacunes d'un objet** (021-11p, maquette E2) : `Resolved`
+  sert la source de chaque valeur, et `GET /v1/property-gaps` accepte `object=` (comme A37
+  pour les anomalies), en ajout au contrat. Options pesées : ajout au contrat, lectures côté
+  client, retrait de la maquette. Retenu (utilisateur, 2026-11-13) : ajout au contrat.
+- **Q-021-24 — Motif et auteur de l'historique** (021-11p) : `Version` sert le motif et
+  l'auteur de son changeset ; l'auteur est servi comme référence d'identité résolue à la
+  lecture, jamais recopiée, pour que la pseudonymisation (REQ-004-33) l'efface partout.
+  Retenu (utilisateur, 2026-11-13) : « ok pour motif et auteur mais anonymisation » — le
+  nom se lit à un instant donné mais ne doit pas rester accessible au-delà d'une durée de
+  conservation (RGPD). La pseudonymisation existe par personne (004, 005) ; son
+  déclenchement automatique au terme d'une durée de conservation n'existe pas et demande
+  une spec (question ouverte, à rédiger avec l'utilisateur, hors de la 021).
+- **Q-021-25 — Tri des listes** (021-11p) : l'ordre de la clé seul, la maquette amendée ;
+  pas de paramètre `sort`. Retenu (utilisateur, 2026-11-13).
+- **Q-021-26 — Comptes des onglets de la fiche** (021-11p, maquette E2) : retirés de la
+  maquette ; aucune lecture de plus. Retenu (utilisateur, 2026-11-13).
+- **Q-021-27 — Déclarations filtrables** (021-11p) : `GET /v1/property-declarations`
+  accepte `carrier=<sorte>` et `q=` (clé, libellé), en ajout au contrat ; le shell cesse de
+  lire dix pages. Retenu (utilisateur, 2026-11-13).
+- **Q-021-28 — Acceptation de REQ-021-18** (021-11p) : amendée en « préfixes d'un domaine
+  filtrés par `core.site` et `core.owner` » (`core.site` porté par les préfixes seulement,
+  non hérité). Retenu (utilisateur, 2026-11-13).

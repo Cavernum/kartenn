@@ -375,8 +375,9 @@ par autocomplétion depuis l'API ; les filtres sont dans l'URL. [X18, REQ-020-20
 REQ-007-22]
 
 Acceptation :
-- Adresses filtrées par `site = <site>` et `core.owner = <entité>` ; le lien copié rouvre
-  la même vue.
+- Préfixes d'un domaine filtrés par `core.site = <site>` et `core.owner = <entité>` ; le
+  lien copié rouvre la même vue. *Amendée le 2026-11-13 (Q-021-28) : les adresses ne
+  portent pas `core.site`, qui n'est pas hérité (REQ-002-20).*
 
 #### REQ-021-19 — Clé et libellé
 Les objets ne portent que des **clés** ; le shell résout les libellés par un dictionnaire

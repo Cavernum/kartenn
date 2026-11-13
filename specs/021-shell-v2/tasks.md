@@ -1260,8 +1260,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `e2e/journeys/plugins.spec.ts` ; inventaire de `specs/020-systeme-de-design/design.md`
     et de la skill `kartenn-ui`
   - dépend de : 11
-- [ ] 11p. Manques du contrat du référentiel, à arbitrer par l'utilisateur (reportés de la
-  11, cochée le 2026-11-13) : (1) fiche, colonne « Source » des propriétés et encart
+- [ ] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
+  **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
+  au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;
+  ordre de la clé seul ; comptes des onglets retirés ; `carrier` et `q` des déclarations ;
+  REQ-021-18 amendée. À découper en sous-tâches serveur (contrat 006) puis shell avant de
+  lancer. Texte d'origine : (1) fiche, colonne « Source » des propriétés et encart
   « propriété attendue manque » (maquette E2) : `Resolved` ne sert pas la source d'une
   valeur, `GET /v1/property-gaps` n'a pas de filtre `object` (seulement `domain`,
   `entity`) — ajout au contrat (source par valeur, `object` comme A37 pour les anomalies,
