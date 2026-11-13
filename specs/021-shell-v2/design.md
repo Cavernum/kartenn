@@ -330,7 +330,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 | Topographie | `/topology`, `/topology?node=<id>` | arbre des préfixes d'un domaine, contenu du nœud choisi, « + » sur un nœud | place (usage, nature, propriétés) ; valeur par le brouillon, arbre relu | `core.prefix.duplicate`, `core.prefix.unaligned`, `core.address.outside_network`, `core.range.overlap` |
 | Listes des collections | `/domains`, `/prefixes`, `/ranges`, `/addresses`, `/entities`, `/sites` | `DataGrid` par collection, dans l'ordre de la clé servi par l'API, sans tri de colonne (Q-021-25), filtres = paramètres de l'API (`domain`, `value`, `within`, `first`, `nature`, `usage`, `slug`, `parent`, `prop.<clé>`, `:between`, `:exists`) | place ; création en form ; parent d'entité ou de site par menu | `core.slug.duplicate`, `core.anchor.cycle`, `core.domain.immutable`, `prop.assignment.invalid_value` |
 | Fiche d'objet | `/:collection/:id` | attributs, propriétés résolues, leur source (Q-021-23) et leur explication, lacunes de l'objet au-dessus d'elles, occupation, contenu, historique, anomalies, relations, onglets de plugins ; onglets sans compte (Q-021-26) | place, form | `prop.assignment.required`, `prop.resolution.expected_mismatch`, `core.anchor.in_use`, `precondition-failed` |
-| Historique | `/:collection/:id?tab=history` | versions bitemporelles, comparaison de deux versions, lien au changeset | lecture | `changeset.operation.no_version` |
+| Historique | `/:collection/:id?tab=history` | versions bitemporelles, motif du changeset (lien vers lui) et auteur tel que le serveur le nomme (« personne #… » une fois pseudonymisé, Q-021-29, 30), comparaison de deux versions ; grille empilée sous un conteneur étroit | lecture | `changeset.operation.no_version` |
 | Création, modification | form sur toute liste | plusieurs champs d'un coup, même contrat que l'édition en place | form | `core.addr.syntax`, `core.range.bounds` |
 | Anomalies et lacunes | `/anomalies`, `?tab=gaps` | avertissements des règles et propriétés attendues manquantes | menu (acquitter, motif) | codes des règles du cœur et des modules |
 | Propriétés déclarées | `/property-declarations` | catalogue des propriétés | form (administration) | `prop.declaration.invalid` |
@@ -548,7 +548,8 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 
 | Famille | `staleTime` | `gcTime` | Revalidation |
 |---|---|---|---|
-| `as_of` passé (toute requête) | `Infinity` | 30 min | jamais |
+| `as_of` passé (toute requête, sauf l'historique) | `Infinity` | 30 min | jamais |
+| historique d'un objet (`history`), à toute date | 0 | 5 min, 10 pages gardées au plus | à chaque lecture, en `If-None-Match` : servi `no-cache`, ses auteurs nommés au présent (Q-021-29, 021-11p5) |
 | objet, présent ou `valid_at` | 30 s | 10 min | `If-None-Match`, focus, flux |
 | liste (pages) | 30 s | 5 min, 10 pages gardées au plus | idem ; `placeholderData` = page précédente |
 | enfants d'un nœud d'arbre | 30 s | 10 min, 100 pages gardées au plus (`roots`, `children` : `CHILDREN_PAGES`, A34) | idem |
