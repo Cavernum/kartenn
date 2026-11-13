@@ -1161,6 +1161,19 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     let own = declare(&pool, "zone.own", false).await;
     assign(&pool, near, block, "amber", &[net]).await;
     assign(&pool, own, net, "green", &[]).await;
+    // The default of a source of expected values, carried by the invisible /8: its
+    // provenance is served, as by the explanation, its holder not named.
+    let far = declare(&pool, "zone.far", false).await;
+    assign(&pool, far, top, "grey", &[block, net]).await;
+    sqlx::query(
+        "UPDATE property_assignment SET provenance = 'source:inference@3'
+         WHERE object_id = $1 AND property_id = $2",
+    )
+    .bind(top)
+    .bind(far)
+    .execute(&pool)
+    .await
+    .unwrap();
     // With the right to the sensitive value and to the whole tree.
     let mut rights = READ_ALL.to_vec();
     rights.push("prop.site.secret.read");
@@ -1175,7 +1188,9 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     let body = ok(&app, &resolved).await;
     assert_eq!(
         body["properties"],
-        json!({ "policy.zone": "red", "zone.near": "amber", "zone.own": "green" }),
+        json!({
+            "policy.zone": "red", "zone.far": "grey", "zone.near": "amber", "zone.own": "green",
+        }),
         "{body}"
     );
     assert_eq!(body["masked"], json!(["site.secret"]));
@@ -1186,6 +1201,9 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
         body["sources"],
         json!({
             "policy.zone": { "origin": null, "inherited": true, "provenance": "input" },
+            "zone.far": {
+                "origin": null, "inherited": true, "provenance": "source:inference@3",
+            },
             "zone.near": { "origin": node("prefix", block), "inherited": true, "provenance": "input" },
             "zone.own": { "origin": node("prefix", net), "inherited": false, "provenance": "input" },
         }),
@@ -1533,6 +1551,19 @@ async fn the_deviations_of_one_object_read_by_its_filter(pool: PgPool) {
     let mut wanted = vec![zone.to_string(), env.to_string()];
     wanted.sort();
     assert_eq!(own, wanted);
+    // The read is audited with its object among its criteria.
+    let criteria: Value = sqlx::query_scalar(
+        "SELECT details->'criteria' FROM audit.event WHERE name = 'data.objects.read'
+         ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        criteria["property_gaps"]["object"],
+        net.to_string(),
+        "{criteria}"
+    );
     let uri = format!("/v1/property-gaps?object={net}&property=policy.zone");
     assert_eq!(ids_of(&ok(&lab_reader, &uri).await), [zone.to_string()]);
     // Page by page under the filter.
