@@ -1333,7 +1333,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     ancêtre lisible, d'un ancêtre illisible, clé masquée sans source, origines nommées
     avec tous les droits), `objects::the_deviations_of_one_object_read_by_its_filter`
     (objet seul, avec `property`, par pages, illisible comme inconnu, 400) ; unitaire
-    `the_gaps_filter_takes_a_property_a_domain_an_entity_and_an_object`.
+    `the_gaps_filter_takes_a_property_a_domain_an_entity_and_an_object`. Revue : le nœud
+    `{kind, id, href}` a son propre schéma, `NodeRef` (il se confondait avec le `Node`
+    d'une entité ou d'un site : `Explanation.origin`, `chain`, `replaces.origin` étaient
+    typés faux), les transtypages du shell retirés (`ExplanationBody.vue`,
+    `edit/properties.ts`) ; `origin`, `provenance` (et `replaces`) requis, servis à `null`
+    au besoin, dans `ValueSource`, `Explanation` et `Replaced` ; testés en plus : `object`
+    dans les critères d'audit des lacunes, provenance `source:` d'un porteur illisible
+    servie sans le nommer.
   - choix : `inherited` servi plutôt que déduit de `origin` (un porteur illisible reste
     dit hérité) ; une clé masquée sans source du tout, plutôt qu'une origine sans valeur
     (la provenance `source:` pourrait trahir la valeur) ; l'objet lui-même nommé sans
@@ -1401,8 +1408,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
 - [ ] 11p7. Déclarations lues par filtre : `useDeclarations` lit
   `GET /v1/property-declarations?carrier=<sorte>` (filtres typés d'une liste) et `q=`
   (suggestions de clé), au lieu de dix pages au plus — REQ-021-18 — verify : Vitest des
-  vues (une lecture filtrée, plus de plafond), parcours `records` (filtre par propriété
-  déclarée), `k-web2-check --base main`
+  vues (une lecture filtrée, plus de plafond), parcours `records` : l'acceptation amendée
+  de REQ-021-18 (Q-021-28), préfixes d'un domaine filtrés par `core.site` et
+  `core.owner`, les déclarations lues par `carrier=prefix`, le lien copié rouvrant la même
+  vue ; `k-web2-check --base main`
   - où : `web/v2/shell/src/views/data.ts` (`useDeclarations`), ses appelants
     (`list.ts`, `ListView.vue`, `PropertiesView.vue`, `anomalies/GapList.vue`,
     `record/PropertiesTab.vue`, `record/NetworkVlanTab.vue`)
