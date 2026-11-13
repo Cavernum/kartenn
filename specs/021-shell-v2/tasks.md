@@ -1400,11 +1400,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `tests/it/vlan/rest.rs` (historique d'un groupe), fixtures journalisées comme
     `journal()` de `tests/it/objects.rs` ; contrat et SDK comme 11p1
   - dépend de : 11p2
-- [ ] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
+- [x] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
   accepte `carrier=<sorte>` (déclarations dont `carriers` contient la sorte du cœur ou le
-  type qualifié d'un module) et `q=` (sous-chaîne de la clé ou du libellé, sans casse ;
-  libellé du dictionnaire de la 018 dans la langue négociée — si le dictionnaire ne peut
-  être lu par le store, arbitrage avant d'aller plus loin), chacun au plus une fois, le
+  type qualifié d'un module) et `q=` (préfixe de la clé ou d'un libellé, sans casse, en
+  toute langue, comme les autres `q` du contrat, Q-018-8 ; libellés du dictionnaire de la
+  018), chacun au plus une fois, le
   curseur gardant le filtre ; contrat et SDK régénérés, design de la 006 suivi —
   REQ-021-18, REQ-003-* (schéma) — verify : `k-check -p kartenn-rest` (it : filtre par
   porteur, par clé, par libellé, combinés, page suivante sous le même filtre, paramètre
@@ -1415,6 +1415,22 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `properties_resolve_explain_and_mask` (section « The schema ») ; contrat et SDK comme
     11p1
   - dépend de : 11p
+  - choix : écart au texte d'origine (« sous-chaîne », « langue négociée »), tranché par
+    la session principale : `q` est un préfixe de la clé ou d'un libellé d'une langue
+    quelconque, par cohérence avec Q-018-8 et les autres `q` du contrat (`…/{key}/values`,
+    `filter::prefix`, `like_prefix`), et la page passe à 20 éléments avec lui
+    (`suggesting`) ; le dictionnaire des propriétés étant les `labels` de la déclaration
+    (`labels_read::stored`), le store les lit sans arbitrage, et sans négociation de
+    langue (ADR 0040 : `/v1/labels` seule route qui varie selon la langue). Limite connue,
+    pour la 11p7 : par la clé seule, « site » ne trouve pas `core.site` (il faut taper
+    `core.s…`) ; seul un libellé commençant par « Site » le fait sortir. `carrier` accepte une sorte de `CORE_CARRIERS` ou un nom
+    qu'`is_module_kind` reconnaît (jamais `object_kind`, qui interne chaque nom reçu) ;
+    `core.prefix` ou une majuscule → 400, un type de module bien formé que rien ne porte
+    → liste vide. Une déclaration sans porteurs n'existe pas (`CHECK
+    (cardinality(carriers) > 0)`, `prop.declaration.invalid`) : le filtre est
+    `$carrier = ANY(carriers)`, sans cas « toutes sortes ». Le filtre vit dans
+    `DeclarationFilter` du store ; test `declarations_filter_by_carrier_and_prefix` à côté
+    de `properties_resolve_explain_and_mask`, dont la section « The schema » est inchangée.
 - [x] 11p4. Fiche, colonne « Source » et encart des lacunes (maquette E2) : `PropertiesTab`
   lit `sources` (directe, héritée de l'origine nommée par sa référence, héritée d'un
   ancêtre illisible, provenance `source:`/`module:` dite selon la maquette, masquée) et,

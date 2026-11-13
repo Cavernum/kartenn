@@ -71,8 +71,20 @@ fn decoded(
     }
 }
 
+/// The declarations a list keeps (task 021-11p3, Q-021-27); each filter is off when
+/// `None`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DeclarationFilter<'a> {
+    /// A kind of the core or a qualified type of a module, among the carriers.
+    pub carrier: Option<&'a str>,
+    /// A prefix, lower-cased, of the key or of one of the labels, in any language,
+    /// ignoring case (spec 018, REQ-018-22).
+    pub prefix: Option<&'a str>,
+}
+
 /// The declarations at `(valid_at, as_of)` whose key is `$3` (when not null) or after
-/// `$4` (when not null), by key, at most `$5`.
+/// `$4` (when not null), carried by `$6` (when not null), whose key or a label matches
+/// the `LIKE` pattern `$7` (when not null), by key, at most `$5`.
 fn declarations_sql() -> Result<String, TemporalError> {
     let declaration = snapshot(
         "property_declaration",
@@ -95,12 +107,16 @@ fn declarations_sql() -> Result<String, TemporalError> {
                 sensitive, expected_source, expected_mode, labels
          FROM {declaration} d
          WHERE ($3::text IS NULL OR key = $3) AND ($4::text IS NULL OR key > $4)
+           AND ($6::text IS NULL OR $6 = ANY(carriers))
+           AND ($7::text IS NULL OR key LIKE $7
+                OR EXISTS (SELECT FROM jsonb_each_text(labels) l
+                           WHERE lower(l.value) LIKE $7))
          ORDER BY key LIMIT $5"
     ))
 }
 
-/// The declarations valid at `valid_at` as asserted at `as_of` (now when `None`), by
-/// key, after `after`, at most `limit`.
+/// The declarations valid at `valid_at` as asserted at `as_of` (now when `None`) that
+/// `filter` keeps, by key, after `after`, at most `limit`.
 ///
 /// # Errors
 ///
@@ -109,6 +125,7 @@ pub async fn declarations(
     pool: &PgPool,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
+    filter: DeclarationFilter<'_>,
     after: Option<&str>,
     limit: i64,
 ) -> sqlx::Result<Vec<DeclarationRead>> {
@@ -119,6 +136,8 @@ pub async fn declarations(
             .bind(None::<String>)
             .bind(after)
             .bind(limit)
+            .bind(filter.carrier)
+            .bind(filter.prefix.map(crate::list::like_prefix))
             .fetch_all(pool)
             .await?;
     Ok(rows.into_iter().map(decoded).collect())
@@ -142,6 +161,8 @@ pub async fn declaration(
             .bind(key)
             .bind(None::<String>)
             .bind(1_i64)
+            .bind(None::<String>)
+            .bind(None::<String>)
             .fetch_optional(pool)
             .await?;
     Ok(row.map(decoded))

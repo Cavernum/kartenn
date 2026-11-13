@@ -1449,6 +1449,109 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     .await;
 }
 
+/// Declares `key`, carried by `carriers`, labelled by `labels` (`{<tag>: <text>}`).
+async fn declare_for(pool: &PgPool, key: &str, carriers: &[&str], labels: Value) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, sensitive, labels, valid_period,
+                                           changeset_id)
+         VALUES (gen_random_uuid(), $1, 'bool', 'single', $2, '{{}}', false, $3, {SINCE})"
+    )))
+    .bind(key)
+    .bind(carriers)
+    .bind(labels)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// The keys of a page of declarations, and the link to the next one.
+async fn declared(app: &Router, uri: &str) -> (Vec<String>, Option<String>) {
+    let body = ok(app, uri).await;
+    let keys = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["key"].as_str().unwrap().to_owned())
+        .collect();
+    let next = body["links"]["next"].as_str().map(str::to_owned);
+    (keys, next)
+}
+
+#[kartenn_testing::pg_test]
+async fn declarations_filter_by_carrier_and_prefix(pool: PgPool) {
+    declare_for(
+        &pool,
+        "policy.zone",
+        &["prefix"],
+        json!({ "fr": "Zone de sécurité", "en": "Security zone" }),
+    )
+    .await;
+    declare_for(&pool, "qos.class", &["address"], json!({ "en": "Class" })).await;
+    declare_for(
+        &pool,
+        "site.code",
+        &["site", "prefix"],
+        json!({ "en": "Code" }),
+    )
+    .await;
+    declare_for(&pool, "lab.slot", &["lab.rack"], json!({})).await;
+    let app = app(&pool, person(&pool, &[], ("global", None)).await);
+    let list = "/v1/property-declarations";
+    let keys = |found: &[&str]| found.iter().map(|k| (*k).to_owned()).collect::<Vec<_>>();
+
+    // By carrier: a kind of the core, a qualified type of a module, a type none carries.
+    let (found, _) = declared(&app, &format!("{list}?carrier=prefix")).await;
+    assert_eq!(found, keys(&["policy.zone", "site.code"]));
+    let (found, _) = declared(&app, &format!("{list}?carrier=lab.rack")).await;
+    assert_eq!(found, keys(&["lab.slot"]));
+    let (found, _) = declared(&app, &format!("{list}?carrier=lab.shelf")).await;
+    assert!(found.is_empty(), "{found:?}");
+    // By prefix of the key, of a label in any language, ignoring case.
+    let (found, _) = declared(&app, &format!("{list}?q=Site")).await;
+    assert_eq!(found, keys(&["site.code"]));
+    let (found, _) = declared(&app, &format!("{list}?q=zone")).await;
+    assert_eq!(found, keys(&["policy.zone"]));
+    let (found, _) = declared(&app, &format!("{list}?q=SECU")).await;
+    assert_eq!(found, keys(&["policy.zone"]));
+    let (found, _) = declared(&app, &format!("{list}?q=%25")).await;
+    assert!(
+        found.is_empty(),
+        "a LIKE wildcard is a character: {found:?}"
+    );
+    // Both: `s` starts « Security zone » and `site.code`, only the latter on a site.
+    let (found, _) = declared(&app, &format!("{list}?q=s")).await;
+    assert_eq!(found, keys(&["policy.zone", "site.code"]));
+    let (found, _) = declared(&app, &format!("{list}?carrier=site&q=s")).await;
+    assert_eq!(found, keys(&["site.code"]));
+
+    // The next page keeps the filter: `qos.class`, between the two, is left out.
+    let (found, next) = declared(&app, &format!("{list}?carrier=prefix&page_size=1")).await;
+    assert_eq!(found, keys(&["policy.zone"]));
+    let (found, next) = declared(&app, &next.unwrap()).await;
+    assert_eq!(found, keys(&["site.code"]));
+    assert_eq!(next, None);
+    let (found, next) = declared(&app, &format!("{list}?q=c&page_size=1")).await;
+    assert_eq!(found, keys(&["qos.class"]));
+    let (found, _) = declared(&app, &next.unwrap()).await;
+    assert_eq!(found, keys(&["site.code"]));
+
+    // A parameter given twice, empty, malformed or unknown: 400.
+    for query in [
+        "carrier=prefix&carrier=site",
+        "q=s&q=z",
+        "carrier=",
+        "q=",
+        "carrier=core.prefix",
+        "carrier=Prefix",
+        "carrier=nothing",
+        "kind=prefix",
+    ] {
+        let response = get(&app, &format!("{list}?{query}")).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{query}");
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
