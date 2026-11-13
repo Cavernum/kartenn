@@ -4212,6 +4212,499 @@
         ],
         "type": "object"
       },
+      "KubeClosure": {
+        "description": "The optional body of the closure of a cluster.",
+        "properties": {
+          "cascade": {
+            "description": "Also close what cites the cluster: its nodes and namespaces, and theirs.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "valid_from": {
+            "description": "The start of the closure, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
+      "KubeCluster": {
+        "description": "A declared cluster (REQ-019-5).",
+        "properties": {
+          "batch_max_operations": {
+            "description": "The most operations of a batch of its connector, 1 to 10 000.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "batch_window_seconds": {
+            "description": "The window of a batch of its connector, in seconds, 1 to 300.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "connector_group": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The group of kartenn of its connector."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "create_node_machines": {
+            "description": "Whether a node with no machine creates one.",
+            "type": "boolean"
+          },
+          "external_domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The addressing domain of its `LoadBalancer` addresses and `externalIPs`; those of\nthe services when `null`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "machines_cluster": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The cluster of machines (`machines.cluster`) it runs on, shown only."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "Its resolved owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pod_containers": {
+            "description": "The containers of the core that hold its pod ranges.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "pod_domain": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The addressing domain of its pods (and of its nodes and namespaces)."
+          },
+          "retention_days": {
+            "description": "The days its observations are kept, 1 to 400.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "service_domain": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The addressing domain of its services."
+          },
+          "service_networks": {
+            "description": "The networks of the core of its services.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "Its resolved site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug, unique among the living clusters.",
+            "type": "string"
+          },
+          "tracked_label_keys": {
+            "description": "The label keys it tracks beyond those of the module.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "pod_domain",
+          "service_domain",
+          "pod_containers",
+          "service_networks",
+          "retention_days",
+          "tracked_label_keys",
+          "batch_window_seconds",
+          "batch_max_operations",
+          "create_node_machines",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeClusterCreation": {
+        "description": "The body of the declaration of a cluster.",
+        "properties": {
+          "batch_max_operations": {
+            "description": "1 to 10 000; 500 by default.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "batch_window_seconds": {
+            "description": "1 to 300; 10 by default.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "connector_group": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The group of kartenn of its connector."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "create_node_machines": {
+            "description": "`false` by default.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "external_domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The addressing domain of its external addresses; those of the services by default."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machines_cluster": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The cluster of machines it runs on."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The owner (`core.owner`)."
+          },
+          "pod_containers": {
+            "description": "Containers of the pod domain; none by default.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pod_domain": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The addressing domain of its pods."
+          },
+          "retention_days": {
+            "description": "1 to 400; 30 by default.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "service_domain": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The addressing domain of its services."
+          },
+          "service_networks": {
+            "description": "Networks of the service domain; none by default.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The site (`core.site`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": "string"
+          },
+          "tracked_label_keys": {
+            "description": "Label keys tracked beyond those of the module; none by default.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive",
+          "slug",
+          "owner",
+          "pod_domain",
+          "service_domain"
+        ],
+        "type": "object"
+      },
+      "KubeClusterPatch": {
+        "description": "The body of the modification of a cluster (JSON Merge Patch); `null` removes `site`,\n`external_domain`, `machines_cluster` and `connector_group`.",
+        "properties": {
+          "batch_max_operations": {
+            "description": "1 to 10 000.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "batch_window_seconds": {
+            "description": "1 to 300.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "connector_group": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The group of kartenn of its connector."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "create_node_machines": {
+            "description": "Whether a node with no machine creates one.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "external_domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The addressing domain of its external addresses."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machines_cluster": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The cluster of machines it runs on."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motive": {
+            "description": "Why; required by the rules.",
+            "type": "string"
+          },
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The owner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pod_containers": {
+            "description": "Containers of the pod domain.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pod_domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The addressing domain of its pods, refused while it has living objects."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_days": {
+            "description": "1 to 400.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "service_domain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The addressing domain of its services."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_networks": {
+            "description": "Networks of the service domain.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "site": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The site."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "description": "Slug.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tracked_label_keys": {
+            "description": "Label keys tracked beyond those of the module.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "The start of the period of the write, RFC 3339; now by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_to": {
+            "description": "The end of the period of the write, RFC 3339; unbounded by default.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "motive"
+        ],
+        "type": "object"
+      },
       "KubeObjectRef": {
         "additionalProperties": false,
         "description": "The identifier of an object of the cluster (006/H3).",
@@ -5588,6 +6081,27 @@
             "description": "The elements of the page.",
             "items": {
               "$ref": "#/components/schemas/Interface"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_KubeCluster": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeCluster"
             },
             "type": "array"
           },
@@ -26507,6 +27021,514 @@
         "tags": [
           "properties"
         ]
+      }
+    },
+    "/v1/kube-clusters": {
+      "get": {
+        "operationId": "list_kube_clusters",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "slug",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeCluster"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The clusters the caller may read (REQ-019-38), by slug.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "post": {
+        "operationId": "create_kube_cluster",
+        "parameters": [
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "approval",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KubeClusterCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Declares a cluster (REQ-019-5): its slug, owner, pod and service domains are required; the ranges cited lie in the domains it designates.",
+        "tags": [
+          "kube"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      },
+      "x-kartenn": {
+        "columns": [
+          "slug",
+          "owner",
+          "site",
+          "pod_domain",
+          "service_domain"
+        ],
+        "key": [
+          "slug"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_clusters",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeCluster"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The clusters the caller may read (REQ-019-38), by slug.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/kube-clusters/{id}": {
+      "delete": {
+        "operationId": "close_kube_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version (\"<version>\") is accepted too.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "approval",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KubeClosure"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Closes the cluster.",
+        "tags": [
+          "kube"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      },
+      "get": {
+        "operationId": "show_kube_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeCluster"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The cluster.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "patch": {
+        "operationId": "modify_kube_cluster",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version (\"<version>\") is accepted too.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "approval",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/KubeClusterPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Modified. Simulated with `simulate=true`: `ChangesetSimulated`."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Modifies the declaration of the cluster (JSON Merge Patch).",
+        "tags": [
+          "kube"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
       }
     },
     "/v1/kube-clusters/{id}/history": {

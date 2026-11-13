@@ -1757,6 +1757,91 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : design « Routes » ; `crates/kartenn-machines/src/rest.rs` ;
     `kartenn-server openapi`
   - dépend de : 5, 6, 7
+  - découpée (2026-11-13) en 8a (clusters), 8b (lectures des objets miroirs), 8c
+    (chaîne d'exécution), 8d (paramètres) et 8e (rôles livrés, événements, catalogue) :
+    plus d'une collection, des filtres par type et deux restes de contrat à trancher
+    (8d). Les rôles livrés reçoivent déjà les `kube.<type>.read` et `apply` des
+    modules par `BuiltinRole::entries_with` (sans `observation`, sans les globales) ;
+    les imports passent par `POST /v1/imports`, opérations de module comprises
+    (REQ-008-23), sans route propre au module.
+- [x] 8a. Routes des clusters : `GET, POST /v1/kube-clusters` (filtre `?slug=`,
+  suggestion `q`), `GET, PATCH, DELETE /v1/kube-clusters/{id}` (`kube.create_cluster`,
+  `kube.update_cluster` en JSON Merge Patch sous `If-Match`, clôture par le noyau),
+  lectures datées (`valid_at`, `as_of`) et journalisées, `x-kartenn` (clé `slug`) —
+  REQ-019-38 (clusters) — verify : tests HTTP (création 201 et `Location`, liste par
+  `slug`, lecture et `ETag`, `PATCH` 200, 412 sur une version périmée, 428 sans
+  `If-Match`, `DELETE` ; cluster invisible ou absent → 404), contrat de référence (ajout
+  seul), types du SDK régénérés
+  - où : design « Routes », « Données » (`cluster`) ; `crates/kartenn-kube/src/rest.rs`
+    (`routes`) ; à imiter : `crates/kartenn-machines/src/rest.rs` (`list_clusters`,
+    `show_cluster`, `collection_routes`, `CLUSTER_WRITES`) ;
+    `crates/kartenn-kube/src/handler.rs` (`CLUSTER_FIELDS`, `cluster_columns`) ; tests
+    voisins `crates/kartenn-kube/tests/it/observations/route.rs` (`app`, `person`)
+  - dépend de : 7
+  - fait (2026-11-13) : `kartenn-kube` `rest/clusters.rs` (schémas `KubeCluster`,
+    `KubeClusterCreation`, `KubeClusterPatch`, `KubeClosure`, `Listing_KubeCluster` ;
+    `list` par slug, `slug` et `q`, `QUERY` ; `show` sous `kit::gate` ; écritures par
+    `kit::create`, `kit::modify_nullable`, `kit::close` ; `x-kartenn` clé `slug`),
+    `rest.rs` (`routes` monte la collection), `module.rs` (`cluster_type`) ; régénérés :
+    `openapi-v1.json` (ajout seul), les deux `schema.d.ts`, `dated.ts` et `filters.ts`.
+    Tests `observations::route::clusters::cluster_routes_round_trip` (201 et `Location`,
+    valeurs par défaut du handler, slug en double 422, liste par `slug`, `q`, ordre par
+    slug, paramètre inconnu 400, lecture égale à l'élément de liste avec `ETag`, absent
+    avant sa création, `PATCH` 428 sans `If-Match`, `pod_domain: null` 422, 200, 412
+    sur la version lue, `as_of` d'avant le changement, `DELETE` puis 404 et hors de la
+    liste), `cluster_unreadable_is_absent` (liste vide et 404 sans `kube.cluster.read`,
+    404 d'un identifiant inconnu, liste sous `kube.cluster.read`).
+  - choix : la collection vit dans un sous-module `rest/clusters.rs` (les suivantes de
+    la 8 à côté) ; un `PATCH` accepte les membres de la création, `null` seulement pour
+    `site`, `external_domain`, `machines_cluster` et `connector_group` (les autres
+    refusés 422 par le kit, `pod_domain` et `service_domain` aussi par le handler) ;
+    colonnes par défaut `slug`, `owner`, `site`, `pod_domain`, `service_domain` ; tests
+    sous `observations/route/`, qui porte déjà l'application et l'environnement des
+    routes du module.
+- [ ] 8b. Lectures des objets miroirs : `GET /v1/kube-nodes`, `/v1/kube-namespaces`,
+  `/v1/workloads`, `/v1/kube-services`, `/v1/ingresses` (+ `/{id}`), sans écriture ;
+  filtres de REQ-019-38 (cluster, namespace, nom, sorte, label suivi, machine, état
+  absent), lectures datées et journalisées, `x-kartenn` (clé naturelle) — REQ-019-38,
+  39 (lecteur) — verify : tests HTTP par type et par filtre,
+  `reader_reads_workloads_not_observations` (rôle livré `reader` : workloads 200,
+  journal 403), contrat (ajout seul), SDK
+  - où : design « Routes », « Données » ; `crates/kartenn-kube/src/rest.rs` ; les
+    listes de `crates/kartenn-machines/src/rest.rs` (`machines_page`, `MachineFilter`) ;
+    tests de la 8a
+  - dépend de : 8a
+- [ ] 8c. Chaîne d'exécution `GET /v1/workloads/{id}/chain` sur
+  `read::execution_chain` (Q-019-31) : workload invisible ou absent → 404, visible sans
+  `kube.observation.read` sur le domaine des pods → 403 journalisé, clos → 410, motifs
+  `retention` et `unobserved`, lecture journalisée par le port — REQ-019-17 (chaîne) —
+  verify : tests HTTP, contrat (ajout seul), SDK
+  - où : design « Port de lecture », « Routes » ; `crates/kartenn-kube/src/read.rs`
+    (`execution_chain`) ; `crates/kartenn-kube/src/rest.rs` (`allowed`,
+    `workload_observations`) ; tests `observations/route/chain.rs`
+  - dépend de : 8a
+- [ ] 8d. Paramètres du module : `GET, POST /v1/kube-label-mappings`,
+  `GET, PATCH, DELETE /v1/kube-label-mappings/{id}`, valeurs admises
+  (`PUT /v1/kube-namespaces/{id}/admitted-values`), `GET, PUT /v1/kube-tracked-labels`,
+  un changeset d'une opération sous `If-Match` ; lecture par le connecteur — REQ-019-34,
+  39 (paramètres) — verify : tests HTTP, contrat (ajout seul), SDK
+  - où : design « Routes », « Opérations » ; `decisions.md` Q-019-35 ;
+    `crates/kartenn-kube/src/settings.rs` ; tests de la 8a
+  - dépend de : 8a ; arbitrage : la lecture des valeurs admises (collection
+    `kube-admitted-values`, déjà servie par le noyau pour l'historique et les
+    propriétés, absente du design des routes) et la lecture des paramètres globaux par
+    un connecteur lié aux seuls domaines de son cluster (restes de la 7c)
+- [ ] 8e. Rôles livrés, événements et catalogue : `reader`, `editor`, `approver`
+  tiennent les `kube.<type>.read`, `approver` les `kube.<type>.apply`, aucun
+  `kube.observation.*` ni `kube.settings.*` ; un abonné filtré sur `types=kube.workload`
+  reçoit un événement `changes` par lot qui touche un workload visible, aucun pour un
+  lot qui ne touche que des services, aucun pour un lot d'observations ;
+  `docs/spec/permissions.md` régénéré — REQ-019-39, 40 — verify :
+  `delivered_roles_read_kube`, `changes_filtered_by_kube_type`, `docs/spec/permissions.md`
+  - où : `crates/kartenn-server/src/modules.rs`
+    (`no_delivered_role_holds_an_observation_permission`) ;
+    `crates/kartenn-core/src/authz.rs` (`entries_with`) ;
+    `crates/kartenn-kube/tests/it/observations/route.rs`
+    (`batch_emits_no_changes_event`, `Stream`)
+  - dépend de : 8b
 
 ## File B — Connecteur
 

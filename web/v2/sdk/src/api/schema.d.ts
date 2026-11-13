@@ -2157,6 +2157,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-clusters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The clusters the caller may read (REQ-019-38), by slug. */
+    get: operations["list_kube_clusters"];
+    put?: never;
+    /** Declares a cluster (REQ-019-5): its slug, owner, pod and service domains are required; the ranges cited lie in the domains it designates. */
+    post: operations["create_kube_cluster"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-clusters/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The cluster. */
+    get: operations["show_kube_cluster"];
+    put?: never;
+    post?: never;
+    /** Closes the cluster. */
+    delete: operations["close_kube_cluster"];
+    options?: never;
+    head?: never;
+    /** Modifies the declaration of the cluster (JSON Merge Patch). */
+    patch: operations["modify_kube_cluster"];
+    trace?: never;
+  };
   "/v1/kube-clusters/{id}/history": {
     parameters: {
       query?: never;
@@ -6327,6 +6364,152 @@ export interface components {
       /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
       id: string;
     };
+    /** @description The optional body of the closure of a cluster. */
+    KubeClosure: {
+      /** @description Also close what cites the cluster: its nodes and namespaces, and theirs. */
+      cascade?: boolean | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The start of the closure, RFC 3339; now by default. */
+      valid_from?: string | null;
+    };
+    /** @description A declared cluster (REQ-019-5). */
+    KubeCluster: {
+      /**
+       * Format: int32
+       * @description The most operations of a batch of its connector, 1 to 10 000.
+       */
+      batch_max_operations: number;
+      /**
+       * Format: int32
+       * @description The window of a batch of its connector, in seconds, 1 to 300.
+       */
+      batch_window_seconds: number;
+      connector_group?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Whether a node with no machine creates one. */
+      create_node_machines: boolean;
+      external_domain?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      machines_cluster?: components["schemas"]["KubeObjectRef"] | null;
+      owner?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description The containers of the core that hold its pod ranges. */
+      pod_containers: components["schemas"]["KubeObjectRef"][];
+      /** @description The addressing domain of its pods (and of its nodes and namespaces). */
+      pod_domain: components["schemas"]["KubeObjectRef"];
+      /**
+       * Format: int32
+       * @description The days its observations are kept, 1 to 400.
+       */
+      retention_days: number;
+      /** @description The addressing domain of its services. */
+      service_domain: components["schemas"]["KubeObjectRef"];
+      /** @description The networks of the core of its services. */
+      service_networks: components["schemas"]["KubeObjectRef"][];
+      site?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Slug, unique among the living clusters. */
+      slug: string;
+      /** @description The label keys it tracks beyond those of the module. */
+      tracked_label_keys: string[];
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+    };
+    /** @description The body of the declaration of a cluster. */
+    KubeClusterCreation: {
+      /**
+       * Format: int32
+       * @description 1 to 10 000; 500 by default.
+       */
+      batch_max_operations?: number | null;
+      /**
+       * Format: int32
+       * @description 1 to 300; 10 by default.
+       */
+      batch_window_seconds?: number | null;
+      connector_group?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description `false` by default. */
+      create_node_machines?: boolean | null;
+      external_domain?: components["schemas"]["KubeObjectRef"] | null;
+      machines_cluster?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      /** @description The owner (`core.owner`). */
+      owner: components["schemas"]["KubeObjectRef"];
+      /** @description Containers of the pod domain; none by default. */
+      pod_containers?: components["schemas"]["KubeObjectRef"][] | null;
+      /** @description The addressing domain of its pods. */
+      pod_domain: components["schemas"]["KubeObjectRef"];
+      /**
+       * Format: int32
+       * @description 1 to 400; 30 by default.
+       */
+      retention_days?: number | null;
+      /** @description The addressing domain of its services. */
+      service_domain: components["schemas"]["KubeObjectRef"];
+      /** @description Networks of the service domain; none by default. */
+      service_networks?: components["schemas"]["KubeObjectRef"][] | null;
+      site?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Slug. */
+      slug: string;
+      /** @description Label keys tracked beyond those of the module; none by default. */
+      tracked_label_keys?: string[] | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
+    /**
+     * @description The body of the modification of a cluster (JSON Merge Patch); `null` removes `site`,
+     *     `external_domain`, `machines_cluster` and `connector_group`.
+     */
+    KubeClusterPatch: {
+      /**
+       * Format: int32
+       * @description 1 to 10 000.
+       */
+      batch_max_operations?: number | null;
+      /**
+       * Format: int32
+       * @description 1 to 300.
+       */
+      batch_window_seconds?: number | null;
+      connector_group?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Whether a node with no machine creates one. */
+      create_node_machines?: boolean | null;
+      external_domain?: components["schemas"]["KubeObjectRef"] | null;
+      machines_cluster?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Why; required by the rules. */
+      motive: string;
+      owner?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Containers of the pod domain. */
+      pod_containers?: components["schemas"]["KubeObjectRef"][] | null;
+      pod_domain?: components["schemas"]["KubeObjectRef"] | null;
+      /**
+       * Format: int32
+       * @description 1 to 400.
+       */
+      retention_days?: number | null;
+      service_domain?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Networks of the service domain. */
+      service_networks?: components["schemas"]["KubeObjectRef"][] | null;
+      site?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Slug. */
+      slug?: string | null;
+      /** @description Label keys tracked beyond those of the module. */
+      tracked_label_keys?: string[] | null;
+      /** @description The start of the period of the write, RFC 3339; now by default. */
+      valid_from?: string | null;
+      /** @description The end of the period of the write, RFC 3339; unbounded by default. */
+      valid_to?: string | null;
+    };
     /** @description The identifier of an object of the cluster (006/H3). */
     KubeObjectRef: {
       /** Format: uuid */
@@ -6897,6 +7080,13 @@ export interface components {
     Listing_Interface: {
       /** @description The elements of the page. */
       items: components["schemas"]["Interface"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_KubeCluster: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeCluster"][];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -17307,6 +17497,264 @@ export interface operations {
       };
     };
   };
+  list_kube_clusters: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        slug?: string;
+        /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeCluster"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_kube_cluster: {
+    parameters: {
+      query?: {
+        /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        approval?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KubeClusterCreation"];
+      };
+    };
+    responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_cluster: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeCluster"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_kube_cluster: {
+    parameters: {
+      query?: {
+        /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        approval?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header: {
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
+        "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["KubeClosure"];
+      };
+    };
+    responses: {
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  modify_kube_cluster: {
+    parameters: {
+      query?: {
+        /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        approval?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header: {
+        /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
+        "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["KubeClusterPatch"];
+      };
+    };
+    responses: {
+      /** @description Modified. Simulated with `simulate=true`: `ChangesetSimulated`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_cluster_history: {
     parameters: {
       query?: {
@@ -25693,6 +26141,10 @@ export interface queries {
   "/v1/interfaces": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Interface"];
+  };
+  "/v1/kube-clusters": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeCluster"];
   };
   "/v1/machines": {
     body: components["schemas"]["Search"];
