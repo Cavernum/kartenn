@@ -1848,7 +1848,14 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - reste : aucun index sur `name` pour l'ordre d'une page ni de banc des listes (budgets
     de la 16) ; le filtre `label` ne prend qu'un label (pas de `label.{clé}` en gabarit,
     faute d'une collection des clés suivies avant la 8d) ; le filtre `cluster` d'un objet
-    de namespace passe par les namespaces du cluster aux dates de la lecture.
+    de namespace passe par les namespaces du cluster aux dates de la lecture. Revue
+    (mineurs) : dates des critères journalisés toujours à six chiffres de fraction
+    (`….500000Z`), alors que les autres modules coupent les zéros (`well_known::Rfc3339`) —
+    une fonction commune du kit ; `machine=` testé seulement sur un identifiant inconnu ;
+    pagination `(name, id)` générique sans test (`page_size` puis `next`) ; `cluster_id`
+    d'un objet de namespace NULL hors des dates de son namespace ferait répondre 500 à la
+    liste (improbable, à vérifier) ; ports `u16` au contrat sans maximum, `kind`, `type`,
+    `protocol`, `path_type` en chaînes dans les DTO alors que les filtres sont énumérés.
 - [ ] 8c. Chaîne d'exécution `GET /v1/workloads/{id}/chain` sur
   `read::execution_chain` (Q-019-31) : workload invisible ou absent → 404, visible sans
   `kube.observation.read` sur le domaine des pods → 403 journalisé, clos → 410, motifs
