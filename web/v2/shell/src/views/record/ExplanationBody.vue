@@ -1,19 +1,23 @@
 <script setup lang="ts">
 // The explanation of a resolved property (REQ-021-9, REQ-003-14, 15; maquette E2): where its
 // value comes from — set on the object itself, inherited from an origin through a chain of
-// objects walked up to it, or inferred by a rule — read when its popover opens, at the
-// dates of the page. A value a module derived (`module:<module>#<motif>`, ADR 0026,
-// amendment 14) is said so, not as one typed (task 021-13d). Its three states: a few lines
-// of skeleton, the explanation, the error with its codes.
+// objects walked up to it, inherited from an object the caller may not read, the default
+// of a source or derived by a module — read when its popover opens, at the dates of the
+// page. Classed as the column « Source » classes it (`explanationOriginOf`, task
+// 021-11p4): the first sentence says what the cell says, in its words (`ValueSource`); an
+// inherited value then says its provenance too when a source or a module gave it (task
+// 021-13d), which the cell leaves to the explanation. Its three states: a few lines of
+// skeleton, the explanation, the error with its codes.
 import { reads, type components } from "@kartenn/sdk";
-import { CodeBadge, Skeleton } from "@kartenn/ui";
+import { Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import ObjectName from "./ObjectName.vue";
-import { provenanceOf } from "./provenance.ts";
+import { derivedOf, explanationOriginOf } from "./provenance.ts";
+import ValueSource from "./ValueSource.vue";
 
 type Explanation = components["schemas"]["Explanation"];
 /** A node of the chain, as the server writes it: its kind, identifier and URL. */
@@ -33,16 +37,16 @@ const explanation = useQuery(() =>
   ),
 );
 const facts = computed(() => explanation.data.value?.data);
-const origin = computed<ChainNode | null>(() => facts.value?.origin ?? null);
+const origin = computed(() => (facts.value ? explanationOriginOf(facts.value, props.id) : null));
 const chain = computed<ChainNode[]>(() =>
   (facts.value?.chain ?? []).filter((node): node is ChainNode => node !== null),
 );
-const direct = computed(() => origin.value !== null && origin.value.id === props.id);
-/** The provenance, when a module derived the value: said in its place of « direct ». */
-const derived = computed(() => {
-  const read = provenanceOf(facts.value?.provenance);
-  return read?.kind === "label" || read?.kind === "module" ? read : null;
-});
+/** Inherited (named or not): the provenance a source or a module gave, said after it. */
+const inheritedDerived = computed(() =>
+  origin.value?.kind === "inherited" || origin.value?.kind === "unreadable"
+    ? derivedOf(facts.value?.provenance)
+    : null,
+);
 </script>
 
 <template>
@@ -53,28 +57,28 @@ const derived = computed(() => {
       :title="t('views.record.explanationError')"
       :error="explanation.error.value"
     />
-    <template v-else-if="facts">
+    <template v-else-if="facts && origin">
       <p v-if="facts.masked">{{ t("views.record.explanationMasked") }}</p>
       <template v-else>
-        <p v-if="origin !== null && !direct">
+        <p v-if="origin.kind === 'unset'">{{ t("views.record.unset") }}</p>
+        <p v-else-if="origin.kind === 'direct'">{{ t("views.record.direct") }}</p>
+        <p v-else-if="origin.kind === 'inherited'">
           {{ t("views.record.inheritedFrom") }}
-          <ObjectName :id="origin.id" :kind="origin.kind" :href="origin.href" with-kind />
+          <ObjectName
+            :id="origin.origin.id"
+            :kind="origin.origin.kind"
+            :href="origin.origin.href"
+            with-kind
+          />
         </p>
-        <p v-if="derived?.kind === 'label'">
-          {{ t("views.record.fromLabel", { module: derived.module }) }}
-          <CodeBadge :code="derived.key" />
+        <p v-else><ValueSource :origin="origin" /></p>
+        <p v-if="inheritedDerived">
+          <ValueSource :origin="{ kind: 'derived', provenance: inheritedDerived }" />
         </p>
-        <p v-else-if="derived">
-          {{ t("views.record.byModule", { module: derived.module }) }}
-          <CodeBadge :code="derived.motif" />
-        </p>
-        <p v-else-if="origin === null && facts.provenance">
-          {{ t("views.record.inferred") }} <CodeBadge :code="facts.provenance" />
-        </p>
-        <p v-else-if="origin === null">{{ t("views.record.unset") }}</p>
-        <p v-else-if="direct">{{ t("views.record.direct") }}</p>
       </template>
-      <template v-if="chain.length > 1 && !direct">
+      <template
+        v-if="chain.length > 1 && (origin.kind === 'inherited' || origin.kind === 'unreadable')"
+      >
         <p>{{ t("views.record.chain") }}</p>
         <ol class="k-explanation__chain">
           <li v-for="node in chain" :key="node.id">

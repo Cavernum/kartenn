@@ -276,3 +276,8 @@ Amendements après validation :
 - **E1, E2, E3 — 2026-11-13** (021-11p6, arbitrages Q-021-25 et Q-021-26 de la 021) :
   plus de tri de colonne, lignes dans l'ordre de la clé servi par l'API ; plus de compte
   sur les onglets de la fiche (E2). Captures de référence réécrites par la même tâche.
+- **E2 — 2026-11-13** (021-11p4, arbitrage Q-021-23 de la 021) : l'encart des lacunes
+  passe au-dessus des propriétés et se compose des membres de chaque écart (propriété,
+  valeur résolue ou aucune, valeur attendue, source et révision, code de la règle) ; la
+  grille des propriétés s'empile sous un conteneur étroit (`stack`), pour que la colonne
+  Source reste lisible à 390 px. Captures de référence réécrites par la même tâche.

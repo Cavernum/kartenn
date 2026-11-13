@@ -47,10 +47,22 @@ test("from a domain to a prefix to an address, its property explained, its histo
   // The breadcrumb names the object once read, not its identifier.
   await expect(page.getByRole("navigation", { name: /fil d'Ariane/i })).toContainText(DATA.domain);
   await tabs(page).getByRole("tab", { name: "Contenu" }).click();
+  const gaps = page.waitForResponse(/\/v1\/property-gaps\?object=[0-9a-f-]+$/);
   await page.getByRole("link", { name: DATA.prefix }).click();
 
   await expect(page.getByRole("heading", { level: 1, name: titled(DATA.prefix) })).toBeVisible();
   await expect(page.getByRole("region", { name: DATA.prefix })).toContainText("sur 254");
+  // Its owner inherited from the domain, said in the column « Source » with the domain named,
+  // a link to it (task 021-11p4); the prefix lacks no expected value: no notice of gaps.
+  const owner = page.getByRole("row", { name: /core\.owner/ });
+  await expect(owner.getByRole("gridcell").filter({ hasText: "Héritée de" })).toContainText(
+    DATA.domain,
+  );
+  await expect(owner.getByRole("link", { name: DATA.domain })).toBeVisible();
+  expect((await gaps).status()).toBe(200);
+  await expect(page.getByRole("status").filter({ hasText: "Une propriété attendue" })).toHaveCount(
+    0,
+  );
   await expectAccessible(page);
   await tabs(page).getByRole("tab", { name: "Contenu" }).click();
   await page.getByRole("link", { name: DATA.address }).click();

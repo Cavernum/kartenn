@@ -75,6 +75,19 @@
       - tab "Machines"
       - tab "Flux (en chargement)"
     - tabpanel "Propriétés":
+      - status:
+        - paragraph: "Avertissement : Une propriété attendue manque ou diffère"
+        - list:
+          - listitem:
+            - button "TTL DNS dns.ttl":
+              - text: ""
+              - code: dns.ttl
+            - status
+            - text: "/: aucune valeur, attendue \\d+, selon la source inventaire révision \\d+/"
+            - button "Copier prop.resolution.expected_mismatch":
+              - text: ""
+              - code: prop.resolution.expected_mismatch
+            - status
       - grid /Propriétés résolues de \d+\.\d+\.\d+\.\d+\/\d+/:
         - rowgroup:
           - row "Propriété Valeur Source":
@@ -82,26 +95,24 @@
               - text: ""
               - 'button "Filtrer : Propriété"'
             - columnheader "Valeur"
-            - columnheader "Source":
-              - text: ""
-              - 'button "Filtrer : Source"'
+            - columnheader "Source"
         - rowgroup:
-          - row "Contact core.contact •••••• Masquée droit de lecture manquant":
+          - row "Contact core.contact Masquée Droit de lecture manquant":
             - gridcell "Contact core.contact":
               - button "Contact core.contact":
                 - text: ""
                 - code: core.contact
               - status
-            - gridcell "••••••"
-            - gridcell "Masquée droit de lecture manquant"
-          - 'row /Propriétaire core\.owner Atelier Nord Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
+            - gridcell "Masquée"
+            - gridcell "Droit de lecture manquant"
+          - 'row /Propriétaire core\.owner Atelier Nord Héritée de Préfixe \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
             - gridcell "Propriétaire core.owner":
               - button "Propriétaire core.owner":
                 - text: ""
                 - code: core.owner
               - status
             - gridcell "Atelier Nord"
-            - 'gridcell /Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
+            - 'gridcell /Héritée de Préfixe \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
               - text: ""
               - 'button "Expliquer la valeur : Propriétaire" [expanded]'
           - row "Site core.site site-ouest Directe":
@@ -112,15 +123,7 @@
               - status
             - gridcell "site-ouest"
             - gridcell "Directe"
-          - row "TTL DNS dns.ttl — Sans valeur":
-            - gridcell "TTL DNS dns.ttl":
-              - button "TTL DNS dns.ttl":
-                - text: ""
-                - code: dns.ttl
-              - status
-            - gridcell "—"
-            - gridcell "Sans valeur"
-          - row "Environnement policy.environment Production Inférée règle env-par-site":
+          - row /Environnement policy\.environment Production Inférée de la source inventaire révision \d+/:
             - gridcell "Environnement policy.environment":
               - button "Environnement policy.environment":
                 - text: ""
@@ -129,17 +132,8 @@
             - gridcell "Production":
               - button "Production"
               - status
-            - gridcell "Inférée règle env-par-site"
+            - gridcell /Inférée de la source inventaire révision \d+/
       - alert
-      - status:
-        - paragraph: "Avertissement : Une propriété attendue manque"
-        - text: Le TTL DNS (
-        - code: dns.ttl
-        - text: ) est attendu sur les réseaux de production.
-        - button "Copier prop.assignment.required":
-          - text: ""
-          - code: prop.assignment.required
-        - status
     - heading "Attributs" [level=2]
     - term: Domaine
     - definition: Centre de données nord

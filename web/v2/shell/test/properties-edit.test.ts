@@ -283,6 +283,19 @@ describe("the tab « Propriétés » edited in place", () => {
       if (url.startsWith(`/v1/prefixes/${P1}/properties`)) {
         return json(200, {
           properties: { "custom.code": "abc", "custom.zone": "ouest", "core.owner": null },
+          sources: {
+            "custom.code": {
+              origin: { id: P1, kind: "prefix" },
+              inherited: false,
+              provenance: null,
+            },
+            "custom.zone": { origin: { id: S1, kind: "site" }, inherited: true, provenance: null },
+            "core.owner": {
+              origin: { id: P1, kind: "prefix" },
+              inherited: false,
+              provenance: null,
+            },
+          },
           masked: ["custom.secret"],
           links: {},
         });

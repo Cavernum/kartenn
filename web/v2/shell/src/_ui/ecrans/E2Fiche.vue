@@ -6,6 +6,7 @@
 // their tooltip naming the missing permission (024/M14): no permanent box of the rights.
 import {
   Button,
+  Cluster,
   CodeBadge,
   DataGrid,
   EnvChip,
@@ -16,7 +17,6 @@ import {
   Popover,
   Split,
   Stack,
-  StatusBadge,
   Tabs,
   type GridColumn,
   type MenuItem,
@@ -48,46 +48,42 @@ interface Property extends Record<string, unknown> {
   key: string;
   label: string;
   value: string;
-  source: "inherited" | "direct" | "inferred" | "none" | "masked";
+  source: "inherited" | "direct" | "inferred" | "masked";
   origin: string;
 }
-/** In the order of the key, masked ones included, as `PropertiesTab` shows them. */
+/**
+ * In the order of the key, masked ones included, as `PropertiesTab` shows them, each with
+ * its source in the tab's words (`ValueSource`, task 021-11p4). A property without a value
+ * is not a row: the notice of the gaps says it, above.
+ */
 const properties: Property[] = [
-  {
-    key: "core.contact",
-    label: "Contact",
-    value: "",
-    source: "masked",
-    origin: "droit de lecture manquant",
-  },
+  { key: "core.contact", label: "Contact", value: "", source: "masked", origin: "" },
   {
     key: "core.owner",
     label: "Propriétaire",
     value: "Atelier Nord",
     source: "inherited",
-    origin: "de 192.0.2.0/24",
+    origin: "Préfixe 192.0.2.0/24",
   },
   { key: "core.site", label: "Site", value: "site-ouest", source: "direct", origin: "" },
-  { key: "dns.ttl", label: "TTL DNS", value: "", source: "none", origin: "" },
   {
     key: "policy.environment",
     label: "Environnement",
     value: "prod",
     source: "inferred",
-    origin: "règle env-par-site",
+    origin: "inventaire révision 12",
   },
 ];
 const propertyColumns: GridColumn[] = [
   { id: "key", label: "Propriété", width: "fill", filterable: true },
   { id: "value", label: "Valeur", width: "md" },
-  { id: "source", label: "Source", width: "lg", filterable: true },
+  { id: "source", label: "Source", width: "lg", wrap: true },
 ];
 const SOURCE: Record<Property["source"], string> = {
-  inherited: "Héritée",
+  inherited: "Héritée de",
   direct: "Directe",
-  inferred: "Inférée",
-  none: "",
-  masked: "Masquée",
+  inferred: "Inférée de la source",
+  masked: "Droit de lecture manquant",
 };
 
 interface Version extends Record<string, unknown> {
@@ -186,12 +182,28 @@ const actions: MenuItem[] = [
         <Tabs v-model="tab" :tabs="tabs" label="Sections de la fiche">
           <template #properties>
             <Stack gap="3">
+              <!-- The gaps of the object, above its properties, each from its members
+                   (`GapsNotice`, task 021-11p4). -->
+              <InlineAlert tone="warn" title="Une propriété attendue manque ou diffère">
+                <Stack as="ul" gap="1">
+                  <Cluster as="li" gap="1">
+                    <span
+                      ><KeyLabel value="dns.ttl" label="TTL DNS" show-key /> : aucune valeur,
+                      attendue <span class="k-mono">3600</span>, selon la source
+                      <span class="k-mono">inventaire</span> révision
+                      <span class="k-mono">12</span></span
+                    >
+                    <CodeBadge code="prop.resolution.expected_mismatch" />
+                  </Cluster>
+                </Stack>
+              </InlineAlert>
               <DataGrid
                 label="Propriétés résolues de 192.0.2.64/26"
                 :columns="propertyColumns"
                 :rows="properties"
                 row-key="key"
                 :active="{ row: 'core.owner', column: 'source' }"
+                stack
               >
                 <template #cell="{ row, column }">
                   <KeyLabel
@@ -202,11 +214,9 @@ const actions: MenuItem[] = [
                   />
                   <template v-else-if="column.id === 'value'">
                     <EnvChip v-if="row.key === 'policy.environment'" v-bind="ENV.prod" />
-                    <span v-else-if="row.source === 'none'">—</span>
-                    <span v-else-if="row.source === 'masked'">••••••</span>
+                    <span v-else-if="row.source === 'masked'">Masquée</span>
                     <template v-else>{{ row.value }}</template>
                   </template>
-                  <StatusBadge v-else-if="row.source === 'none'" state="warn" label="Sans valeur" />
                   <template v-else
                     >{{ SOURCE[row.source] }}
                     <span v-if="row.origin" class="k-ecran-muted">{{ row.origin }}</span>
@@ -233,10 +243,6 @@ const actions: MenuItem[] = [
                   >
                 </template>
               </DataGrid>
-              <InlineAlert tone="warn" title="Une propriété attendue manque">
-                Le TTL DNS (<code>dns.ttl</code>) est attendu sur les réseaux de production.
-                <CodeBadge code="prop.assignment.required" />
-              </InlineAlert>
             </Stack>
           </template>
           <template #history>

@@ -1378,7 +1378,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `properties_resolve_explain_and_mask` (section « The schema ») ; contrat et SDK comme
     11p1
   - dépend de : 11p
-- [ ] 11p4. Fiche, colonne « Source » et encart des lacunes (maquette E2) : `PropertiesTab`
+- [x] 11p4. Fiche, colonne « Source » et encart des lacunes (maquette E2) : `PropertiesTab`
   lit `sources` (directe, héritée de l'origine nommée par sa référence, héritée d'un
   ancêtre illisible, provenance `source:`/`module:` dite selon la maquette, masquée) et,
   au-dessus de la grille, l'encart « propriété attendue manque » par
@@ -1390,6 +1390,45 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/_ui/ecrans/E2Fiche.vue` (`SOURCE`) ; `views/anomalies/GapList.vue`
     (rendu d'une lacune) ; `web/v2/e2e/journeys/records.spec.ts`
   - dépend de : 11p1
+  - fait le 2026-11-13 — `PropertiesTab` : colonne « Source » (`ValueSource.vue`, lue de
+    `sources` par `provenance.ts`, `valueOriginOf` ; `provenanceOf` lit la source et la
+    révision d'un `source:`) : « Directe », « Héritée de » l'origine nommée et liée
+    (`ObjectName`), « Héritée d'un objet que vous ne lisez pas », « Inférée de la source »
+    avec sa révision, les mots de l'explication pour `module:` et `label:`, « Droit de
+    lecture manquant » pour une clé masquée ; au-dessus de la grille, `GapsNotice.vue`
+    (`GET /v1/property-gaps?object=`, au présent seulement) : chaque écart composé de ses
+    membres (`anomalies/gap.ts`, partagé avec `GapList`), erreur avec ses codes et
+    « Réessayer », page suivante à la demande ; grille empilée sous un conteneur étroit
+    (`stack`, reste de la 11p6 : Source lisible à 390 px). Maquette E2 alignée (encart
+    au-dessus, mêmes mots, `stack`), amendement daté dans `decisions.md` de la 020,
+    catalogue des écrans de la 021 suivi ; captures E2 réécrites et regardées. Tests :
+    Vitest `properties-source.test.ts` (chaque sorte de source, encart vide, rempli, en
+    erreur puis réessayé), `explanation.test.ts` (provenance `source:`), fake de
+    `properties-edit.test.ts` avec `sources` ; parcours `records` (fiche d'un préfixe :
+    `core.owner` hérité du domaine nommé dans la colonne, lacunes lues, aucun encart).
+  - choix : la bulle d'explication classe la valeur comme la colonne
+    (`explanationOriginOf`, mêmes règles que `valueOriginOf`) et la dit avec les mêmes mots
+    (`ValueSource`) : le défaut d'une source posé sur l'objet est « Inférée de la source »
+    dans les deux (la 13d le disait « posée directement » dans la bulle), un porteur
+    illisible « Héritée d'un objet que vous ne lisez pas » dans les deux (la bulle disait
+    « Inférée par la règle » ou « Aucune valeur ») ; pour une valeur héritée, nommée ou
+    non, la cellule ne dit que l'origine et la bulle ajoute la provenance d'une source ou
+    d'un module ; « Aucune valeur posée ni héritée » seulement sans origine, ni
+    provenance, ni valeur, ni objet illisible sur le chemin ; encart absent pendant le chargement (pas de squelette pour une zone le plus
+    souvent vide) et hors du présent (les lacunes sont celles du présent, la lecture n'a
+    pas de dates) ; source d'un écart en chasse fixe et règle en `CodeBadge` nu, plutôt
+    qu'en `KeyLabel` copiable comme `GapList` : deux cibles copiables sur une ligne
+    repliée tombaient l'une sous l'autre (axe `target-size`, 1280 px) ; valeur en `md`
+    et Source en `lg` à la ligne, comme la maquette. Restent ouverts (relecture
+    d'accessibilité, hors de la tâche, bibliothèque) : le bouton de copie de `KeyLabel`
+    n'a pas de verbe dans son nom (« TTL DNS dns.ttl » quand `CodeBadge` dit « Copier… »),
+    et les régions `status` de copie de `KeyLabel` et `CodeBadge` sont imbriquées dans le
+    `status` d'une `InlineAlert`.
+  - reste : non testés, « Lire la suite » de l'encart, l'échec d'une page suivante
+    (`NextPageAlert`) et l'absence d'encart hors du présent ; après une modification en
+    place, `reread` ne relit que `resolved` : l'encart peut garder un écart corrigé
+    jusqu'à une autre invalidation de `/v1/property-gaps` (à vérifier, l'évaluation des
+    écarts côté serveur pouvant d'ailleurs suivre la validation).
 - [ ] 11p5. Historique, motif et auteur : `HistoryTab` montre le motif et l'auteur servis
   par `Version` (auteur pseudonymisé tel quel, sans repli sur un nom du cache) —
   REQ-021-9 — verify : Vitest (motif, auteur, auteur pseudonymisé), parcours `records`

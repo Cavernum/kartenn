@@ -7,19 +7,63 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import ExplanationBody from "../src/views/record/ExplanationBody.vue";
-import { provenanceOf } from "../src/views/record/provenance.ts";
+import {
+  explanationOriginOf,
+  provenanceOf,
+  valueOriginOf,
+} from "../src/views/record/provenance.ts";
 
 // The provenance in the explanation of a value (task 021-13d, REQ-003-14; ADR 0026,
 // amendment 14): the three forms the server stores, `input`, `source:<id>@<version>` and
 // `module:<module>#<motif>`; a value a module derived is said so, not « set directly ».
+// The explanation classes a value as the column « Source » does (task 021-11p4).
+
+describe("the explanation and the column « Source »", () => {
+  const ID = "0b5e3c1a-0000-4000-8000-0000000000a1";
+  const self = { id: ID, kind: "prefix" as const, href: `/v1/prefixes/${ID}` };
+  it("agree on a source's default set on the object and on an origin withheld", () => {
+    const own = { origin: self, provenance: "source:s1@3", value: "web", chain: [] };
+    expect(explanationOriginOf(own, ID)).toEqual(
+      valueOriginOf({ origin: self, inherited: false, provenance: "source:s1@3" }),
+    );
+    expect(explanationOriginOf(own, ID).kind).toBe("derived");
+    const withheld = { origin: null, provenance: "input", value: "web", chain: [null] };
+    expect(explanationOriginOf(withheld, ID)).toEqual(
+      valueOriginOf({ origin: null, inherited: true, provenance: "input" }),
+    );
+    expect(explanationOriginOf(withheld, ID).kind).toBe("unreadable");
+    expect(
+      explanationOriginOf({ origin: null, provenance: null, value: null, chain: [] }, ID).kind,
+    ).toBe("unset");
+  });
+});
 
 describe("the provenance of an assignment, read", () => {
   it("typed: input", () => {
     expect(provenanceOf("input")).toEqual({ kind: "input" });
   });
 
-  it("the default of a source: its form kept", () => {
-    expect(provenanceOf("source:s1@3")).toEqual({ kind: "source", code: "source:s1@3" });
+  it("the default of a source: its form kept, the source and its revision read", () => {
+    expect(provenanceOf("source:s1@3")).toEqual({
+      kind: "source",
+      code: "source:s1@3",
+      source: "s1",
+      revision: "3",
+    });
+    // The detail after `#` is the source's own (REQ-016-5): not part of the revision.
+    expect(provenanceOf("source:cmdb@r12#row:7@b")).toEqual({
+      kind: "source",
+      code: "source:cmdb@r12#row:7@b",
+      source: "cmdb",
+      revision: "r12",
+    });
+    expect(provenanceOf("source:cmdb")).toEqual({
+      kind: "source",
+      code: "source:cmdb",
+      source: "cmdb",
+      revision: null,
+    });
+    expect(provenanceOf("source:@3")).toEqual({ kind: "other", code: "source:@3" });
   });
 
   it("derived by kube from a label: the label's key", () => {
@@ -107,10 +151,30 @@ describe("the explanation of a value", () => {
     expect(text(root)).toContain("Posée directement sur cet objet.");
   });
 
-  it("the default of a source on the object: set directly, as before", async () => {
+  it("the default of a source on the object: inferred from it, as its cell says (task 11p4)", async () => {
     const root = await mounted({ ...own, provenance: "source:s1@3" });
-    expect(text(root)).toContain("Posée directement sur cet objet.");
+    expect(text(root)).toContain("Inférée de la source s1");
+    expect(text(root)).toContain("révision 3");
+    expect(text(root)).not.toContain("Posée directement");
     expect(text(root)).not.toContain("module");
+  });
+
+  it("typed on an object the caller may not read: inherited from it, unnamed (task 11p4)", async () => {
+    const root = await mounted({ origin: null, provenance: "input", chain: [null] });
+    expect(text(root)).toContain("Héritée d'un objet que vous ne lisez pas");
+    expect(text(root)).not.toContain("Inférée");
+    expect(text(root)).not.toContain("Aucune valeur");
+  });
+
+  it("the default of a source on an object the caller may not read: both said (task 11p4)", async () => {
+    const root = await mounted({ origin: null, provenance: "source:s1@3", chain: [null] });
+    expect(text(root)).toContain("Héritée d'un objet que vous ne lisez pas");
+    expect(text(root)).toContain("Inférée de la source s1");
+  });
+
+  it("nothing assigned: no value set nor inherited", async () => {
+    const root = await mounted({ origin: null, provenance: null, value: null, chain: [] });
+    expect(text(root)).toContain("Aucune valeur posée ni héritée.");
   });
 
   it("derived by kube from a label: the label named, never « set directly »", async () => {
@@ -139,6 +203,7 @@ describe("the explanation of a value", () => {
 
   it("the origin withheld, a module's provenance: said in words, not as a rule", async () => {
     const root = await mounted({ origin: null, provenance: "module:kube#label:tier" });
+    expect(text(root)).toContain("Héritée d'un objet que vous ne lisez pas");
     expect(text(root)).toContain("Tirée par le module kube du label");
     expect(text(root)).not.toContain("Inférée par la règle");
   });
