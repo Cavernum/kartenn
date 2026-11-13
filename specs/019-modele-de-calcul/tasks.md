@@ -1798,6 +1798,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     colonnes par défaut `slug`, `owner`, `site`, `pod_domain`, `service_domain` ; tests
     sous `observations/route/`, qui porte déjà l'application et l'environnement des
     routes du module.
+  - reste (revue, mineurs) : `KubeClusterPatch` annonce `null` sur tous les membres alors
+    que le serveur répond 422 hors de `NULLABLE` (idiome `Option<T>` hérité de machines) ;
+    `rfc3339` double `observations::rfc3339` ; `dated()`/`listed()` propres à
+    `kube.cluster`, à rendre génériques en 8b ; aucun test de la liste à `valid_at`/`as_of`
+    ni de la journalisation des lectures (`record_read`).
 - [ ] 8b. Lectures des objets miroirs : `GET /v1/kube-nodes`, `/v1/kube-namespaces`,
   `/v1/workloads`, `/v1/kube-services`, `/v1/ingresses` (+ `/{id}`), sans écriture ;
   filtres de REQ-019-38 (cluster, namespace, nom, sorte, label suivi, machine, état
@@ -1825,10 +1830,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   39 (paramètres) — verify : tests HTTP, contrat (ajout seul), SDK
   - où : design « Routes », « Opérations » ; `decisions.md` Q-019-35 ;
     `crates/kartenn-kube/src/settings.rs` ; tests de la 8a
-  - dépend de : 8a ; arbitrage : la lecture des valeurs admises (collection
-    `kube-admitted-values`, déjà servie par le noyau pour l'historique et les
-    propriétés, absente du design des routes) et la lecture des paramètres globaux par
-    un connecteur lié aux seuls domaines de son cluster (restes de la 7c)
+  - dépend de : 8a ; arbitrés le 2026-11-13 : collection de lecture
+    `GET /v1/kube-admitted-values` (filtres `namespace`, `axis`) et `/{id}`, écriture par
+    le `PUT` du namespace, `GET /v1/kube-tracked-labels` de même (Q-019-43) ; le connecteur
+    lit ses clés suivies effectives par une route du cluster, sous `kube.observation.record`
+    sur le domaine des pods (Q-019-44)
 - [ ] 8e. Rôles livrés, événements et catalogue : `reader`, `editor`, `approver`
   tiennent les `kube.<type>.read`, `approver` les `kube.<type>.apply`, aucun
   `kube.observation.*` ni `kube.settings.*` ; un abonné filtré sur `types=kube.workload`

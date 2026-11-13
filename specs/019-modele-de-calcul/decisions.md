@@ -638,6 +638,26 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   `prop.<axe>.approval.self`, il reste une proposition, appliquée par un validateur qui
   tient `prop.<axe>.apply`.
 
+### Q-019-43 — Lecture des valeurs admises et des labels suivis (tâche 8d)
+- Constat : le type `kube.admitted_values` a une collection `kube-admitted-values`, déjà
+  servie par le noyau pour l'historique et les propriétés ; le design des routes ne donnait
+  que `PUT /v1/kube-namespaces/{id}/admitted-values`. Même question pour les labels suivis.
+- Options : (a) collection de lecture `GET /v1/kube-admitted-values` (filtres `namespace`,
+  `axis`) et `/{id}`, l'écriture restant le `PUT` sur le namespace, idem
+  `GET /v1/kube-tracked-labels` ; (b) lecture par `GET` sur le chemin du namespace, sans
+  collection.
+- Décision : **(a)** collection de lecture et `PUT` d'écriture (l'utilisateur, 2026-11-13).
+
+### Q-019-44 — Lecture des labels suivis par le connecteur (tâche 8d)
+- Constat : les réglages sont globaux et lus sous `kube.cluster.read` ; le connecteur,
+  borné aux domaines de son cluster (X10), ne peut pas les lire, alors qu'il lui faut au
+  moins les clés suivies pour filtrer ce qu'il envoie (ADR 0044, décision 5).
+- Options : (a) une route du cluster qui rend les clés suivies effectives (module et
+  cluster), sous `kube.observation.record` sur le domaine des pods, comme les lots ;
+  (b) un rôle de lecture des réglages lié globalement au connecteur ; (c) rendre un objet
+  global visible à qui tient sa lecture sur une portée quelconque (RBAC du noyau changé).
+- Décision : **(a)** route sur le cluster (l'utilisateur, 2026-11-13).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
