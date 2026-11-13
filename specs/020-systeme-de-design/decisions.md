@@ -281,3 +281,12 @@ Amendements après validation :
   valeur résolue ou aucune, valeur attendue, source et révision, code de la règle) ; la
   grille des propriétés s'empile sous un conteneur étroit (`stack`), pour que la colonne
   Source reste lisible à 390 px. Captures de référence réécrites par la même tâche.
+- **E2 — 2026-11-13** (021-11p5, arbitrages Q-021-29 et Q-021-30 de la 021) : l'historique
+  montre l'auteur de chaque version (une personne pseudonymisée telle que le serveur la
+  nomme, « personne #… ») ; le motif, qui va à la ligne, porte le lien vers le changeset,
+  dont l'identifiant passe dans une colonne à part (« Version » seule en tête) ; « Connue
+  du » et l'identifiant du changeset quittent la grille les premiers quand elle se
+  resserre (sous un conteneur `lg`, donc dès 1440 px dans la fiche : le sélecteur
+  « Colonnes » les rend), puis l'auteur (sous `md`), et la grille s'empile sous un
+  conteneur étroit (`stack`) : à 768 et 390 px, plus de colonnes coupées.
+  Captures de référence réécrites par la même tâche.

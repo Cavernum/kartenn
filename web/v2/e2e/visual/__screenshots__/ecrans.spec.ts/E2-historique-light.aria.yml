@@ -75,48 +75,45 @@
       - tab "Machines"
       - tab "Flux (en chargement)"
     - tabpanel "Historique":
+      - button "Colonnes"
       - grid /Versions de \d+\.\d+\.\d+\.\d+\/\d+/:
         - rowgroup:
-          - row "Version, changeset Valide Connue du Motif":
-            - columnheader "Version, changeset"
+          - row "Version Valide Motif Auteur":
+            - columnheader "Version"
             - columnheader "Valide"
-            - columnheader "Connue du"
             - columnheader "Motif":
               - text: ""
               - 'button "Filtrer : Motif"'
+            - columnheader "Auteur"
         - rowgroup:
-          - row /v4 01JD4K8B2C \d+-\d+-\d+ → \d+-\d+-\d+ Bascule des VIP salle B/:
-            - gridcell "v4 01JD4K8B2C":
-              - text: ""
-              - link "01JD4K8B2C":
-                - /url: /changesets/01JD4K8B2C
+          - row /v4 \d+-\d+-\d+ → Bascule des VIP salle B Camille Martin/:
+            - gridcell "v4"
             - gridcell /\d+-\d+-\d+ →/
-            - gridcell /\d+-\d+-\d+/
-            - gridcell "Bascule des VIP salle B"
-          - row /v3 01JC9Q2H7R \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Rattachement au site ouest/:
-            - gridcell "v3 01JC9Q2H7R":
-              - text: ""
-              - link "01JC9Q2H7R":
+            - gridcell "Bascule des VIP salle B":
+              - link "Bascule des VIP salle B":
+                - /url: /changesets/01JD4K8B2C
+            - gridcell "Camille Martin"
+          - row /v3 \d+-\d+-\d+ → \d+-\d+-\d+ Rattachement au site ouest Lou Bernard/:
+            - gridcell "v3"
+            - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
+            - gridcell "Rattachement au site ouest":
+              - link "Rattachement au site ouest":
                 - /url: /changesets/01JC9Q2H7R
+            - gridcell "Lou Bernard"
+          - 'row /v2 \d+-\d+-\d+ → \d+-\d+-\d+ Correction rétroactive du propriétaire personne #7d3a/':
+            - gridcell "v2"
             - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
-            - gridcell /\d+-\d+-\d+/
-            - gridcell "Rattachement au site ouest"
-          - row /v2 01JB1T5W3E \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Correction rétroactive du propriétaire/:
-            - gridcell "v2 01JB1T5W3E":
-              - text: ""
-              - link "01JB1T5W3E":
+            - gridcell "Correction rétroactive du propriétaire":
+              - link "Correction rétroactive du propriétaire":
                 - /url: /changesets/01JB1T5W3E
+            - 'gridcell "personne #7d3a"'
+          - row /v1 \d+-\d+-\d+ → \d+-\d+-\d+ Import initial import-ipam/:
+            - gridcell "v1"
             - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
-            - gridcell /\d+-\d+-\d+/
-            - gridcell "Correction rétroactive du propriétaire"
-          - row /v1 01JA0N8D4F \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Import initial/:
-            - gridcell "v1 01JA0N8D4F":
-              - text: ""
-              - link "01JA0N8D4F":
+            - gridcell "Import initial":
+              - link "Import initial":
                 - /url: /changesets/01JA0N8D4F
-            - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
-            - gridcell /\d+-\d+-\d+/
-            - gridcell "Import initial"
+            - gridcell "import-ipam"
       - alert
     - heading "Attributs" [level=2]
     - term: Domaine
