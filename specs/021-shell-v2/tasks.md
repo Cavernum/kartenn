@@ -1246,6 +1246,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     modèle, seulement pour une valeur en forme d'UUID et une collection du cœur
     (`COLLECTIONS`) ; lecture refusée ou objet inconnu : l'identifiant reste montré ;
     l'acteur du journal d'audit, filtré en texte (`AuditView.vue`), inchangé.
+  - reste (revue de la clôture, mineurs) : doc de `cacheObject` qui cite les seules
+    entités ; `reads.object` lit sans l'instant de la liste (puce au nom actuel sur une liste
+    datée) ; `model` recalculé à chaque page de déclarations (noms appris perdus, identifiant
+    montré un instant) ; `referenceLabel` refait `useScopeNames`/`nameOf` ; le cas refusé du
+    test passerait sans la lecture, `cacheObject` non testé seul.
 - [ ] 11o. Colonnes des plugins sur l'arbre de la Topographie (reste de la 11) : le
   `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, une
   `ExtensionElement` par cellule, son `status`), `TopologyView.vue` y met
