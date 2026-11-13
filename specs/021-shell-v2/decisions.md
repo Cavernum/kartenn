@@ -501,9 +501,19 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   déclenchement automatique au terme d'une durée de conservation n'existe pas et demande
   une spec (question ouverte, à rédiger avec l'utilisateur, hors de la 021).
 - **Q-021-25 — Tri des listes** (021-11p) : l'ordre de la clé seul, la maquette amendée ;
-  pas de paramètre `sort`. Retenu (utilisateur, 2026-11-13).
+  pas de paramètre `sort`. Retenu (utilisateur, 2026-11-13). *Maquettes E1 à E3 amendées
+  le 2026-11-13 (021-11p6), selon cet arbitrage* : aucune colonne triable (`sortable`
+  ôté, plus de flèche ni d'`aria-sort`) sur la table du nœud d'E1, les propriétés et
+  l'historique d'E2, la liste d'E3 ; leurs lignes dans l'ordre de la clé servi par l'API
+  (propriétés d'E2 par clé, masquées comprises, comme `PropertiesTab` ; versions d'E2 de
+  la plus récente à la plus ancienne) ; filtres de colonne gardés. Les vues du
+  référentiel n'en montraient déjà aucun. Les autres écrans gardent leur tri jusqu'à leur
+  propre tâche.
 - **Q-021-26 — Comptes des onglets de la fiche** (021-11p, maquette E2) : retirés de la
-  maquette ; aucune lecture de plus. Retenu (utilisateur, 2026-11-13).
+  maquette ; aucune lecture de plus. Retenu (utilisateur, 2026-11-13). *Maquette E2
+  amendée le 2026-11-13 (021-11p6), selon cet arbitrage* : aucun compte sur les onglets
+  du cœur ni sur ceux des plugins (Machines) ; l'onglet Flux garde son état de
+  chargement. `RecordView.vue` n'en montrait déjà aucun.
 - **Q-021-27 — Déclarations filtrables** (021-11p) : `GET /v1/property-declarations`
   accepte `carrier=<sorte>` et `q=` (clé, libellé), en ajout au contrat ; le shell cesse de
   lire dix pages. Retenu (utilisateur, 2026-11-13).

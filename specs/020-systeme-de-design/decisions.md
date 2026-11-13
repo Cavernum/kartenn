@@ -270,3 +270,9 @@ main 7ef0ded1.
 
 Les retours de chaque relecture ont été reportés dans ce design et dans celui de la 021 par
 les tâches de la 024, de la 026 et de la 027, au fil des relectures.
+
+Amendements après validation :
+
+- **E1, E2, E3 — 2026-11-13** (021-11p6, arbitrages Q-021-25 et Q-021-26 de la 021) :
+  plus de tri de colonne, lignes dans l'ordre de la clé servi par l'API ; plus de compte
+  sur les onglets de la fiche (E2). Captures de référence réécrites par la même tâche.
