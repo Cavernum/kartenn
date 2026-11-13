@@ -4793,7 +4793,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     plugins sans framework à décider, de même qu'une table et une liste fermée sans
     framework ; nombre de machines non dit dans la liste ; une seule cellule de nom en lecture
     dit « Chargement » par ligne.
-- [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
+- [x] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
   cycle refusé (`machines.host.invalid`), autre site : avertissement du serveur montré
   (`machines.host.site_mismatch`), déplacement au brouillon (amendé le 2026-11-02 : la
   règle reste un avertissement, 009 M11), sans optimisme ; reste
@@ -4843,16 +4843,35 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     à l'hôte envoyé, l'attente reste dite ; test direct de `moveInDraft`
     (`sdk/test/draft-move.test.ts` : remplacement, violations d'autres opérations
     filtrées, refus de la sienne, `unknown`).
-  - reste — à arbitrer par l'utilisateur : l'abandon du glisser (un arbre sans framework
-    dans `@kartenn/ui`) ; REQ-021-33 dit encore, en acceptation, « le serveur le refuse
-    (`machines.host.site_mismatch`) » (`requirements.md`, à amender avec la même
-    décision) ; ouverts : `writeRight` de `sdk/src/data/moves.ts` omet la ressource qui
-    porte le nom du module par une heuristique du pluriel (`machines` ↔ `machine`), alors
-    que `editRight` du shell (`views/edit/fields.ts`) écrit toujours `<type>.edit` — une
-    table de permissions tirée du contrat les accorderait ; les
-    hébergeurs au-delà de dix pages ne sont pas offerts ; sous Firefox, le parcours de la
-    24 « an entity changes parent by its menu » a perdu une fois le focus du champ
-    pendant le parcours complet (vert relancé seul, deux fois).
+  - fait le 2026-11-14, relevé contre le code (main 15dd7ca1) : le reste de `verify` était
+    tenu par la 18cd (plugin en Vue). Arbre `declared` : `HostingTree.vue` (`TreeGrid`
+    `parentMode: "declared"`, glisser, Ctrl+X puis Ctrl+V, « Déplacer vers… », `canMove`
+    et `draft.move` du SDK, sans `setQueryData`) — l'abandon du glisser, laissé à
+    arbitrer, est sans objet. Parcours `moves` « the host of a machine » : dans l'arbre,
+    vers un cluster au clavier (Ctrl+X, flèches, Ctrl+V), simulation retenue → « en
+    attente » à sa place (`data-move="pending"`, niveau inchangé), puis au brouillon,
+    aucun changeset (réponse ralentie dans un `TreeGrid` `declared`, reste de la 24) ;
+    hôte sous son invité refusé par le client (`machines.host.invalid`, rien envoyé), puis
+    vers un hôte d'un autre site, avertissement `machines.host.site_mismatch` ; mêmes cas
+    depuis la fiche. Parcours `machines` : physique vers un cluster offert par le client,
+    refusé par la simulation (`machines.host.invalid`), hébergeur inchangé. Vitest
+    `sdk/test/moves.test.ts`, `sdk/test/draft-move.test.ts` (21),
+    `plugins/machines/test/machines.test.ts` et `clusters-view.test.ts` (24) verts ;
+    parcours `machines` et `moves` : 26 sur 26 dans les deux navigateurs. REQ-021-33 amendée selon A22 (acceptation : refus par `machines.host.invalid` de la
+    simulation, avertissement `machines.host.site_mismatch` d'un autre site, au brouillon).
+  - choix : aucun code ajouté (la clause tient) ; Ctrl+Entrée sur un dépôt de l'arbre de
+    l'hébergement laissé à la 24f (spec à valider), hors de cette `verify`.
+  - reste (hors de `verify`, ouvert) : `writeRight` de `sdk/src/data/moves.ts` omet la
+    ressource qui porte le nom du module par une heuristique du pluriel (`machines` ↔
+    `machine`), alors que `editRight` du shell (`views/edit/fields.ts`) écrit toujours
+    `<type>.edit` — juste pour les types de chacun aujourd'hui (`core.*.edit`,
+    `machines.edit`, `machines.cluster.edit`), une table de permissions tirée du contrat
+    les accorderait (le contrat ne les porte pas : à arbitrer) ; les hébergeurs de la
+    section « Hébergement » de la fiche au-delà de dix pages ne sont pas offerts
+    (`HostSection.vue`, `MAX_PAGES` : la liste lue donne les ancêtres que `canMove`
+    demande) ; sous Firefox, le parcours de la 24 « an entity changes parent by its
+    menu » a perdu une fois le focus du champ pendant le parcours complet (vert relancé
+    seul, deux fois).
 
 - [x] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
   `web/v2/plugins/machines` en Vue, à la forme que prendront les plugins de la 017 ;
