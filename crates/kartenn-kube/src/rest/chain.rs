@@ -136,8 +136,9 @@ async fn chain(
     let answer =
         read::execution_chain(&mut conn, &api.authorizer(), reading, id, moment.valid_at).await?;
     drop(conn);
-    // Between the frame and the read, the workload closed or the right withdrawn: as the
-    // frame would have answered.
+    // `None` only when, between the frame and the read, the right on the pod domain was
+    // withdrawn: 404, its refusal not journaled, where the frame would have answered 403
+    // journaled (a race, the read itself refused all the same).
     let Some(Chain { links, reason }) = answer else {
         return Err(Problem::new(ProblemKind::NotFound));
     };

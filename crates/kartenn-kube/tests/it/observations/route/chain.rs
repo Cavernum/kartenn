@@ -25,6 +25,13 @@ use super::super::{Env, closing, hours, sync};
 use super::audited;
 use super::read::{Nothing, as_person, clock, get, reader};
 
+/// The right to read the journal of the pods.
+const OBSERVATIONS: &str = "kube.observation.read";
+/// The right to read the machines, hypervisors included.
+const MACHINES: &str = "machines.read";
+/// The right to read the clusters of virtualisation.
+const CLUSTERS: &str = "machines.cluster.read";
+
 /// `machines.<name>` from its JSON fields.
 fn machines(name: &str, fields: Value) -> Operation {
     let mut object = fields;
@@ -220,7 +227,8 @@ async fn execution_chain_at_date(pool: PgPool) {
     .await;
     let now = clock(&pool).await;
 
-    let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
+    // The reader of the journal, who reads the machines and the clusters of virtualisation.
+    let who = reader(&pool, &[OBSERVATIONS, MACHINES, CLUSTERS], None).await;
     let context = RequestContext::person(who);
     let journal = PgAuditJournal::new(pool.clone(), Instance::new("test"));
     let reading = |context| Reading {
@@ -297,6 +305,41 @@ async fn execution_chain_at_date(pool: PgPool) {
     assert_eq!(reads[1].2, [Uuid::from_u128(1)]);
     assert!(reads[2..].iter().all(|r| r.2.is_empty()), "{reads:?}");
 
+    // What the reader may not read in the module machines answers as absent, each
+    // reference on its own: the journal alone, no machine; with the machines, no cluster
+    // of virtualisation (Q-019-31, precision of task 8c).
+    let seen_by = async |conn: &mut sqlx::PgConnection, permissions: &[&str]| {
+        let context = RequestContext::person(reader(&pool, permissions, None).await);
+        let reading = Reading {
+            context: &context,
+            journal: &journal,
+            audit: ReadAudit::default(),
+        };
+        let answer = execution_chain(conn, &rbac, reading, env.web, seen).await;
+        answer.unwrap().unwrap().links
+    };
+    let hosted = |node, machine, hypervisor, cluster| Link {
+        node,
+        machine,
+        hypervisor,
+        cluster,
+    };
+    let mut journal_only = vec![
+        hosted(worker1, None, None, None),
+        hosted(worker2, None, None, None),
+    ];
+    journal_only.sort_by_key(|l| l.node);
+    assert_eq!(seen_by(&mut conn, &[OBSERVATIONS]).await, journal_only);
+    let mut with_machines = vec![
+        hosted(worker1, Some(vm1), Some(hv1), None),
+        hosted(worker2, Some(vm2), None, None),
+    ];
+    with_machines.sort_by_key(|l| l.node);
+    assert_eq!(
+        seen_by(&mut conn, &[OBSERVATIONS, MACHINES]).await,
+        with_machines
+    );
+
     // The workload closed by the connector: `closed`, unjournaled.
     env.applied(
         env.connector,
@@ -309,7 +352,7 @@ async fn execution_chain_at_date(pool: PgPool) {
     .await;
     let answer = execution_chain(&mut conn, &rbac, reading(&context), env.web, seen).await;
     assert_eq!(answer.unwrap(), answered(Vec::new(), Some(Cut::Closed)));
-    assert_eq!(audited(&pool, "data.objects.read").await.len(), 5);
+    assert_eq!(audited(&pool, "data.objects.read").await.len(), 7);
 }
 
 /// REQ-019-3 (Q-019-32 and its amendments): a machine `container` hosted by the machine of
@@ -509,7 +552,8 @@ async fn chain_route_framed(pool: PgPool) {
         format!("{}?valid_at={}", chain(workload), super::rfc3339(instant))
     };
 
-    let who = reader(&pool, &["kube.observation.read"], Some(env.pods)).await;
+    // The reader of the journal, who reads the machines.
+    let who = reader(&pool, &[OBSERVATIONS, MACHINES], None).await;
     let app = as_person(&pool, who);
     // Now: the node, its machine and the hypervisor of that machine.
     let (status, body) = get(&app, &chain(env.web)).await;
@@ -518,6 +562,16 @@ async fn chain_route_framed(pool: PgPool) {
         body,
         json!({"links": [{"node": {"id": worker1}, "machine": {"id": vm1},
                           "hypervisor": {"id": hv1}, "virtualization_cluster": null}],
+               "reason": null})
+    );
+    // The reader of the journal of the pods alone: the machines answer as absent.
+    let pods_only = as_person(&pool, reader(&pool, &[OBSERVATIONS], Some(env.pods)).await);
+    let (status, body) = get(&pods_only, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        json!({"links": [{"node": {"id": worker1}, "machine": null,
+                          "hypervisor": null, "virtualization_cluster": null}],
                "reason": null})
     );
     // Before its pod: no link, no reason.
@@ -550,7 +604,7 @@ async fn chain_route_framed(pool: PgPool) {
     }
     // Each chain answered journaled once, by the port.
     let reads = audited(&pool, "data.objects.read").await;
-    assert_eq!(reads.len(), 6, "{reads:?}");
+    assert_eq!(reads.len(), 7, "{reads:?}");
     assert!(
         reads
             .iter()
@@ -599,6 +653,10 @@ async fn chain_route_framed(pool: PgPool) {
     assert_eq!(problem["type"], "urn:kartenn:problem:gone");
     let (status, problem) = get(&nobody, &chain(env.web)).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
-    assert_eq!(audited(&pool, "data.objects.read").await.len(), 6);
-    assert_eq!(audited(&pool, "authz.access.denied").await.len(), 1);
+    // Who sees the workload without the right on the journal is refused before being told
+    // it is closed: 403, journaled.
+    let (status, problem) = get(&workloads, &chain(env.web)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{problem}");
+    assert_eq!(audited(&pool, "data.objects.read").await.len(), 7);
+    assert_eq!(audited(&pool, "authz.access.denied").await.len(), 2);
 }

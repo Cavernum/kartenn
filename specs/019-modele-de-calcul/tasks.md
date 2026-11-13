@@ -1887,7 +1887,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`gen.mjs` des deux SDK : `DATED_PATHS` pour `valid_at`, `AS_OF_PATHS` pour `as_of` ;
     `readUrl` des deux clients ; clés du cache de `web/v2` sans `as_of` sur une route qui
     ne le prend pas) ; tests `client.test.ts` des deux SDK (la chaîne ne reçoit jamais
-    `as_of`, une lecture ordinaire toujours) et `cache.test.ts`.
+    `as_of`, une lecture ordinaire toujours) et `cache.test.ts`. Visibilité des maillons
+    (précision de Q-019-31) : `read::visible` rend `null` une machine ou un hyperviseur
+    sans `machines.read`, un cluster de virtualisation sans `machines.cluster.read` ; tests
+    `execution_chain_at_date` (journal seul : aucune machine ; avec les machines : pas de
+    cluster) et `chain_route_framed` (lecteur du seul domaine des pods : `null`), qui fige
+    aussi le 403 d'un workload clos lu sans `kube.observation.read`.
 - [ ] 8d. Paramètres du module : `GET, POST /v1/kube-label-mappings`,
   `GET, PATCH, DELETE /v1/kube-label-mappings/{id}`, valeurs admises
   (`PUT /v1/kube-namespaces/{id}/admitted-values`), `GET, PUT /v1/kube-tracked-labels`,
