@@ -348,9 +348,14 @@ règle déroge à l'optimisme de REQ-021-16, réservé aux valeurs. [X33, D-7, r
 l'utilisateur du 2026-10-23]
 
 Acceptation :
-- Parcours : déplacement d'une machine vers un cluster d'un autre site ; le contrôle du
-  client l'accepte, le serveur le refuse (`machines.host.site_mismatch`) : le nœud n'a
+- Parcours : déplacement d'une machine physique vers un cluster ; le contrôle du client
+  l'accepte, la simulation du brouillon le refuse (`machines.host.invalid`) : le nœud n'a
   jamais quitté sa place, l'état « refusé » montre le code.
+- Parcours : déplacement d'une machine vers un hôte d'un autre site ; le contrôle du
+  client l'accepte, le serveur l'admet avec son avertissement
+  (`machines.host.site_mismatch`, 009 M11, A22) : l'avertissement est montré avec son
+  code, le déplacement va au brouillon, le nœud reste à sa place jusqu'à la réponse
+  (amendé le 2026-11-14, tâche 18b).
 - Réponse lente simulée : pendant l'attente, le nœud est à sa place, marqué « en attente ».
 
 #### REQ-021-34 — Invariant d'affichage des arbres
