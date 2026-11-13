@@ -6,7 +6,7 @@
 // `['v1', resource, path parameters, normalized filters, { valid_at, as_of }]`, the present
 // written `null`. No screen writes a key by hand: these factories do.
 
-import { DATED_PATHS } from "../api/dated.ts";
+import { AS_OF_PATHS, DATED_PATHS } from "../api/dated.ts";
 import { context } from "../context.ts";
 import { collectionOf } from "./types.ts";
 
@@ -49,10 +49,18 @@ export function timeKey(time?: TimeArg | null): TimeKey {
     : Object.freeze({ valid_at: validAt, as_of: asOf });
 }
 
-/** The time of a key on a path: the context by default, the present on an undated path. */
+/**
+ * The time of a key on a path: the context by default, the present on an undated path; the
+ * dates the path does not take are left out, as the client leaves them out of the read.
+ */
 function timeOn(template: string, time: TimeArg | null | undefined): TimeKey {
-  if (!DATED_PATHS.has(template)) return PRESENT;
-  return timeKey(time === undefined ? context.get().time : time);
+  const [validAt, asOf] = [DATED_PATHS.has(template), AS_OF_PATHS.has(template)];
+  if (!validAt && !asOf) return PRESENT;
+  const own = time === undefined ? context.get().time : time;
+  return timeKey({
+    validAt: validAt ? (own?.validAt ?? null) : null,
+    asOf: asOf ? (own?.asOf ?? null) : null,
+  });
 }
 
 /** Filters in a canonical form, so that two equal queries get the same key. */

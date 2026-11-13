@@ -1883,6 +1883,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (400) : le port lit les arêtes dans les assertions courantes et le journal n'a pas de
     temps système ; paramètres inconnus ignorés, comme les lectures d'objet (`Dates`) ;
     une chaîne close entre le cadre et la lecture répond aussi 410, un `None` du port 404.
+    Correction de revue : les SDK n'ajoutent plus que les dates qu'une route déclare
+    (`gen.mjs` des deux SDK : `DATED_PATHS` pour `valid_at`, `AS_OF_PATHS` pour `as_of` ;
+    `readUrl` des deux clients ; clés du cache de `web/v2` sans `as_of` sur une route qui
+    ne le prend pas) ; tests `client.test.ts` des deux SDK (la chaîne ne reçoit jamais
+    `as_of`, une lecture ordinaire toujours) et `cache.test.ts`.
 - [ ] 8d. Paramètres du module : `GET, POST /v1/kube-label-mappings`,
   `GET, PATCH, DELETE /v1/kube-label-mappings/{id}`, valeurs admises
   (`PUT /v1/kube-namespaces/{id}/admitted-values`), `GET, PUT /v1/kube-tracked-labels`,

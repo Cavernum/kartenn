@@ -207,6 +207,18 @@ describe("client of the API (REQ-007-15, 24)", () => {
     expect(calls[1]?.url).toBe("/v1/prefixes/p?valid_at=2025-01-01T00%3A00%3A00Z");
     expect(calls[2]?.url).toBe("/v1/me");
   });
+
+  it("adds as_of of the context only where the path declares it", async () => {
+    const { fetch, calls } = recording(json({}), json({}));
+    const time = () => ({ validAt: "2026-03-01T00:00:00Z", asOf: "2026-04-01T00:00:00Z" });
+    const api = createClient({ fetch, time });
+    await api.get("/v1/prefixes/{id}", { path: { id: "p" } });
+    await api.get("/v1/workloads/{id}/chain", { path: { id: "w" } });
+    expect(calls[0]?.url).toBe(
+      "/v1/prefixes/p?valid_at=2026-03-01T00%3A00%3A00Z&as_of=2026-04-01T00%3A00%3A00Z",
+    );
+    expect(calls[1]?.url).toBe("/v1/workloads/w/chain?valid_at=2026-03-01T00%3A00%3A00Z");
+  });
 });
 
 // Generating the types of the whole contract takes seconds, more with each module mounted

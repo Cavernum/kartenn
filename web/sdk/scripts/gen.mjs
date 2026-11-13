@@ -50,11 +50,14 @@ function queries(spec) {
   return `\n/** Routes answering the \`QUERY\` method (REQ-006-10), from \`x-query\`. */\nexport interface queries {\n${lines.join("\n")}\n}\n`;
 }
 
-/** Paths whose \`GET\` takes \`valid_at\` (dated reads, REQ-007-24). */
-function datedPaths(spec) {
+/**
+ * Paths whose \`GET\` declares the query parameter \`name\`: \`valid_at\` for the dated reads
+ * (REQ-007-24), \`as_of\` for those of them that also read past assertions.
+ */
+function datedPaths(spec, name) {
   return Object.entries(spec.paths)
     .filter(([, item]) =>
-      (item.get?.parameters ?? []).some((p) => p.in === "query" && p.name === "valid_at"),
+      (item.get?.parameters ?? []).some((p) => p.in === "query" && p.name === name),
     )
     .map(([path]) => path)
     .sort();
@@ -127,8 +130,11 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = ${JSON.strin
 /** The generated files, formatted, from a parsed contract. */
 export async function generate(spec) {
   const schema = astToString(await openapiTS(structuredClone(spec))) + queries(spec);
-  const dated = `/** Paths whose read is dated: the client adds \`valid_at\` and \`as_of\` from the context. */
-export const DATED_PATHS: ReadonlySet<string> = new Set(${JSON.stringify(datedPaths(spec))});
+  const dated = `/** Paths whose read is dated: the client adds \`valid_at\` from the context. */
+export const DATED_PATHS: ReadonlySet<string> = new Set(${JSON.stringify(datedPaths(spec, "valid_at"))});
+
+/** Paths whose read takes \`as_of\`: the client adds it from the context there only. */
+export const AS_OF_PATHS: ReadonlySet<string> = new Set(${JSON.stringify(datedPaths(spec, "as_of"))});
 `;
   return {
     schema: await format(NOTICE + schema, PRETTIER),

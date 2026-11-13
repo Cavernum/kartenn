@@ -6,7 +6,7 @@
 // which knows the conventions of kartenn (`QUERY`, `If-Match`, `Idempotency-Key`,
 // problems, cursors, dated reads).
 
-import { DATED_PATHS } from "./dated.ts";
+import { AS_OF_PATHS, DATED_PATHS } from "./dated.ts";
 import { ApiProblem } from "./problem.ts";
 import type { paths, queries } from "./schema";
 
@@ -185,13 +185,17 @@ export function createClient(options: ClientOptions = {}): Client {
     return { data, etag: response.headers.get("ETag"), status: response.status };
   }
 
-  /** The query of a read, with `valid_at` and `as_of` of the context on a dated path. */
+  /** The query of a read, with `valid_at` and `as_of` of the context where the path takes them. */
   function readUrl(template: string, raw: RawOptions): string {
     const query: Record<string, unknown> = { ...raw.query };
-    if (DATED_PATHS.has(template) && options.time) {
+    if (options.time && (DATED_PATHS.has(template) || AS_OF_PATHS.has(template))) {
       const { validAt, asOf } = options.time();
-      if (query["valid_at"] === undefined && validAt !== null) query["valid_at"] = validAt;
-      if (query["as_of"] === undefined && asOf !== null) query["as_of"] = asOf;
+      if (DATED_PATHS.has(template) && query["valid_at"] === undefined && validAt !== null) {
+        query["valid_at"] = validAt;
+      }
+      if (AS_OF_PATHS.has(template) && query["as_of"] === undefined && asOf !== null) {
+        query["as_of"] = asOf;
+      }
     }
     return expand(template, raw.path) + search(query);
   }

@@ -55,6 +55,16 @@ describe("keys (REQ-021-21)", () => {
     });
     // `/v1/me` is not dated: the dates of the context never enter its key.
     expect(keys.list("/v1/me")[4]).toEqual({ valid_at: null, as_of: null });
+    // The chain of a workload takes `valid_at` only: `as_of` never enters its key.
+    setContext({ time: { validAt: "2026-03-01T00:00:00Z", asOf: "2026-04-01T00:00:00Z" } });
+    expect(keys.list("/v1/workloads/{id}/chain")[4]).toEqual({
+      valid_at: "2026-03-01T00:00:00Z",
+      as_of: null,
+    });
+    expect(keys.object("core.prefix", P1)[4]).toEqual({
+      valid_at: "2026-03-01T00:00:00Z",
+      as_of: "2026-04-01T00:00:00Z",
+    });
   });
 
   it("put the sub-resources of an object under its key, and tell the immutable ones", () => {
