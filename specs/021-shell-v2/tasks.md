@@ -1397,7 +1397,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/views/record/HistoryTab.vue` ; maquette `E2Fiche.vue`
     (`Version`, colonnes `motive`, `author`)
   - dépend de : 11p2
-- [ ] 11p6. Maquettes du référentiel amendées (Q-021-25, 26) : comptes des onglets de la
+- [x] 11p6. Maquettes du référentiel amendées (Q-021-25, 26) : comptes des onglets de la
   fiche retirés (E2, `RecordView.vue` s'il en montre), tri des colonnes retiré des
   maquettes E1 à E3 et des vues du référentiel (ordre de la clé, `sortable` ôté) ; les
   autres écrans gardent leur tri jusqu'à leur propre tâche — REQ-021-9 — verify :
@@ -1405,6 +1405,21 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/_ui/ecrans/{E1Topographie,E2Fiche,E3Adresses}.vue`,
     `web/v2/shell/src/views/RecordView.vue`, `views/list.ts`, `propertyColumns.ts`
   - dépend de : 11p
+  - fait le 2026-11-13 — `E1Topographie.vue` (table du nœud), `E2Fiche.vue` (propriétés,
+    historique) et `E3Adresses.vue` sans colonne triable (`sortable`, `v-model:sort`
+    ôtés ; filtres gardés) ; onglets d'E2 sans compte, cœur et plugins ; propriétés d'E2
+    dans l'ordre de la clé, masquées comprises ; `RecordView.vue`, `list.ts`,
+    `propertyColumns.ts` et les vues du référentiel n'avaient ni tri ni compte : inchangés ;
+    amendements datés sous Q-021-25 et Q-021-26 (`decisions.md`), dans la trace des
+    validations de la 020 (§ « Validations des maquettes ») et dans « Catalogue des
+    écrans » (listes, fiche) ; captures E1 à E3 réécrites et regardées ;
+    `k-web2-check --base main` vert.
+  - choix : captures réécrites en `--update all` restreint à E1 à E3, car `changed`
+    gardait des références sous la tolérance qui montraient encore la flèche (E1 à
+    1280 px) ; les instantanés d'accessibilité réécrits par `changed` seulement (ceux d'E2,
+    les autres inchangés). Reste ouvert (antérieur, relecture) : à 390 px la colonne
+    Source d'E2 est coupée (« Masquée » illisible), et à 768 px l'historique d'E2 ne montre
+    que « Version » et « Valide », le reste par défilement horizontal.
 - [ ] 11p7. Déclarations lues par filtre : `useDeclarations` lit
   `GET /v1/property-declarations?carrier=<sorte>` (filtres typés d'une liste) et `q=`
   (suggestions de clé), au lieu de dix pages au plus — REQ-021-18 — verify : Vitest des
