@@ -2484,6 +2484,20 @@
         ],
         "type": "object"
       },
+      "ExecutionHostRef": {
+        "description": "An object of the module machines in a chain of execution, by its identifier.",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Expected": {
         "description": "The source of the expected values of a property (REQ-003-23).",
         "properties": {
@@ -4731,7 +4745,8 @@
           }
         },
         "required": [
-          "links"
+          "links",
+          "reason"
         ],
         "type": "object"
       },
@@ -4749,8 +4764,8 @@
           "hypervisor": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "The hypervisor that hosts the machine."
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "The hypervisor (`machines.machine`) that hosts the machine; `null` without one, or\nfor one the caller may not read."
               },
               {
                 "type": "null"
@@ -4760,8 +4775,8 @@
           "machine": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "Its machine; `null` for a node matched to no machine."
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "Its machine (`machines.machine`); `null` for a node matched to no machine, or a\nmachine the caller may not read."
               },
               {
                 "type": "null"
@@ -4775,8 +4790,8 @@
           "virtualization_cluster": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "The cluster of virtualisation (`machines.cluster`) that hosts the machine."
+                "$ref": "#/components/schemas/ExecutionHostRef",
+                "description": "The cluster of virtualisation (`machines.cluster`) that hosts the machine; `null`\nwithout one, or for one the caller may not read."
               },
               {
                 "type": "null"
@@ -4785,7 +4800,10 @@
           }
         },
         "required": [
-          "node"
+          "node",
+          "machine",
+          "hypervisor",
+          "virtualization_cluster"
         ],
         "type": "object"
       },

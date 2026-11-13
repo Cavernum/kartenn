@@ -1892,7 +1892,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     sans `machines.read`, un cluster de virtualisation sans `machines.cluster.read` ; tests
     `execution_chain_at_date` (journal seul : aucune machine ; avec les machines : pas de
     cluster) et `chain_route_framed` (lecteur du seul domaine des pods : `null`), qui fige
-    aussi le 403 d'un workload clos lu sans `kube.observation.read`.
+    aussi le 403 d'un workload clos lu sans `kube.observation.read`. Contrat : `machine`,
+    `hypervisor`, `virtualization_cluster` et `reason` dans `required` (servis toujours,
+    `null` au besoin) ; les références du module machines en `ExecutionHostRef`, le nœud
+    seul en `KubeObjectRef`.
+  - reste : un droit retiré entre le cadre et le port répond 404 sans refus journalisé, là
+    où le cadre aurait répondu 403 (course, dite en commentaire dans `rest/chain.rs`).
 - [ ] 8d. Paramètres du module : `GET, POST /v1/kube-label-mappings`,
   `GET, PATCH, DELETE /v1/kube-label-mappings/{id}`, valeurs admises
   (`PUT /v1/kube-namespaces/{id}/admitted-values`), `GET, PUT /v1/kube-tracked-labels`,

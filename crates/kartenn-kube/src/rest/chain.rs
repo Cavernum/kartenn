@@ -39,12 +39,26 @@ const WHAT: &str = "the workload or its cluster";
 struct LinkDto {
     /// The node, from the journal.
     node: IdRef,
-    /// Its machine; `null` for a node matched to no machine.
-    machine: Option<IdRef>,
-    /// The hypervisor that hosts the machine.
-    hypervisor: Option<IdRef>,
-    /// The cluster of virtualisation (`machines.cluster`) that hosts the machine.
-    virtualization_cluster: Option<IdRef>,
+    /// Its machine (`machines.machine`); `null` for a node matched to no machine, or a
+    /// machine the caller may not read.
+    #[schema(required = true)]
+    machine: Option<HostRef>,
+    /// The hypervisor (`machines.machine`) that hosts the machine; `null` without one, or
+    /// for one the caller may not read.
+    #[schema(required = true)]
+    hypervisor: Option<HostRef>,
+    /// The cluster of virtualisation (`machines.cluster`) that hosts the machine; `null`
+    /// without one, or for one the caller may not read.
+    #[schema(required = true)]
+    virtualization_cluster: Option<HostRef>,
+}
+
+/// An object of the module machines in a chain of execution, by its identifier.
+#[derive(Debug, Clone, Copy, Serialize, ToSchema)]
+#[schema(as = ExecutionHostRef)]
+struct HostRef {
+    /// Identifier.
+    id: Uuid,
 }
 
 /// Why a chain is empty though the workload may have run.
@@ -67,6 +81,7 @@ struct ChainDto {
     /// `retention` past the retention of its cluster, `unobserved` for a workload the
     /// journal never saw within it, the chain then empty (Q-019-31); `null` otherwise,
     /// an empty chain then saying that no pod of the workload ran at the date.
+    #[schema(required = true)]
     reason: Option<ReasonDto>,
 }
 
@@ -80,7 +95,7 @@ struct ChainParams {
 }
 
 fn link_dto(link: &Link) -> LinkDto {
-    let reference = |id: Option<Uuid>| id.map(|id| IdRef { id });
+    let reference = |id: Option<Uuid>| id.map(|id| HostRef { id });
     LinkDto {
         node: IdRef { id: link.node },
         machine: reference(link.machine),

@@ -5832,6 +5832,14 @@ export interface components {
       /** @description Open streams per identity. */
       streams_per_identity: number;
     };
+    /** @description An object of the module machines in a chain of execution, by its identifier. */
+    ExecutionHostRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+    };
     /** @description The source of the expected values of a property (REQ-003-23). */
     Expected: {
       /** @description How its values apply. */
@@ -6703,7 +6711,7 @@ export interface components {
     KubeExecutionChain: {
       /** @description One link per node, by node. */
       links: components["schemas"]["KubeExecutionLink"][];
-      reason?: components["schemas"]["KubeExecutionChainReason"] | null;
+      reason: components["schemas"]["KubeExecutionChainReason"] | null;
     };
     /**
      * @description Why a chain is empty though the workload may have run.
@@ -6716,11 +6724,11 @@ export interface components {
      *     `machines.hosted_in`), all at the date.
      */
     KubeExecutionLink: {
-      hypervisor?: components["schemas"]["KubeObjectRef"] | null;
-      machine?: components["schemas"]["KubeObjectRef"] | null;
+      hypervisor: components["schemas"]["ExecutionHostRef"] | null;
+      machine: components["schemas"]["ExecutionHostRef"] | null;
       /** @description The node, from the journal. */
       node: components["schemas"]["KubeObjectRef"];
-      virtualization_cluster?: components["schemas"]["KubeObjectRef"] | null;
+      virtualization_cluster: components["schemas"]["ExecutionHostRef"] | null;
     };
     /** @description An ingress of a namespace (REQ-019-10). */
     KubeIngress: {
