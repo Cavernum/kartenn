@@ -7,7 +7,6 @@
 // carries `source` and `expected`; masked, both values are left out (`expected` too);
 // stored before them (migration 0075), `source` as well. Only a resolved `null` beside an
 // expected value is « no value ».
-import type { components } from "@kartenn/sdk";
 import {
   DataGrid,
   EmptyState,
@@ -27,10 +26,7 @@ import { useDeclarations, useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
 import ObjectName from "../record/ObjectName.vue";
 import PropertyValue from "../record/PropertyValue.vue";
-
-type Gap = components["schemas"]["Gap"];
-/** What the members of a gap tell of its values. */
-type Detail = "values" | "masked" | "unevaluated";
+import { gapDetail as detailOf, noValue as empty, type Gap } from "./gap.ts";
 
 const { t, locale } = useI18n();
 const settings = useSettings();
@@ -57,8 +53,6 @@ const when = (iso: string) =>
     new Date(iso),
   );
 const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
-const detailOf = (gap: Gap): Detail =>
-  gap.source == null ? "unevaluated" : gap.expected == null ? "masked" : "values";
 const valueOf = (gap: Gap, column: string): unknown =>
   column === "expected" ? gap.expected : gap.resolved;
 const byKey = computed(() => new Map(declarations.value.map((d) => [d.key, d])));
@@ -67,8 +61,6 @@ const targetOf = (key: string | null | undefined) => {
   const target = declarationOf(key)?.params?.target;
   return typeof target === "string" ? target : undefined;
 };
-/** No value: `null`, or an empty set. */
-const empty = (value: unknown) => value == null || (Array.isArray(value) && value.length === 0);
 </script>
 
 <template>

@@ -18,8 +18,27 @@ describe("the provenance of an assignment, read", () => {
     expect(provenanceOf("input")).toEqual({ kind: "input" });
   });
 
-  it("the default of a source: its form kept", () => {
-    expect(provenanceOf("source:s1@3")).toEqual({ kind: "source", code: "source:s1@3" });
+  it("the default of a source: its form kept, the source and its revision read", () => {
+    expect(provenanceOf("source:s1@3")).toEqual({
+      kind: "source",
+      code: "source:s1@3",
+      source: "s1",
+      revision: "3",
+    });
+    // The detail after `#` is the source's own (REQ-016-5): not part of the revision.
+    expect(provenanceOf("source:cmdb@r12#row:7@b")).toEqual({
+      kind: "source",
+      code: "source:cmdb@r12#row:7@b",
+      source: "cmdb",
+      revision: "r12",
+    });
+    expect(provenanceOf("source:cmdb")).toEqual({
+      kind: "source",
+      code: "source:cmdb",
+      source: "cmdb",
+      revision: null,
+    });
+    expect(provenanceOf("source:@3")).toEqual({ kind: "other", code: "source:@3" });
   });
 
   it("derived by kube from a label: the label's key", () => {

@@ -7,6 +7,11 @@
 // (Ctrl+Enter, `properties` of the patch under `If-Match`); over an inherited value, the
 // value of the object's own that overrides it, said under the grid (and when the editor
 // opens) before it is sent; a cell without an editor says why.
+// Beside each value its source (task 021-11p4, Q-021-23; `sources` of `Resolved`): direct,
+// inherited from its origin by name, inherited from an object the caller may not read, the
+// default of a source or derived by a module (`provenance.ts`, `valueOriginOf`); a masked
+// value has none. Above the grid, the gaps of the object (`GapsNotice`). Under a narrow
+// container the rows stack, each value and its source on a line of their own.
 import { reads, type components } from "@kartenn/sdk";
 import {
   DataGrid,
@@ -14,6 +19,7 @@ import {
   IconButton,
   KeyLabel,
   Popover,
+  Stack,
   type CellRef,
   type GridColumn,
 } from "@kartenn/ui";
@@ -37,7 +43,10 @@ import {
 import QuickApply from "../edit/QuickApply.vue";
 import { useSay, useStatus } from "../edit/say.ts";
 import ExplanationBody from "./ExplanationBody.vue";
+import GapsNotice from "./GapsNotice.vue";
 import PropertyValue from "./PropertyValue.vue";
+import { valueOriginOf } from "./provenance.ts";
+import ValueSource from "./ValueSource.vue";
 
 type Resolved = components["schemas"]["Resolved"];
 
@@ -78,6 +87,8 @@ const read = computed<PropertyRow[]>(() => {
   }));
   return [...shown, ...masked].sort((a, b) => a.key.localeCompare(b.key));
 });
+/** Where the value of `key` comes from, as read; `null` for a masked key or a drafted one. */
+const originOf = (key: string) => valueOriginOf(resolved.data.value?.data.sources[key]);
 const declarationOf = (key: string) =>
   declarations.value.find((d) => d.key === key) as Declared | undefined;
 const targetOf = (key: string) => {
@@ -135,7 +146,8 @@ const noteHere = (key: string) =>
 
 const columns = computed<GridColumn[]>(() => [
   { id: "key", label: t("views.record.property"), width: "fill" },
-  { id: "value", label: t("views.record.value"), width: "lg" },
+  { id: "value", label: t("views.record.value"), width: "md" },
+  { id: "source", label: t("views.record.source"), width: "lg", wrap: true },
   { id: "explain", label: t("views.record.explanation"), width: "sm", actions: true },
 ]);
 
@@ -160,83 +172,101 @@ function onCancelAsk(): void {
 </script>
 
 <template>
-  <ProblemState
-    v-if="resolved.isError.value"
-    :title="t('views.record.propertiesError')"
-    :error="resolved.error.value"
-    :retry="resolved.refetch"
-  />
-  <EmptyState
-    v-else-if="resolved.isSuccess.value && rows.length === 0"
-    :title="t('views.record.noProperties')"
-  >
-    {{ t("views.record.noPropertiesText") }}
-  </EmptyState>
-  <template v-else>
-    <DataGrid
-      v-model:active="active"
-      v-model:editing="editing"
-      data-k-properties
-      :label="t('views.record.propertiesOf', { name: props.name })"
-      :columns="columns"
-      :rows="rows"
-      row-key="key"
-      :loading="resolved.isPending.value"
-      :loading-rows="4"
-      :editable="edit.editable"
-      :readonly-reason="readonlyReason"
-      :validate="edit.validate"
-      :options="edit.options"
-      :cell-state="edit.cellState"
-      :state-reason="edit.stateReason"
-      :row-state="edit.rowState"
-      :row-reason="edit.rowReason"
-      @commit="edit.onCommit"
-    >
-      <template #cell="{ row, column }">
-        <KeyLabel v-if="column.id === 'key'" :value="row.key" :label="labelOf(row.key)" show-key />
-        <template v-else-if="column.id === 'value'">
-          <span v-if="row.masked">{{ t("views.record.masked") }}</span>
-          <PropertyValue
-            v-else
-            :property="row.key"
-            :value="row.read"
-            :type="declarationOf(row.key)?.type"
-            :target="targetOf(row.key)"
-          />
-          <span v-if="noteHere(row.key)" class="k-visually-hidden">{{ noteHere(row.key) }}</span>
-        </template>
-        <Popover
-          v-else-if="!row.masked"
-          :title="t('views.record.explanationOf', { name: labelOf(row.key) ?? row.key })"
+  <Stack gap="3">
+    <GapsNotice :id="props.id" :declarations="declarations" />
+    <div>
+      <ProblemState
+        v-if="resolved.isError.value"
+        :title="t('views.record.propertiesError')"
+        :error="resolved.error.value"
+        :retry="resolved.refetch"
+      />
+      <EmptyState
+        v-else-if="resolved.isSuccess.value && rows.length === 0"
+        :title="t('views.record.noProperties')"
+      >
+        {{ t("views.record.noPropertiesText") }}
+      </EmptyState>
+      <template v-else>
+        <DataGrid
+          v-model:active="active"
+          v-model:editing="editing"
+          data-k-properties
+          :label="t('views.record.propertiesOf', { name: props.name })"
+          :columns="columns"
+          :rows="rows"
+          row-key="key"
+          :loading="resolved.isPending.value"
+          :loading-rows="4"
+          stack
+          :editable="edit.editable"
+          :readonly-reason="readonlyReason"
+          :validate="edit.validate"
+          :options="edit.options"
+          :cell-state="edit.cellState"
+          :state-reason="edit.stateReason"
+          :row-state="edit.rowState"
+          :row-reason="edit.rowReason"
+          @commit="edit.onCommit"
         >
-          <template #trigger>
-            <IconButton
-              icon="info"
-              :label="t('views.record.explain', { name: labelOf(row.key) ?? row.key })"
-              size="sm"
-              variant="ghost"
+          <template #cell="{ row, column }">
+            <KeyLabel
+              v-if="column.id === 'key'"
+              :value="row.key"
+              :label="labelOf(row.key)"
+              show-key
             />
+            <template v-else-if="column.id === 'value'">
+              <span v-if="row.masked">{{ t("views.record.masked") }}</span>
+              <PropertyValue
+                v-else
+                :property="row.key"
+                :value="row.read"
+                :type="declarationOf(row.key)?.type"
+                :target="targetOf(row.key)"
+              />
+              <span v-if="noteHere(row.key)" class="k-visually-hidden">{{
+                noteHere(row.key)
+              }}</span>
+            </template>
+            <ValueSource
+              v-else-if="column.id === 'source'"
+              :origin="originOf(row.key)"
+              :masked="row.masked"
+            />
+            <Popover
+              v-else-if="!row.masked"
+              :title="t('views.record.explanationOf', { name: labelOf(row.key) ?? row.key })"
+            >
+              <template #trigger>
+                <IconButton
+                  icon="info"
+                  :label="t('views.record.explain', { name: labelOf(row.key) ?? row.key })"
+                  size="sm"
+                  variant="ghost"
+                />
+              </template>
+              <ExplanationBody :id="props.id" :kind="props.collection.kind" :property="row.key" />
+            </Popover>
           </template>
-          <ExplanationBody :id="props.id" :kind="props.collection.kind" :property="row.key" />
-        </Popover>
+        </DataGrid>
+        <QuickApply
+          v-if="edit.asking.value"
+          :key="edit.asking.value.row"
+          :ask="edit.asking.value"
+          :words="(key, value) => keyLabel('value', `${key}/${value}`)"
+          @confirm="onConfirm"
+          @cancel="onCancelAsk"
+        />
+        <EditHint
+          v-else-if="activeKey"
+          :why="activeWhy"
+          :apply-lacks="applyLacks"
+          :held="edit.heldOf(activeKey)"
+          :note="activeWhy === null ? edit.noteOf(activeKey) : undefined"
+        />
+        <span class="k-visually-hidden" role="status">{{ said }}</span>
       </template>
-    </DataGrid>
-    <QuickApply
-      v-if="edit.asking.value"
-      :key="edit.asking.value.row"
-      :ask="edit.asking.value"
-      :words="(key, value) => keyLabel('value', `${key}/${value}`)"
-      @confirm="onConfirm"
-      @cancel="onCancelAsk"
-    />
-    <EditHint
-      v-else-if="activeKey"
-      :why="activeWhy"
-      :apply-lacks="applyLacks"
-      :held="edit.heldOf(activeKey)"
-      :note="activeWhy === null ? edit.noteOf(activeKey) : undefined"
-    />
-    <span class="k-visually-hidden" role="status">{{ said }}</span>
-  </template>
+    </div>
+  </Stack>
 </template>
