@@ -309,8 +309,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   (slug) et `value` (`first` pour une plage) pour les objets d'adressage ; une valeur
   répétée vaut « l'une de ». Les listes sont triées par clé naturelle puis UUID.
 - **Historique** : `GET …/{id}/history` rend `{items: [{valid_from, valid_to,
-  asserted_from, asserted_to, changeset: {id, href}, object}]}` (`valid_to` et
-  `asserted_to` `null` quand ouverts), trié par début de validité puis d'assertion ;
+  asserted_from, asserted_to, changeset: {id, href}, motive, author: {id, href, name},
+  object}]}` (`valid_to` et `asserted_to` `null` quand ouverts ; `motive` et `author`,
+  ceux du changeset, l'auteur lu dans les identités à chaque lecture, jamais recopié,
+  si bien qu'une personne pseudonymisée s'y lit « personne #… » (REQ-004-33), et son
+  `name` `null` pour qui ne détient pas `core.rbac.read` ; 021-11p2, Q-021-24), trié
+  par début de validité puis d'assertion ;
   lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
   `valid_at` donné ne garde que les versions valides à cette date (toutes leurs
   assertions), sur toutes les pages : la clé du curseur le porte. À un `as_of` passé,

@@ -1345,7 +1345,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     dit hérité) ; une clé masquée sans source du tout, plutôt qu'une origine sans valeur
     (la provenance `source:` pourrait trahir la valeur) ; l'objet lui-même nommé sans
     lecture de droits (il vient d'être lu sous les siens).
-- [ ] 11p2. Motif et auteur dans `Version` (Q-021-24, ajout seul) : chaque version servie
+- [x] 11p2. Motif et auteur dans `Version` (Q-021-24, ajout seul) : chaque version servie
   (`GET /v1/<collection>/{id}/versions` et partout où le schéma `Version` est rendu)
   porte le motif et l'auteur de son changeset ; l'auteur est une référence d'identité
   résolue à la lecture (jointure sur la table des identités, sous la forme déjà servie
@@ -1363,6 +1363,20 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     imiter le rendu d'une identité de `crates/kartenn-rest/src/audit.rs` ; test voisin de
     l'historique dans `crates/kartenn-rest/tests/it/objects.rs` ; contrat et SDK comme 11p1
   - dépend de : 11p
+  - fait le 2026-11-13 — `list::versions_page` joint `changeset` et `person` à chaque
+    lecture (`Version.motive`, `Version.author`, `list::Author`) ; `VersionDto` sert
+    `motive` et `author` (`IdentityRef {id, href, name}`, `rights.rs`), `name` à `null`
+    sans `core.rbac.read` (`reads::identities_named`, sans refus ni audit) ; contrat,
+    SDK et design de la 006 (« Historique ») mis à jour ; it
+    `history_names_the_motive_and_the_author_until_pseudonymised` (motif, nom, référence
+    sans nom, puis `POST …/pseudonymisation` : ni nom ni courriel, « personne #… »).
+  - choix : `IdentityRef` à trois membres plutôt qu'`IdentityItem` (son état — émetteur,
+    désactivation, révocation — relève de `core.rbac.read`) ; le nom suit la lecture des
+    identités (`core.rbac.read`, globale) et non celle de l'objet ; le motif servi à tout
+    lecteur de l'objet ; jointure externe, et une version dont le changeset manque au
+    journal répond 500 (journalisé) plutôt que d'être tue ; les fixtures des tests
+    d'historique journalisent leurs changesets (`journal`) ; `ModuleVersion` (objets des
+    modules, VLAN) reste sans motif ni auteur.
 - [ ] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
   accepte `carrier=<sorte>` (déclarations dont `carriers` contient la sorte du cœur ou le
   type qualifié d'un module) et `q=` (sous-chaîne de la clé ou du libellé, sans casse ;
