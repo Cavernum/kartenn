@@ -1265,7 +1265,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `e2e/journeys/plugins.spec.ts` ; inventaire de `specs/020-systeme-de-design/design.md`
     et de la skill `kartenn-ui`
   - dépend de : 11
-- [ ] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
+- [x] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
   **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
   au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;
   ordre de la clé seul ; comptes des onglets retirés ; `carrier` et `q` des déclarations ;
@@ -1295,6 +1295,103 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/views/record/{PropertiesTab,HistoryTab}.vue`, `RecordView.vue`,
     `views/data.ts` (`useDeclarations`)
   - dépend de : 11
+  - fait le 2026-11-13 — arbitrages consignés (`decisions.md`, Q-021-23 à 28), REQ-021-18
+    amendée (87f0b795) ; découpée en 11p1 à 11p3 (serveur, contrat 006, ajouts seuls)
+    puis 11p4 à 11p7 (shell), ci-dessous.
+- [ ] 11p1. Source par valeur et lacunes d'un objet au contrat (Q-021-23, ajout seul) :
+  `Resolved` (`GET /v1/<collection>/{id}/properties`) sert `sources`, par clé de
+  `properties`, `{origin, inherited, provenance}` : `origin` le nœud `{kind, id, href}` de
+  l'objet qui porte l'assignation, `null` s'il n'est pas lisible (son existence n'est pas
+  divulguée, REQ-005-19) ; `inherited` vrai quand ce porteur est un autre objet ;
+  `provenance` comme l'explication (`input`, `source:<id>@<version>`, `module:…`) ; une
+  clé de `masked` n'a pas de source (REQ-005-21) ; `GET /v1/property-gaps` accepte
+  `object=<uuid>` (au plus une fois, UUID, sinon 400), passé au filtre SQL des anomalies
+  comme `/v1/anomalies` (021/A37) et cité dans l'audit de la lecture ; contrat et SDK
+  régénérés, design de la 006 suivi — REQ-021-9, REQ-003-14, REQ-005-19, REQ-005-21 —
+  verify : `k-check -p kartenn-rest` (it `objects` : source directe, héritée d'un ancêtre
+  lisible, d'un ancêtre illisible `origin: null`, clé masquée sans source ; lacunes d'un
+  seul objet, `object` invalide ou répété → 400) ; test du contrat (ajout seul) ;
+  `k-check` complet
+  - où : `crates/kartenn-store-pg/src/read.rs` (`properties_sql`, `object_in` : porteur
+    et provenance) ; `crates/kartenn-service/src/port.rs` (`ObjectRead`), `reads.rs`
+    (`shown_object` : la source d'une clé masquée retirée) ;
+    `crates/kartenn-rest/src/properties.rs` (`Resolved`, `resolved`, `visible_nodes`,
+    `gap_filter`, `gaps`), imiter `anomalies.rs` (`filter`, paramètre `object`) ; tests
+    `crates/kartenn-rest/tests/it/objects.rs` (`properties_resolve_explain_and_mask`,
+    `a_deviation_of_a_sensitive_property_hides_its_value`) ;
+    `specs/006-api-rest/openapi-v1.json` (`cargo run -p kartenn-server --all-features --
+    openapi`), `node web/sdk/scripts/gen.mjs`, `node web/v2/sdk/scripts/gen.mjs` ;
+    `specs/006-api-rest/design.md` (valeurs résolues, écarts)
+  - dépend de : 11p
+- [ ] 11p2. Motif et auteur dans `Version` (Q-021-24, ajout seul) : chaque version servie
+  (`GET /v1/<collection>/{id}/versions` et partout où le schéma `Version` est rendu)
+  porte le motif et l'auteur de son changeset ; l'auteur est une référence d'identité
+  résolue à la lecture (jointure sur la table des identités, sous la forme déjà servie
+  pour une identité ailleurs dans `/v1`, à défaut `{id, name}`), jamais recopiée dans la
+  version, un cache ou une table de lecture : une personne pseudonymisée (REQ-004-33) se
+  lit « personne #… » dans tout l'historique dès sa pseudonymisation. La pseudonymisation
+  automatique au terme d'une durée de conservation (RGPD) n'est pas de cette tâche : elle
+  attend sa spec (Q-021-24) — REQ-021-9, REQ-004-18, REQ-004-33 — verify :
+  `k-check -p kartenn-rest` (it : historique d'un objet avec motif et nom de l'auteur ;
+  après `pseudonymise`, le même historique ne contient plus ni le nom ni le courriel) ;
+  contrat (ajout seul) et SDK régénérés ; `k-check` complet
+  - où : `crates/kartenn-rest/src/objects.rs` (`VersionDto`, `version_of`),
+    `changesets.rs` (`ChangesetRef`, `summary`) ; `crates/kartenn-store-pg/src/list.rs`
+    (`Version`, sa requête), `identities.rs`, `audit.rs` (`pseudonymise_identity`) ;
+    imiter le rendu d'une identité de `crates/kartenn-rest/src/audit.rs` ; test voisin de
+    l'historique dans `crates/kartenn-rest/tests/it/objects.rs` ; contrat et SDK comme 11p1
+  - dépend de : 11p
+- [ ] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
+  accepte `carrier=<sorte>` (déclarations dont `carriers` contient la sorte du cœur ou le
+  type qualifié d'un module) et `q=` (sous-chaîne de la clé ou du libellé, sans casse ;
+  libellé du dictionnaire de la 018 dans la langue négociée — si le dictionnaire ne peut
+  être lu par le store, arbitrage avant d'aller plus loin), chacun au plus une fois, le
+  curseur gardant le filtre ; contrat et SDK régénérés, design de la 006 suivi —
+  REQ-021-18, REQ-003-* (schéma) — verify : `k-check -p kartenn-rest` (it : filtre par
+  porteur, par clé, par libellé, combinés, page suivante sous le même filtre, paramètre
+  inconnu ou répété → 400) ; contrat (ajout seul) ; `k-check` complet
+  - où : `crates/kartenn-rest/src/properties.rs` (`declarations`, `page.unfiltered()` à
+    remplacer par ses filtres), `crates/kartenn-store-pg/src/property_read.rs`
+    (`declarations`), `crates/kartenn-rest/src/labels.rs` ; test
+    `properties_resolve_explain_and_mask` (section « The schema ») ; contrat et SDK comme
+    11p1
+  - dépend de : 11p
+- [ ] 11p4. Fiche, colonne « Source » et encart des lacunes (maquette E2) : `PropertiesTab`
+  lit `sources` (directe, héritée de l'origine nommée par sa référence, héritée d'un
+  ancêtre illisible, provenance `source:`/`module:` dite selon la maquette, masquée) et,
+  au-dessus de la grille, l'encart « propriété attendue manque » par
+  `GET /v1/property-gaps?object=<id>` — REQ-021-9, REQ-021-20 — verify : Vitest des vues
+  (source de chaque sorte, encart vide ou rempli), parcours `records` (fiche d'un préfixe
+  héritant d'un ancêtre), `k-web2-check --base main`
+  - où : `web/v2/shell/src/views/record/PropertiesTab.vue`, `provenance.ts`,
+    `ExplanationBody.vue` (libellés de provenance à réutiliser), `views/data.ts` ; maquette
+    `web/v2/shell/src/_ui/ecrans/E2Fiche.vue` (`SOURCE`) ; `views/anomalies/GapList.vue`
+    (rendu d'une lacune) ; `web/v2/e2e/journeys/records.spec.ts`
+  - dépend de : 11p1
+- [ ] 11p5. Historique, motif et auteur : `HistoryTab` montre le motif et l'auteur servis
+  par `Version` (auteur pseudonymisé tel quel, sans repli sur un nom du cache) —
+  REQ-021-9 — verify : Vitest (motif, auteur, auteur pseudonymisé), parcours `records`
+  (historique d'un objet modifié), `k-web2-check --base main`
+  - où : `web/v2/shell/src/views/record/HistoryTab.vue` ; maquette `E2Fiche.vue`
+    (`Version`, colonnes `motive`, `author`)
+  - dépend de : 11p2
+- [ ] 11p6. Maquettes du référentiel amendées (Q-021-25, 26) : comptes des onglets de la
+  fiche retirés (E2, `RecordView.vue` s'il en montre), tri des colonnes retiré des
+  maquettes E1 à E3 et des vues du référentiel (ordre de la clé, `sortable` ôté) ; les
+  autres écrans gardent leur tri jusqu'à leur propre tâche — REQ-021-9 — verify :
+  `k-web2-check --base main` (captures E1 à E3 réécrites et regardées)
+  - où : `web/v2/shell/src/_ui/ecrans/{E1Topographie,E2Fiche,E3Adresses}.vue`,
+    `web/v2/shell/src/views/RecordView.vue`, `views/list.ts`, `propertyColumns.ts`
+  - dépend de : 11p
+- [ ] 11p7. Déclarations lues par filtre : `useDeclarations` lit
+  `GET /v1/property-declarations?carrier=<sorte>` (filtres typés d'une liste) et `q=`
+  (suggestions de clé), au lieu de dix pages au plus — REQ-021-18 — verify : Vitest des
+  vues (une lecture filtrée, plus de plafond), parcours `records` (filtre par propriété
+  déclarée), `k-web2-check --base main`
+  - où : `web/v2/shell/src/views/data.ts` (`useDeclarations`), ses appelants
+    (`list.ts`, `ListView.vue`, `PropertiesView.vue`, `anomalies/GapList.vue`,
+    `record/PropertiesTab.vue`, `record/NetworkVlanTab.vue`)
+  - dépend de : 11p3
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
