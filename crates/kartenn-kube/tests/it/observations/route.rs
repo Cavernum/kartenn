@@ -46,6 +46,8 @@ use super::{Env, closing, op};
 mod chain;
 /// The collection of the clusters (task 019-8a).
 mod clusters;
+/// The reads of the mirrored objects (task 019-8b).
+mod mirrors;
 /// The reads of the same journal (task 019-6d).
 mod read;
 
@@ -139,6 +141,11 @@ async fn bind(pool: &PgPool, group: Uuid, domain: Uuid, permissions: &[&str]) {
 
 /// A person granted `permissions` everywhere, by a role of their own.
 async fn person(pool: &PgPool, permissions: &[&str]) -> Uuid {
+    person_on(pool, permissions, ("global", None)).await
+}
+
+/// A person granted `permissions` on the scope `(kind, id)`, by a role of their own.
+async fn person_on(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)) -> Uuid {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
     )
@@ -169,8 +176,8 @@ async fn person(pool: &PgPool, permissions: &[&str]) -> Uuid {
     sqlx::query(kartenn_testing::BIND_IDENTITY)
         .bind(identity)
         .bind(role)
-        .bind("global")
-        .bind(None::<Uuid>)
+        .bind(scope.0)
+        .bind(scope.1)
         .execute(pool)
         .await
         .unwrap();

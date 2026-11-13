@@ -149,6 +149,13 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "parent", type: "string" },
   ],
   "/v1/inference-rules/{id}/history": [],
+  "/v1/ingresses": [
+    { name: "name", type: "string" },
+    { name: "q", type: "string" },
+    { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
+    { name: "namespace", type: "string", collection: "/v1/kube-namespaces" },
+    { name: "absent_since:exists", type: "boolean" },
+  ],
   "/v1/ingresses/{id}/history": [],
   "/v1/interfaces": [
     { name: "machine", type: "string" },
@@ -174,8 +181,34 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "at", type: "string" },
   ],
   "/v1/kube-label-mappings/{id}/history": [],
+  "/v1/kube-namespaces": [
+    { name: "name", type: "string" },
+    { name: "q", type: "string" },
+    { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
+    { name: "label", type: "string" },
+    { name: "absent_since:exists", type: "boolean" },
+  ],
   "/v1/kube-namespaces/{id}/history": [],
+  "/v1/kube-nodes": [
+    { name: "name", type: "string" },
+    { name: "q", type: "string" },
+    { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
+    { name: "machine", type: "string", collection: "/v1/machines" },
+    { name: "absent_since:exists", type: "boolean" },
+  ],
   "/v1/kube-nodes/{id}/history": [],
+  "/v1/kube-services": [
+    { name: "name", type: "string" },
+    { name: "q", type: "string" },
+    { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
+    { name: "namespace", type: "string", collection: "/v1/kube-namespaces" },
+    {
+      name: "type",
+      type: "string",
+      enum: ["cluster_ip", "node_port", "load_balancer", "external_name"],
+    },
+    { name: "absent_since:exists", type: "boolean" },
+  ],
   "/v1/kube-services/{id}/history": [],
   "/v1/kube-tracked-labels/{id}/history": [],
   "/v1/machines": [
@@ -337,6 +370,19 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/vlans/{id}/history": [],
   "/v1/vlans/{id}/prefixes": [],
+  "/v1/workloads": [
+    { name: "name", type: "string" },
+    { name: "q", type: "string" },
+    { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
+    { name: "namespace", type: "string", collection: "/v1/kube-namespaces" },
+    {
+      name: "kind",
+      type: "string",
+      enum: ["deployment", "statefulset", "daemonset", "cronjob", "job", "replicaset", "pod"],
+    },
+    { name: "label", type: "string" },
+    { name: "absent_since:exists", type: "boolean" },
+  ],
   "/v1/workloads/{id}/history": [],
   "/v1/workloads/{id}/observations": [],
 };

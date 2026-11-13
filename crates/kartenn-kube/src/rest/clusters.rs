@@ -13,23 +13,22 @@ use axum::response::Response;
 use axum::routing::get;
 use kartenn_rest::ModuleRouter;
 use kartenn_rest::kit::{
-    self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
-    ProblemKind, documented, listing_of, next_href, op, presented, queryable, respond_page,
-    schemas_of,
+    self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Page, PageParams, Problem, ProblemKind,
+    documented, listing_of, next_href, op, presented, queryable, respond_page, schemas_of,
 };
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_store_pg::rbac::readable;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::json;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
-use time::OffsetDateTime;
 use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
 use uuid::Uuid;
 
 use super::IdRef;
+use super::reading::{criteria, dated, listed};
 use crate::module::{CLUSTER, cluster_type};
 
 /// The collection, under `/v1`.
@@ -261,37 +260,8 @@ impl<'r> sqlx::FromRow<'r, PgRow> for ClusterRow {
     }
 }
 
-/// The clusters valid at `$1`, as asserted at `$2` (now when null): the relation of a
-/// dated read.
-fn dated() -> String {
-    format!(
-        "(SELECT {COLUMNS} FROM kube.cluster
-           WHERE valid_period @> $1::timestamptz
-             AND ($2::timestamptz IS NULL OR sys_start <= $2::timestamptz)
-          UNION ALL
-          SELECT {COLUMNS} FROM kube.cluster_history
-           WHERE $2::timestamptz IS NOT NULL AND valid_period @> $1::timestamptz
-             AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz)"
-    )
-}
-
-/// The relation of a list: [`dated`], or for the current assertions the current table
-/// alone, whose index then serves the order of a page (spec 018, task 018-16).
-fn listed(current: bool) -> String {
-    if current {
-        format!(
-            "(SELECT {COLUMNS} FROM kube.cluster
-               WHERE valid_period @> $1::timestamptz AND $2::timestamptz IS NULL)"
-        )
-    } else {
-        dated()
-    }
-}
-
-fn rfc3339(at: OffsetDateTime) -> String {
-    at.format(&time::format_description::well_known::Rfc3339)
-        .expect("an instant formats")
-}
+/// The table of the clusters.
+const TABLE: &str = "kube.cluster";
 
 /// `GET`/`QUERY /v1/kube-clusters`: by slug, filtered by `slug`, suggested by `q`.
 async fn list(
@@ -329,7 +299,7 @@ async fn list(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $7",
-        listed(moment.as_of.is_none()),
+        listed(TABLE, COLUMNS, moment.as_of.is_none()),
         readable(
             "x.id",
             &format!("'{CLUSTER}'"),
@@ -364,19 +334,17 @@ async fn list(
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0.id).collect();
     let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
     kit::release(snapshot);
-    kit::record_read(&api, &context, CLUSTER, &ids, criteria(&page, &moment)).await?;
+    kit::record_read(
+        &api,
+        &context,
+        CLUSTER,
+        &ids,
+        criteria(COLLECTION, &page, &moment),
+    )
+    .await?;
     let items: Vec<ClusterDto> = rows.into_iter().map(|r| r.0).collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
-}
-
-fn criteria(page: &Page, moment: &Moment) -> Value {
-    json!({
-        "collection": COLLECTION,
-        "filters": page.filters,
-        "valid_at": rfc3339(moment.valid_at),
-        "as_of": rfc3339(moment.as_of()),
-    })
 }
 
 /// `GET /v1/kube-clusters/{id}`: 404, journaled, for a cluster the caller may not read.
@@ -390,7 +358,10 @@ async fn show(
     kit::gate(&api, &context, cluster_type(), id).await?;
     let now = kit::now(&api).await?;
     let moment = dates.at(now, api.bound)?;
-    let sql = format!("SELECT {SELECT} FROM {} x WHERE x.id = $3", dated());
+    let sql = format!(
+        "SELECT {SELECT} FROM {} x WHERE x.id = $3",
+        dated(TABLE, COLUMNS)
+    );
     let (ClusterRow(body), version) = kit::read_one(&api, sql, id, &moment).await?;
     kit::record_read(&api, &context, CLUSTER, &[id], json!({"id": id})).await?;
     Ok(kit::respond_object(&headers, &moment, version, &body))

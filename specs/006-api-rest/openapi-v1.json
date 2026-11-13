@@ -4705,6 +4705,302 @@
         ],
         "type": "object"
       },
+      "KubeIngress": {
+        "description": "An ingress of a namespace (REQ-019-10).",
+        "properties": {
+          "absent_since": {
+            "description": "Since when it is absent from its cluster, RFC 3339; `null` while present.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "addresses": {
+            "description": "Its addresses of the core, in the external domain of its cluster, else its service\ndomain.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "class": {
+            "description": "Its class (`ingressClassName`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The cluster of its namespace."
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name, unique in its namespace at every instant.",
+            "type": "string"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "Its namespace."
+          },
+          "rules": {
+            "description": "Its routes, a sorted set.",
+            "items": {
+              "$ref": "#/components/schemas/KubeIngressRoute"
+            },
+            "type": "array"
+          },
+          "tls_hosts": {
+            "description": "The hosts of its TLS.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "uid": {
+            "description": "Its `uid` in Kubernetes.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cluster",
+          "namespace",
+          "name",
+          "rules",
+          "tls_hosts",
+          "addresses",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeIngressRoute": {
+        "description": "A route of an ingress; the default backend is the route without host, path nor type.",
+        "properties": {
+          "host": {
+            "description": "Its host.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "description": "Its path.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path_type": {
+            "description": "`exact`, `prefix` or `implementation_specific` (`pathType`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "$ref": "#/components/schemas/KubeTargetPort",
+            "description": "The port of that service, by number or by name."
+          },
+          "service": {
+            "description": "The name of a service of the namespace, which may be absent.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "port"
+        ],
+        "type": "object"
+      },
+      "KubeNamespace": {
+        "description": "A namespace of a cluster (REQ-019-7).",
+        "properties": {
+          "absent_since": {
+            "description": "Since when it is absent from its cluster, RFC 3339; `null` while present.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "Its cluster."
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Its tracked labels only.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "description": "Its name, unique in its cluster at every instant.",
+            "type": "string"
+          },
+          "uid": {
+            "description": "Its `uid` in Kubernetes.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cluster",
+          "name",
+          "labels",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeNode": {
+        "description": "A node of a cluster (REQ-019-6).",
+        "properties": {
+          "absent_since": {
+            "description": "Since when it is absent from its cluster, RFC 3339; `null` while present.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "addresses": {
+            "description": "Its addresses as read.",
+            "items": {
+              "$ref": "#/components/schemas/KubeNodeAddress"
+            },
+            "type": "array"
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "Its cluster."
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "machine": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The machine (`machines.machine`, physical or virtual) it is."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Its name, unique in its cluster at every instant.",
+            "type": "string"
+          },
+          "pod_cidrs": {
+            "description": "Its pod ranges as read (`spec.podCIDRs`).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ranges": {
+            "description": "The networks of the core of its pod ranges.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "uid": {
+            "description": "Its `uid` in Kubernetes.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "zone": {
+            "description": "Its zone.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cluster",
+          "name",
+          "addresses",
+          "ranges",
+          "pod_cidrs",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeNodeAddress": {
+        "description": "An address of a node, as the connector reads it (`status.addresses`).",
+        "properties": {
+          "type": {
+            "description": "`InternalIP`, `ExternalIP`, `Hostname`…",
+            "type": "string"
+          },
+          "value": {
+            "description": "The address or the name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "value"
+        ],
+        "type": "object"
+      },
       "KubeObjectRef": {
         "additionalProperties": false,
         "description": "The identifier of an object of the cluster (006/H3).",
@@ -4962,6 +5258,297 @@
           "retention"
         ],
         "type": "string"
+      },
+      "KubeService": {
+        "description": "A service of a namespace (REQ-019-9).",
+        "properties": {
+          "absent_since": {
+            "description": "Since when it is absent from its cluster, RFC 3339; `null` while present.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The cluster of its namespace."
+          },
+          "cluster_addresses": {
+            "description": "Its addresses of the core in the service domain of its cluster.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "external_addresses": {
+            "description": "Its `LoadBalancer` addresses and `externalIPs`, addresses of the core.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          },
+          "external_name": {
+            "description": "The name it stands for, of an `external_name` service.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headless": {
+            "description": "Without a cluster address (`clusterIP: None`).",
+            "type": "boolean"
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name, unique in its namespace at every instant.",
+            "type": "string"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "Its namespace."
+          },
+          "ports": {
+            "description": "Its ports, a sorted set.",
+            "items": {
+              "$ref": "#/components/schemas/KubeServicePort"
+            },
+            "type": "array"
+          },
+          "type": {
+            "description": "`cluster_ip`, `node_port`, `load_balancer` or `external_name`.",
+            "type": "string"
+          },
+          "uid": {
+            "description": "Its `uid` in Kubernetes.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "workloads": {
+            "description": "The workloads it selects, as the connector computed them.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObjectRef"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "cluster",
+          "namespace",
+          "name",
+          "type",
+          "headless",
+          "ports",
+          "cluster_addresses",
+          "external_addresses",
+          "workloads",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeServicePort": {
+        "description": "A port of a service (`spec.ports`).",
+        "properties": {
+          "app_protocol": {
+            "description": "`appProtocol`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "The name an ingress may target.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node_port": {
+            "description": "`nodePort`.",
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "port": {
+            "description": "1 to 65535.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "protocol": {
+            "description": "`tcp`, `udp` or `sctp`.",
+            "type": "string"
+          },
+          "target_port": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeTargetPort",
+                "description": "The port it targets on its pods (`targetPort`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "port",
+          "protocol"
+        ],
+        "type": "object"
+      },
+      "KubeTargetPort": {
+        "description": "The port a service or a route targets: a number or a port name.",
+        "oneOf": [
+          {
+            "description": "A number, 1 to 65535.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "description": "A port name.",
+            "type": "string"
+          }
+        ]
+      },
+      "KubeWorkload": {
+        "description": "A workload of a namespace (REQ-019-8).",
+        "properties": {
+          "absent_since": {
+            "description": "Since when it is absent from its cluster, RFC 3339; `null` while present.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "The cluster of its namespace."
+          },
+          "host_network": {
+            "description": "Whether its pods share the network of their node (`hostNetwork`).",
+            "type": "boolean"
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`deployment`, `statefulset`, `daemonset`, `cronjob`, `job`, `replicaset` or `pod`.",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The tracked labels of its pod template only.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "description": "Its name, unique by kind in its namespace at every instant.",
+            "type": "string"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/KubeObjectRef",
+            "description": "Its namespace."
+          },
+          "ports": {
+            "description": "The ports its containers declare, a sorted set.",
+            "items": {
+              "$ref": "#/components/schemas/KubeWorkloadPort"
+            },
+            "type": "array"
+          },
+          "service_account": {
+            "description": "Its service account.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uid": {
+            "description": "Its `uid` in Kubernetes.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "description": "The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.",
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cluster",
+          "namespace",
+          "kind",
+          "name",
+          "labels",
+          "ports",
+          "host_network",
+          "href"
+        ],
+        "type": "object"
+      },
+      "KubeWorkloadPort": {
+        "description": "A port declared by the containers of a workload.",
+        "properties": {
+          "name": {
+            "description": "Its name (`IANA_SVC_NAME`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "description": "1 to 65535.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "protocol": {
+            "description": "`tcp`, `udp` or `sctp`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "port",
+          "protocol"
+        ],
+        "type": "object"
       },
       "Labels": {
         "description": "The dictionary of labels for one language.",
@@ -6116,6 +6703,69 @@
         ],
         "type": "object"
       },
+      "Listing_KubeIngress": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeIngress"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_KubeNamespace": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeNamespace"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_KubeNode": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeNode"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_KubeObservation": {
         "description": "A page of the journal.",
         "properties": {
@@ -6140,6 +6790,48 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_KubeService": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeService"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_KubeWorkload": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "$ref": "#/components/schemas/KubeWorkload"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
           }
         },
         "required": [
@@ -25017,6 +25709,251 @@
         ]
       }
     },
+    "/v1/ingresses": {
+      "get": {
+        "operationId": "list_kube_ingresses",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "In this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-clusters"
+            }
+          },
+          {
+            "description": "In this namespace.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-namespaces"
+            }
+          },
+          {
+            "description": "Absent from its cluster (`true`) or present (`false`).",
+            "in": "query",
+            "name": "absent_since:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeIngress"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The ingresses the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "class",
+          "namespace",
+          "absent_since"
+        ],
+        "key": [
+          "namespace",
+          "name"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_ingresses",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeIngress"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The ingresses the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/ingresses/{id}": {
+      "get": {
+        "operationId": "show_kube_ingress",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeIngress"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
     "/v1/ingresses/{id}/history": {
       "get": {
         "operationId": "kube_ingress_history",
@@ -28270,6 +29207,248 @@
         ]
       }
     },
+    "/v1/kube-namespaces": {
+      "get": {
+        "operationId": "list_kube_namespaces",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "In this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-clusters"
+            }
+          },
+          {
+            "description": "Carrying the tracked label `key=value` (the text up to the first `=` is the key).",
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Absent from its cluster (`true`) or present (`false`).",
+            "in": "query",
+            "name": "absent_since:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeNamespace"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The namespaces the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "cluster",
+          "labels",
+          "absent_since"
+        ],
+        "key": [
+          "cluster",
+          "name"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_namespaces",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeNamespace"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The namespaces the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/kube-namespaces/{id}": {
+      "get": {
+        "operationId": "show_kube_namespace",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeNamespace"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
     "/v1/kube-namespaces/{id}/history": {
       "get": {
         "operationId": "kube_namespace_history",
@@ -28564,6 +29743,252 @@
         ]
       }
     },
+    "/v1/kube-nodes": {
+      "get": {
+        "operationId": "list_kube_nodes",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "In this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-clusters"
+            }
+          },
+          {
+            "description": "This machine.",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/machines"
+            }
+          },
+          {
+            "description": "Absent from its cluster (`true`) or present (`false`).",
+            "in": "query",
+            "name": "absent_since:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeNode"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The nodes the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "cluster",
+          "machine",
+          "zone",
+          "absent_since"
+        ],
+        "key": [
+          "cluster",
+          "name"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_nodes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeNode"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The nodes the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/kube-nodes/{id}": {
+      "get": {
+        "operationId": "show_kube_node",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeNode"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
     "/v1/kube-nodes/{id}/history": {
       "get": {
         "operationId": "kube_node_history",
@@ -28855,6 +30280,266 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/kube-services": {
+      "get": {
+        "operationId": "list_kube_services",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "In this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-clusters"
+            }
+          },
+          {
+            "description": "In this namespace.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-namespaces"
+            }
+          },
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "cluster_ip",
+                "node_port",
+                "load_balancer",
+                "external_name"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Absent from its cluster (`true`) or present (`false`).",
+            "in": "query",
+            "name": "absent_since:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeService"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The services the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "type",
+          "namespace",
+          "absent_since"
+        ],
+        "key": [
+          "namespace",
+          "name"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_services",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeService"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The services the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/kube-services/{id}": {
+      "get": {
+        "operationId": "show_kube_service",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeService"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
         ]
       }
     },
@@ -42540,6 +44225,279 @@
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
         "tags": [
           "properties"
+        ]
+      }
+    },
+    "/v1/workloads": {
+      "get": {
+        "operationId": "list_kube_workloads",
+        "parameters": [
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "In this cluster.",
+            "in": "query",
+            "name": "cluster",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-clusters"
+            }
+          },
+          {
+            "description": "In this namespace.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-kartenn": {
+              "collection": "/v1/kube-namespaces"
+            }
+          },
+          {
+            "description": "Equal to.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "deployment",
+                "statefulset",
+                "daemonset",
+                "cronjob",
+                "job",
+                "replicaset",
+                "pod"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Carrying the tracked label `key=value` (the text up to the first `=` is the key).",
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Absent from its cluster (`true`) or present (`false`).",
+            "in": "query",
+            "name": "absent_since:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeWorkload"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The workloads the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      },
+      "x-kartenn": {
+        "columns": [
+          "name",
+          "kind",
+          "namespace",
+          "absent_since"
+        ],
+        "key": [
+          "namespace",
+          "kind",
+          "name"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_kube_workloads",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_KubeWorkload"
+                }
+              }
+            },
+            "description": "A page of the collection."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The workloads the caller may read (REQ-019-38), by name.",
+        "tags": [
+          "kube"
+        ]
+      }
+    },
+    "/v1/workloads/{id}": {
+      "get": {
+        "operationId": "show_kube_workload",
+        "parameters": [
+          {
+            "description": "The object.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeWorkload"
+                }
+              }
+            },
+            "description": "The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "An object of the collection; 404 for one the caller may not read.",
+        "tags": [
+          "kube"
         ]
       }
     },

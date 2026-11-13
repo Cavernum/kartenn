@@ -1803,7 +1803,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `rfc3339` double `observations::rfc3339` ; `dated()`/`listed()` propres à
     `kube.cluster`, à rendre génériques en 8b ; aucun test de la liste à `valid_at`/`as_of`
     ni de la journalisation des lectures (`record_read`).
-- [ ] 8b. Lectures des objets miroirs : `GET /v1/kube-nodes`, `/v1/kube-namespaces`,
+- [x] 8b. Lectures des objets miroirs : `GET /v1/kube-nodes`, `/v1/kube-namespaces`,
   `/v1/workloads`, `/v1/kube-services`, `/v1/ingresses` (+ `/{id}`), sans écriture ;
   filtres de REQ-019-38 (cluster, namespace, nom, sorte, label suivi, machine, état
   absent), lectures datées et journalisées, `x-kartenn` (clé naturelle) — REQ-019-38,
@@ -1814,6 +1814,41 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     listes de `crates/kartenn-machines/src/rest.rs` (`machines_page`, `MachineFilter`) ;
     tests de la 8a
   - dépend de : 8a
+  - fait (2026-11-13) : `kartenn-kube` `rest/mirrors.rs` (trait `Mirror` par
+    collection : table, colonnes, filtres, clé ; schémas `KubeNode`, `KubeNamespace`,
+    `KubeWorkload`, `KubeService`, `KubeIngress` et leurs `Listing_*`, membres JSON typés
+    `KubeNodeAddress`, `KubeWorkloadPort`, `KubeServicePort`, `KubeTargetPort`,
+    `KubeIngressRoute` ; `list` générique trié par nom, `show` sous `kit::gate`,
+    `record_read` des deux ; visibilité par `readable` sur le domaine d'ancrage lu dans
+    `module_object`), `rest/reading.rs` (`dated`, `listed`, `dated_where` génériques sur
+    la table et les colonnes, `criteria` sur `observations::rfc3339`, repris par
+    `rest/clusters.rs`), `module.rs` (`type_of`) ; régénérés : `openapi-v1.json` (ajout
+    seul), les deux `schema.d.ts`, `dated.ts` et `filters.ts`. Tests
+    `observations::route::mirrors::mirrors_listed_by_type_and_filter` (cinq collections,
+    `cluster`, `namespace`, `name`, `q`, `kind`, `type`, `label`, `machine`,
+    `absent_since:exists` après `mark_absent`, conjonction, lecture `/{id}` égale à
+    l'élément avec `ETag`, 404 inconnu, dix refus 400), `mirror_lists_dated_and_journaled`
+    (`valid_at` et `as_of` d'avant un objet, lecture `/{id}` à `as_of`, quatre
+    `data.objects.read` : identifiants, filtres, dates à la microseconde, `{id}`),
+    `mirror_unreadable_is_absent` (droit sur le domaine des pods : workloads lus, services
+    du domaine des services hors liste et 404 ; droit sur le domaine des services : le
+    service), `reader_reads_workloads_not_observations` (rôle livré `reader` global :
+    workloads 200, journal 403).
+  - choix : une seule collection générique (`Mirror`) plutôt que cinq copies ; filtres
+    `cluster`, `namespace` (workloads, services, ingress), `kind` (workloads), `type`
+    (services, la « sorte » d'un service), `label=<clé>=<valeur>` (namespaces, workloads ;
+    la clé jusqu'au premier `=`, égalité par `labels @>`), `machine` (nœuds),
+    `absent_since:exists` (grammaire de la 006) ; chacun au plus une fois (400 sinon,
+    comme `slug` en 8a) ; `cluster`, `namespace`, `machine` déclarés avec
+    `x-kartenn.collection`, `kind` et `type` en énumération ; les objets d'un namespace
+    montrent le cluster de leur namespace aux dates de la lecture ; pas de propriétaire ni
+    de site résolus dans la représentation (hérités du cluster) ; clés naturelles
+    `cluster, name` (nœuds, namespaces), `namespace, kind, name` (workloads),
+    `namespace, name` (services, ingress).
+  - reste : aucun index sur `name` pour l'ordre d'une page ni de banc des listes (budgets
+    de la 16) ; le filtre `label` ne prend qu'un label (pas de `label.{clé}` en gabarit,
+    faute d'une collection des clés suivies avant la 8d) ; le filtre `cluster` d'un objet
+    de namespace passe par les namespaces du cluster aux dates de la lecture.
 - [ ] 8c. Chaîne d'exécution `GET /v1/workloads/{id}/chain` sur
   `read::execution_chain` (Q-019-31) : workload invisible ou absent → 404, visible sans
   `kube.observation.read` sur le domaine des pods → 403 journalisé, clos → 410, motifs
