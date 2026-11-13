@@ -6,7 +6,8 @@
 // (wide content: the tree and the table keep their whole width; 020, « Panneau du bas »);
 // the « + » of a node opens the edit panel of the kind in the right panel, with the node as
 // parent — the same panel as from the table, the palette or the menu « Créer » (a narrow
-// form: its fields one under the other).
+// form: its fields one under the other). The table keeps the order of the key served by the
+// API, without column sort (Q-021-25, amended 2026-11-13).
 import {
   Button,
   Cluster,
@@ -24,7 +25,6 @@ import {
   Toolbar,
   TreeGrid,
   type GridColumn,
-  type GridSort,
   type IconName,
   type ListOption,
   type MenuItem,
@@ -184,19 +184,11 @@ const rows: Row[] = [
   },
 ];
 const columns: GridColumn[] = [
-  { id: "value", label: "Objet", width: "fill", mono: true, sortable: true },
-  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
-  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 2 },
-  {
-    id: "owner",
-    label: "Propriétaire",
-    width: "md",
-    sortable: true,
-    filterable: true,
-    priority: 2,
-  },
+  { id: "value", label: "Objet", width: "fill", mono: true },
+  { id: "usage", label: "Usage", width: "sm", filterable: true, priority: 2 },
+  { id: "env", label: "Environnement", width: "md", filterable: true, priority: 2 },
+  { id: "owner", label: "Propriétaire", width: "md", filterable: true, priority: 2 },
 ];
-const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 const KIND: Record<Row["kind"], { label: string; icon: IconName }> = {
   range: { label: "Plage", icon: "range" },
   address: { label: "Adresse", icon: "address" },
@@ -277,7 +269,6 @@ const addAction = ref("draft");
           </Cluster>
         </template>
         <DataGrid
-          v-model:sort="sort"
           label="Contenu de 192.0.2.64/26, environnement Production"
           :columns="columns"
           :rows="rows"

@@ -19,7 +19,6 @@ import {
   StatusBadge,
   Tabs,
   type GridColumn,
-  type GridSort,
   type MenuItem,
   type TabItem,
 } from "@kartenn/ui";
@@ -33,15 +32,15 @@ import { DOMAIN, ENV, ID } from "./donnees.ts";
 const props = defineProps<{ vue: string }>();
 const route = useRoute();
 const tab = ref(props.vue === "historique" ? "history" : "properties");
-const propertySort = ref<GridSort | undefined>({ column: "key", direction: "ascending" });
-const versionSort = ref<GridSort | undefined>({ column: "version", direction: "descending" });
+// No count on the tabs, of the core or of the plugins: none of them is served without a
+// read of its own (Q-021-26, amended 2026-11-13).
 const tabs: TabItem[] = [
-  { value: "properties", label: "Propriétés", count: 5 },
-  { value: "content", label: "Contenu", count: 12 },
-  { value: "history", label: "Historique", count: 4 },
-  { value: "anomalies", label: "Anomalies", count: 1 },
+  { value: "properties", label: "Propriétés" },
+  { value: "content", label: "Contenu" },
+  { value: "history", label: "Historique" },
+  { value: "anomalies", label: "Anomalies" },
   { value: "vlan", label: "VLAN" },
-  { value: "machines", label: "Machines", icon: "server", count: 6 },
+  { value: "machines", label: "Machines", icon: "server" },
   { value: "flows", label: "Flux", icon: "flow", state: "loading" },
 ];
 
@@ -52,7 +51,15 @@ interface Property extends Record<string, unknown> {
   source: "inherited" | "direct" | "inferred" | "none" | "masked";
   origin: string;
 }
+/** In the order of the key, masked ones included, as `PropertiesTab` shows them. */
 const properties: Property[] = [
+  {
+    key: "core.contact",
+    label: "Contact",
+    value: "",
+    source: "masked",
+    origin: "droit de lecture manquant",
+  },
   {
     key: "core.owner",
     label: "Propriétaire",
@@ -61,6 +68,7 @@ const properties: Property[] = [
     origin: "de 192.0.2.0/24",
   },
   { key: "core.site", label: "Site", value: "site-ouest", source: "direct", origin: "" },
+  { key: "dns.ttl", label: "TTL DNS", value: "", source: "none", origin: "" },
   {
     key: "policy.environment",
     label: "Environnement",
@@ -68,19 +76,11 @@ const properties: Property[] = [
     source: "inferred",
     origin: "règle env-par-site",
   },
-  { key: "dns.ttl", label: "TTL DNS", value: "", source: "none", origin: "" },
-  {
-    key: "core.contact",
-    label: "Contact",
-    value: "",
-    source: "masked",
-    origin: "droit de lecture manquant",
-  },
 ];
 const propertyColumns: GridColumn[] = [
-  { id: "key", label: "Propriété", width: "fill", sortable: true, filterable: true },
-  { id: "value", label: "Valeur", width: "md", sortable: true },
-  { id: "source", label: "Source", width: "lg", sortable: true, filterable: true },
+  { id: "key", label: "Propriété", width: "fill", filterable: true },
+  { id: "value", label: "Valeur", width: "md" },
+  { id: "source", label: "Source", width: "lg", filterable: true },
 ];
 const SOURCE: Record<Property["source"], string> = {
   inherited: "Héritée",
@@ -133,9 +133,9 @@ const versions: Version[] = [
   },
 ];
 const versionColumns: GridColumn[] = [
-  { id: "version", label: "Version, changeset", width: "md", mono: true, sortable: true },
-  { id: "valid", label: "Valide", width: "lg", mono: true, sortable: true },
-  { id: "known", label: "Connue du", width: "md", mono: true, sortable: true },
+  { id: "version", label: "Version, changeset", width: "md", mono: true },
+  { id: "valid", label: "Valide", width: "lg", mono: true },
+  { id: "known", label: "Connue du", width: "md", mono: true },
   { id: "motive", label: "Motif", width: "fill", filterable: true },
 ];
 
@@ -187,7 +187,6 @@ const actions: MenuItem[] = [
           <template #properties>
             <Stack gap="3">
               <DataGrid
-                v-model:sort="propertySort"
                 label="Propriétés résolues de 192.0.2.64/26"
                 :columns="propertyColumns"
                 :rows="properties"
@@ -242,7 +241,6 @@ const actions: MenuItem[] = [
           </template>
           <template #history>
             <DataGrid
-              v-model:sort="versionSort"
               label="Versions de 192.0.2.64/26"
               :columns="versionColumns"
               :rows="versions"

@@ -3,8 +3,9 @@
 // en place », « Filtres »): typed filters as chips (one chip = one parameter of the API),
 // a cell being edited, a cell refused in plain language with its code beside (024/M16),
 // multiple selection and a group action. One grid (header and rows share their columns),
-// sort and filter on every column, the filtered ones marked (024/M12); the actions fold
-// into « … » when the header narrows.
+// a filter on every column, the filtered ones marked (024/M12), the rows in the order of
+// the key served by the API, without column sort (Q-021-25, amended 2026-11-13); the
+// actions fold into « … » when the header narrows.
 import {
   Button,
   checkFilter,
@@ -19,7 +20,6 @@ import {
   type CellState,
   type Filter,
   type GridColumn,
-  type GridSort,
   type MenuItem,
   type ToolbarAction,
 } from "@kartenn/ui";
@@ -127,32 +127,15 @@ const rows: Row[] = [
   },
 ];
 const columns: GridColumn[] = [
-  { id: "value", label: "Valeur", width: "md", mono: true, sortable: true, filterable: true },
-  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
-  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 3 },
-  { id: "owner", label: "Propriétaire", width: "fill", sortable: true, filterable: true },
-  {
-    id: "site",
-    label: "Site",
-    // A short key (`site-ouest`): room left for the column of checkboxes at 1280 px.
-    width: "sm",
-    mono: true,
-    sortable: true,
-    filterable: true,
-    priority: 3,
-  },
-  {
-    id: "machine",
-    label: "Machine",
-    width: "md",
-    mono: true,
-    sortable: true,
-    filterable: true,
-    priority: 3,
-  },
-  { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, sortable: true, priority: 2 },
+  { id: "value", label: "Valeur", width: "md", mono: true, filterable: true },
+  { id: "usage", label: "Usage", width: "sm", filterable: true, priority: 2 },
+  { id: "env", label: "Environnement", width: "md", filterable: true, priority: 3 },
+  { id: "owner", label: "Propriétaire", width: "fill", filterable: true },
+  // A short key (`site-ouest`): room left for the column of checkboxes at 1280 px.
+  { id: "site", label: "Site", width: "sm", mono: true, filterable: true, priority: 3 },
+  { id: "machine", label: "Machine", width: "md", mono: true, filterable: true, priority: 3 },
+  { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, priority: 2 },
 ];
-const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 /** The selected rows: Space toggles one, Ctrl+A all (the grid's keys). */
 const selection = ref<string[]>(selecting ? ["192.0.2.10", "192.0.2.12", "192.0.2.72"] : []);
 /**
@@ -227,7 +210,6 @@ const bulk: MenuItem[] = [
         >
       </Cluster>
       <DataGrid
-        v-model:sort="sort"
         v-model:selected="selection"
         label="Adresses, filtrées"
         :columns="columns"

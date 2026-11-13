@@ -58,6 +58,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]
   - region /\d+\.\d+\.\d+\.\d+\/\d+/:
@@ -66,14 +67,14 @@
     - button "Modifier"
     - button "Actions"
     - tablist "Sections de la fiche":
-      - tab "Propriétés 5"
-      - tab /Contenu \d+/
-      - tab "Historique 4" [selected]
-      - tab "Anomalies 1"
+      - tab "Propriétés"
+      - tab "Contenu"
+      - tab "Historique" [selected]
+      - tab "Anomalies"
       - tab "VLAN"
-      - tab "Machines 6"
+      - tab "Machines"
       - tab "Flux (en chargement)"
-    - tabpanel "Historique 4":
+    - tabpanel "Historique":
       - grid /Versions de \d+\.\d+\.\d+\.\d+\/\d+/:
         - rowgroup:
           - row "Version, changeset Valide Connue du Motif":
@@ -116,6 +117,7 @@
             - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
             - gridcell /\d+-\d+-\d+/
             - gridcell "Import initial"
+      - alert
     - heading "Attributs" [level=2]
     - term: Domaine
     - definition: Centre de données nord
