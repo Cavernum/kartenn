@@ -137,7 +137,6 @@
       "explanationMasked": "The value is masked: you lack its read right.",
       "direct": "Set directly on this object.",
       "inheritedFrom": "Inherited from",
-      "inferred": "Inferred by the rule",
       "fromLabel": "Taken by the module {module} from the label",
       "byModule": "Derived by the module {module}:",
       "unset": "No value set nor inherited.",

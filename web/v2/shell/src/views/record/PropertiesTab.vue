@@ -87,7 +87,10 @@ const read = computed<PropertyRow[]>(() => {
   }));
   return [...shown, ...masked].sort((a, b) => a.key.localeCompare(b.key));
 });
-/** Where the value of `key` comes from, as read; `null` for a masked key or a drafted one. */
+/**
+ * Where the value of `key` comes from, as read (a row drafted over a read value keeps the
+ * read one's); `null` for a masked key, or a key only the draft adds.
+ */
 const originOf = (key: string) => valueOriginOf(resolved.data.value?.data.sources[key]);
 const declarationOf = (key: string) =>
   declarations.value.find((d) => d.key === key) as Declared | undefined;

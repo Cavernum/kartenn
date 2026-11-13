@@ -92,6 +92,7 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
             "dns.ttl": 3600,
             "dhcp.pool": "pool-a",
             "app.tier": "front",
+            "app.zone": "z1",
           },
           sources: {
             "core.site": { origin: self, inherited: false, provenance: "input" },
@@ -104,6 +105,8 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
               inherited: false,
               provenance: "module:kube#label:app.example/tier",
             },
+            // A provenance the shell does not know: shown as stored.
+            "app.zone": { origin: self, inherited: false, provenance: "import:legacy" },
           },
           masked: ["core.secret"],
           links: {},
@@ -176,6 +179,10 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
     expect(text(root, "app.tier", "source")).toContain(
       "Tirée par le module kube du label app.example/tier",
     );
+    expect(text(root, "app.zone", "source")).toContain("Provenance");
+    expect(
+      root.querySelector('[data-row="app.zone"][data-column="source"] code')?.textContent,
+    ).toBe("import:legacy");
     // Masked: no source, what it lacks said; nor any explanation to open.
     expect(text(root, "core.secret", "source")).toBe("Droit de lecture manquant");
     // The gaps of this object alone, read once; none, no notice.
@@ -214,13 +221,12 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
     expect(said).toContain("révision r12");
     expect(said).toContain("prop.resolution.expected_mismatch");
     expect(said).not.toContain("a sentence of the server");
-    // Above the grid.
-    const grid = root.querySelector("[data-k-properties]")!;
+    // Above the grid: the grid follows it in the document.
     await expect.poll(() => root.querySelector("[data-k-properties]")).not.toBeNull();
-    expect(
-      notice.compareDocumentPosition(root.querySelector("[data-k-properties]") ?? grid) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const grid = root.querySelector("[data-k-properties]")!;
+    expect(notice.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("says a refused read of the gaps with its code, the properties shown, and retries", async () => {

@@ -137,7 +137,6 @@
       "explanationMasked": "La valeur est masquée : il vous manque son droit de lecture.",
       "direct": "Posée directement sur cet objet.",
       "inheritedFrom": "Héritée de",
-      "inferred": "Inférée par la règle",
       "fromLabel": "Tirée par le module {module} du label",
       "byModule": "Dérivée par le module {module} :",
       "unset": "Aucune valeur posée ni héritée.",

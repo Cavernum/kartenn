@@ -65,6 +65,41 @@ export type ValueOrigin =
   | { kind: "unreadable" }
   | { kind: "derived"; provenance: Exclude<Provenance, { kind: "input" }> };
 
+/**
+ * The origin of a value from its explanation (`GET …/properties/{key}/explanation`), on the
+ * object `id`, by the same rules as the column « Source » (`valueOriginOf`), so that the
+ * cell and its explanation never disagree: the origin the object itself is direct, another
+ * one inherited, none an origin the caller may not read — unless nothing is assigned at
+ * all (no value, no provenance, no object withheld along the chain): `unset`.
+ */
+export function explanationOriginOf(
+  facts: Pick<components["schemas"]["Explanation"], "origin" | "provenance" | "chain"> & {
+    /** Any JSON value, `null` without one (the contract types it as an object). */
+    value: unknown;
+  },
+  id: string,
+): ValueOrigin | { kind: "unset" } {
+  const { origin, provenance } = facts;
+  if (origin === null) {
+    const assigned =
+      provenance != null || facts.value != null || facts.chain.some((node) => node === null);
+    if (!assigned) return { kind: "unset" };
+  }
+  return (
+    valueOriginOf({ origin, inherited: origin === null || origin.id !== id, provenance }) ?? {
+      kind: "unset",
+    }
+  );
+}
+
+/** The provenance said beside an inherited value: derived, or none (typed, or absent). */
+export function derivedOf(
+  stored: string | null | undefined,
+): Exclude<Provenance, { kind: "input" }> | null {
+  const provenance = provenanceOf(stored);
+  return provenance === null || provenance.kind === "input" ? null : provenance;
+}
+
 /** The origin of a value from its `sources` entry; `null` without one (a masked key). */
 export function valueOriginOf(source: ValueSource | null | undefined): ValueOrigin | null {
   if (!source) return null;
