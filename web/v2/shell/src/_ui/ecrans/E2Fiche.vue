@@ -117,7 +117,8 @@ const versions: Version[] = [
     known: "2025-06-03",
     changeset: "01JB1T5W3E",
     motive: "Correction rétroactive du propriétaire",
-    author: "Lou Bernard",
+    // A person pseudonymised since: named as the server serves it (021-11p5, Q-021-29).
+    author: "personne #7d3a",
   },
   {
     version: "v1",
@@ -129,10 +130,12 @@ const versions: Version[] = [
   },
 ];
 const versionColumns: GridColumn[] = [
-  { id: "version", label: "Version, changeset", width: "md", mono: true },
+  { id: "version", label: "Version", width: "md", mono: true },
   { id: "valid", label: "Valide", width: "lg", mono: true },
-  { id: "known", label: "Connue du", width: "md", mono: true },
-  { id: "motive", label: "Motif", width: "fill", filterable: true },
+  { id: "known", label: "Connue du", width: "md", mono: true, priority: 3 },
+  { id: "motive", label: "Motif", width: "fill", wrap: true, filterable: true },
+  { id: "author", label: "Auteur", width: "md", priority: 2 },
+  { id: "changeset", label: "Changeset", width: "md", mono: true, priority: 3 },
 ];
 
 const actions: MenuItem[] = [
@@ -251,12 +254,12 @@ const actions: MenuItem[] = [
               :columns="versionColumns"
               :rows="versions"
               row-key="version"
+              stack
             >
               <template #cell="{ row, column, value }">
-                <template v-if="column.id === 'version'"
-                  >{{ row.version }}
-                  <a :href="`/changesets/${row.changeset}`">{{ row.changeset }}</a></template
-                >
+                <a v-if="column.id === 'motive'" :href="`/changesets/${row.changeset}`">{{
+                  value
+                }}</a>
                 <template v-else>{{ value }}</template>
               </template>
             </DataGrid>

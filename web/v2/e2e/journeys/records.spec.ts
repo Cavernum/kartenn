@@ -7,13 +7,15 @@ import {
   loginIn,
   ownedDomain,
   test,
+  USERS,
 } from "../fixtures/journeys.ts";
 
 // Lists and records of the new shell (spec 021, task 11; REQ-021-9, 18, 22), ported from
 // web/e2e/journeys/records.spec.ts: from a domain to a prefix to an address, its inherited
 // property explained, its history; a long list virtualised, its next page read ahead and a
 // row opened at the keyboard; a refused cursor starts the list again; a filtered link
-// copied opens the same list; the filter of a column is the bar's.
+// copied opens the same list; the filter of a column is the bar's; the history of a network
+// renumbered, each version with its motive and its author (task 11p5).
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 const tabs = (page: Page) => page.getByRole("tablist", { name: "Sections de la fiche" });
@@ -452,4 +454,44 @@ test("a network closed alone is refused by a rule, its code said; the cascade co
   await form.getByRole("checkbox", { name: "Clore aussi ce qui en dépend" }).check();
   await expect(form.getByText("La clôture passe les règles")).toBeVisible();
   await expect(form).toContainText(/Se closent avec lui : .* · 1\./);
+});
+
+// The history of an object modified (task 021-11p5, REQ-021-9; maquette E2): each version
+// with the motive of the changeset that wrote it, a link to it, and its author as the
+// server names it, in a domain of its own (RFC 5737).
+test("a network renumbered: its history says each motive and its author", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = `zz-history-${browserName}-${Date.now().toString(36)}`;
+  const { prefixes } = await ownedDomain(page, slug);
+  const renumbered = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end renumbering",
+    operations: [{ op: "update_prefix", id: { id: prefixes[0] }, prefix: "198.51.100.0/25" }],
+  });
+  expect(renumbered.status, JSON.stringify(renumbered.body)).toBe(201);
+
+  await page.goto(`/prefixes/${prefixes[0]}?tab=history`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: titled("198.51.100.0/25") }),
+  ).toBeVisible();
+  const history = page.getByRole("grid", { name: "Versions de 198.51.100.0/25" });
+  // The header, then three versions on both axes: the new value, the old one closed by the
+  // renumbering, the old one as it was asserted at its creation. Each motive is a link to
+  // its changeset.
+  const rows = history.getByRole("row");
+  await expect(rows).toHaveCount(4);
+  const renumbering = rows
+    .filter({ hasText: "198.51.100.0/25" })
+    .getByRole("link", { name: "end-to-end renumbering" });
+  await expect(renumbering).toHaveAttribute("href", /^\/changesets\/[0-9a-f-]+$/);
+  const created = rows
+    .filter({ hasText: "198.51.100.0/24" })
+    .getByRole("link", { name: "end-to-end journey" });
+  await expect(created.first()).toBeVisible();
+  // The author of every version, as the identities name him now.
+  await expect(history.getByRole("gridcell", { name: USERS.alice, exact: true })).toHaveCount(3);
+  await expectAccessible(page);
 });

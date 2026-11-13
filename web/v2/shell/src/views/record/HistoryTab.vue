@@ -1,8 +1,13 @@
 <script setup lang="ts">
 // The history of an object (REQ-021-9; design 021 « Catalogue des écrans » : Historique;
 // maquette E2): its bitemporal versions, the latest first, each its period of validity, the
-// instant it was known, its value and the changeset that wrote it (a link). Read page by
-// page; three states.
+// instant it was known, its value, the motive of the changeset that wrote it (a link to
+// it) and its author (task 021-11p5). Read page by page; three states.
+// The author is named as the server serves it (`Version.author.name`, read from the
+// identities at each request: « personne #… » once pseudonymised, Q-021-29), never from a
+// name kept by the client; the history is read again at each use, at every date (the SDK
+// never freezes it, `isRevalidated`). Under a narrow container the rows stack, each
+// attribute on a line of its own.
 import { reads, type components } from "@kartenn/sdk";
 import { DataGrid, EmptyState, type GridColumn, type GridWindow } from "@kartenn/ui";
 import { computed, ref } from "vue";
@@ -22,6 +27,8 @@ interface Row extends Record<string, unknown> {
   value: string;
   valid: string;
   known: string;
+  motive: string;
+  author: string;
   changeset: string;
 }
 
@@ -49,14 +56,22 @@ const rows = computed<Row[]>(() =>
     value: nameOf(version.object as unknown as Item),
     valid: `${instant(version.valid_from)} → ${instant(version.valid_to)}`,
     known: instant(version.asserted_from),
+    motive: version.motive,
+    // As served: a pseudonymised person reads « personne #… », never a name of the cache.
+    author: version.author.name,
     changeset: version.changeset.id,
   })),
 );
+// The motive and its author first after the dates (the subject of a version); the instant
+// it was known leaves first as the container narrows, then the author; the identifier of
+// the changeset is one choice away (the motive links to it).
 const columns = computed<GridColumn[]>(() => [
-  { id: "value", label: t("views.record.version"), width: "md", mono: true },
+  { id: "value", label: t("views.record.versionValue"), width: "md", mono: true },
   { id: "valid", label: t("views.record.valid"), width: "lg", mono: true },
-  { id: "known", label: t("views.record.known"), width: "md", mono: true, priority: 2 },
-  { id: "changeset", label: t("views.record.changeset"), width: "fill", mono: true },
+  { id: "known", label: t("views.record.known"), width: "md", mono: true, priority: 3 },
+  { id: "motive", label: t("views.record.versionMotive"), width: "fill", wrap: true },
+  { id: "author", label: t("views.record.versionAuthor"), width: "md", priority: 2 },
+  { id: "changeset", label: t("views.record.changeset"), width: "md", mono: true, priority: 3 },
 ]);
 </script>
 
@@ -84,12 +99,19 @@ const columns = computed<GridColumn[]>(() => [
     row-key="id"
     :loading="history.isPending.value"
     :loading-rows="4"
+    stack
     @window="onWindow"
   >
     <template #cell="{ row, column, value }">
-      <KLink v-if="column.id === 'changeset'" :to="`/changesets/${row.changeset}`">{{
-        value
-      }}</KLink>
+      <!-- The motive names the changeset that wrote the version: its link (« Changeset » and
+           its identifier when the motive is blank, never an empty link). -->
+      <KLink v-if="column.id === 'motive'" :to="`/changesets/${row.changeset}`">
+        <template v-if="String(value).trim()">{{ value }}</template>
+        <template v-else
+          >{{ t("views.record.changeset") }}
+          <span class="k-mono">{{ row.changeset }}</span></template
+        >
+      </KLink>
       <template v-else>{{ value }}</template>
     </template>
   </DataGrid>

@@ -1466,13 +1466,48 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     place, `reread` ne relit que `resolved` : l'encart peut garder un écart corrigé
     jusqu'à une autre invalidation de `/v1/property-gaps` (à vérifier, l'évaluation des
     écarts côté serveur pouvant d'ailleurs suivre la validation).
-- [ ] 11p5. Historique, motif et auteur : `HistoryTab` montre le motif et l'auteur servis
+- [x] 11p5. Historique, motif et auteur : `HistoryTab` montre le motif et l'auteur servis
   par `Version` (auteur pseudonymisé tel quel, sans repli sur un nom du cache) —
   REQ-021-9 — verify : Vitest (motif, auteur, auteur pseudonymisé), parcours `records`
   (historique d'un objet modifié), `k-web2-check --base main`
   - où : `web/v2/shell/src/views/record/HistoryTab.vue` ; maquette `E2Fiche.vue`
     (`Version`, colonnes `motive`, `author`)
   - dépend de : 11p2
+  - fait le 2026-11-14 — `HistoryTab.vue` : colonnes Valeur, Valide, Connue du
+    (priorité 3), Motif (`wrap`, lien vers le changeset ; « Changeset » et son
+    identifiant en chasse fixe si le motif est vide), Auteur (`Version.author.name` tel que servi, priorité 2), Changeset (priorité
+    3) ; grille `stack` (reste de la 11p6 : à 768 px, plus que Version et Valide) ; SDK :
+    l'historique n'est jamais figé, même à un `as_of` du passé (`isRevalidated` dans
+    `keys.ts`, exclu d'`isImmutable` ; `freshness` à `staleTime` 0, relu en
+    `If-None-Match` à chaque lecture), d'accord avec le `no-cache` du serveur ; aucun nom
+    gardé côté client hors du cache en mémoire. Maquette E2 alignée (même grille, auteur
+    pseudonymisé en exemple), amendement daté dans `decisions.md` de la 020, design de la
+    021 (« Catalogue des écrans » : Historique ; « Clés et fraîcheur » : ligne de
+    l'historique) ; captures E2 historique réécrites et regardées. Tests : Vitest
+    `history.test.ts` (motif, lien, auteur ; auteur pseudonymisé relu au remontage, sans
+    nom dans le stockage du navigateur ; motif vide), `sdk/test/cache.test.ts`
+    (historique au passé relu, `staleTime` 0, enfants au passé toujours figés) ; parcours
+    `records` (réseau renuméroté : trois versions, motifs liés, auteur nommé).
+  - choix : le motif porte le lien vers le changeset (nom du lien = ce qu'il dit du
+    changeset), l'identifiant du changeset passe en colonne de priorité 3, la maquette
+    suivant (« Version » seule en tête plutôt que « Version, changeset ») ; auteur en
+    texte, sans lien (la fiche d'une identité relève de `core.rbac.read`, Q-021-29) ;
+    l'historique relu à chaque lecture à toute date (`staleTime` 0) plutôt qu'à 30 s ;
+    la première colonne de l'écran, qui montre la valeur de l'objet (l'API ne numérote
+    pas les versions), titrée « Valeur » et non « Version » (relecture UI) ; deux motifs
+    identiques gardent deux liens de même nom, la ligne les distinguant (relecture a11y).
+  - reste : à 1024 px le conteneur de la fiche (≈ 465 px utiles, entre `sm` et `md`) est
+    trop étroit pour les trois colonnes de priorité 1 (Version `md`, Valide `lg`, Motif
+    `fill` au moins `md`) et pas assez pour s'empiler : le motif est coupé, la grille
+    défile de côté (déjà le cas avant la tâche) ; à trancher dans la bibliothèque (seuil
+    d'empilement par grille, ou minimum de `fill`). En `stack`, la bande d'en-tête
+    répète les libellés des colonnes (bibliothèque). La maquette garde le filtre de
+    « Motif », que l'écran n'a pas (l'API ne filtre pas l'historique). Pas de script
+    clavier dédié au lien d'une cellule de l'historique (modèle de `DataGrid`). La
+    maquette E2 numérote les versions (« v4 »…) sous « Version » quand l'écran montre la
+    valeur sous « Valeur ». Dans la fiche, « Connue du » (second axe du bitemporel) est
+    derrière « Colonnes » dès 1440 px (seuil `lg` du conteneur) : à revoir avec les seuils
+    de la bibliothèque.
 - [x] 11p6. Maquettes du référentiel amendées (Q-021-25, 26) : comptes des onglets de la
   fiche retirés (E2, `RecordView.vue` s'il en montre), tri des colonnes retiré des
   maquettes E1 à E3 et des vues du référentiel (ordre de la clé, `sortable` ôté) ; les

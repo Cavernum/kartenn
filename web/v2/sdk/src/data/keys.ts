@@ -131,10 +131,31 @@ export const keys = {
   },
 };
 
-/** Whether a key reads the past as recorded (`as_of`): immutable (ADR 0005). */
+/**
+ * The sub-resources read again at each use, at every date: the history of an object, whose
+ * authors are named as the identities read now (pseudonymised once the person is, served
+ * `no-cache` even at an `as_of` of the past; Q-021-29, task 021-11p2).
+ */
+const REVALIDATED: ReadonlySet<string> = new Set(["history"]);
+
+/** Whether a key is one of a sub-resource read again at each use (`history`). */
+export function isRevalidated(key: readonly unknown[]): boolean {
+  return key.length === 6 && key[0] === "v1" && REVALIDATED.has(key[3] as string);
+}
+
+/**
+ * Whether a key reads the past as recorded (`as_of`): immutable (ADR 0005), but for a
+ * sub-resource read again at each use (`isRevalidated`).
+ */
 export function isImmutable(key: readonly unknown[]): boolean {
   const time = key[key.length - 1] as TimeKey | undefined;
-  return key[0] === "v1" && typeof time === "object" && time !== null && time.as_of != null;
+  return (
+    key[0] === "v1" &&
+    typeof time === "object" &&
+    time !== null &&
+    time.as_of != null &&
+    !isRevalidated(key)
+  );
 }
 
 /** Whether a key reads the present. */
