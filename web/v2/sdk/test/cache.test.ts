@@ -133,6 +133,25 @@ describe("reads (REQ-021-21, ADR 0037)", () => {
     expect(fallback.active && focus(query)).toBe(false);
   });
 
+  it("read the history again at each use, even at an as_of of the past (Q-021-29)", async () => {
+    // Its authors are named as the identities read now: a pseudonymisation reaches it.
+    const { queryClient, reads, seen } = fakeCache((request) =>
+      request.headers.get("If-None-Match") === 'W/"h1"'
+        ? notModified('W/"h1"')
+        : json({ items: [], links: {} }, { etag: 'W/"h1"' }),
+    );
+    const history = reads.subPages("core.prefix", P1, "history", null, PAST);
+    expect(isImmutable(history.queryKey)).toBe(false);
+    expect(history.staleTime).toBe(0);
+    expect(reads.subPages("core.prefix", P1, "history", null, null).staleTime).toBe(0);
+    // The other sub-resources of the past stay frozen.
+    expect(isImmutable(keys.sub("core.prefix", P1, "children", null, PAST))).toBe(true);
+    await queryClient.fetchInfiniteQuery(history);
+    await queryClient.fetchInfiniteQuery(history);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.headers.get("If-None-Match")).toBe('W/"h1"');
+  });
+
   it("keep each family's freshness", () => {
     const { reads } = fakeCache(() => json({}));
     expect(reads.object("core.prefix", P1, null).staleTime).toBe(FRESHNESS.object.staleTime);

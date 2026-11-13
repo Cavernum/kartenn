@@ -22,6 +22,7 @@ import { ApiProblem } from "../api/problem.ts";
 import type { paths } from "../api/schema";
 import {
   isImmutable,
+  isRevalidated,
   keys,
   type Filters,
   type FilterValue,
@@ -76,8 +77,13 @@ export const CHILDREN_PAGES = 100;
 /** The sub-resources that are the children of a node, kept to `CHILDREN_PAGES`. */
 const CHILDREN: ReadonlySet<string> = new Set(["children", "roots"]);
 
-/** The freshness of a family for a key. */
+/**
+ * The freshness of a family for a key. A sub-resource read again at each use (the history,
+ * served `no-cache`: its authors named as they read now, Q-021-29) is stale at once, at
+ * every date: each read revalidates it (`If-None-Match`, 304 when nothing changed).
+ */
 export function freshness(family: Family, key: readonly unknown[]) {
+  if (isRevalidated(key)) return { staleTime: 0, gcTime: FRESHNESS[family].gcTime };
   return isImmutable(key) ? IMMUTABLE : FRESHNESS[family];
 }
 
