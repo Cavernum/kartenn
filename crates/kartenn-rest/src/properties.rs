@@ -16,6 +16,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use kartenn_core::audit::rfc3339;
 use kartenn_core::period::Period;
+use kartenn_core::properties::{CORE_CARRIERS, is_module_kind};
 use kartenn_core::rules::PROP_EXPECTED_MISMATCH;
 use kartenn_service::RequestError;
 use kartenn_service::audit::{AuditJournal, RequestContext};
@@ -27,7 +28,7 @@ use kartenn_service::reads::{objects_read, read_object, sensitive_disclosed};
 use kartenn_store_pg::anomalies::{self, Anomaly, AnomalyFilter};
 use kartenn_store_pg::explain::explain;
 use kartenn_store_pg::list::Kind;
-use kartenn_store_pg::property_read::{self, DeclarationRead};
+use kartenn_store_pg::property_read::{self, DeclarationFilter, DeclarationRead};
 use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::Serialize;
@@ -239,13 +240,47 @@ fn after_key(page: &Page) -> Result<Option<String>, Problem> {
         .map_err(|_| Problem::new(ProblemKind::InvalidCursor))
 }
 
-/// `GET /v1/property-declarations`: the declarations at the dates of the read, by key.
+/// The filters of the list of declarations among the parameters left by the page (task
+/// 021-11p3, Q-021-27): the prefix `q` (see [`crate::filter::prefix`]) and `carrier`, a
+/// kind of the core or a qualified type of a module, each at most once; anything else
+/// → 400.
+fn declaration_filter(
+    params: &[(String, String)],
+) -> Result<(Option<String>, Option<String>), Problem> {
+    let mut rest = params.to_vec();
+    let prefix = crate::filter::prefix(&mut rest)?;
+    let mut carrier = None;
+    for (name, value) in rest {
+        if name != "carrier" {
+            return Err(bad(format!("unknown parameter {name}")));
+        }
+        if carrier.is_some() {
+            return Err(bad("carrier is given more than once"));
+        }
+        if !(CORE_CARRIERS.contains(&value.as_str()) || is_module_kind(&value)) {
+            return Err(bad(format!(
+                "carrier {value} is neither a kind of the core nor a qualified type of a module"
+            )));
+        }
+        carrier = Some(value);
+    }
+    Ok((carrier, prefix))
+}
+
+/// `GET /v1/property-declarations`: the declarations at the dates of the read, by key;
+/// `carrier` keeps those a kind carries, `q` those whose key or a label starts with it
+/// (task 021-11p3, Q-021-27).
 #[utoipa::path(
     get,
     path = "/property-declarations",
     operation_id = "list_property_declarations",
     tag = "properties",
-    params(DatesParams, PageParams),
+    params(
+        ("carrier" = Option<String>, Query, description = "A kind of the core (`prefix`) or a qualified type of a module (`<module>.<type>`): the declarations it carries; given once."),
+        ("q" = Option<String>, Query, description = "Prefix of the key or of a label, in any language, ignoring case; 100 characters at most. With it, 20 a page by default."),
+        DatesParams,
+        PageParams,
+    ),
     responses((status = 200, description = "The declarations, by key.", body = Listing<DeclarationItem>))
 )]
 async fn declarations(
@@ -255,14 +290,24 @@ async fn declarations(
 ) -> Result<Response, Problem> {
     let name = "property-declarations";
     let page = Page::from_query(query.as_deref().unwrap_or_default(), &api.ring, name)?;
-    page.unfiltered()?;
+    let (carrier, prefix) = declaration_filter(&page.filters)?;
+    let page = if prefix.is_some() {
+        page.suggesting()
+    } else {
+        page
+    };
     let after = after_key(&page)?;
     let moment = moment_of(&api, page.dates).await?;
     let size = usize::from(page.size);
+    let filter = DeclarationFilter {
+        carrier: carrier.as_deref(),
+        prefix: prefix.as_deref(),
+    };
     let mut found = property_read::declarations(
         &api.pool,
         moment.valid_at,
         Some(moment.as_of()),
+        filter,
         after.as_deref(),
         i64::from(page.size) + 1,
     )

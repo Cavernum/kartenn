@@ -233,7 +233,8 @@ async fn capabilities(
     hub: Option<Extension<Arc<crate::events::hub::Hub>>>,
 ) -> Result<Response, Problem> {
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-    let declared = property_read::declarations(&api.pool, now, None, None, i64::MAX)
+    let all = property_read::DeclarationFilter::default();
+    let declared = property_read::declarations(&api.pool, now, None, all, None, i64::MAX)
         .await
         .map_err(|e| store(&e))?;
     let body_bytes = limit.map_or_else(

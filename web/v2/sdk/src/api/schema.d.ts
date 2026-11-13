@@ -3805,7 +3805,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** `GET /v1/property-declarations`: the declarations at the dates of the read, by key. */
+    /**
+     * `GET /v1/property-declarations`: the declarations at the dates of the read, by key;
+     *     `carrier` keeps those a kind carries, `q` those whose key or a label starts with it
+     *     (task 021-11p3, Q-021-27).
+     */
     get: operations["list_property_declarations"];
     put?: never;
     post?: never;
@@ -23370,6 +23374,10 @@ export interface operations {
   list_property_declarations: {
     parameters: {
       query?: {
+        /** @description A kind of the core (`prefix`) or a qualified type of a module (`<module>.<type>`): the declarations it carries; given once. */
+        carrier?: string;
+        /** @description Prefix of the key or of a label, in any language, ignoring case; 100 characters at most. With it, 20 a page by default. */
+        q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */

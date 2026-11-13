@@ -38032,6 +38032,24 @@
         "operationId": "list_property_declarations",
         "parameters": [
           {
+            "description": "A kind of the core (`prefix`) or a qualified type of a module (`<module>.<type>`): the declarations it carries; given once.",
+            "in": "query",
+            "name": "carrier",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prefix of the key or of a label, in any language, ignoring case; 100 characters at most. With it, 20 a page by default.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Valid time, RFC 3339 with its offset; now by default.",
             "in": "query",
             "name": "valid_at",
@@ -38095,7 +38113,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/property-declarations`: the declarations at the dates of the read, by key.",
+        "summary": "`GET /v1/property-declarations`: the declarations at the dates of the read, by key;\n`carrier` keeps those a kind carries, `q` those whose key or a label starts with it\n(task 021-11p3, Q-021-27).",
         "tags": [
           "properties"
         ]
