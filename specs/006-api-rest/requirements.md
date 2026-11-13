@@ -110,6 +110,9 @@ Acceptation :
   cette date.
 
 #### REQ-006-6 — Cache des lectures
+*Amendée par la 021 (021-11p2, 2026-11-13) : l'historique d'un objet, qui nomme ses
+auteurs tels que les identités les lisent au présent (REQ-004-33), n'est jamais
+`immutable`, même au passé figé : `no-cache` et un ETag.*
 kartenn doit marquer toute réponse de lecture `private` ; une lecture au passé figé doit
 porter un `max-age` long et `immutable` ; toute autre lecture `no-cache` et un ETag,
 et une requête conditionnelle dont l'ETag n'a pas changé doit recevoir 304. [H4,

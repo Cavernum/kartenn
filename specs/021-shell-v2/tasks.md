@@ -1367,17 +1367,39 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     lecture (`Version.motive`, `Version.author`, `list::Author`) ; `VersionDto` sert
     `motive` et `author` (`IdentityRef {id, href, name}`, `rights.rs`), l'un et l'autre
     à qui lit l'objet (Q-021-29, 30, arbitrées après une première version qui gardait
-    le nom sous `core.rbac.read`) ; contrat,
-    SDK et design de la 006 (« Historique ») mis à jour ; it
-    `history_names_the_motive_and_the_author_until_pseudonymised` (motif, nom, référence
-    sans nom, puis `POST …/pseudonymisation` : ni nom ni courriel, « personne #… »).
+    le nom sous `core.rbac.read`) ; l'historique jamais `immutable`, même à un `as_of`
+    du passé figé (`Moment::live`, `dated.rs`), ses auteurs étant lus au présent ;
+    contrat, SDK et design de la 006 (« Historique », REQ-006-6 amendée) mis à jour ; it
+    `history_names_the_motive_and_the_author_until_pseudonymised` (motif et nom pour un
+    lecteur du seul objet ; à un `as_of` figé, `private, no-cache` ; puis
+    `POST …/pseudonymisation` : ni nom ni courriel, « personne #… », au présent comme à
+    l'`as_of` figé, ETag changé, pas de 304).
   - choix : `IdentityRef` à trois membres plutôt qu'`IdentityItem` (son état — émetteur,
     désactivation, révocation — relève de `core.rbac.read`) ; `name` jamais `null` : une
     personne pseudonymisée se lit « personne #… » comme dans l'audit (REQ-004-33), et un
-    auteur absent du journal ne peut se servir ; jointure externe, et une version dont le changeset manque au
-    journal répond 500 (journalisé) plutôt que d'être tue ; les fixtures des tests
-    d'historique journalisent leurs changesets (`journal`) ; `ModuleVersion` (objets des
-    modules, VLAN) reste sans motif ni auteur.
+    auteur absent du journal ne peut se servir ; jointure externe, et une version dont le
+    changeset manque au journal répond 500 (journalisé) plutôt que d'être tue ; les
+    fixtures des tests d'historique journalisent leurs changesets (`journal`) ;
+    `ModuleVersion` (objets des modules, VLAN) reste sans motif ni auteur (→ 11p8).
+  - reste : une version dont le changeset manque au journal fait tomber toute la page en
+    500 ; les tables d'objets du cœur n'ont pas de clé étrangère vers `changeset`
+    (`0004_core_objects.sql`), l'invariant n'est tenu que par le code ; `journal()` des
+    tests est codé en dur sur l'auteur système et les domaines.
+- [ ] 11p8. Motif et auteur dans `ModuleVersion` (Q-021-24, 29, 30, ajout seul) :
+  l'historique d'un objet de module et d'un VLAN ou groupe de VLAN
+  (`GET /v1/<collection>/{id}/history` des modules, route transversale des VLAN) sert
+  `motive` et `author` (`IdentityRef`) comme `Version`, déjà lus par `list::versions_page`
+  (`module_version_of` les ignore), jamais `immutable` (`Moment::live`) — REQ-004-18,
+  REQ-004-33 — verify : `k-check -p kartenn-rest` (it : historique d'un VLAN et d'un
+  objet de module avec motif et nom de l'auteur, puis après pseudonymisation
+  « personne #… » ; `private, no-cache` à un `as_of` figé) ; contrat (ajout seul) et SDK
+  régénérés ; `k-check` complet
+  - où : `crates/kartenn-rest/src/modules.rs` (`ModuleVersionDto`, `module_version_of`,
+    sa réponse) ; imiter `VersionDto`, `version_of` et la réponse de l'historique de
+    `crates/kartenn-rest/src/objects.rs` ; tests voisins `tests/it/modules.rs`,
+    `tests/it/vlan/rest.rs` (historique d'un groupe), fixtures journalisées comme
+    `journal()` de `tests/it/objects.rs` ; contrat et SDK comme 11p1
+  - dépend de : 11p2
 - [ ] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
   accepte `carrier=<sorte>` (déclarations dont `carriers` contient la sorte du cœur ou le
   type qualifié d'un module) et `q=` (sous-chaîne de la clé ou du libellé, sans casse ;
