@@ -1,5 +1,6 @@
 //! The routes of the module under `/v1` (feature `rest`; spec 019, design « Routes »),
 //! mounted by kartenn-server: so far the collection of the clusters (`clusters`), the
+//! reads of the objects the connector mirrors (`mirrors`), the
 //! batch of observations of a cluster
 //! (`POST /v1/kube-clusters/{id}/observations`, REQ-019-16; ADR 0043, decisions 2, 3, 5;
 //! Q-019-21 to 23), outside the changesets. Its right, `kube.observation.record`, is
@@ -52,6 +53,10 @@ use crate::read::{self, Key, Observation};
 
 /// The collection of the clusters (task 019-8a).
 mod clusters;
+/// The reads of the mirrored objects (task 019-8b).
+mod mirrors;
+/// The dated relations of the reads (tasks 019-8a, 8b).
+mod reading;
 
 /// The code of a batch refused, in the extension `code` of its `invalid-batch` (Q-019-21).
 const INVALID: &str = "kube.observation.invalid";
@@ -813,7 +818,7 @@ pub fn routes() -> ModuleRouter {
     .answers("201", "Written.", "KubeObservationBatchRecorded")
     .refuses_batches("Refused whole: the lines that refuse it, by JSON pointer.")
     .build();
-    clusters::routes(ModuleRouter::new())
+    mirrors::routes(clusters::routes(ModuleRouter::new()))
         .routes(documented(
             "/kube-clusters/{id}/observations",
             vec![(HttpMethod::Post, record_op), (HttpMethod::Get, held_op)],

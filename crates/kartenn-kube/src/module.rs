@@ -148,6 +148,19 @@ pub(crate) fn cluster_type() -> &'static ObjectType {
     &TYPES[0]
 }
 
+/// The type `kind` of the module, as its routes serve it.
+///
+/// # Panics
+///
+/// When `kind` is not a type of the module: a mistake of its routes.
+#[cfg(feature = "rest")]
+pub(crate) fn type_of(kind: &str) -> &'static ObjectType {
+    TYPES
+        .iter()
+        .find(|t| t.kind == kind)
+        .unwrap_or_else(|| panic!("{kind} is a type of the module"))
+}
+
 /// A setting of the module (Q-019-35): no anchor, no parent, written under the global
 /// `kube.settings.edit`.
 const fn global(kind: &'static str, collection: &'static str) -> ObjectType {

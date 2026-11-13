@@ -1843,6 +1843,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/ingresses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The ingresses the caller may read (REQ-019-38), by name. */
+    get: operations["list_kube_ingresses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ingresses/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An object of the collection; 404 for one the caller may not read. */
+    get: operations["show_kube_ingress"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/ingresses/{id}/history": {
     parameters: {
       query?: never;
@@ -2348,6 +2382,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-namespaces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The namespaces the caller may read (REQ-019-38), by name. */
+    get: operations["list_kube_namespaces"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-namespaces/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An object of the collection; 404 for one the caller may not read. */
+    get: operations["show_kube_namespace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-namespaces/{id}/history": {
     parameters: {
       query?: never;
@@ -2416,6 +2484,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The nodes the caller may read (REQ-019-38), by name. */
+    get: operations["list_kube_nodes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-nodes/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An object of the collection; 404 for one the caller may not read. */
+    get: operations["show_kube_node"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-nodes/{id}/history": {
     parameters: {
       query?: never;
@@ -2476,6 +2578,40 @@ export interface paths {
     };
     /** The value the source of a property expects for the object (REQ-003-23). */
     get: operations["kube_node_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The services the caller may read (REQ-019-38), by name. */
+    get: operations["list_kube_services"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-services/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An object of the collection; 404 for one the caller may not read. */
+    get: operations["show_kube_service"];
     put?: never;
     post?: never;
     delete?: never;
@@ -4588,6 +4724,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workloads": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The workloads the caller may read (REQ-019-38), by name. */
+    get: operations["list_kube_workloads"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workloads/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An object of the collection; 404 for one the caller may not read. */
+    get: operations["show_kube_workload"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workloads/{id}/history": {
     parameters: {
       query?: never;
@@ -6510,6 +6680,130 @@ export interface components {
       /** @description The end of the period of the write, RFC 3339; unbounded by default. */
       valid_to?: string | null;
     };
+    /** @description An ingress of a namespace (REQ-019-10). */
+    KubeIngress: {
+      /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
+      absent_since?: string | null;
+      /**
+       * @description Its addresses of the core, in the external domain of its cluster, else its service
+       *     domain.
+       */
+      addresses: components["schemas"]["KubeObjectRef"][];
+      /** @description Its class (`ingressClassName`). */
+      class?: string | null;
+      /** @description The cluster of its namespace. */
+      cluster: components["schemas"]["KubeObjectRef"];
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its name, unique in its namespace at every instant. */
+      name: string;
+      /** @description Its namespace. */
+      namespace: components["schemas"]["KubeObjectRef"];
+      /** @description Its routes, a sorted set. */
+      rules: components["schemas"]["KubeIngressRoute"][];
+      /** @description The hosts of its TLS. */
+      tls_hosts: string[];
+      /**
+       * Format: uuid
+       * @description Its `uid` in Kubernetes.
+       */
+      uid?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+    };
+    /** @description A route of an ingress; the default backend is the route without host, path nor type. */
+    KubeIngressRoute: {
+      /** @description Its host. */
+      host?: string | null;
+      /** @description Its path. */
+      path?: string | null;
+      /** @description `exact`, `prefix` or `implementation_specific` (`pathType`). */
+      path_type?: string | null;
+      /** @description The port of that service, by number or by name. */
+      port: components["schemas"]["KubeTargetPort"];
+      /** @description The name of a service of the namespace, which may be absent. */
+      service: string;
+    };
+    /** @description A namespace of a cluster (REQ-019-7). */
+    KubeNamespace: {
+      /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
+      absent_since?: string | null;
+      /** @description Its cluster. */
+      cluster: components["schemas"]["KubeObjectRef"];
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its tracked labels only. */
+      labels: {
+        [key: string]: string;
+      };
+      /** @description Its name, unique in its cluster at every instant. */
+      name: string;
+      /**
+       * Format: uuid
+       * @description Its `uid` in Kubernetes.
+       */
+      uid?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+    };
+    /** @description A node of a cluster (REQ-019-6). */
+    KubeNode: {
+      /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
+      absent_since?: string | null;
+      /** @description Its addresses as read. */
+      addresses: components["schemas"]["KubeNodeAddress"][];
+      /** @description Its cluster. */
+      cluster: components["schemas"]["KubeObjectRef"];
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      machine?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Its name, unique in its cluster at every instant. */
+      name: string;
+      /** @description Its pod ranges as read (`spec.podCIDRs`). */
+      pod_cidrs: string[];
+      /** @description The networks of the core of its pod ranges. */
+      ranges: components["schemas"]["KubeObjectRef"][];
+      /**
+       * Format: uuid
+       * @description Its `uid` in Kubernetes.
+       */
+      uid?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+      /** @description Its zone. */
+      zone?: string | null;
+    };
+    /** @description An address of a node, as the connector reads it (`status.addresses`). */
+    KubeNodeAddress: {
+      /** @description `InternalIP`, `ExternalIP`, `Hostname`… */
+      type: string;
+      /** @description The address or the name. */
+      value: string;
+    };
     /** @description The identifier of an object of the cluster (006/H3). */
     KubeObjectRef: {
       /** Format: uuid */
@@ -6630,6 +6924,122 @@ export interface components {
      * @enum {string}
      */
     KubeObservationReason: "retention";
+    /** @description A service of a namespace (REQ-019-9). */
+    KubeService: {
+      /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
+      absent_since?: string | null;
+      /** @description The cluster of its namespace. */
+      cluster: components["schemas"]["KubeObjectRef"];
+      /** @description Its addresses of the core in the service domain of its cluster. */
+      cluster_addresses: components["schemas"]["KubeObjectRef"][];
+      /** @description Its `LoadBalancer` addresses and `externalIPs`, addresses of the core. */
+      external_addresses: components["schemas"]["KubeObjectRef"][];
+      /** @description The name it stands for, of an `external_name` service. */
+      external_name?: string | null;
+      /** @description Without a cluster address (`clusterIP: None`). */
+      headless: boolean;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its name, unique in its namespace at every instant. */
+      name: string;
+      /** @description Its namespace. */
+      namespace: components["schemas"]["KubeObjectRef"];
+      /** @description Its ports, a sorted set. */
+      ports: components["schemas"]["KubeServicePort"][];
+      /** @description `cluster_ip`, `node_port`, `load_balancer` or `external_name`. */
+      type: string;
+      /**
+       * Format: uuid
+       * @description Its `uid` in Kubernetes.
+       */
+      uid?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+      /** @description The workloads it selects, as the connector computed them. */
+      workloads: components["schemas"]["KubeObjectRef"][];
+    };
+    /** @description A port of a service (`spec.ports`). */
+    KubeServicePort: {
+      /** @description `appProtocol`. */
+      app_protocol?: string | null;
+      /** @description The name an ingress may target. */
+      name?: string | null;
+      /**
+       * Format: int32
+       * @description `nodePort`.
+       */
+      node_port?: number | null;
+      /**
+       * Format: int32
+       * @description 1 to 65535.
+       */
+      port: number;
+      /** @description `tcp`, `udp` or `sctp`. */
+      protocol: string;
+      target_port?: components["schemas"]["KubeTargetPort"] | null;
+    };
+    /** @description The port a service or a route targets: a number or a port name. */
+    KubeTargetPort: number | string;
+    /** @description A workload of a namespace (REQ-019-8). */
+    KubeWorkload: {
+      /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
+      absent_since?: string | null;
+      /** @description The cluster of its namespace. */
+      cluster: components["schemas"]["KubeObjectRef"];
+      /** @description Whether its pods share the network of their node (`hostNetwork`). */
+      host_network: boolean;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description `deployment`, `statefulset`, `daemonset`, `cronjob`, `job`, `replicaset` or `pod`. */
+      kind: string;
+      /** @description The tracked labels of its pod template only. */
+      labels: {
+        [key: string]: string;
+      };
+      /** @description Its name, unique by kind in its namespace at every instant. */
+      name: string;
+      /** @description Its namespace. */
+      namespace: components["schemas"]["KubeObjectRef"];
+      /** @description The ports its containers declare, a sorted set. */
+      ports: components["schemas"]["KubeWorkloadPort"][];
+      /** @description Its service account. */
+      service_account?: string | null;
+      /**
+       * Format: uuid
+       * @description Its `uid` in Kubernetes.
+       */
+      uid?: string | null;
+      /**
+       * Format: uuid
+       * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
+       */
+      readonly version?: string;
+    };
+    /** @description A port declared by the containers of a workload. */
+    KubeWorkloadPort: {
+      /** @description Its name (`IANA_SVC_NAME`). */
+      name?: string | null;
+      /**
+       * Format: int32
+       * @description 1 to 65535.
+       */
+      port: number;
+      /** @description `tcp`, `udp` or `sctp`. */
+      protocol: string;
+    };
     /** @description The dictionary of labels for one language. */
     Labels: {
       /** @description The system time asked for, when one was. */
@@ -7090,6 +7500,27 @@ export interface components {
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
+    /** @description A page of a list, as answered. */
+    Listing_KubeIngress: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeIngress"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_KubeNamespace: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeNamespace"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_KubeNode: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeNode"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
     /** @description A page of the journal. */
     Listing_KubeObservation: {
       /** @description The observations of the page, by start, pod and IP. */
@@ -7097,6 +7528,20 @@ export interface components {
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
       reason?: components["schemas"]["KubeObservationReason"] | null;
+    };
+    /** @description A page of a list, as answered. */
+    Listing_KubeService: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeService"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_KubeWorkload: {
+      /** @description The elements of the page. */
+      items: components["schemas"]["KubeWorkload"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
     Listing_Machine: {
@@ -16411,6 +16856,97 @@ export interface operations {
       };
     };
   };
+  list_kube_ingresses: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description In this cluster. */
+        cluster?: string;
+        /** @description In this namespace. */
+        namespace?: string;
+        /** @description Absent from its cluster (`true`) or present (`false`). */
+        "absent_since:exists"?: boolean;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeIngress"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_ingress: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeIngress"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_ingress_history: {
     parameters: {
       query?: {
@@ -18187,6 +18723,97 @@ export interface operations {
       };
     };
   };
+  list_kube_namespaces: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description In this cluster. */
+        cluster?: string;
+        /** @description Carrying the tracked label `key=value` (the text up to the first `=` is the key). */
+        label?: string;
+        /** @description Absent from its cluster (`true`) or present (`false`). */
+        "absent_since:exists"?: boolean;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeNamespace"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_namespace: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeNamespace"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_namespace_history: {
     parameters: {
       query?: {
@@ -18355,6 +18982,97 @@ export interface operations {
       };
     };
   };
+  list_kube_nodes: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description In this cluster. */
+        cluster?: string;
+        /** @description This machine. */
+        machine?: string;
+        /** @description Absent from its cluster (`true`) or present (`false`). */
+        "absent_since:exists"?: boolean;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeNode"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_node: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeNode"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_node_history: {
     parameters: {
       query?: {
@@ -18510,6 +19228,99 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_kube_services: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description In this cluster. */
+        cluster?: string;
+        /** @description In this namespace. */
+        namespace?: string;
+        /** @description Equal to. */
+        type?: "cluster_ip" | "node_port" | "load_balancer" | "external_name";
+        /** @description Absent from its cluster (`true`) or present (`false`). */
+        "absent_since:exists"?: boolean;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeService"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_service: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeService"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -25882,6 +26693,102 @@ export interface operations {
       };
     };
   };
+  list_kube_workloads: {
+    parameters: {
+      query?: {
+        /** @description Equal to. */
+        name?: string;
+        /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
+        q?: string;
+        /** @description In this cluster. */
+        cluster?: string;
+        /** @description In this namespace. */
+        namespace?: string;
+        /** @description Equal to. */
+        kind?:
+          "deployment" | "statefulset" | "daemonset" | "cronjob" | "job" | "replicaset" | "pod";
+        /** @description Carrying the tracked label `key=value` (the text up to the first `=` is the key). */
+        label?: string;
+        /** @description Absent from its cluster (`true`) or present (`false`). */
+        "absent_since:exists"?: boolean;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of the collection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_KubeWorkload"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_kube_workload: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The object. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The object. Its strong ETag is opaque: its version, then a digest of everything else the body shows (summaries of linked objects, inherited values, embedded collections), so that it changes whenever the body does. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeWorkload"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_workload_history: {
     parameters: {
       query?: {
@@ -26138,6 +27045,10 @@ export interface queries {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_PolicyObject"];
   };
+  "/v1/ingresses": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeIngress"];
+  };
   "/v1/interfaces": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Interface"];
@@ -26145,6 +27056,18 @@ export interface queries {
   "/v1/kube-clusters": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_KubeCluster"];
+  };
+  "/v1/kube-namespaces": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeNamespace"];
+  };
+  "/v1/kube-nodes": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeNode"];
+  };
+  "/v1/kube-services": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeService"];
   };
   "/v1/machines": {
     body: components["schemas"]["Search"];
@@ -26201,5 +27124,9 @@ export interface queries {
   "/v1/vlans": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_Vlan"];
+  };
+  "/v1/workloads": {
+    body: components["schemas"]["Search"];
+    response: components["schemas"]["Listing_KubeWorkload"];
   };
 }
