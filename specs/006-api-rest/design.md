@@ -309,14 +309,22 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   (slug) et `value` (`first` pour une plage) pour les objets d'adressage ; une valeur
   répétée vaut « l'une de ». Les listes sont triées par clé naturelle puis UUID.
 - **Historique** : `GET …/{id}/history` rend `{items: [{valid_from, valid_to,
-  asserted_from, asserted_to, changeset: {id, href}, object}]}` (`valid_to` et
-  `asserted_to` `null` quand ouverts), trié par début de validité puis d'assertion ;
+  asserted_from, asserted_to, changeset: {id, href}, motive, author: {id, href, name},
+  object}]}` (`valid_to` et `asserted_to` `null` quand ouverts ; `motive` et `author`,
+  ceux du changeset, l'auteur lu dans les identités à chaque lecture, jamais recopié,
+  si bien qu'une personne pseudonymisée s'y lit « personne #… » (REQ-004-33) ; l'un et
+  l'autre servis à qui lit l'objet, sans `core.rbac.read` ni `core.changeset.read`
+  (021-11p2, Q-021-24, 29, 30)), trié
+  par début de validité puis d'assertion ;
   lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
   `valid_at` donné ne garde que les versions valides à cette date (toutes leurs
   assertions), sur toutes les pages : la clé du curseur le porte. À un `as_of` passé,
   l'historique est celui connu alors : versions assertées à `as_of`, et une version
   retirée après `as_of` rendue avec `asserted_to` `null` — rien de postérieur ne
-  transparaît, la réponse au passé figé reste immuable (REQ-006-6) (006-12e).
+  transparaît (006-12e). Ses auteurs étant lus dans les identités au présent,
+  l'historique n'est jamais servi `immutable`, même au passé figé : `private, no-cache`
+  et un ETag, pour qu'une pseudonymisation atteigne les caches (exception à REQ-006-6,
+  021-11p2).
 - **Version dans le corps (H21)** : tout objet du noyau ou d'un module, lu par
   identifiant ou dans la page de sa collection, porte `version` (UUID du dernier
   changeset qui l'a écrit, lui ou ses propriétés ; la part propre de l'ETag). Le kit

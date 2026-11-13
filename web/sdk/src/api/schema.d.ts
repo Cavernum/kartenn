@@ -6405,6 +6405,21 @@ export interface components {
       /** @description Revokes the sessions opened until now. */
       revoke_sessions?: boolean | null;
     };
+    /**
+     * @description An identity, named in passing (the author of a version): read from the identities with
+     *     each read, never copied, so a pseudonymised person reads `personne #…` (REQ-004-33).
+     */
+    IdentityRef: {
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Its display name, as it reads now: `personne #…` once pseudonymised. */
+      name: string;
+    };
     /** @description The body that changes the state of an identity. */
     IdentityWrite: components["schemas"]["Reserved"] & components["schemas"]["IdentityPatch"];
     /** @description An import, as followed by its author. */
@@ -10056,8 +10071,15 @@ export interface components {
       asserted_from: string;
       /** @description The end of its assertion, RFC 3339; `null` while asserted. */
       asserted_to?: string | null;
+      /**
+       * @description The author of that changeset, as the identities name it at the read (pseudonymised
+       *     once the person is, REQ-004-33), for whoever reads the object (Q-021-29).
+       */
+      author: components["schemas"]["IdentityRef"];
       /** @description The changeset that wrote it. */
       changeset: components["schemas"]["ChangesetRef"];
+      /** @description The motive of that changeset, served with the object (Q-021-30). */
+      motive: string;
       /** @description The object, as it was. */
       object: components["schemas"]["CoreObject"];
       /** @description The start of its validity, RFC 3339. */

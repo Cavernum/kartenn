@@ -147,6 +147,18 @@ impl Moment {
         self.frozen
     }
 
+    /// The same moment, never frozen: for a read whose body also depends on the present
+    /// state of something else than the past assertions (the names of the authors of a
+    /// history, read from the identities now, REQ-004-33), revalidated each time whatever
+    /// its `as_of`.
+    #[must_use]
+    pub const fn live(self) -> Self {
+        Self {
+            frozen: false,
+            ..self
+        }
+    }
+
     /// The system time of the read, for the client to freeze its next reads on.
     #[must_use]
     pub fn as_of(&self) -> OffsetDateTime {

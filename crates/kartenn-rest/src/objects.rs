@@ -53,6 +53,7 @@ use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
 use crate::openapi::{documented, listing_of, op, queryable, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::resources;
+use crate::rights::{IdentityRef, identity_ref};
 
 /// What the routes of the objects read with.
 #[derive(Debug, Clone)]
@@ -1211,19 +1212,34 @@ struct VersionDto {
     asserted_to: Option<String>,
     /// The changeset that wrote it.
     changeset: ChangesetRef,
+    /// The motive of that changeset, served with the object (Q-021-30).
+    motive: String,
+    /// The author of that changeset, as the identities name it at the read (pseudonymised
+    /// once the person is, REQ-004-33), for whoever reads the object (Q-021-29).
+    author: IdentityRef,
     /// The object, as it was.
     object: ObjectDto,
 }
 
-/// A version as served.
+/// A version as served, its author named for whoever reads the object (Q-021-29).
 fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
+    let (Some(motive), Some(author)) = (&version.motive, &version.author) else {
+        tracing::error!(
+            name: "http.history.unjournaled",
+            changeset = %version.changeset,
+            "a version names a changeset the journal does not hold"
+        );
+        return Err(Problem::new(ProblemKind::Internal));
+    };
     Ok(VersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
         asserted_from: at(version.asserted_from),
         asserted_to: version.asserted_to.map(at),
         changeset: crate::changesets::summary(version.changeset),
+        motive: motive.clone(),
+        author: identity_ref(author.id, author.name.clone()),
         object: represent(kind, &version.fields, version.link.as_deref())?,
     })
 }
@@ -1353,7 +1369,14 @@ async fn history(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
+    // The authors are named as the identities read now: never frozen, even at a past
+    // `as_of`, so that a pseudonymisation reaches the caches (REQ-004-33).
+    Ok(respond_page(
+        &headers,
+        &moment.live(),
+        &items,
+        next.as_deref(),
+    ))
 }
 
 #[cfg(test)]

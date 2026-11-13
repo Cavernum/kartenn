@@ -3790,6 +3790,30 @@
         },
         "type": "object"
       },
+      "IdentityRef": {
+        "description": "An identity, named in passing (the author of a version): read from the identities with\neach read, never copied, so a pseudonymised person reads `personne #…` (REQ-004-33).",
+        "properties": {
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its display name, as it reads now: `personne #…` once pseudonymised.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "href",
+          "name"
+        ],
+        "type": "object"
+      },
       "IdentityWrite": {
         "allOf": [
           {
@@ -13398,9 +13422,17 @@
               "null"
             ]
           },
+          "author": {
+            "$ref": "#/components/schemas/IdentityRef",
+            "description": "The author of that changeset, as the identities name it at the read (pseudonymised\nonce the person is, REQ-004-33), for whoever reads the object (Q-021-29)."
+          },
           "changeset": {
             "$ref": "#/components/schemas/ChangesetRef",
             "description": "The changeset that wrote it."
+          },
+          "motive": {
+            "description": "The motive of that changeset, served with the object (Q-021-30).",
+            "type": "string"
           },
           "object": {
             "$ref": "#/components/schemas/CoreObject",
@@ -13422,6 +13454,8 @@
           "valid_from",
           "asserted_from",
           "changeset",
+          "motive",
+          "author",
           "object"
         ],
         "type": "object"

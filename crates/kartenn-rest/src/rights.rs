@@ -1652,6 +1652,27 @@ fn identity_href(id: Uuid) -> String {
     format!("/v1/identities/{id}")
 }
 
+/// An identity, named in passing (the author of a version): read from the identities with
+/// each read, never copied, so a pseudonymised person reads `personne #…` (REQ-004-33).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct IdentityRef {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// Its display name, as it reads now: `personne #…` once pseudonymised.
+    name: String,
+}
+
+/// The reference of identity `id`, named `name`.
+pub(crate) fn identity_ref(id: Uuid, name: String) -> IdentityRef {
+    IdentityRef {
+        id,
+        href: identity_href(id),
+        name,
+    }
+}
+
 /// An identity and its state.
 #[derive(Debug, Serialize, ToSchema)]
 pub(crate) struct IdentityItem {
