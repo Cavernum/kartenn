@@ -520,3 +520,13 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **Q-021-28 — Acceptation de REQ-021-18** (021-11p) : amendée en « préfixes d'un domaine
   filtrés par `core.site` et `core.owner` » (`core.site` porté par les préfixes seulement,
   non hérité). Retenu (utilisateur, 2026-11-13).
+- **Q-021-29 — Qui lit le nom de l'auteur d'une version** (021-11p2) : le nom de l'auteur
+  (`Version.author.name`) est servi à qui lit l'objet, sans `core.rbac.read` (les rôles
+  livrés `reader` et `editor` ne la détiennent pas). Options pesées : nom sous
+  `core.rbac.read` (référence sans nom sinon), nom à tout lecteur de l'objet. Retenu
+  (utilisateur, 2026-11-13) : à tout lecteur de l'objet ; la pseudonymisation l'efface
+  toujours, le nom étant relu dans les identités à chaque requête (« personne #… »).
+- **Q-021-30 — Motif d'une version hors de `core.changeset.read`** (021-11p2) : le motif
+  du changeset (`Version.motive`) est servi avec l'objet, à qui le lit, bien que les
+  routes `/v1/changesets` le gardent sous `core.changeset.read`. Retenu (utilisateur,
+  2026-11-13).

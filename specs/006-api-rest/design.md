@@ -312,8 +312,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   asserted_from, asserted_to, changeset: {id, href}, motive, author: {id, href, name},
   object}]}` (`valid_to` et `asserted_to` `null` quand ouverts ; `motive` et `author`,
   ceux du changeset, l'auteur lu dans les identités à chaque lecture, jamais recopié,
-  si bien qu'une personne pseudonymisée s'y lit « personne #… » (REQ-004-33), et son
-  `name` `null` pour qui ne détient pas `core.rbac.read` ; 021-11p2, Q-021-24), trié
+  si bien qu'une personne pseudonymisée s'y lit « personne #… » (REQ-004-33) ; l'un et
+  l'autre servis à qui lit l'objet, sans `core.rbac.read` ni `core.changeset.read`
+  (021-11p2, Q-021-24, 29, 30)), trié
   par début de validité puis d'assertion ;
   lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
   `valid_at` donné ne garde que les versions valides à cette date (toutes leurs

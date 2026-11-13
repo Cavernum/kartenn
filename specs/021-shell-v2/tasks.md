@@ -1365,15 +1365,16 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 11p
   - fait le 2026-11-13 — `list::versions_page` joint `changeset` et `person` à chaque
     lecture (`Version.motive`, `Version.author`, `list::Author`) ; `VersionDto` sert
-    `motive` et `author` (`IdentityRef {id, href, name}`, `rights.rs`), `name` à `null`
-    sans `core.rbac.read` (`reads::identities_named`, sans refus ni audit) ; contrat,
+    `motive` et `author` (`IdentityRef {id, href, name}`, `rights.rs`), l'un et l'autre
+    à qui lit l'objet (Q-021-29, 30, arbitrées après une première version qui gardait
+    le nom sous `core.rbac.read`) ; contrat,
     SDK et design de la 006 (« Historique ») mis à jour ; it
     `history_names_the_motive_and_the_author_until_pseudonymised` (motif, nom, référence
     sans nom, puis `POST …/pseudonymisation` : ni nom ni courriel, « personne #… »).
   - choix : `IdentityRef` à trois membres plutôt qu'`IdentityItem` (son état — émetteur,
-    désactivation, révocation — relève de `core.rbac.read`) ; le nom suit la lecture des
-    identités (`core.rbac.read`, globale) et non celle de l'objet ; le motif servi à tout
-    lecteur de l'objet ; jointure externe, et une version dont le changeset manque au
+    désactivation, révocation — relève de `core.rbac.read`) ; `name` jamais `null` : une
+    personne pseudonymisée se lit « personne #… » comme dans l'audit (REQ-004-33), et un
+    auteur absent du journal ne peut se servir ; jointure externe, et une version dont le changeset manque au
     journal répond 500 (journalisé) plutôt que d'être tue ; les fixtures des tests
     d'historique journalisent leurs changesets (`journal`) ; `ModuleVersion` (objets des
     modules, VLAN) reste sans motif ni auteur.
