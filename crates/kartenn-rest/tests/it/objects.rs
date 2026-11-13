@@ -343,6 +343,23 @@ async fn every_collection_reads_with_its_summaries(pool: PgPool) {
     assert_eq!(body["items"][0]["id"], site.to_string());
 }
 
+/// Journals the changesets the versions of the domains name without the journal holding
+/// them (the fixtures above draw them at random), by the system author: a version is
+/// served with the motive and the author of its changeset.
+async fn journal(pool: &PgPool) {
+    sqlx::query(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         SELECT DISTINCT d.changeset_id, '00000000-0000-7000-8000-000000000001'::uuid, 'fixture',
+                'applied', 'direct', tstzrange(now(), NULL)
+         FROM (SELECT changeset_id FROM addressing_domain
+               UNION SELECT changeset_id FROM addressing_domain_history) d
+         WHERE NOT EXISTS (SELECT 1 FROM changeset c WHERE c.id = d.changeset_id)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
 #[kartenn_testing::pg_test]
 async fn a_rename_keeps_the_url_and_makes_history(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
@@ -360,6 +377,7 @@ async fn a_rename_keeps_the_url_and_makes_history(pool: PgPool) {
     assert_eq!(body["domain"]["slug"], "core");
     assert_eq!(body["links"]["self"], uri);
 
+    journal(&pool).await;
     let history = ok(&app, &format!("/v1/domains/{lab}/history")).await;
     let versions = history["items"].as_array().unwrap();
     assert_eq!(versions.len(), 2, "{history}");
@@ -438,6 +456,7 @@ async fn children_and_history_page_by_cursor(pool: PgPool) {
             .await
             .unwrap();
     }
+    journal(&pool).await;
     let body = ok(&app, &format!("/v1/domains/{lab}/history?page_size=2")).await;
     let slugs = |body: &Value| -> Vec<String> {
         body["items"]
@@ -487,6 +506,7 @@ async fn history_keeps_the_versions_valid_at_and_known_as_of(pool: PgPool) {
     .execute(&pool)
     .await
     .unwrap();
+    journal(&pool).await;
     let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
     let uri = format!("/v1/domains/{lab}/history");
     let slugs = |body: &Value| -> Vec<String> {
@@ -517,6 +537,94 @@ async fn history_keeps_the_versions_valid_at_and_known_as_of(pool: PgPool) {
     assert_eq!(slugs(&body), ["lab"]);
     assert_eq!(body["items"][0]["asserted_to"], Value::Null);
     assert_eq!(body["items"][0]["valid_to"], Value::Null);
+}
+
+/// The history of an object names the motive and the author of each changeset (task
+/// 021-11p2, Q-021-24): the author read from the identities at each read, so that once
+/// pseudonymised (REQ-004-33) the same history holds neither the name nor the email; a
+/// reader who may not read the identities gets the reference without the name.
+#[kartenn_testing::pg_test]
+async fn history_names_the_motive_and_the_author_until_pseudonymised(pool: PgPool) {
+    let author: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, email)
+         VALUES (gen_random_uuid(), 'Camille Martin', 'camille.martin@example.org')
+         RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let changeset: Uuid = sqlx::query_scalar(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES (gen_random_uuid(), $1, 'Bascule des VIP salle B', 'applied', 'direct',
+                 tstzrange('2020-01-01', NULL))
+         RETURNING id",
+    )
+    .bind(author)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let lab: Uuid = sqlx::query_scalar(
+        "INSERT INTO addressing_domain (id, slug, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'lab', tstzrange('2020-01-01', NULL), $1) RETURNING id",
+    )
+    .bind(changeset)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let uri = format!("/v1/domains/{lab}/history");
+    let mut rights = READ_ALL.to_vec();
+    rights.push("core.rbac.read");
+    let named = app(&pool, person(&pool, &rights, ("global", None)).await);
+    let unnamed = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    let body = ok(&named, &uri).await;
+    let version = &body["items"][0];
+    assert_eq!(version["changeset"]["id"], changeset.to_string(), "{body}");
+    assert_eq!(version["motive"], "Bascule des VIP salle B");
+    assert_eq!(
+        version["author"],
+        json!({
+            "id": author,
+            "href": format!("/v1/identities/{author}"),
+            "name": "Camille Martin",
+        })
+    );
+    let body = ok(&unnamed, &uri).await;
+    let version = &body["items"][0];
+    assert_eq!(version["motive"], "Bascule des VIP salle B", "{body}");
+    assert_eq!(version["author"]["id"], author.to_string());
+    assert_eq!(version["author"]["name"], Value::Null);
+    assert!(!body.to_string().contains("Camille"), "{body}");
+
+    let officer = app(
+        &pool,
+        person(&pool, &["core.identity.pseudonymise"], ("global", None)).await,
+    );
+    let response = officer
+        .clone()
+        .oneshot(common::bearer(
+            Request::post(format!("/v1/identities/{author}/pseudonymisation"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "motive": "droit à l'effacement" }).to_string(),
+                ))
+                .unwrap(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = ok(&named, &uri).await;
+    let text = body.to_string();
+    assert!(
+        !text.contains("Camille") && !text.contains("Martin"),
+        "{body}"
+    );
+    assert!(!text.contains("camille.martin@example.org"), "{body}");
+    let pseudonym = format!("personne #{}", &author.to_string()[..8]);
+    assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
+    assert_eq!(body["items"][0]["author"]["id"], author.to_string());
+    assert_eq!(body["items"][0]["motive"], "Bascule des VIP salle B");
 }
 
 /// A 404 without what differs from one request to another.

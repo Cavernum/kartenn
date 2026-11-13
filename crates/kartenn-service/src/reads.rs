@@ -370,6 +370,27 @@ pub async fn changesets_readable<A: Authorizer, J: AuditJournal>(
     .await
 }
 
+/// Whether the actor of `context` may read the identities, their names among them
+/// ([`RBAC_READ_PERMISSION`]), asked without refusing anything: a read that names an
+/// identity in passing (the author of a version, REQ-004-18) serves its reference
+/// without its name otherwise, and nothing is audited.
+///
+/// # Errors
+///
+/// [`RequestError::Store`] when the authorizer is unavailable.
+pub async fn identities_named<A: Authorizer>(
+    authorizer: &A,
+    context: &RequestContext,
+) -> Result<bool, RequestError> {
+    let Some(actor) = context.subject() else {
+        return Ok(true);
+    };
+    let denied = authorizer
+        .authorize_many(&actor, RBAC_READ_PERMISSION, &[crate::rbac::RBAC_OBJECT])
+        .await?;
+    Ok(denied.is_empty())
+}
+
 /// Whether the actor of `context` may read the administration of the rights
 /// ([`RBAC_READ_PERMISSION`]); a refusal is audited (`authz.access.denied`).
 ///

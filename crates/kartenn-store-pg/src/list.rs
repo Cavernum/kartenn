@@ -561,6 +561,21 @@ pub struct Version {
     pub asserted_to: Option<OffsetDateTime>,
     /// The changeset that wrote it.
     pub changeset: Uuid,
+    /// The motive of that changeset; `None` when the journal does not hold it.
+    pub motive: Option<String>,
+    /// The author of that changeset, read from the identities with each read, never
+    /// copied: a pseudonymised person reads as such (REQ-004-33); `None` when the journal
+    /// does not hold the changeset.
+    pub author: Option<Author>,
+}
+
+/// The author of a changeset, as the identities name it now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Author {
+    /// Its identity.
+    pub id: Uuid,
+    /// Its display name (`personne #…` once pseudonymised).
+    pub name: String,
 }
 
 /// The object of `kind` that `changeset` created: the one whose rows, current or past,
@@ -799,7 +814,8 @@ pub async fn vlan_counters(
 }
 
 /// The versions of `id` in `table` (its `columns`), with the slug of the object `link`
-/// names, only those of `kind` when given.
+/// names, only those of `kind` when given; each with the motive and the author of its
+/// changeset, joined at the read (the author's name is never copied, REQ-004-33).
 #[allow(clippy::too_many_arguments)] // the parts of a page of versions
 async fn versions_page(
     pool: &PgPool,
@@ -821,6 +837,9 @@ async fn versions_page(
         OffsetDateTime,
         Option<OffsetDateTime>,
         Uuid,
+        Option<String>,
+        Option<Uuid>,
+        Option<String>,
     );
     let versions = history_of(table, columns).map_err(|e| sql_err(&e))?;
     let link = match link {
@@ -834,8 +853,10 @@ async fn versions_page(
         "SELECT to_jsonb(h) - 'valid_period' - 'sys_start' - 'sys_end' - 'changeset_id',
                 {link}, lower(h.valid_period), upper(h.valid_period), h.sys_start,
                 CASE WHEN $2::timestamptz IS NULL OR h.sys_end <= $2 THEN h.sys_end END,
-                h.changeset_id
+                h.changeset_id, c.motive, c.author_id, p.display_name
          FROM ({}) h
+         LEFT JOIN changeset c ON c.id = h.changeset_id
+         LEFT JOIN person p ON p.id = c.author_id
          WHERE ($2::timestamptz IS NULL OR h.sys_start <= $2)
            AND ($6::timestamptz IS NULL OR h.valid_period @> $6::timestamptz)
            AND ($7::text IS NULL OR to_jsonb(h) ->> 'kind' = $7)
@@ -858,7 +879,7 @@ async fn versions_page(
     Ok(rows
         .into_iter()
         .map(
-            |(fields, link, valid_from, valid_to, asserted_from, asserted_to, changeset)| Version {
+            |(
                 fields,
                 link,
                 valid_from,
@@ -866,6 +887,19 @@ async fn versions_page(
                 asserted_from,
                 asserted_to,
                 changeset,
+                motive,
+                author,
+                name,
+            )| Version {
+                fields,
+                link,
+                valid_from,
+                valid_to,
+                asserted_from,
+                asserted_to,
+                changeset,
+                motive,
+                author: author.zip(name).map(|(id, name)| Author { id, name }),
             },
         )
         .collect())
