@@ -199,6 +199,115 @@ test("a filtered link copied opens the same list, its chips and its rows", async
   }
 });
 
+// REQ-021-18 acceptance: `site = <site>` and `core.owner = <entity>`, each value chosen among
+// the suggestions of the API, the link copied opening the same view, its chips named by
+// their objects. On the prefixes: the site of a network is `core.site`, carried by
+// prefixes and not inherited (REQ-002-20), so that an address has none.
+test("prefixes filtered by their site and their owner, chosen among the suggestions; the link copied opens the same view", async ({
+  page,
+  login,
+  browser,
+  browserName,
+}) => {
+  await login("alice");
+  const tag = `zz-site-${browserName}-${Date.now().toString(36)}`;
+  const anchors = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end typed filters",
+    operations: [
+      { op: "create_entity", local: 0, slug: `${tag}-e` },
+      { op: "create_site", local: 1, slug: `${tag}-s` },
+    ],
+  });
+  expect(anchors.status, JSON.stringify(anchors.body)).toBe(201);
+  const idOf = async (path: string) =>
+    ((await apiCall(page, "GET", path)).body as { items: { id: string }[] }).items[0]!.id;
+  const entity = await idOf(`/v1/entities?slug=${tag}-e`);
+  const site = await idOf(`/v1/sites?slug=${tag}-s`);
+  const declarations = (await apiCall(page, "GET", "/v1/property-declarations")).body as {
+    items: { id: string; key: string }[];
+  };
+  const property = (key: string) => ({ id: declarations.items.find((d) => d.key === key)!.id });
+  // A domain of that entity: one network on the site, another without one (RFC 5737).
+  const made = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end typed filters",
+    operations: [
+      { op: "create_domain", local: 0, slug: tag },
+      {
+        op: "assign_property",
+        object: { local: 0 },
+        kind: "domain",
+        property: property("core.owner"),
+        values: [entity],
+      },
+      {
+        op: "create_prefix",
+        local: 1,
+        domain: { local: 0 },
+        prefix: "198.51.100.0/25",
+        nature: "network",
+      },
+      { op: "create_prefix", domain: { local: 0 }, prefix: "198.51.100.128/25", nature: "network" },
+      {
+        op: "assign_property",
+        object: { local: 1 },
+        kind: "prefix",
+        property: property("core.site"),
+        values: [site],
+      },
+    ],
+  });
+  expect(made.status, JSON.stringify(made.body)).toBe(201);
+
+  // Properties filter the objects of one domain (`kartenn-rest`, `filter::parse`).
+  await page.goto(`/prefixes?domain=${tag}`);
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  await expect(grid.getByRole("row")).toHaveCount(3);
+  const bar = page.getByRole("group", { name: "Filtres : Préfixes" });
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  for (const [label, slug] of [
+    [/^Site/, `${tag}-s`],
+    [/^Entité propriétaire/, `${tag}-e`],
+  ] as const) {
+    await bar.getByRole("button", { name: "Ajouter un filtre" }).click();
+    await page.getByRole("option", { name: label }).click();
+    await picker.getByRole("combobox", { name: /Valeur/ }).fill(slug);
+    await page.getByRole("option", { name: new RegExp(slug) }).click();
+    await picker.getByRole("button", { name: "Appliquer" }).click();
+    await expect(picker).toHaveCount(0);
+  }
+  await expect(page).toHaveURL(new RegExp(`[?&]prop\\.core\\.site=${site}`));
+  await expect(page).toHaveURL(new RegExp(`[?&]prop\\.core\\.owner=${entity}`));
+  await expect(grid.getByRole("link", { name: "198.51.100.0/25", exact: true })).toBeVisible();
+  await expect(grid.getByRole("row")).toHaveCount(2);
+  // Each chip says its value by the slug of its object, never its identifier.
+  const named = [`Site est ${tag}-s`, `Entité propriétaire est ${tag}-e`];
+  for (const name of named) {
+    await expect(bar.getByRole("button", { name, exact: true })).toBeVisible();
+  }
+  const chips = await bar.getByRole("button").allTextContents();
+  await expectAccessible(page);
+
+  // The link, opened by another session: the same chips, named by their objects, the
+  // same rows.
+  const link = page.url();
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-FR" });
+  try {
+    const second = await other.newPage();
+    await loginIn(second, "alice");
+    await second.goto(link);
+    const again = second.getByRole("grid", { name: "Préfixes" });
+    await expect(again.getByRole("link", { name: "198.51.100.0/25", exact: true })).toBeVisible();
+    await expect(again.getByRole("row")).toHaveCount(2);
+    const bar2 = second.getByRole("group", { name: "Filtres : Préfixes" });
+    for (const name of named) {
+      await expect(bar2.getByRole("button", { name, exact: true })).toBeVisible();
+    }
+    expect(await bar2.getByRole("button").allTextContents()).toEqual(chips);
+  } finally {
+    await other.close();
+  }
+});
+
 test("a record hovered then opened shows without a skeleton (its reads prefetched)", async ({
   page,
   login,
