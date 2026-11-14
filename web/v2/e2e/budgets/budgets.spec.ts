@@ -7,9 +7,10 @@ import {
   type Page,
   type Request,
 } from "@playwright/test";
-import { benchPage, framed, heap, quantile, settle, timed } from "../bench/measure.ts";
+import { benchPage, framed, heap, quantile, settle, timed, type Frames } from "../bench/measure.ts";
 import { BASE_URL, STATE } from "../fixtures/env.ts";
 import { loginIn } from "../fixtures/journeys.ts";
+import { OTHER_DOMAIN } from "./global-setup.ts";
 
 // The budgets of the browser for the new shell (spec 021, REQ-021-30, design « Budgets »),
 // on the dataset of bench-core and a container of 10⁵ networks, Chromium, the CPU slowed
@@ -61,8 +62,11 @@ interface Probe {
   rows: Record<string, number>;
   /** The first frame where `USEFUL` is in the document. */
   useful?: number;
-  /** The event stream: each connection, error and event, its data cut short. */
-  stream: { at: number; kind: string; data?: string }[];
+  /**
+   * The event stream: each connection, error and event, its data cut short, and the
+   * `domains` a `changes` names (none when its data does not read).
+   */
+  stream: { at: number; kind: string; data?: string; domains?: string[] }[];
 }
 
 declare global {
@@ -83,13 +87,22 @@ function probe({ origin, useful }: { origin: string; useful: string }): void {
       p.stream.push({ at: performance.now(), kind: "open" });
       this.addEventListener("error", () => p.stream.push({ at: performance.now(), kind: "error" }));
       for (const kind of kinds)
-        this.addEventListener(kind, (event) =>
+        this.addEventListener(kind, (event) => {
+          const data = String((event as MessageEvent).data);
+          let domains: string[] | undefined;
+          if (kind === "changes")
+            try {
+              domains = (JSON.parse(data) as { domains?: string[] }).domains ?? [];
+            } catch {
+              // Data that does not read: no domains.
+            }
           p.stream.push({
             at: performance.now(),
             kind,
-            data: String((event as MessageEvent).data).slice(0, 200),
-          }),
-        );
+            data: data.slice(0, 200),
+            ...(domains ? { domains } : {}),
+          });
+        });
     }
   };
   performance.setResourceTimingBufferSize(100_000);
@@ -162,7 +175,7 @@ async function benchDomain(page: Page): Promise<string> {
   const response = await page.request.get("/v1/domains", { headers: { Origin: BASE_URL } });
   expect(response.ok(), `GET /v1/domains: ${response.status()}`).toBe(true);
   const { items } = (await response.json()) as { items: { slug: string }[] };
-  const slug = items.find((d) => d.slug !== "bench-web")?.slug;
+  const slug = items.find((d) => d.slug !== "bench-web" && d.slug !== OTHER_DOMAIN)?.slug;
   if (!slug) throw new Error("no domain of bench-core");
   return slug;
 }
@@ -194,6 +207,223 @@ async function streamBetween(page: Page, what: string, from: number, to: number)
   console.log(
     `INFO event stream ${what}: ${[...counts].map(([k, n]) => `${k} ${n}`).join(", ") || "nothing"}` +
       (first ? `; first change: ${first.data}` : ""),
+  );
+}
+
+/** The `changes` of the event stream between `from` and `to` (clock of the page) naming `domain`. */
+const changesNaming = (page: Page, domain: string, from: number, to: number) =>
+  page.evaluate(
+    ([d, f, t]) =>
+      window.__kProbe.stream.filter(
+        (s) => s.kind === "changes" && s.at >= f && s.at <= t && (s.domains ?? []).includes(d),
+      ).length,
+    [domain, from, to] as const,
+  );
+
+/** The id of the domain `slug`, none if it is not there. */
+async function domainId(page: Page, slug: string): Promise<string | undefined> {
+  const response = await page.request.get(`/v1/domains?slug=${encodeURIComponent(slug)}`, {
+    headers: { Origin: BASE_URL },
+  });
+  if (!response.ok()) return undefined;
+  const { items } = (await response.json()) as { items: { id: string; slug: string }[] };
+  return items.find((d) => d.slug === slug)?.id;
+}
+
+/** Between two changesets of the background writer, in ms. */
+const WRITE_EVERY = 500;
+
+/** What the background writer did: the changesets applied, and what stopped it, if not `stop`. */
+interface Writes {
+  written: number;
+  failure?: string;
+}
+
+/**
+ * A writer in the background (A40, task 021-22m): a changeset applied every `WRITE_EVERY`
+ * ms on the domain of id `domain`, each a network /64 of its own in 2001:db8::/32 (RFC 3849),
+ * through the API under the session of `page` but from outside it: the shell learns of them
+ * through its event stream alone. A refused write, or a page closed (the test failed or ran
+ * out of time), stops it and is told in `writes`; `stop` stops it and waits for the
+ * changeset under way.
+ */
+function backgroundWriter(
+  page: Page,
+  domain: string,
+): { writes: Writes; stop: () => Promise<Writes> } {
+  const writes: Writes = { written: 0 };
+  let running = true;
+  let wake = () => {};
+  // A /48 of its own for each run, from the clock: two runs on one instance never collide.
+  const run = (Date.now() & 0xffff).toString(16);
+  const loop = (async () => {
+    while (running) {
+      const prefix = `2001:db8:${run}:${(writes.written + 1).toString(16)}::/64`;
+      try {
+        const response = await page.request.post("/v1/changesets?approval=self", {
+          headers: { Origin: BASE_URL },
+          data: {
+            motive: "browser bench, background writer",
+            operations: [
+              { op: "create_prefix", domain: { id: domain }, prefix, nature: "network" },
+            ],
+          },
+        });
+        if (!response.ok()) {
+          writes.failure = `POST /v1/changesets (${prefix}): ${response.status()} ${(await response.text()).slice(0, 200)}`;
+          return;
+        }
+        writes.written++;
+      } catch (error) {
+        if (running) writes.failure = String(error).slice(0, 200);
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        setTimeout(resolve, WRITE_EVERY);
+      });
+    }
+  })();
+  return {
+    writes,
+    stop: async () => {
+      running = false;
+      wake();
+      await loop;
+      return writes;
+    },
+  };
+}
+
+/**
+ * `ROWS` rows of the tree in 10 s: down and up the rows in memory, the position by the
+ * clock (the protocol of the prototype: a dropped frame does not lengthen the run), short
+ * of the last rows, so that the row which reads the next page never comes into view. The
+ * window of the scroll (clock of the page).
+ */
+const scrollRows = (page: Page) =>
+  tree(page).evaluate(
+    async (el, [rows, duration]) => {
+      let scroller = el as HTMLElement;
+      while (!(scroller.scrollHeight > scroller.clientHeight)) scroller = scroller.parentElement!;
+      const row = el.querySelector("[data-node]")!.getBoundingClientRect().height;
+      const extent = scroller.scrollHeight - scroller.clientHeight - 4 * row;
+      const distance = rows * row;
+      scroller.scrollTop = 0;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          const done = Math.min(1, (performance.now() - start) / duration);
+          const travelled = (done * distance) % (2 * extent);
+          scroller.scrollTop = travelled <= extent ? travelled : 2 * extent - travelled;
+          if (done < 1) requestAnimationFrame(tick);
+          else resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+      return [start, performance.now()] as [number, number];
+    },
+    [ROWS, 10_000] as const,
+  );
+
+/**
+ * The reads under /v1/ that started between `from` and `to` (clock of the page), printed by
+ * where they come from: the container's own pages (read again: a refetch) or other nodes.
+ * The reads of the container's children among them.
+ */
+async function readsWhile(page: Page, what: string, container: string, span: [number, number]) {
+  const during = await page.evaluate(
+    ([from, to]) =>
+      performance
+        .getEntriesByType("resource")
+        .filter((e) => new URL(e.name).pathname.startsWith("/v1/"))
+        .filter((e) => e.startTime >= from && e.startTime <= to)
+        .map((e) => {
+          const url = new URL(e.name);
+          return { path: url.pathname, cursor: url.searchParams.has("cursor") };
+        }),
+    span,
+  );
+  const childReads = during.filter((r) => r.path.endsWith("/children"));
+  const ofContainer = childReads.filter((r) => r.path === `/v1/prefixes/${container}/children`);
+  console.log(
+    `INFO reads ${what}: ${childReads.length} /children (${ofContainer.length} of the` +
+      ` container, ${ofContainer.filter((r) => !r.cursor).length} of them its first page;` +
+      ` ${new Set(childReads.map((r) => r.path)).size} nodes), ${during.length} under /v1/ in all`,
+  );
+  return { children: childReads.length, ofContainer: ofContainer.length };
+}
+
+/**
+ * The scroll of `scrollRows` again, the domain `OTHER_DOMAIN` written all along by the
+ * background writer (A40, task 021-22m): each `changes` names that domain alone, of no tree
+ * on screen, and none may read the children of the container again. The writes are first
+ * seen at the stream, before the window opens, then counted at the stream during it: no
+ * read of the container without them would prove nothing. Printed: the writer, the reads,
+ * the stream, the frames for reading; checked: the changes seen and the reads of the
+ * container.
+ */
+async function scrollWhileWritten(page: Page): Promise<void> {
+  const { domain, container } = seeded();
+  const other = await domainId(page, OTHER_DOMAIN);
+  if (!other) {
+    console.log(
+      `FAIL changes naming ${OTHER_DOMAIN} at the stream while scrolling: no such domain`,
+    );
+    expect.soft(other, `the domain ${OTHER_DOMAIN} (global-setup.ts)`).toBeDefined();
+    return;
+  }
+  const writer = backgroundWriter(page, other);
+  let span: [number, number] = [0, 0];
+  let frames: Frames;
+  let first: number | undefined;
+  let duringWindow = 0;
+  let writes: Writes;
+  try {
+    const armed = await page.evaluate(() => performance.now());
+    const deadline = Date.now() + 30_000;
+    while (first === undefined && !writer.writes.failure && Date.now() < deadline) {
+      if ((await changesNaming(page, other, armed, Number.MAX_SAFE_INTEGER)) > 0)
+        first = (await page.evaluate(() => performance.now())) - armed;
+      else await page.waitForTimeout(100);
+    }
+    const before = writer.writes.written;
+    frames = await framed(page, async () => {
+      span = await scrollRows(page);
+      return [];
+    });
+    duringWindow = writer.writes.written - before;
+  } finally {
+    writes = await writer.stop();
+  }
+  const what = `while scrolling, ${OTHER_DOMAIN} written`;
+  console.log(
+    `INFO background writer on ${OTHER_DOMAIN}: ${writes.written} changesets, one every` +
+      ` ${WRITE_EVERY} ms, ${duringWindow} of them during the window, the first at the stream` +
+      ` ${first === undefined ? "never (waited 30 s)" : `in ${first.toFixed(0)} ms`};` +
+      ` ${writes.failure ? `stopped by ${writes.failure}` : "stopped at the end"}`,
+  );
+  const reads = await readsWhile(page, what, container, span);
+  await streamBetween(page, what, ...span);
+  const seen = await changesNaming(page, other, ...span);
+  const ofContainer = await changesNaming(page, domain, ...span);
+  console.log(
+    `INFO ${what}: ${ofContainer} changes naming the domain of the container;` +
+      ` dropped frames ${(frames.dropped * 100).toFixed(2)} %, ${frames.longTasks} long` +
+      ` tasks, the longest ${frames.longest.toFixed(1)} ms`,
+  );
+  const proven = seen > 0 && !writes.failure;
+  console.log(
+    `${proven ? "PASS" : "FAIL"} changes naming ${OTHER_DOMAIN} at the stream while scrolling:` +
+      ` ${seen} (at least 1, ${duringWindow} written, no write refused)`,
+  );
+  expect.soft(proven, `changes naming ${OTHER_DOMAIN} at the stream while scrolling`).toBe(true);
+  check(
+    `reads of the container's children while ${OTHER_DOMAIN} is written`,
+    reads.ofContainer,
+    0,
+    "",
   );
 }
 
@@ -578,64 +808,22 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   expect.soft(loaded, "children loaded before scrolling").toBe(true);
   await settle(page);
   await slowDown(cdp);
-  // 10⁴ rows in 10 s: down and up the rows in memory, the position by the clock (the
-  // protocol of the prototype: a dropped frame does not lengthen the run), short of the
-  // last rows, so that the row which reads the next page never comes into view: the window
-  // measures the drawing alone, and the reads it would set off are counted.
+  // 10⁴ rows in 10 s (`scrollRows`), on a quiet instance: the window measures the drawing
+  // alone, and the reads it would set off are counted.
   let span: [number, number] = [0, 0];
   const frames = await framed(page, async () => {
-    span = await tree(page).evaluate(
-      async (el, [rows, duration]) => {
-        let scroller = el as HTMLElement;
-        while (!(scroller.scrollHeight > scroller.clientHeight)) scroller = scroller.parentElement!;
-        const row = el.querySelector("[data-node]")!.getBoundingClientRect().height;
-        const extent = scroller.scrollHeight - scroller.clientHeight - 4 * row;
-        const distance = rows * row;
-        scroller.scrollTop = 0;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        const start = performance.now();
-        await new Promise<void>((resolve) => {
-          const tick = () => {
-            const done = Math.min(1, (performance.now() - start) / duration);
-            const travelled = (done * distance) % (2 * extent);
-            scroller.scrollTop = travelled <= extent ? travelled : 2 * extent - travelled;
-            if (done < 1) requestAnimationFrame(tick);
-            else resolve();
-          };
-          requestAnimationFrame(tick);
-        });
-        return [start, performance.now()] as [number, number];
-      },
-      [ROWS, 10_000] as const,
-    );
+    span = await scrollRows(page);
     return [];
   });
-  const during = await page.evaluate(
-    ([from, to]) =>
-      performance
-        .getEntriesByType("resource")
-        .filter((e) => new URL(e.name).pathname.startsWith("/v1/"))
-        .filter((e) => e.startTime >= from && e.startTime <= to)
-        .map((e) => {
-          const url = new URL(e.name);
-          return { path: url.pathname, cursor: url.searchParams.has("cursor") };
-        }),
-    span,
-  );
-  // Where they come from: the container's own pages (read again: a refetch) or other nodes.
-  const childReads = during.filter((r) => r.path.endsWith("/children"));
-  const childrenDuring = childReads.length;
-  const ofContainer = childReads.filter((r) => r.path === children);
-  console.log(
-    `INFO reads while scrolling: ${childrenDuring} /children (${ofContainer.length} of the` +
-      ` container, ${ofContainer.filter((r) => !r.cursor).length} of them its first page;` +
-      ` ${new Set(childReads.map((r) => r.path)).size} nodes), ${during.length} under /v1/ in all`,
-  );
+  const reads = await readsWhile(page, "while scrolling", container, span);
   await streamBetween(page, "while scrolling", ...span);
-  check("reads of children while scrolling", childrenDuring, 0, "");
+  check("reads of children while scrolling", reads.children, 0, "");
   check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
+  // The same scroll, another domain written all along (A40).
+  await scrollWhileWritten(page);
+  await settle(page);
 
   // From the top: the window ends near the last of the 10⁴ rows, where 50 presses would
   // reach the notice of the cap, and the focus would move no more.

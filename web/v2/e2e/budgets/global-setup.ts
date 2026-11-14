@@ -4,10 +4,18 @@ import { BASE_URL, ISSUER, STATE } from "../fixtures/env.ts";
 import { totp } from "../fixtures/totp.ts";
 
 /**
+ * The domain the bench writes while the tree of the container scrolls (A40, task 021-22m):
+ * empty, created below and owned by an entity of the same slug, then given a network by a
+ * changeset of the bench's writer every half second during the window.
+ */
+export const OTHER_DOMAIN = "bench-a40";
+
+/**
  * The bindings of the browser bench of the new shell (spec 021, REQ-021-30), through the
  * API under the break-glass session of `serve.sh budgets`: the issuer attached to the whole
  * organisation, the group of `alice` administrator everywhere — the bench edits a cell, into
- * the draft only. The data set itself is loaded by `kartenn-bench seed`.
+ * the draft only —, and the domain `OTHER_DOMAIN`. The data set itself is loaded by
+ * `kartenn-bench seed`.
  */
 export default async function globalSetup(): Promise<void> {
   const proofs = readFileSync(`${STATE}breakglass-v2.txt`, "utf8");
@@ -43,12 +51,41 @@ export default async function globalSetup(): Promise<void> {
           ],
         },
       ],
+      // The owner `OTHER_DOMAIN` must have (`core.owner`, REQ-002-11).
+      ["/v1/entities?approval=self", { motive: "browser bench", slug: OTHER_DOMAIN }],
     ];
+    // The entity: the `Location` of the last write.
+    let entity: string | undefined;
     for (const [path, body] of writes) {
       const response = await api.post(path, { data: body });
       if (!response.ok()) {
         throw new Error(`POST ${path}: ${response.status()} ${await response.text()}`);
       }
+      entity = response.headers()["location"]?.split("/").pop();
+    }
+    const declarations = await api.get("/v1/property-declarations");
+    const { items } = (await declarations.json()) as { items: { id: string; key: string }[] };
+    const owner = items.find((d) => d.key === "core.owner")?.id;
+    if (!entity || !owner) throw new Error("no entity created, or no declaration of core.owner");
+    const domain = await api.post("/v1/changesets?approval=self", {
+      data: {
+        motive: "browser bench, the domain written while a tree scrolls",
+        operations: [
+          { op: "create_domain", local: 0, slug: OTHER_DOMAIN },
+          {
+            op: "assign_property",
+            object: { local: 0 },
+            kind: "domain",
+            property: { id: owner },
+            values: [entity],
+          },
+        ],
+      },
+    });
+    if (!domain.ok()) {
+      throw new Error(
+        `POST /v1/changesets (${OTHER_DOMAIN}): ${domain.status()} ${await domain.text()}`,
+      );
     }
   } finally {
     await api.dispose();
