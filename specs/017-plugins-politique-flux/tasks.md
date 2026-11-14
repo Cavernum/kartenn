@@ -285,3 +285,21 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
   bloquant
   où : skill `tech-specs` (mode sync) ; 009 tâche 14
   dépend de : 1 à 23, 25
+
+- [ ] 26. Revue de qualité de code et d'architecture avant la publication de la v0.2
+  (demandée par l'utilisateur le 2026-11-14) : relecture d'ensemble de ce que la v0.2
+  livre, crate par crate et paquet par paquet, par des relecteurs qui n'ont pas écrit le
+  code — frontières des couches (REST, service, magasin, ports et adaptateurs), contrats
+  du SDK et des plugins, intégrité des données (toute référence acceptée par le service
+  est vérifiée ou tenue par une contrainte de la base), annulation et transactions,
+  quotas et plafonds face aux rafales du shell, chemins en N+1, duplication, code mort,
+  dette notée dans les « reste » des tâches closes de la 016, de la 017 et de la 021 —
+  verify : un rapport par domaine (noyau et magasin ; REST et sécurité ; shell, SDK et
+  bibliothèque ; plugins `policy` et `flow`), constats classés bloquant, important,
+  mineur, chacun avec fichier et ligne ; chaque bloquant corrigé ou inscrit en tâche
+  numérotée et arbitré par l'utilisateur ; aucune étiquette v0.2 posée tant qu'un
+  bloquant reste ouvert ; rapport `spec-keeper` sans écart bloquant sur les trois specs
+  où : agent `kartenn-revue` par domaine (lecture seule), `spec-keeper` ; décisions
+  D1…D37 et `docs/adr/` ; `specs/016-noyau-v0-2`, `specs/017-plugins-politique-flux`,
+  `specs/021-shell-v2` ; `docs/practices/`
+  dépend de : 1 à 25, 021-27
