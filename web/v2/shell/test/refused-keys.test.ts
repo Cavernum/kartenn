@@ -164,6 +164,9 @@ describe("`c` and `e` refused say why (task 021-12k)", () => {
     await expect
       .poll(() => (play("edit", timeIn(router), t), statuses(root)))
       .toContain("Lecture seule : il faut core.prefix.edit");
+    // Each key taken, as it was under the past.
+    expect(play("create", timeIn(router), t)).toBe(true);
+    expect(play("edit", timeIn(router), t)).toBe(true);
     expect(statuses(root)).not.toContain("<past>");
     expect(editRequest().value).toBeNull();
   });

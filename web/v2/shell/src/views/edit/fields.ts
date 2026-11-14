@@ -520,7 +520,7 @@ export function editability(
   writes: Writes,
   collection: { id: CollectionId; type: string },
   column: string,
-  /** A lasting reason of the caller (no editor for its column, a value unread), said after the right. */
+  /** A lasting reason of the caller (no editor, a value unread), said after the right. */
   own: NotEditable | null = null,
 ): Editability {
   const edit = EDITS[collection.id];

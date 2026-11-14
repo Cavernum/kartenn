@@ -182,6 +182,45 @@ describe("moves in a tree whose parent is declared", () => {
     expect(writes(seen)).toEqual([]);
   });
 
+  it("refuses exactly the moves it refused, a lasting reason before the width (task 021-21h)", async () => {
+    // At main (5dffa02a) `canMove` refused every target under 1024 px, else as the SDK; the
+    // oracle: refused when narrow or refused wide. The width now said after a lasting reason.
+    const NARROW_WORDS =
+      "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.";
+    const DATED = "Lecture datée : revenez au présent pour changer de parent.";
+    const pairs: [TreeNode, TreeNode | null][] = [
+      [node(2), node(3)],
+      [node(1), node(4)],
+      [node(1), null],
+      [{ id: FIXED, label: "f" }, node(3)],
+      [node(2), { id: FIXED, label: "f" }],
+    ];
+    try {
+      for (const permissions of [EDIT, ["core.entity.read"]])
+        for (const at of ["/", "/?valid_at=2026-01-01T00:00:00Z"]) {
+          const { moves } = await mounted(permissions, () => ({ status: 200, body: {} }), at);
+          for (const [from, to] of pairs) {
+            setFrameWidth("wide");
+            const wide = moves().canMove(from, to);
+            for (const width of ["standard", "compact", "narrow"] as const) {
+              setFrameWidth(width);
+              const now = moves().canMove(from, to);
+              const narrow = width !== "standard";
+              const label = `${permissions} ${at} ${from.id}→${to?.id} ${width}`;
+              expect(now.ok, label).toBe(!narrow && wide.ok);
+              if (!narrow) expect(now, label).toEqual(wide);
+              else if (!wide.ok && wide.reason !== DATED) expect(now, label).toEqual(wide);
+              else expect(now, label).toEqual({ ok: false, reason: NARROW_WORDS });
+            }
+          }
+          app?.unmount();
+          app = undefined;
+        }
+    } finally {
+      setFrameWidth("wide");
+    }
+  });
+
   it("refuses every move under 1024 px, the node left unmarked once wide (task 021-21c)", async () => {
     const { moves, seen } = await mounted(EDIT, () => ({ status: 200, body: {} }));
     setFrameWidth("narrow");

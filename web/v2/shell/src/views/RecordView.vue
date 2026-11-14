@@ -151,16 +151,20 @@ const object = computed(() =>
 const MOVE = "core:move";
 const CLOSE = "core:close";
 const movable = computed(() => EDITS[props.collection.id].move !== undefined);
-const actions = computed<MenuItem[]>(() => {
-  const refused = {
-    ...("reason" in editBlocked.value ? { disabled: true } : {}),
-    ...editBlocked.value,
-  };
-  // A change of parent at the present only (`moves.ts`): under `valid_at` alone too.
-  const moveRefused = moveEntryRefusal(refused, writes.value, {
+/** The refusal of « Clore… » (the record's own), as its entry is drawn and as it acts. */
+const closeRefusal = () => ({
+  ...("reason" in editBlocked.value ? { disabled: true } : {}),
+  ...editBlocked.value,
+});
+/** The refusal of « Changer de parent… »: at the present only (`moves.ts`), `valid_at` too. */
+const moveRefusal = () =>
+  moveEntryRefusal(closeRefusal(), writes.value, {
     dated: t("edit.move.dated"),
     narrow: t("edit.why.narrow"),
   });
+const actions = computed<MenuItem[]>(() => {
+  const refused = closeRefusal();
+  const moveRefused = moveRefusal();
   const own: MenuItem[] = movable.value
     ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...moveRefused }]
     : [];
@@ -193,23 +197,21 @@ const blockedBy = (permission: string): Blocked | Record<string, never> =>
   }) ?? {};
 const editBlocked = computed(() => blockedBy(editPermission.value));
 /**
- * The refusal read again as it acts, not only as the button was drawn — the window may have
- * narrowed since —: refused, its reason, the permission before the gate, said by the status
- * of the record, no panel opened.
+ * The refusal of an action read again as it acts, not only as its button was drawn — the
+ * window may have narrowed since —: `blocked`, the very refusal that button or entry is
+ * drawn with (each action its own right), the permission before the gate; refused, its
+ * reason said by the status of the record, no panel opened.
  */
-function gateOpen(): boolean {
-  const blocked = editBlocked.value;
+function gateOpen(blocked: { forbidden?: string; reason?: string; disabled?: boolean }): boolean {
   const words =
-    "forbidden" in blocked
+    blocked.forbidden !== undefined
       ? whyWords({ kind: "forbidden", permission: blocked.forbidden }, t)
-      : "reason" in blocked
-        ? blocked.reason
-        : undefined;
+      : blocked.reason || undefined;
   if (words) status(words);
   return words === undefined;
 }
 function modify(): void {
-  if (!gateOpen()) return;
+  if (!gateOpen(editBlocked.value)) return;
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
 // Refused, `e` says why by the status of the record, as « Modifier » says it on its button:
@@ -232,7 +234,7 @@ const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
   if (id === MOVE || id === CLOSE) {
-    if (!gateOpen()) return;
+    if (!gateOpen(id === MOVE ? moveRefusal() : closeRefusal())) return;
     // Once the menu has closed and given the focus back to its button: the panel then takes
     // it to its first field, and gives it back to that button when it closes.
     const mode = id === MOVE ? "move" : "close";
@@ -254,7 +256,8 @@ const vlanTab = computed(
 );
 const vlanBlocked = computed(() => blockedBy(editRight("core.vlan")));
 function createVlan(): void {
-  if (!gateOpen()) return;
+  // Its own right (`core.vlan.edit`), as its button is drawn: not the right to modify the group.
+  if (!gateOpen(vlanBlocked.value)) return;
   openEdit({ mode: "create", collection: "vlans", preset: { group: props.id } });
 }
 

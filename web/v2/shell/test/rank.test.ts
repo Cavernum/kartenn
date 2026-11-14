@@ -7,7 +7,13 @@ import { Rights } from "../src/rights/index.ts";
 import { offered, play, setViewAction, type ViewActionId } from "../src/shortcuts/view.ts";
 import { rankedRefusal, refusalWords, timeOf, writesOf, type Writes } from "../src/time/index.ts";
 import { collectionById } from "../src/views/collections.ts";
-import { editability, editRight, EDITS, propertyRight } from "../src/views/edit/fields.ts";
+import {
+  editability,
+  editRight,
+  EDITS,
+  propertyRight,
+  type NotEditable,
+} from "../src/views/edit/fields.ts";
 import { moveEntryRefusal } from "../src/views/edit/moves.ts";
 
 // One rank for every refusal of a write (task 021-21h, REQ-021-37): the lasting reason (a
@@ -39,6 +45,9 @@ describe("the rank of a refusal (rankedRefusal)", () => {
     expect(rankedRefusal({ state: undefined, gate: "g" })).toBe("g");
     expect(rankedRefusal({ lasting: null, state: null, gate: null })).toBeUndefined();
     expect(rankedRefusal({})).toBeUndefined();
+    // An empty sentence is no reason: the next one is said, or none.
+    expect(rankedRefusal({ lasting: "", state: "s", gate: "g" })).toBe("s");
+    expect(rankedRefusal({ lasting: "", gate: "" })).toBeUndefined();
   });
 });
 
@@ -158,6 +167,35 @@ describe("a cell in place (editability)", () => {
           if (field && !rights.has(permission))
             expect(now, label).toEqual({ editable: false, why: { kind: "forbidden", permission } });
         }
+  });
+
+  // The callers' own reason (`own`): at main, `inline.ts` and `properties.ts` asked it after
+  // `editability` — an editor offered only when both let it; its reason now said after the
+  // right, before the gate.
+  it("with a reason of its caller, offers an editor exactly as before, said before the gate", () => {
+    const OWN: readonly (NotEditable | null)[] = [
+      null,
+      { kind: "none" },
+      { kind: "fixed", reason: "computed" },
+      { kind: "fixed", reason: "unread" },
+    ];
+    for (const own of OWN)
+      for (const rights of RIGHTS)
+        for (const column of ["value", "prop.core.owner"])
+          for (const { name, writes } of GATES) {
+            const now = editability(rights, writes, PREFIXES, column, own);
+            const label = `${JSON.stringify(own)} ${column} ${name} ${JSON.stringify(rights)}`;
+            const before = editableBefore(rights, writes, column) && own === null;
+            expect(now.editable, label).toBe(before);
+            const property = /^prop\.(.+)$/.exec(column)?.[1];
+            const permission = property ? propertyRight(property) : editRight(PREFIXES.type);
+            if (!rights.has(permission))
+              expect(now, label).toEqual({
+                editable: false,
+                why: { kind: "forbidden", permission },
+              });
+            else if (own) expect(now, label).toEqual({ editable: false, why: own });
+          }
   });
 });
 

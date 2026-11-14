@@ -196,10 +196,14 @@ export interface RankedReasons<T> {
  * The one rank of every refusal of a write, wherever it is said — a button, a cell, a key,
  * a command, a dialog: the most lasting reason first, so that the user reads what widening
  * the window or coming back to the present would not change. Only the sentence depends on
- * it: the action is refused whenever any of the reasons is given, whatever their order.
+ * it: the action is refused whenever any of the reasons is given, whatever their order. An
+ * empty sentence is no reason (nothing would be said).
  */
 export function rankedRefusal<T>(reasons: RankedReasons<T>): T | undefined {
-  return reasons.lasting ?? reasons.state ?? reasons.gate ?? undefined;
+  for (const reason of [reasons.lasting, reasons.state, reasons.gate]) {
+    if (reason !== null && reason !== undefined && reason !== "") return reason;
+  }
+  return undefined;
 }
 
 /** The refusal of a date by the API (a 400): the field it is about, and its problem. */
