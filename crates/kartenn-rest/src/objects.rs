@@ -945,12 +945,12 @@ fn typed(name: &str, value_type: &str, condition: &Condition) -> Result<(), Prob
 
 /// The identifiers of the page of the objects of `kind` whose properties meet those of
 /// `wanted`, sorted by identifier (design « Filtres de propriétés »): the filter engine
-/// of spec 003 filters within one domain at the current system time. Its moment, and
-/// the identifiers of the page plus one when there is a next page.
+/// of spec 003 filters within one domain at the current system time, among the
+/// identifiers of the filter `id` when given. Its moment, and `limit` identifiers at most.
 async fn filtered(
     api: &Api,
     kind: Kind,
-    page: &Page,
+    (page, limit): (&Page, i64),
     wanted: &Wanted,
     scope: &ReadScope,
     now: OffsetDateTime,
@@ -1014,9 +1014,10 @@ async fn filtered(
         &conditions,
         Some(kind.as_str()),
         &wanted.values,
+        &wanted.ids,
         moment.valid_at,
         after,
-        i64::from(page.size) + 1,
+        limit,
         scope,
     )
     .await
@@ -1052,7 +1053,8 @@ async fn list(
         .authorizer()
         .read_scope(&principal.subject(), now)
         .await?;
-    let size = usize::from(page.size);
+    // Filtered by `id`, one page holding them all, without a next one (REQ-006-41).
+    let (limit, size) = filter::window(&page, &wanted.ids)?;
     // The rows of the page and their versions are read in one snapshot (task 021-11c).
     let (moment, rows, next, versions) = if wanted.properties.is_empty() {
         let after = page
@@ -1080,7 +1082,7 @@ async fn list(
             // the next page holds the instant of this one (`Page::next`).
             moment.as_of,
             after.as_ref(),
-            i64::from(page.size) + 1,
+            limit,
             &scope,
         )
         .await
@@ -1100,16 +1102,11 @@ async fn list(
         crate::kit::release(snapshot);
         (moment, rows, next, versions)
     } else {
-        let (moment, mut ids) = filtered(&api, kind, &page, &wanted, &scope, now).await?;
+        let (moment, mut ids) = filtered(&api, kind, (&page, limit), &wanted, &scope, now).await?;
         let next = (ids.len() > size).then(|| {
             ids.truncate(size);
             page.next_current(&api.ring, name, &moment, json!(ids[size - 1]))
         });
-        // The filter `id` is kept after the engine, as `within` and `usage` are: the
-        // cursor stays that of the engine, a page may hold fewer objects.
-        if !wanted.ids.is_empty() {
-            ids.retain(|id| wanted.ids.binary_search(id).is_ok());
-        }
         let (mut rows, versions) = if ids.is_empty() {
             (Vec::new(), HashMap::new())
         } else {
@@ -1126,7 +1123,7 @@ async fn list(
                 moment.valid_at,
                 None,
                 None,
-                i64::from(page.size),
+                limit,
                 &scope,
             )
             .await

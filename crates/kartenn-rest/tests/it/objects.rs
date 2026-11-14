@@ -2402,16 +2402,54 @@ async fn the_id_filter_goes_in_conjunction_with_the_others(pool: PgPool) {
         let body = ok(&app, &uri).await;
         assert_eq!(ids_of(&body), strings(&expected), "{uri}: {body}");
     }
-    // Page after page, the filter kept by the cursor.
-    let uri = ids_uri("/v1/prefixes?page_size=1", &[c, a]);
-    assert_eq!(walk(&app, &uri).await, strings(&[a, c]));
-    let uri = ids_uri(
-        "/v1/prefixes?domain=lab&prop.policy.zone=red&page_size=1",
-        &[c, a],
-    );
-    let mut sorted = vec![a, c];
-    sorted.sort();
-    assert_eq!(walk(&app, &uri).await, strings(&sorted));
+}
+
+#[kartenn_testing::pg_test]
+async fn the_id_filter_answers_in_one_page_without_a_next(pool: PgPool) {
+    // REQ-006-41: a list filtered by `id` holds all the objects it keeps, past the default
+    // page, without a next page; filtered by properties, the candidates are the objects
+    // asked for. With `page_size` or a cursor → 400 naming the parameter.
+    let lab = domain(&pool, "lab").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let mut nets = Vec::new();
+    for n in 0..60 {
+        let net = prefix(&pool, lab, &format!("10.{n}.0.0/16")).await;
+        assign(&pool, zone, net, "red", &[]).await;
+        nets.push(net);
+    }
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    for uri in [
+        "/v1/prefixes",
+        "/v1/prefixes?domain=lab&prop.policy.zone=red",
+    ] {
+        let response = get(&app, &ids_uri(uri, &nets)).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert!(response.headers().get("link").is_none(), "{uri}");
+        let body = json_of(response).await;
+        assert_eq!(ids_of(&body).len(), 60, "{uri}");
+        assert!(body["links"]["next"].is_null(), "{uri}: {}", body["links"]);
+    }
+    let first = ok(&app, "/v1/prefixes?page_size=1").await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (
+            ids_uri("/v1/prefixes?page_size=10", &nets[..2]),
+            "page_size",
+        ),
+        (
+            ids_uri(
+                "/v1/prefixes?domain=lab&prop.policy.zone=red&page_size=10",
+                &nets[..2],
+            ),
+            "page_size",
+        ),
+        (ids_uri(&next, &nets[..2]), "id"),
+    ] {
+        let response = get(&app, &uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
 }
 
 #[kartenn_testing::pg_test]

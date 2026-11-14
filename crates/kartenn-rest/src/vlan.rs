@@ -341,9 +341,12 @@ type Filters<'a> = (std::collections::BTreeMap<&'a str, &'a str>, Vec<Uuid>);
 /// The filters of a list, each given once, among `names`, and the identifiers of its filter
 /// `id` (see [`crate::filter::ids`]).
 fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
-    let ids = crate::filter::ids(&mut page.filters.clone())?;
-    let mut found = std::collections::BTreeMap::new();
-    for (name, value) in page.filters.iter().filter(|(name, _)| name != "id") {
+    let (mut found, mut ids) = (std::collections::BTreeMap::new(), Vec::new());
+    for (name, value) in &page.filters {
+        if name == "id" {
+            crate::filter::push_id(&mut ids, value)?;
+            continue;
+        }
         if !names.contains(&name.as_str()) {
             return Err(kit::bad(format!("unknown parameter {name}")));
         }
@@ -418,6 +421,7 @@ async fn list_groups(
     const NAME: &str = "vlan-groups";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
     let (wanted, ids) = filters(&page, &["slug", "anchor", "q"])?;
+    let (limit, size) = crate::filter::window(&page, &ids)?;
     let anchor = wanted
         .get("anchor")
         .map(|a| uuid("anchor", a))
@@ -455,13 +459,12 @@ async fn list_groups(
         .bind(anchor)
         .bind(after.as_ref().map(|(slug, _)| slug.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
         .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -492,6 +495,7 @@ async fn list_vlans(
         &page,
         &["group", "vid", "name", "name_prefix", "status", "q"],
     )?;
+    let (limit, size) = crate::filter::window(&page, &ids)?;
     let group = wanted.get("group").map(|g| uuid("group", g)).transpose()?;
     let range = wanted.get("vid").map(|v| vid_range(v)).transpose()?;
     if let Some(status) = wanted.get("status")
@@ -548,13 +552,12 @@ async fn list_vlans(
         .bind(after.map(|a| a.0))
         .bind(after.map(|a| a.1))
         .bind(after.map(|a| a.2))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
         .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];

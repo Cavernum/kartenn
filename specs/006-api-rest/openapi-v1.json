@@ -14292,7 +14292,7 @@
         "operationId": "list_addresses",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -18713,7 +18713,7 @@
         "operationId": "list_domains",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -20471,7 +20471,7 @@
         "operationId": "list_entities",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -38695,7 +38695,7 @@
         "operationId": "list_prefixes",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -40386,7 +40386,7 @@
         "operationId": "list_ranges",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -43862,7 +43862,7 @@
         "operationId": "list_sites",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -44958,7 +44958,7 @@
         "operationId": "list_vlan_groups",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,
@@ -45997,7 +45997,7 @@
         "operationId": "list_vlans",
         "parameters": [
           {
-            "description": "Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one.",
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
             "in": "query",
             "name": "id",
             "required": false,

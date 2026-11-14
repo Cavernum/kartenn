@@ -186,6 +186,12 @@ impl Page {
         }
     }
 
+    /// Whether the size comes from the client (`page_size`) or from a cursor.
+    #[must_use]
+    pub const fn sized(&self) -> bool {
+        self.sized
+    }
+
     /// The last key of the previous page, as the route wrote it in [`Page::next`]; `None`
     /// on the first page.
     #[must_use]

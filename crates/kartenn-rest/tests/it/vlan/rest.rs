@@ -377,10 +377,36 @@ async fn groups_and_vlans_filtered_by_identifier(pool: PgPool) {
         let expected: Vec<String> = expected.iter().map(Uuid::to_string).collect();
         assert_eq!(ids(&body), expected, "{uri}");
     }
-    for uri in ["/v1/vlans?id=10", "/v1/vlan-groups?id=edge"] {
-        let (status, _, body) = call(&app, "GET", uri, None, &[]).await;
+    // The unreadable VLAN and group leave the answer of an unknown identifier, headers but
+    // the identifier of the request included.
+    for (unreadable, known, collection) in [(thirty, ten, "vlans"), (away, edge, "vlan-groups")] {
+        let mut answers = Vec::new();
+        for other in [unknown, unreadable] {
+            let uri = format!("/v1/{collection}?id={other}&id={known}");
+            let (status, mut headers, body) = call(&app, "GET", &uri, None, &[]).await;
+            assert!(headers.remove("request-id").is_some());
+            answers.push((status, headers, body));
+        }
+        assert_eq!(
+            answers[0], answers[1],
+            "{collection}: unknown and unreadable"
+        );
+        // One page, without a next one, past the default size of a page included.
+        assert!(answers[0].1.get("link").is_none(), "{collection}");
+        assert!(answers[0].2["links"]["next"].is_null(), "{collection}");
+    }
+    for (uri, named) in [
+        ("/v1/vlans?id=10".to_owned(), "id"),
+        ("/v1/vlan-groups?id=edge".to_owned(), "id"),
+        (format!("/v1/vlans?id={ten}&page_size=5"), "page_size"),
+        (
+            format!("/v1/vlan-groups?id={edge}&page_size=5"),
+            "page_size",
+        ),
+    ] {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
-        assert!(body["detail"].to_string().contains("id"), "{uri}: {body}");
+        assert!(body["detail"].to_string().contains(named), "{uri}: {body}");
     }
 }
 

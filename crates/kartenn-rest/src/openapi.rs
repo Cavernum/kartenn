@@ -593,8 +593,9 @@ impl Op {
         self.repeated(
             "id",
             &format!(
-                "Identifier of the object (repeated: one of), {} at most; an object the \
-                 caller may not read is absent from the page, as an unknown one.",
+                "Identifier of the object (repeated: one of), {} at most: one page holds \
+                 them all, without a next page, and goes with neither page_size nor a \
+                 cursor; an object the caller may not read is absent, as an unknown one.",
                 crate::cursor::MAX_SIZE
             ),
             true,
