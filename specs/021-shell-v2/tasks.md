@@ -1252,8 +1252,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     montré un instant) ; `referenceLabel` refait `useScopeNames`/`nameOf` ; le cas refusé du
     test passerait sans la lecture, `cacheObject` non testé seul.
 - [x] 11o. Colonnes des plugins sur l'arbre de la Topographie (reste de la 11) : le
-  `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, une
-  `ExtensionElement` par cellule, son `status`), `TopologyView.vue` y met
+  `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, l'élément
+  du plugin par cellule ; amendée le 2026-11-14 après la revue : l'`ExtensionElement` par
+  cellule et son `status`, clause de REQ-021-13, passent à la 11o2, pour les deux
+  grilles), `TopologyView.vue` y met
   `gridColumns("prefix")` après les colonnes du cœur — REQ-021-13, REQ-021-9 — verify :
   Vitest du `TreeGrid` (colonne d'élément, ligne virtualisée), script
   `e2e/components/tree-grid.spec.ts` (cellule d'élément atteinte au clavier) ; parcours
@@ -1299,6 +1301,27 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (ADR 0038 § 4 : DOM léger) ; anneau de focus d'un contrôle de cellule jamais capturé ;
     effet sur le défilement à mesurer par la passe `bench-web` (élément recréé par ligne
     recyclée, seulement avec une colonne d'extension).
+- [ ] 11o2. Erreur d'un plugin confinée à sa cellule (relevé de la revue de la 11o, le
+  2026-11-14) : l'élément d'une colonne d'extension qui lève laisse aujourd'hui une
+  cellule vide et muette, dans le `TreeGrid` comme dans la `DataGrid`, alors que la même
+  extension en onglet de fiche montre son encart ; les deux grilles offrent une fente de
+  cellule où le shell pose son `ExtensionElement` (encart avec le code `plugin.element`,
+  `status`, liens de l'élément suivis par le routeur), la bibliothèque continuant
+  d'ignorer les plugins ; `tame`, `onMutations` et `observeExtensions`, recopiés d'une
+  grille à l'autre, sortis dans `internal/extensionCell.ts` ; `objectRef` stable d'un
+  rendu à l'autre (`.object` n'est plus réaffecté à chaque déplacement du focus) —
+  REQ-021-13 — verify : Vitest des deux grilles (un élément qui lève à la construction
+  et à `connectedCallback` : encart et code dans sa cellule, les autres cellules et
+  lignes intactes ; `elementProps` rendant `undefined` dans la `DataGrid` ; ligne
+  recyclée : l'encart ne suit pas la ligne) ; parcours `plugins` (une colonne de `notes`
+  qui lève, sur une liste et sur la Topographie) ; `k-web2-check --base main`
+  - où : `web/v2/ui/src/components/internal/extensionCell.ts`, `TreeGrid/TreeGrid.vue`,
+    `DataGrid/DataGrid.vue` et `DataGrid/grid.ts` (doc de `GridColumn.element`) ;
+    `web/v2/shell/src/plugins/ExtensionElement.vue` et `slots.ts` (`gridColumns`),
+    `views/ListView.vue`, `views/TopologyView.vue` (`elementProps`, `objectRef`) ;
+    plugin de test `web/v2/e2e/plugins/notes`
+  - dépend de : 11o ; avant la bascule (27) ; le recyclage des lignes de la 22e ne doit
+    rien y perdre (passe réduite `bench-web` par la session principale)
 - [x] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
   **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
   au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;
