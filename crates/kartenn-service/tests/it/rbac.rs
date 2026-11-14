@@ -973,6 +973,100 @@ async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.reference.unknown"]);
 }
 
+/// INV-63 on an operation of a module (task 002-29b2): the object a module operation
+/// changes is designated under the same rule, the rights first, so that an author without
+/// the right on the VLAN gets the same refusal whatever its identifier names; whoever may
+/// read it learns that it designates no VLAN in force.
+#[kartenn_testing::pg_test]
+async fn no_right_reaches_through_an_unknown_vlan(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let editor = t
+        .role("vlans", &["core.vlan.edit", "core.vlan.approval.self"])
+        .await;
+    let who = t.identity().await;
+    t.bind(Binding::Identity(who.id), editor, "lab", None).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let op = |name: &str, body: serde_json::Value| -> Operation {
+        let mut object = body;
+        object["op"] = name.into();
+        serde_json::from_value(object).unwrap()
+    };
+    // A group in each domain, a VLAN in each, and one closed in `lab`.
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                op(
+                    "create_vlan_group",
+                    serde_json::json!({"local": 1, "slug": "g-lab",
+                        "anchor": {"domain": {"id": t.ids["lab"]}}}),
+                ),
+                op(
+                    "create_vlan_group",
+                    serde_json::json!({"local": 2, "slug": "g-other",
+                        "anchor": {"domain": {"id": t.ids["other"]}}}),
+                ),
+                op(
+                    "create_vlan",
+                    serde_json::json!({"group": {"local": 1}, "vid": 10, "name": "lab"}),
+                ),
+                op(
+                    "create_vlan",
+                    serde_json::json!({"group": {"local": 1}, "vid": 11, "name": "gone"}),
+                ),
+                op(
+                    "create_vlan",
+                    serde_json::json!({"group": {"local": 2}, "vid": 10, "name": "other"}),
+                ),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let vlan = |name: &'static str| t.find("vlan", "name", name);
+    let (lab, gone, other) = (vlan("lab").await, vlan("gone").await, vlan("other").await);
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![Operation::Close {
+                kind: ObjectKind::Vlan,
+                id: Ref::Id(gone),
+                expected: None,
+                cascade: false,
+            }],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let rename = |id: Uuid, name: &str| {
+        op(
+            "update_vlan",
+            serde_json::json!({"id": {"id": id}, "name": name}),
+        )
+    };
+    // In its domain, applied.
+    let outcome = t.submit_as(&who, vec![rename(lab, "lab-2")]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // Out of it, the same refusal whatever the identifier names: nothing, an entity, a
+    // closed VLAN, a VLAN in force it may not write.
+    let unknown = Uuid::now_v7();
+    let out_of_reach = refusal(&t.submit_as(&who, vec![rename(other, "x")]).await);
+    assert_eq!(
+        out_of_reach.iter().map(|v| v.0).collect::<Vec<_>>(),
+        ["core.object.forbidden"]
+    );
+    for vlan in [unknown, t.ids["group"], gone] {
+        let outcome = t.submit_as(&who, vec![rename(vlan, "x")]).await;
+        assert_eq!(refusal(&outcome), out_of_reach, "{vlan}");
+    }
+    // Whoever holds every right learns that the identifier designates no VLAN in force.
+    for vlan in [unknown, t.ids["group"], gone] {
+        let outcome = t.submit_as(&root, vec![rename(vlan, "x")]).await;
+        assert_eq!(rules_of(&outcome), ["core.reference.unknown"], "{vlan}");
+    }
+}
+
 impl Tree {
     /// A binding of `role` on `scope` to a new group whose member is `subject`.
     async fn bind_op(&self, subject: Uuid, role: &str, scope: BindingScope) -> Operation {

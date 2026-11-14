@@ -3,17 +3,22 @@
 //! its kind, at the start of the period of its operation.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::support::{dummy_module as dummy, kit_module as kit};
 use kartenn_core::objects::{AddressUsage, Nature, RangeUsage};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
+use kartenn_service::declarations::{core_declarations_for, sync_modules};
+use kartenn_service::module::ModuleRegistry;
 use kartenn_service::operations::{
     BindingScope, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput, TypeInput,
 };
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
+use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
@@ -30,6 +35,10 @@ struct Fixture {
 
 impl Fixture {
     async fn new(pool: &PgPool) -> Self {
+        Self::on(pool, PgStore::new(pool.clone())).await
+    }
+
+    async fn on(pool: &PgPool, store: PgStore) -> Self {
         let author = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'tester') RETURNING id",
         )
@@ -38,13 +47,54 @@ impl Fixture {
         .unwrap();
         Self {
             pool: pool.clone(),
-            store: PgStore::new(pool.clone()),
+            store,
             author,
         }
     }
 
-    async fn submit(&self, operations: Vec<Operation>, start: Option<i64>) -> Outcome {
-        let request = ChangesetRequest {
+    /// A build with the modules of test, the VLANs of the core and their declarations, the
+    /// entities `acme` and `beta` and the site `paris`.
+    async fn with_modules(pool: &PgPool) -> Self {
+        let modules = build();
+        kartenn_store_pg::modules::migrate(pool, &modules)
+            .await
+            .unwrap();
+        let store = PgStore::new(pool.clone()).with_modules(modules.clone());
+        for outcome in sync_modules(
+            &store,
+            &Unrestricted,
+            &[core_declarations_for(&modules)],
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
+        {
+            assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+        }
+        let f = Self::on(pool, store).await;
+        let entity = |slug: &str| Operation::CreateEntity {
+            local: None,
+            slug: slug.into(),
+            parent: None,
+        };
+        f.applied(
+            vec![
+                entity("acme"),
+                entity("beta"),
+                Operation::CreateSite {
+                    local: None,
+                    slug: "paris".into(),
+                    parent: None,
+                },
+            ],
+            None,
+        )
+        .await;
+        f
+    }
+
+    fn request(&self, operations: Vec<Operation>, start: Option<i64>) -> ChangesetRequest {
+        ChangesetRequest {
             author: self.author,
             motive: "test".into(),
             period: start.map(|start| PeriodSpec { start, end: None }),
@@ -52,15 +102,54 @@ impl Fixture {
             simulate: false,
             idempotency_key: None,
             approval_self: true,
-        };
-        submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
+        }
+    }
+
+    async fn submit(&self, operations: Vec<Operation>, start: Option<i64>) -> Outcome {
+        self.run(&self.request(operations, start)).await
+    }
+
+    async fn run(&self, request: &ChangesetRequest) -> Outcome {
+        submit(&self.store, &Unrestricted, request, MAX_OPERATIONS)
             .await
             .unwrap()
     }
 
-    async fn applied(&self, operations: Vec<Operation>, start: Option<i64>) {
-        let outcome = self.submit(operations, start).await;
-        assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    /// The changeset that applies `operations`.
+    async fn applied(&self, operations: Vec<Operation>, start: Option<i64>) -> Uuid {
+        match self.submit(operations, start).await {
+            Outcome::Applied { changeset, .. } => changeset,
+            other => panic!("expected applied, got {other:?}"),
+        }
+    }
+
+    /// Undoes `changeset` as an author does: its inverse, without conflict, applied as it
+    /// comes, on its own period (REQ-004-34).
+    async fn undo(&self, changeset: Uuid) {
+        let undo = kartenn_service::undo::inverse(&self.store, changeset, self.author)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            undo.conflicts.is_empty() && undo.unsupported.is_empty(),
+            "{undo:?}"
+        );
+        let outcome = self.run(&undo.request).await;
+        assert!(
+            matches!(outcome, Outcome::Applied { .. }),
+            "{:?}: {outcome:?}",
+            undo.request.operations
+        );
+    }
+
+    /// How many rows of `table` are in force now.
+    async fn living(&self, table: &str) -> i64 {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM {table} WHERE valid_period @> now()"
+        )))
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
     }
 
     /// The rules of a refusal, each violation checked to name its operation and field.
@@ -577,4 +666,276 @@ async fn every_reference_of_every_core_operation_is_checked(pool: PgPool) {
             .collect();
         assert_eq!(named, expected, "{op:?}: every reference is checked");
     }
+}
+
+/// The modules of the build of these tests (the VLANs of the core come with the store).
+fn build() -> Arc<ModuleRegistry> {
+    Arc::new(ModuleRegistry::new(vec![Arc::new(dummy::Dummy), Arc::new(kit::Kit)]).unwrap())
+}
+
+/// The operation `tag` (`<module>.<name>`, the name alone for the VLANs of the core) with
+/// the fields `body`.
+fn module(tag: &str, body: Value) -> Operation {
+    let mut object = body;
+    object["op"] = tag.into();
+    serde_json::from_value(object).unwrap()
+}
+
+/// A reference by identifier, as a body of a module carries it.
+fn by_id(id: Uuid) -> Value {
+    json!({ "id": id })
+}
+
+/// The rules, operations and objects of a refusal.
+fn refusal(outcome: &Outcome) -> (BTreeSet<&'static str>, BTreeSet<usize>, BTreeSet<Uuid>) {
+    let Outcome::Refused { violations, .. } = outcome else {
+        panic!("expected a refusal, got {outcome:?}")
+    };
+    (
+        violations.iter().map(|v| v.rule.id).collect(),
+        violations.iter().filter_map(|v| v.operation).collect(),
+        violations
+            .iter()
+            .flat_map(|v| v.subjects.iter().copied())
+            .collect(),
+    )
+}
+
+/// REQ-002-12 (amendment of 2026-11-14), task 002-29b2: only a module plan that creates its
+/// object puts it out of the check; the object a plan changes is designated, read as any
+/// other, and so is it by an operation of the core of the same request.
+#[kartenn_testing::pg_test]
+async fn the_object_a_module_operation_changes_is_in_force(pool: PgPool) {
+    let f = Fixture::with_modules(&pool).await;
+    let update = |id: Uuid| dummy::update_thing(json!({"id": by_id(id), "label": "b"}));
+    let close = |id: Uuid| Operation::Close {
+        kind: dummy::thing_kind(),
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    };
+    let unknown = Uuid::now_v7();
+    let outcome = f.submit(vec![update(unknown), close(unknown)], None).await;
+    assert_eq!(
+        refusal(&outcome),
+        ([UNKNOWN].into(), [0, 1].into(), [unknown].into())
+    );
+    // The VLANs and the groups of the core, changed by a plan too.
+    for op in [
+        module("update_vlan", json!({"id": by_id(unknown), "name": "v"})),
+        module(
+            "update_vlan_group",
+            json!({"id": by_id(unknown), "slug": "g"}),
+        ),
+    ] {
+        assert_eq!(f.refused(vec![op], None).await, [UNKNOWN]);
+    }
+    // A thing in force is changed, and closed; closed, it is changed no more.
+    f.applied(vec![dummy::create_thing(json!({"label": "a"}))], None)
+        .await;
+    let thing: Uuid = sqlx::query_scalar("SELECT id FROM dummy.thing WHERE label = 'a'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    f.applied(vec![update(thing)], None).await;
+    f.applied(vec![close(thing)], None).await;
+    assert_eq!(f.refused(vec![update(thing)], None).await, [UNKNOWN]);
+    // Of another kind: an entity is no thing.
+    let acme = f.id("entity", "acme").await;
+    assert_eq!(f.refused(vec![update(acme)], None).await, [UNKNOWN]);
+}
+
+/// REQ-002-12 (amendment of 2026-11-14), spec 026: a group of VLANs is anchored on an
+/// entity, a site or a domain in force, owned by an entity in force; a VLAN is written in a
+/// group in force.
+#[kartenn_testing::pg_test]
+async fn a_vlan_group_and_a_vlan_designate_objects_in_force(pool: PgPool) {
+    let f = Fixture::with_modules(&pool).await;
+    let (acme, paris) = (f.id("entity", "acme").await, f.id("site", "paris").await);
+    let unknown = Uuid::now_v7();
+    let group = |anchor: Value, owner: Option<Uuid>| {
+        let mut body = json!({"slug": "edge", "anchor": anchor});
+        if let Some(owner) = owner {
+            body["owner"] = by_id(owner);
+        }
+        module("create_vlan_group", body)
+    };
+    for op in [
+        // Anchored on nothing.
+        group(json!({"entity": by_id(unknown)}), None),
+        group(json!({"site": by_id(unknown)}), Some(acme)),
+        group(json!({"domain": by_id(unknown)}), Some(acme)),
+        // On an object of another kind.
+        group(json!({"entity": by_id(paris)}), None),
+        group(json!({"site": by_id(acme)}), Some(acme)),
+        // Owned by nothing, by a site.
+        group(json!({"site": by_id(paris)}), Some(unknown)),
+        group(json!({"site": by_id(paris)}), Some(paris)),
+    ] {
+        assert_eq!(f.refused(vec![op.clone()], None).await, [UNKNOWN], "{op:?}");
+    }
+    assert_eq!(f.living("vlan_group").await, 0, "nothing is written");
+    let vlan = |group: Uuid| {
+        module(
+            "create_vlan",
+            json!({"group": by_id(group), "vid": 10, "name": "v10"}),
+        )
+    };
+    // A VLAN of no group, of an entity.
+    for group in [unknown, acme] {
+        assert_eq!(f.refused(vec![vlan(group)], None).await, [UNKNOWN]);
+    }
+    // Of a group closed.
+    f.applied(vec![group(json!({"entity": by_id(acme)}), None)], None)
+        .await;
+    let edge = f.id("vlan_group", "edge").await;
+    f.applied(vec![vlan(edge)], None).await;
+    f.applied(
+        vec![Operation::Close {
+            kind: ObjectKind::VlanGroup,
+            id: Ref::Id(edge),
+            expected: None,
+            cascade: true,
+        }],
+        None,
+    )
+    .await;
+    assert_eq!(f.refused(vec![vlan(edge)], None).await, [UNKNOWN]);
+    assert_eq!(f.living("vlan").await, 0, "nothing is written");
+}
+
+/// One operation per operation type of the modules of the build, every reference an
+/// identifier nothing bears; an operation of the core its plan adds is read too (the
+/// domain and the property of `derive`, the address `release` closes).
+fn module_samples() -> Vec<Operation> {
+    let id = || by_id(Uuid::now_v7());
+    vec![
+        module(
+            "create_vlan_group",
+            json!({"slug": "g", "anchor": {"entity": id()}}),
+        ),
+        module(
+            "update_vlan_group",
+            json!({"id": id(), "anchor": {"site": id()}, "owner": id()}),
+        ),
+        module(
+            "create_vlan",
+            json!({"group": id(), "vid": 10, "name": "v10"}),
+        ),
+        module("update_vlan", json!({"id": id(), "group": id()})),
+        dummy::create_thing(json!({
+            "label": "t", "prefix": id(), "domain_ref": id(), "address_ref": id(),
+            "derive": {"domain": id(), "property": id(), "value": "x"},
+        })),
+        dummy::update_thing(json!({"id": id(), "label": "t", "release": id()})),
+        kit::op("create_group", json!({"domain": id()})),
+        kit::op("create_item", json!({"parent": id(), "domain": id()})),
+        kit::op("request_item", json!({"parent": id()})),
+    ]
+}
+
+#[kartenn_testing::pg_test]
+async fn every_reference_of_every_module_operation_is_checked(pool: PgPool) {
+    let f = Fixture::with_modules(&pool).await;
+    let samples = module_samples();
+    // Each operation type of the build has a sample: a new one fails here until it has.
+    let types: BTreeSet<String> = kartenn_service::vlan::OPERATIONS
+        .iter()
+        .map(|o| o.name.to_owned())
+        .chain(build().modules().flat_map(|m| {
+            m.operations()
+                .iter()
+                .map(|o| format!("{}.{}", m.name(), o.name))
+        }))
+        .collect();
+    let covered: BTreeSet<String> = samples
+        .iter()
+        .map(|op| match op {
+            Operation::Module(m) => m.tag(),
+            other => panic!("not an operation of a module: {other:?}"),
+        })
+        .collect();
+    assert_eq!(covered, types, "an operation of a module has no sample");
+    for op in samples {
+        let mut expected = BTreeSet::new();
+        ref_ids(&serde_json::to_value(&op).unwrap(), &mut expected);
+        let (rules, _, named) = refusal(&f.submit(vec![op.clone()], None).await);
+        assert_eq!(rules, [UNKNOWN].into(), "{op:?}");
+        assert_eq!(named, expected, "{op:?}: every reference is checked");
+    }
+}
+
+/// The inverse of a changeset of a module (spec 004, REQ-004-34) designates what that
+/// changeset wrote, in force from its start: undoing a creation closes it, undoing a change
+/// gives it back, a group moved to another anchor included.
+#[kartenn_testing::pg_test]
+async fn the_writes_of_a_module_are_undone(pool: PgPool) {
+    let f = Fixture::with_modules(&pool).await;
+    let (acme, beta) = (f.id("entity", "acme").await, f.id("entity", "beta").await);
+    let group = |slug: &str| {
+        module(
+            "create_vlan_group",
+            json!({"local": 1, "slug": slug, "anchor": {"entity": by_id(acme)}}),
+        )
+    };
+    let vlan = |group: Ref, name: &str| {
+        module(
+            "create_vlan",
+            json!({"group": group, "vid": 10, "name": name}),
+        )
+    };
+    // Created, then undone. Not the creation of a group: its inverse closes the group
+    // before it removes the owner the plan assigned it, refused by
+    // `changeset.operation.no_version` (left open by task 002-29b2, as before it).
+    f.applied(vec![group("edge")], None).await;
+    let edge = f.id("vlan_group", "edge").await;
+    let in_edge = f.applied(vec![vlan(Ref::Id(edge), "v10")], None).await;
+    let thing = f
+        .applied(vec![dummy::create_thing(json!({"label": "a"}))], None)
+        .await;
+    f.undo(in_edge).await;
+    f.undo(thing).await;
+    assert_eq!(
+        (f.living("vlan").await, f.living("dummy.thing").await),
+        (0, 0)
+    );
+    // Changed, then undone.
+    f.applied(vec![group("core"), vlan(Ref::Local(1), "v20")], None)
+        .await;
+    f.applied(vec![dummy::create_thing(json!({"label": "b"}))], None)
+        .await;
+    let core = f.id("vlan_group", "core").await;
+    let (v20, b): (Uuid, Uuid) = sqlx::query_as(
+        "SELECT (SELECT id FROM vlan WHERE name = 'v20'),
+                (SELECT id FROM dummy.thing WHERE label = 'b')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let changed = f
+        .applied(
+            vec![
+                module("update_vlan", json!({"id": by_id(v20), "name": "v21"})),
+                module(
+                    "update_vlan_group",
+                    json!({"id": by_id(core), "anchor": {"entity": by_id(beta)}}),
+                ),
+                dummy::update_thing(json!({"id": by_id(b), "label": "c"})),
+            ],
+            None,
+        )
+        .await;
+    f.undo(changed).await;
+    let now: (String, Uuid, String) = sqlx::query_as(
+        "SELECT (SELECT name FROM vlan WHERE id = $1 AND valid_period @> now()),
+                (SELECT anchor_id FROM vlan_group WHERE id = $2 AND valid_period @> now()),
+                (SELECT label FROM dummy.thing WHERE id = $3 AND valid_period @> now())",
+    )
+    .bind(v20)
+    .bind(core)
+    .bind(b)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(now, ("v20".into(), acme, "b".into()));
 }
