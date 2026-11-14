@@ -582,7 +582,10 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   comme un 304. Une lecture seule dans sa fenêtre part par la lecture unitaire, avec son
   `If-None-Match`. Un identifiant omis par le serveur rend le 404 `not-found` de la lecture
   unitaire, jamais relu ; une lecture abandonnée quitte son lot, que seul l'abandon de
-  toutes les siennes annule. Une colonne de propriétés ne lit qu'une fois sa première
+  toutes les siennes annule. Quatre lots en vol au plus (`BATCH_FLIGHTS`) : une fenêtre sans
+  créneau attend, ouverte encore, et part sans ses lectures abandonnées. Un lot refusé
+  repart en lot : la gigue d'un `Retry-After` se tire une fois par refus, partagée par ses
+  lectures. Une colonne de propriétés ne lit qu'une fois sa première
   fenêtre donnée par la grille.
 - **Pages lâchées** (021-22f) : le partage structurel d'une liste compare chaque page à
   celle lue avant sous le même curseur (`sharePages`), jamais à celle de sa place, et une
