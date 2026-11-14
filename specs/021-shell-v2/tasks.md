@@ -1642,7 +1642,30 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     elle se relit périmée après 30 s (`FRESHNESS.list`). La sorte se tire de `COLLECTIONS`
     du shell (le SDK n'exporte pas `typeOfCollection`, et `cache.ts`/l'index du SDK sont
     chargés sur toutes les pages). `:row-count` passé à la grille des propriétés une fois
-    complète, comme les autres listes (relecture).
+    complète, comme les autres listes (relecture). Passe de revue : l'onglet Propriétés dit
+    en encart (`InlineAlert`, codes, « Réessayer ») les déclarations non lues, de la sorte
+    ou d'une clé héritée, les valeurs restant montrées ; Vitest de `useDeclarationsOf`
+    (clé exacte seule gardée, clé absente, refus) et de cet encart ; fixtures des vues
+    servant sous `carrier=address` ce que le serveur y sert (`dns.ttl`, et non
+    `core.owner` à `carriers: []`).
+  - reste :
+    - à arbitrer : filtres et colonnes d'une liste sur une propriété héritée que la sorte
+      ne porte pas (`core.owner` sur `/addresses` ou `/ranges`, porté par `domain`,
+      `prefix` et les types de module) : le serveur filtre sur la valeur résolue, mais le
+      shell ne l'a jamais offert, ni avant ni après la 11p7 (`propertyFields` du SDK,
+      `sdk/src/data/filters.ts:55`, et `declaredFor`, `propertyColumns.ts:41`, ne gardent
+      que les porteurs). Options : ajout au contrat (`carrier` étendu aux héritiers, ou
+      `inherited=true`) ; arbres d'héritage connus du shell (lire aussi les sortes
+      ancêtres, garder les déclarations héritables) ; clés nommées par l'URL seules,
+      cherchées par `useDeclarationsOf` et acceptées si héritables (sans les proposer au
+      sélecteur).
+    - lecture groupée de plusieurs clés : une requête `q=` par clé distincte aujourd'hui
+      (une quarantaine en parallèle sur une page de lacunes) ; il faudrait un paramètre au
+      contrat, donc un arbitrage.
+    - la requête par clé (`["shell", "declaration", clé]`) n'est pas invalidée par un
+      changeset : relue périmée après 30 s.
+    - `edit/properties.ts:524` offre un éditeur sans vérifier que la sorte porte la
+      déclaration (une valeur héritée d'une propriété non portée).
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
