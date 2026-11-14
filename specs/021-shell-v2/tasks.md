@@ -6643,20 +6643,28 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     premier lot tient son budget (échec au-delà de 300 Ko, avertissement au-delà de
     296 Ko). `refusalWords` (`time/index.ts`) nomme chaque clé de la porte entière, pour
     que l'analyse la voie. `test/setup.ts` lit les mots des écrans avant chaque fichier de
-    tests, qui monte un écran sans sa route. Vérification : `k-web2-check --base main`
-    (1142 tests, 2739 captures sur 2739 : tout, `data/query.ts` étant tiré par l'entrée) ;
+    tests, qui monte un écran sans sa route ; `test/words.test.ts`, hors de ce
+    préchargement (registre remis à zéro, catalogue des écrans retenu) : chaque route du
+    cadre à chunk (hors vues des plugins) et chaque panneau du cadre (`frame/panels.ts`)
+    passent par `worded` (`isWorded`) ; l'accueil et « Clore… » ne rendent rien avant les
+    mots, puis leurs mots, jamais une clé ; une lecture perdue du lot fait échouer la
+    navigation, la suivante le relit. Vérification : `k-web2-check --base main`
+    (1144 tests, 2739 captures sur 2739 : tout, `data/query.ts` étant tiré par l'entrée) ;
     parcours `draft`, `admin` et `accessibility`.
   - choix : la porte par écran (`worded` au retour de `entryScreen`/`recordScreen`) plutôt
     qu'une garde du routeur, qu'un routeur de test contournerait et qui retarderait la
-    page de connexion ; `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead`
-    pour ses trente importeurs ; « À propos » à la demande essayé puis laissé : −0,3 Ko
-    pour trois chunks de plus au premier chargement.
+    page de connexion ; « À propos » à la demande essayé puis laissé : −0,3 Ko pour trois
+    chunks de plus au premier chargement.
   - reste : le premier poste de la hausse, @kartenn/ui (≈ 131 Ko gzip, partagé entier par
     la carte d'import, un seul chunk pour l'ordre de sa feuille), ne se découpe pas sans
-    arbitrage ; l'analyse des clés ne voit pas une clé tenue dans une variable venue
-    d'ailleurs que d'une chaîne du premier lot (une donnée du serveur), ni une clé lue dans
-    un catalogue de plugin ; l'avertissement des 296 Ko s'imprime dans la sortie de
-    Vitest, que le verdict d'une ligne de `k-web2-check` ne reprend pas.
+    arbitrage ; l'analyse des clés ne voit pas une clé construite par concaténation
+    (`"edit.why." + reason`, si le build la garde telle), ni une clé tenue
+    dans une variable venue d'ailleurs que d'une chaîne du premier lot (une donnée du
+    serveur), ni une clé d'un catalogue de plugin ; l'avertissement des 296 Ko s'imprime
+    dans la sortie de Vitest, que le verdict d'une ligne de `k-web2-check` ne reprend pas ;
+    `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead` de `views/carried.ts` :
+    une trentaine d'importeurs à pointer sur `carried.ts`, dont `admin/*` que la 21e
+    modifie en ce moment, laissés pour une tâche hors de ces branches.
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
