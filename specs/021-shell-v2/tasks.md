@@ -6336,7 +6336,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     tree itself: true`, 0 lecture `/children` pendant le défilement. Tient aussi la partie
     banc de la 22d.
 
-- [ ] 22m. Scénario du banc pour A40 (relevé à la clôture de la 22c) : le verify de la 22c
+- [x] 22m. Scénario du banc pour A40 (relevé à la clôture de la 22c) : le verify de la 22c
   (0 lecture `/children` pendant le défilement d'un arbre d'un autre domaine, tâches
   périodiques remises) n'est pas tenable en l'état, le banc n'ayant ni second domaine
   écrit pendant la mesure ni moyen de remettre les tâches ; ajouter un écrivain de fond
@@ -6347,6 +6347,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`,
     `web/v2/e2e/serve.sh` (branche `budgets`)
   - dépend de : 22c
+  - mesuré le 2026-11-14 par la session principale (passe réduite `bench-web small`, main
+    e86f6af1, seule sur la machine) : 20 changesets écrits sur `bench-a40`, 19 pendant la
+    fenêtre, le premier au flux en 107 ms ; 19 changements nommant `bench-a40` vus au flux
+    pendant le défilement (PASS) ; 0 lecture `/children` du conteneur (PASS, limite 0) ;
+    19 lectures sous `/v1/` en tout, une par changeset, dont les chemins restent à
+    nommer. Case cochée.
   - scénario écrit le 2026-11-14, mesure à la session principale (case non cochée) :
     `global-setup.ts` crée le domaine vide `bench-a40` (`OTHER_DOMAIN`) ; dans le test du
     conteneur de 10⁵, après la fenêtre de défilement d'une instance calme (inchangée,
@@ -6491,6 +6497,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - note : le budget (≤ 2 % à ×4 pour 1 000 lignes/s, huit fois le protocole du
       prototype D-1) est à mesurer par la session principale, seule sur la machine, avant
       l'arbitrage B (le garder, mesuré seul) ou C (réviser le protocole à 500 lignes/s).
+    - mesuré le 2026-11-14 par la session principale, seule sur la machine (passe réduite
+      `bench-web small`, main e86f6af1, les quatre verrous libres) : 28,25 % de trames
+      perdues sur 10⁴ lignes en 10 s (budget 2 %), 1 tâche longue (51,0 ms, budget 0),
+      0 lecture pendant le défilement ; avant la 22e-a : 77 % et 137 tâches longues.
+      L'écart au budget reste d'un ordre de grandeur : l'arbitrage B ou C attend
+      l'utilisateur, la 22e-b reste à faire dans les deux cas.
 
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une
@@ -6592,6 +6604,32 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     sous Chromium (occupation, résumés des plugins), lectures hors `meta.queries` de sa
     route ; à mesurer avant de les y ajouter.
 
+  - mesuré le 2026-11-14 par la session principale (passe réduite `bench-web small`, main
+    e86f6af1, seule sur la machine) : dix navigations préchargées sur dix (« not
+    prefetched … none »), la cause de la tâche est donc levée ; p75 à 126,5 ms (budget
+    100 ms), médiane 120,5 ms, pire 313,0 ms, CLS 0,001. Le préchargement n'est plus en
+    cause : le reste est le rendu de la fiche sous CPU ×4, porté par la 22o. Case cochée
+    quand la 22o tient le budget.
+- [ ] 22n. Shell initial à 306,3 Ko gzip (budget 300 Ko), relevé par la passe réduite du
+  2026-11-14 (main e86f6af1) : 295,6 Ko après la 22h, les tâches fusionnées depuis ont
+  repris 10,7 Ko ; trouver ce qui est entré dans le premier lot (mesure module par
+  module, comme la 22h) et le sortir à la demande — verify :
+  `web/v2/shell/scripts/shell-size.ts` ≤ 300 Ko, sans banc
+  - où : `web/v2/shell/scripts/shell-size.ts`, `web/v2/shell/src/main.ts` et ses imports
+    statiques ; candidats : `frame/width.ts` et la porte de la 21c, `plugins/slots.ts`
+    et `ExtensionElement` en cellule (11o2), catalogues `views/i18n/*.json`, `sharePages`
+    du SDK (22f)
+  - dépend de : 22h
+- [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
+  120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
+  (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
+  parties occupées hors `meta.queries` : occupation, résumés des plugins), puis
+  correction — verify : Vitest ou parcours qui borne le travail du montage ; passe
+  réduite par la session principale, p75 ≤ 100 ms sur dix navigations préchargées
+  - où : `web/v2/shell/src/views/RecordView.vue`, `views/record/*`, `views/routes.ts`
+    (`meta.queries`), `web/v2/e2e/budgets/budgets.spec.ts` (« navigations to a prefetched
+    target »)
+  - dépend de : 22g
 - [x] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
   (import statique devenu lourd, module à charger à la demande) — verify :
   `web/v2/shell/scripts/shell-size.ts` ≤ 300 Ko
