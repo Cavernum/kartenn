@@ -315,6 +315,39 @@ test.describe("Tree (APG Tree View)", () => {
     await expect(page.locator(":focus")).toHaveAttribute("aria-setsize", "999");
   });
 
+  test("each row that comes into the window measured as the view scrolls: no blank in view", async ({
+    page,
+  }) => {
+    // The rows are rendered in the slot of `TreeRoot` (Reka): a scroll renders it again,
+    // never `Tree`. Rows lower than the row height of the density (the estimate) fill the
+    // view only once measured (task 021-22f: measured after the render, whoever renders).
+    await openState(page, "Tree", "virtual");
+    await expect(page.getByRole("tree", { name: "Cent mille nœuds" })).toBeVisible();
+    // A constructed sheet (the CSP refuses an inline one).
+    await page.evaluate(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(
+        ".k-tree__row { block-size: 8px !important; min-block-size: 0 !important; overflow: hidden; }",
+      );
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    });
+    const scroller = page.locator(".k-tree");
+    // A row at the bottom edge of the view.
+    const filled = () =>
+      scroller.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const bottom = Math.min(box.top + el.clientHeight, window.innerHeight) - 2;
+        return [...el.querySelectorAll<HTMLElement>("[role='treeitem']")].some((row) => {
+          const r = row.getBoundingClientRect();
+          return r.top <= bottom && r.bottom >= bottom;
+        });
+      });
+    for (const top of [1_500, 3_000, 4_500]) {
+      await scroller.evaluate((el, at) => el.scrollTo({ top: at }), top);
+      await expect.poll(filled).toBe(true);
+    }
+  });
+
   test("children page by page: aria-setsize -1, the row of the rest reads the next page", async ({
     page,
   }) => {
