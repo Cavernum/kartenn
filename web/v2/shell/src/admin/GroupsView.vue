@@ -77,7 +77,7 @@ function onSelected(keys: string[]): void {
 const onActivate = (cell: CellRef) => open(cell.row);
 
 // « Créer »: the right, then the gate of writes (the present, 1024 px wide); `c` says the
-// same reason as its button (`lasting`), and the palette keeps it when the gate alone holds
+// same reason as its button (`rankedRefusal`), and the palette keeps it when the gate alone holds
 // it (`allowed`: the right only).
 const creating = ref(false);
 const refusal = (refused: WriteRefusal | null) =>
@@ -103,7 +103,6 @@ useViewAction("create", {
   allowed: () => !refusal(null),
   why: () => refusalSentence(refusal(null), t),
   say: status,
-  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,

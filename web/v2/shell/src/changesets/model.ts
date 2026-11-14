@@ -1,7 +1,7 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { DiffChange, DiffGroup, DiffKind, State } from "@kartenn/ui";
 import type { Rights } from "../rights/index.ts";
-import type { WriteRefusal } from "../time/index.ts";
+import { rankedRefusal, type WriteRefusal } from "../time/index.ts";
 
 // The changesets in the shell (REQ-021-10; design 021 « Écrans » : Changesets; maquette E4):
 // what a state shows, which permissions the operations of a changeset or a draft ask for,
@@ -132,32 +132,32 @@ export interface ReviewContext {
  * writes; by its author with `<type>.approval.self` on all of it when no policy holds it
  * (else refused, `held`) — its rejection (by someone else) and its withdrawal (by its
  * author only); applied, its undo (`<type>.edit`). Every action refused stays, with the
- * permission lacking or its reason (REQ-021-37): the gate (`refused`) first, as for a
- * write, then the rest.
+ * permission lacking or its reason (REQ-021-37), by the rank of every refusal of a write
+ * (`rankedRefusal`, task 021-21h): the permission, then the state (`held`, `author`), then
+ * the gate (`refused`).
  */
 export function reviewActions(changeset: Changeset, context: ReviewContext): ReviewAction[] {
   const { me, rights, refused } = context;
   const author = me !== null && changeset.author === me;
-  const gate = refused === null ? null : { reason: refused };
+  type Refused = Omit<ReviewAction, "id">;
+  const gate: Refused | null = refused === null ? null : { reason: refused };
+  const ranked = (lasting: Refused | null, state: Refused | null): Refused =>
+    rankedRefusal({ lasting, state, gate }) ?? {};
+  const forbidden = (permission: string | undefined): Refused | null =>
+    permission ? { forbidden: permission } : null;
   if (changeset.state === "pending") {
     const lack = lacking(rights, changeset.operations, author ? "approval.self" : "apply");
-    const decide = gate
-      ? gate
-      : author && held(changeset)
-        ? { reason: "held" as const }
-        : lack
-          ? { forbidden: lack }
-          : {};
+    const decide = ranked(forbidden(lack), author && held(changeset) ? { reason: "held" } : null);
     // Its author: « Valider » (or its refusal), no « Rejeter », « Retirer » (E4).
     return [
       { id: "validation", ...decide },
       ...(author ? [] : [{ id: "rejection" as const, ...decide }]),
-      { id: "withdrawal", ...(gate ?? (author ? {} : { reason: "author" as const })) },
+      { id: "withdrawal", ...ranked(null, author ? null : { reason: "author" }) },
     ];
   }
   if (changeset.state === "applied") {
     const edit = lacking(rights, changeset.operations, "edit");
-    return [{ id: "undo", ...(gate ?? (edit ? { forbidden: edit } : {})) }];
+    return [{ id: "undo", ...ranked(forbidden(edit), null) }];
   }
   return [];
 }

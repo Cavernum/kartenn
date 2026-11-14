@@ -9,6 +9,8 @@ import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import AnomalyGrid from "../src/views/anomalies/AnomalyGrid.vue";
+import { offered, play } from "../src/shortcuts/view.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 import { closeEdit, editRequest } from "../src/views/edit/panel.ts";
 import { NETWORK_VLAN_EDITS } from "../src/views/edit/vlan.ts";
 import NetworkVlanTab from "../src/views/record/NetworkVlanTab.vue";
@@ -198,6 +200,190 @@ describe("the « + » of the Topography under 1024 px (task 021-21f)", () => {
     expect(described(plus(root)!)).toContain("core.address.edit");
     expect(described(plus(root)!)).not.toContain(NARROW);
   });
+
+  // One rank on one screen (task 021-21h): the « + », the cell of a node, `c` and its
+  // command of the palette say the same reason — the permission lacking whatever the width,
+  // else the width —, the palette keeping the command the width alone holds.
+  const WRITER = ["core.prefix.read", "core.prefix.edit", "core.address.edit", "core.range.edit"];
+  const CASES = [
+    { name: "the right lacking alone", permissions: ["core.prefix.read"], width: "wide" },
+    { name: "the width alone", permissions: WRITER, width: "narrow" },
+    { name: "both", permissions: ["core.prefix.read"], width: "narrow" },
+    { name: "neither", permissions: WRITER, width: "wide" },
+  ] as const;
+  const fr = (key: string) => createShellI18n("fr").global.t(key);
+  for (const c of CASES) {
+    it(`the « + », the cell, \`c\` and the palette say the same, ${c.name}`, async () => {
+      const { root, writes } = await mounted("/topology", [...c.permissions], tree);
+      await expect.poll(() => plus(root)).not.toBeNull();
+      setFrameWidth(c.width);
+      await nextTick();
+      const lacks = c.permissions.length === 1;
+      const status = () =>
+        [...root.querySelectorAll('[role="status"]')].map((s) => s.textContent).join(" ");
+      const cell = root.querySelector<HTMLElement>(
+        `[data-k-tree] [data-row="${PREFIX}"][data-column="detail"]:not([data-k-skeleton])`,
+      )!;
+      const writesNow = writesOf(timeOf({}), c.width);
+      const command = offered("create", timeOf({}), c.width, fr);
+      if (lacks) {
+        // The permission, never the width: the « + » and the cell, `c`; no command.
+        expect(described(plus(root)!)).toContain("core.address.edit");
+        expect(described(cell)).toBe("Lecture seule : il faut core.prefix.edit");
+        expect(play("create", writesNow, fr)).toBe(true);
+        await expect.poll(status).toContain("core.prefix.edit");
+        expect(`${described(plus(root)!)} ${described(cell)} ${status()}`).not.toContain(NARROW);
+        expect(command).toBeNull();
+      } else if (c.width === "narrow") {
+        expect(described(plus(root)!)).toContain(NARROW);
+        expect(described(cell)).toBe(NARROW);
+        expect(play("create", writesNow, fr)).toBe(true);
+        await expect.poll(status).toContain(NARROW);
+        // Kept in the palette, its run says the width, opens nothing.
+        expect(command?.label()).toBeTruthy();
+        expect(editRequest().value).toBeNull();
+      } else {
+        expect(plus(root)!.getAttribute("aria-disabled")).not.toBe("true");
+        expect(cell.getAttribute("aria-describedby")).toBeNull();
+        expect(command).not.toBeNull();
+      }
+      expect(writes()).toEqual([]);
+    });
+  }
+});
+
+// Each action of a record reads its own refusal again as it acts (task 021-21h): the one its
+// button or entry is drawn with — « Créer un VLAN » of a group `core.vlan.edit`, not the
+// right to modify the group —, the permission before the width. A window narrowed between
+// the draw and the act (the width set, the act before the next render) says the width.
+describe("the actions of a record read their own refusal again as they act (task 021-21h)", () => {
+  const GROUP = "0b5e3c1a-0000-4000-8000-0000000000b1";
+  const ENTITY = "0b5e3c1a-0000-4000-8000-0000000000c1";
+  const records = (url: string) =>
+    url === `/v1/vlan-groups/${GROUP}`
+      ? {
+          id: GROUP,
+          key: "g1",
+          name: "Salle B",
+          vid_min: 1,
+          vid_max: 100,
+          version: "1",
+          links: { self: `/v1/vlan-groups/${GROUP}` },
+        }
+      : url === `/v1/entities/${ENTITY}`
+        ? { id: ENTITY, slug: "siege", name: "Siège", version: "1", links: {} }
+        : url.includes("/properties")
+          ? { properties: {}, masked: [], explanation: {} }
+          : page([]);
+  const statuses = (root: HTMLElement) =>
+    [...root.querySelectorAll('[role="status"]')].map((s) => s.textContent).join(" ");
+
+  it("« Créer un VLAN » with `core.vlan.edit` alone opens the panel", async () => {
+    const { root } = await mounted(
+      `/vlan-groups/${GROUP}?tab=vlans`,
+      ["core.vlan_group.read", "core.vlan.read", "core.vlan.edit"],
+      records,
+    );
+    await expect.poll(() => button(root, "Créer un VLAN")).toBeDefined();
+    const create = button(root, "Créer un VLAN")!;
+    expect(create.getAttribute("aria-disabled")).not.toBe("true");
+    create.click();
+    expect(editRequest().value).toMatchObject({ mode: "create", collection: "vlans" });
+    expect(statuses(root)).not.toContain("core.vlan_group.edit");
+  });
+
+  it("« Créer un VLAN » without `core.vlan.edit`: refused with it, nothing opens", async () => {
+    const { root } = await mounted(
+      `/vlan-groups/${GROUP}?tab=vlans`,
+      ["core.vlan_group.read", "core.vlan.read", "core.vlan_group.edit"],
+      records,
+    );
+    await expect.poll(() => button(root, "Créer un VLAN")).toBeDefined();
+    const create = button(root, "Créer un VLAN")!;
+    expect(described(create)).toContain("core.vlan.edit");
+    create.click();
+    expect(editRequest().value).toBeNull();
+  });
+
+  it("« Créer un VLAN » narrowed as it acts: the width said, nothing opens", async () => {
+    const { root } = await mounted(
+      `/vlan-groups/${GROUP}?tab=vlans`,
+      ["core.vlan_group.read", "core.vlan.read", "core.vlan.edit"],
+      records,
+    );
+    await expect.poll(() => button(root, "Créer un VLAN")).toBeDefined();
+    const create = button(root, "Créer un VLAN")!;
+    // Narrowed, then pressed before the next render: the re-read refuses it (the status it
+    // says is emptied as the frame crosses 1024 px, `useStatus`; the button then says it).
+    setFrameWidth("narrow");
+    create.click();
+    expect(editRequest().value).toBeNull();
+    await nextTick();
+    expect(described(create)).toContain(NARROW);
+  });
+
+  /** « Modifier », or an entry of « Actions », found at 1024 px and more. */
+  async function control(root: HTMLElement, name: string): Promise<HTMLElement> {
+    if (name === "Modifier") return button(root, "Modifier")!;
+    const trigger = root.querySelector<HTMLButtonElement>("[aria-haspopup='menu']")!;
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await expect
+      .poll(() => document.querySelectorAll("[role='menuitem']").length)
+      .toBeGreaterThan(1);
+    return [...document.querySelectorAll<HTMLElement>("[role='menuitem']")].find((item) =>
+      item.textContent?.trim().startsWith(name),
+    )!;
+  }
+  const act = (element: HTMLElement) =>
+    element.getAttribute("role") === "menuitem"
+      ? element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+      : element.click();
+  const ACTIONS = [
+    { name: "Modifier", mode: "edit" },
+    { name: "Changer de parent", mode: "move" },
+    { name: "Clore", mode: "close" },
+  ] as const;
+  const CASES = [
+    { name: "the right lacking alone", right: false, narrow: false },
+    { name: "the width alone", right: true, narrow: true },
+    { name: "both", right: false, narrow: true },
+    { name: "neither", right: true, narrow: false },
+  ] as const;
+  for (const action of ACTIONS)
+    for (const c of CASES) {
+      it(`« ${action.name} » of an entity, the entry and the act say the same, ${c.name}`, async () => {
+        const { root, writes } = await mounted(
+          `/entities/${ENTITY}`,
+          c.right ? ["core.entity.read", "core.entity.edit"] : ["core.entity.read"],
+          records,
+        );
+        await expect.poll(() => button(root, "Modifier")).toBeDefined();
+        const element = await control(root, action.name);
+        expect(element).toBeDefined();
+        if (c.narrow) setFrameWidth("narrow");
+        act(element);
+        if (!c.right) {
+          // The permission, on the entry and as it acts: never the width; nothing opens.
+          expect(described(element)).toContain("core.entity.edit");
+          await nextTick();
+          expect(described(element)).toContain("core.entity.edit");
+          expect(`${described(element)} ${statuses(root)}`).not.toContain(NARROW);
+          expect(editRequest().value).toBeNull();
+        } else if (c.narrow) {
+          // Narrowed between the draw and the act: refused as it acts, the width drawn after
+          // (its status emptied as the frame crosses 1024 px, `useStatus`).
+          await nextTick();
+          expect(described(element)).toContain(NARROW);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          expect(editRequest().value).toBeNull();
+        } else {
+          await expect.poll(() => editRequest().value).toMatchObject({ mode: action.mode });
+          expect(statuses(root)).toBe(" ".repeat(statuses(root).length));
+        }
+        expect(writes()).toEqual([]);
+      });
+    }
 });
 
 describe("« Acquitter » of an anomaly under 1024 px (task 021-21f)", () => {

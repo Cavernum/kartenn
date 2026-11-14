@@ -19,6 +19,7 @@ import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
 import KLink from "../prefetch/KLink.vue";
 import ProblemState from "../problems/ProblemState.vue";
+import { rankedRefusal } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { editOfOperation } from "../views/edit/fields.ts";
 import type { Refusal } from "../views/edit/inline.ts";
@@ -63,10 +64,15 @@ function modifyLabel(position: number): string {
 }
 /** The form of each operation, `null` for one no edit panel writes. */
 const edits = computed(() => operations.value.map((operation) => editOfOperation(operation)));
-/** Why « Modifier » is refused on a line: under `as_of`, or no panel for its operation. */
+/**
+ * Why « Modifier » is refused on a line: no panel for its operation, then the gate (`as_of`,
+ * under 1024 px), by the rank of every refusal (`rankedRefusal`).
+ */
 function modifyReason(index: number): string | undefined {
-  if (gateWhy.value) return gateWhy.value;
-  return edits.value[index] ? undefined : t("drafts.why.noPanel");
+  return rankedRefusal({
+    lasting: edits.value[index] ? undefined : t("drafts.why.noPanel"),
+    gate: gateWhy.value,
+  });
 }
 /**
  * « Modifier »: the edit panel of the kind, prefilled from the operation, which it replaces

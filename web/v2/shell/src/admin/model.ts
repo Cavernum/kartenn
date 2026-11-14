@@ -1,6 +1,6 @@
 import type { components, Operation, Violation } from "@kartenn/sdk";
 import type { Rights } from "../rights/index.ts";
-import type { WriteRefusal } from "../time/index.ts";
+import { rankedRefusal, type WriteRefusal } from "../time/index.ts";
 
 // The administration of the rights by groups (spec 025, REQ-025-12; REQ-021-12; design 021
 // « Administration »; maquette E7): the rows of a group and of a role as the active draft
@@ -399,8 +399,10 @@ export function createRefusal(input: {
   refused: WriteRefusal | null;
   words: GateWords;
 }): Refusal | undefined {
-  if (!input.rights.has(input.permission)) return { forbidden: input.permission };
-  return input.refused ? { reason: input.words[input.refused] } : undefined;
+  return rankedRefusal<Refusal>({
+    lasting: input.rights.has(input.permission) ? null : { forbidden: input.permission },
+    gate: input.refused ? { reason: input.words[input.refused] } : null,
+  });
 }
 
 /** The refusals of the actions of a role. */

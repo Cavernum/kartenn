@@ -44,7 +44,7 @@ import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { refusalWords, useTime, useWrites } from "../time/index.ts";
+import { rankedRefusal, refusalWords, useTime, useWrites } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
 import { whyWords } from "./edit/inline.ts";
 import { moveEntryRefusal } from "./edit/moves.ts";
@@ -151,16 +151,20 @@ const object = computed(() =>
 const MOVE = "core:move";
 const CLOSE = "core:close";
 const movable = computed(() => EDITS[props.collection.id].move !== undefined);
-const actions = computed<MenuItem[]>(() => {
-  const refused = {
-    ...("reason" in editBlocked.value ? { disabled: true } : {}),
-    ...editBlocked.value,
-  };
-  // A change of parent at the present only (`moves.ts`): under `valid_at` alone too.
-  const moveRefused = moveEntryRefusal(refused, writes.value, {
+/** The refusal of « Clore… » (the record's own), as its entry is drawn and as it acts. */
+const closeRefusal = () => ({
+  ...("reason" in editBlocked.value ? { disabled: true } : {}),
+  ...editBlocked.value,
+});
+/** The refusal of « Changer de parent… »: at the present only (`moves.ts`), `valid_at` too. */
+const moveRefusal = () =>
+  moveEntryRefusal(closeRefusal(), writes.value, {
     dated: t("edit.move.dated"),
     narrow: t("edit.why.narrow"),
   });
+const actions = computed<MenuItem[]>(() => {
+  const refused = closeRefusal();
+  const moveRefused = moveRefusal();
   const own: MenuItem[] = movable.value
     ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...moveRefused }]
     : [];
@@ -183,28 +187,35 @@ const session = useSession();
 const editPermission = computed(() => editRight(props.collection.type));
 const mayEdit = computed(() => session.value.rights.has(editPermission.value));
 // The durable reason first, the permission missing, then the gate (`as_of`, under 1024 px):
-// widening the window or coming back to the present would not give the right.
-const blockedBy = (permission: string) =>
-  !session.value.rights.has(permission)
-    ? { forbidden: permission }
-    : gateWhy.value
-      ? { reason: gateWhy.value }
-      : {};
+// widening the window or coming back to the present would not give the right
+// (`rankedRefusal`).
+type Blocked = { forbidden: string } | { reason: string };
+const blockedBy = (permission: string): Blocked | Record<string, never> =>
+  rankedRefusal<Blocked>({
+    lasting: session.value.rights.has(permission) ? null : { forbidden: permission },
+    gate: gateWhy.value ? { reason: gateWhy.value } : null,
+  }) ?? {};
 const editBlocked = computed(() => blockedBy(editPermission.value));
 /**
- * The gate read again as it acts, not only as the button was drawn: refused, its reason
- * said by the status of the record, no panel opened.
+ * The refusal of an action read again as it acts, not only as its button was drawn — the
+ * window may have narrowed since —: `blocked`, the very refusal that button or entry is
+ * drawn with (each action its own right), the permission before the gate; refused, its
+ * reason said by the status of the record, no panel opened.
  */
-function gateOpen(): boolean {
-  if (gateWhy.value) status(gateWhy.value);
-  return gateWhy.value === null;
+function gateOpen(blocked: { forbidden?: string; reason?: string; disabled?: boolean }): boolean {
+  const words =
+    blocked.forbidden !== undefined
+      ? whyWords({ kind: "forbidden", permission: blocked.forbidden }, t)
+      : blocked.reason || undefined;
+  if (words) status(words);
+  return words === undefined;
 }
 function modify(): void {
-  if (!gateOpen()) return;
+  if (!gateOpen(editBlocked.value)) return;
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
-// Refused, `e` says why by the status of the record, as « Modifier » says it on its button
-// (`view.ts` says the gate before the permission, `blockedBy` the reverse: task 21h).
+// Refused, `e` says why by the status of the record, as « Modifier » says it on its button:
+// the permission before the gate, in `view.ts` as in `blockedBy` (`rankedRefusal`).
 const { said, status, clear: clearSaid } = useStatus();
 // Another object shown by the same view: what was said of the last one no longer holds.
 watch(() => props.id, clearSaid);
@@ -223,7 +234,7 @@ const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
   if (id === MOVE || id === CLOSE) {
-    if (!gateOpen()) return;
+    if (!gateOpen(id === MOVE ? moveRefusal() : closeRefusal())) return;
     // Once the menu has closed and given the focus back to its button: the panel then takes
     // it to its first field, and gives it back to that button when it closes.
     const mode = id === MOVE ? "move" : "close";
@@ -245,7 +256,8 @@ const vlanTab = computed(
 );
 const vlanBlocked = computed(() => blockedBy(editRight("core.vlan")));
 function createVlan(): void {
-  if (!gateOpen()) return;
+  // Its own right (`core.vlan.edit`), as its button is drawn: not the right to modify the group.
+  if (!gateOpen(vlanBlocked.value)) return;
   openEdit({ mode: "create", collection: "vlans", preset: { group: props.id } });
 }
 

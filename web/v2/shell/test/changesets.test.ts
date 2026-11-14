@@ -117,11 +117,12 @@ describe("the review of a changeset", () => {
   });
 
   it("nothing out of the present; an applied one undone; a closed one decided no more", () => {
-    expect(
-      reviewActions(changeset(), { me: "alice", rights: reviewer, refused: "past" }).every(
-        (a) => a.reason === "past",
-      ),
-    ).toBe(true);
+    // The past for the reviewer's decisions; the withdrawal its author's (task 021-21h).
+    expect(reviewActions(changeset(), { me: "alice", rights: reviewer, refused: "past" })).toEqual([
+      { id: "validation", reason: "past" },
+      { id: "rejection", reason: "past" },
+      { id: "withdrawal", reason: "author" },
+    ]);
     const applied = changeset({ state: "applied" });
     expect(reviewActions(applied, { me: "alice", rights: reviewer, refused: null })).toEqual([
       { id: "undo", forbidden: "core.vlan.edit" },
@@ -131,22 +132,29 @@ describe("the review of a changeset", () => {
     ).toEqual([]);
   });
 
-  it("nothing decided under 1024 px wide, the width said before the rights (task 021-21d)", () => {
+  it("nothing decided under 1024 px wide, the lasting reason said before the width (task 021-21h)", () => {
     const narrow = { rights: reviewer, refused: "narrow" as const };
-    // A reviewer: every decision refused by the width, as by the past.
+    // A reviewer: every decision refused by the width, the withdrawal its author's.
     expect(reviewActions(changeset(), { me: "alice", ...narrow })).toEqual([
       { id: "validation", reason: "narrow" },
       { id: "rejection", reason: "narrow" },
+      { id: "withdrawal", reason: "author" },
+    ]);
+    // Its author, held by a policy: the policy before the width; its withdrawal the width.
+    const self = new Rights(["core.prefix.approval.self", "core.vlan.approval.self"]);
+    const policy = changeset({ kind: "approval" });
+    expect(reviewActions(policy, { me: "bob", rights: self, refused: "narrow" })).toEqual([
+      { id: "validation", reason: "held" },
       { id: "withdrawal", reason: "narrow" },
     ]);
-    // Its author, held by a policy: the width before the policy, as before the right lacking.
-    expect(reviewActions(changeset({ kind: "approval" }), { me: "bob", ...narrow })).toEqual([
-      { id: "validation", reason: "narrow" },
+    // Without `approval.self` too: the permission before the policy and the width.
+    expect(reviewActions(policy, { me: "bob", ...narrow })).toEqual([
+      { id: "validation", forbidden: "core.prefix.approval.self" },
       { id: "withdrawal", reason: "narrow" },
     ]);
-    // Applied, without `.edit`: the width, not the permission.
+    // Applied, without `.edit`: the permission, not the width.
     expect(reviewActions(changeset({ state: "applied" }), { me: "alice", ...narrow })).toEqual([
-      { id: "undo", reason: "narrow" },
+      { id: "undo", forbidden: "core.vlan.edit" },
     ]);
   });
 

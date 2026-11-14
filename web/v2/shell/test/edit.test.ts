@@ -108,9 +108,10 @@ describe("the fields of an edit", () => {
       editable: false,
       why: { kind: "forbidden", permission: "core.prefix.edit" },
     });
+    // Under `as_of` too, the permission before the past (task 021-21h).
     expect(editability(reader, AS_OF, PREFIXES, "value")).toEqual({
       editable: false,
-      why: { kind: "past" },
+      why: { kind: "forbidden", permission: "core.prefix.edit" },
     });
     // The domain never changes after creation; a computed value never does.
     expect(editability(author, NOW, PREFIXES, "domain")).toMatchObject({
@@ -122,14 +123,14 @@ describe("the fields of an edit", () => {
     expect(editability(author, NOW, PREFIXES, "id")).toMatchObject({ why: { kind: "none" } });
   });
 
-  it("offer no editor in a frame under 1024 px, the width said before a permission (task 021-21c)", () => {
+  it("offer no editor in a frame under 1024 px, a permission said before the width (task 021-21h)", () => {
     expect(editability(author, NARROW, PREFIXES, "value")).toEqual({
       editable: false,
       why: { kind: "narrow" },
     });
     expect(editability(reader, NARROW, PREFIXES, "prop.core.owner")).toEqual({
       editable: false,
-      why: { kind: "narrow" },
+      why: { kind: "forbidden", permission: "prop.core.owner.edit" },
     });
     // A field that never changes says so, at any width.
     expect(editability(author, NARROW, PREFIXES, "domain")).toMatchObject({

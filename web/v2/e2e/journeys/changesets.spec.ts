@@ -207,8 +207,9 @@ test("on a narrow window, an action folded in « … » keeps its refusal and it
   browserName,
 }) => {
   // Task 020-31 (REQ-021-37, 024/M14): « Retirer », refused to Alice by a reason alone,
-  // folds into « … » and stays refused there, said. Under 1024 px the reason is the width
-  // (task 021-21d, REQ-021-29), said before the author's (only its author withdraws it).
+  // folds into « … » and stays refused there, said. Under 1024 px too, the reason is the
+  // author's (only its author withdraws it), said before the width (task 021-21h: the
+  // lasting reason first, REQ-021-37, 29), which a wider window would not change.
   await page.setViewportSize({ width: 420, height: 800 });
   await login("alice");
   const { slug } = await ownedDomain(page, unique(browserName));
@@ -219,15 +220,17 @@ test("on a narrow window, an action folded in « … » keeps its refusal and it
   await page.goto(`/changesets/${id}`);
   await expect(state(page, "En attente")).toBeVisible();
   await expect(actions(page).getByRole("button", { name: "Retirer" })).toHaveCount(0);
+  // What Alice may decide once wider, the width says: « Valider ».
+  await expect(actions(page).getByRole("button", { name: /^Valider/ })).toHaveAccessibleDescription(
+    /Décision à partir de 1024 px de large/,
+  );
   const more = actions(page).getByRole("button", { name: "Plus d'actions" });
   await more.press("Enter");
   const menu = page.getByRole("menu", { name: "Plus d'actions" });
   await expect(menu).toBeVisible();
   const withdraw = menu.getByRole("menuitem", { name: "Retirer" });
   await expect(withdraw).toHaveAttribute("aria-disabled", "true");
-  await expect(withdraw).toHaveAccessibleDescription(
-    "Décision à partir de 1024 px de large : élargissez la fenêtre pour décider.",
-  );
+  await expect(withdraw).toHaveAccessibleDescription("Seul l'auteur retire son changeset.");
   // Reached by the arrows, chosen at the keyboard: the menu stays, nothing is withdrawn.
   const entries = await menu.getByRole("menuitem").count();
   for (let i = 0; i < entries; i++) {

@@ -1,6 +1,6 @@
 import { onScopeDispose, shallowRef, type Ref } from "vue";
 import type { WidthClass } from "@kartenn/ui";
-import { refusalWords, writesOf, type Time, type Writes } from "../time/index.ts";
+import { rankedRefusal, refusalWords, writesOf, type Time, type Writes } from "../time/index.ts";
 
 // The actions of the current view behind the shell's keys `/`, `c` and `e` (design 021
 // « Raccourcis ») and the palette's commands « Créer… », « Modifier… » (REQ-021-3): a view
@@ -9,8 +9,8 @@ import { refusalWords, writesOf, type Time, type Writes } from "../time/index.ts
 // draft (`dated`, REQ-021-5), never under `as_of` nor in a frame narrower than 1024 px
 // (REQ-021-29) — and only when the view says the user may (`allowed`: the write right; the
 // server stays the judge). Refused, the key says why by the polite status of the view
-// (`say`, REQ-021-37) rather than nothing: the gate first (the past, the width), then the
-// view's reason (`why`: the permission it lacks, no domain).
+// (`say`, REQ-021-37) rather than nothing: the view's reason first (`why`: the permission
+// it lacks, no domain), then the gate (the past, the width), as every refusal (task 21h).
 
 export type ViewActionId = "filter" | "create" | "edit";
 
@@ -18,23 +18,21 @@ export interface ViewAction {
   /** Its label in the palette (« Créer un préfixe »), in the language of the moment. */
   label: () => string;
   run: () => void;
-  /** Whether the user may now (the write right, an object or a cell current). */
+  /**
+   * Whether the user may now, the gate of writes apart (the write right, an object or a
+   * cell current, the view's own reasons): the gate is the frame's to read.
+   */
   allowed?: () => boolean;
   /**
-   * Why `allowed` says no, in words (« Lecture seule : il faut core.prefix.edit »);
-   * `undefined` when nothing is to be said (no object to act on: the key is let go).
+   * Why `allowed` says no, in words (« Lecture seule : il faut core.prefix.edit »), said
+   * before the gate of writes as its button says it (`rankedRefusal`); `undefined` when
+   * nothing is to be said (no object to act on: the key is let go).
    */
   why?: () => string | undefined;
   /** The polite status of the view, which says why the key is refused. */
   say?: (text: string) => void;
   /** It writes to the draft, which may be dated: it runs under `valid_at` alone too. */
   dated?: boolean;
-  /**
-   * Its `why` is a lasting reason (a permission lacking, an object delivered, a scope
-   * wider), said before the gate of writes, as its button says it (the administration,
-   * task 021-21e); without it, the gate is said first.
-   */
-  lasting?: boolean;
 }
 
 export type ViewActions = Partial<Record<ViewActionId, ViewAction>>;
@@ -106,10 +104,11 @@ export function offered(
 
 /**
  * The key of the action `id` pressed under `writes`: the action runs, or, refused, the
- * view's status says why — the gate first (`edit.why.past` off the present, `edit.why.narrow`
- * under 1024 px; before a permission missing, as the cells say it), else the view's `why`;
- * a `lasting` action says its `why` first — and the key is taken. `false` (the key let go) when the view has no such action, no
- * status, or nothing to say (no object to act on).
+ * view's status says why, by the rank of every refusal (`rankedRefusal`, task 021-21h) —
+ * the view's `why` first (the permission missing, its own reason), as its button and its
+ * cells say it, then the gate (`edit.why.past` off the present, `edit.why.narrow` under
+ * 1024 px) — and the key is taken. `false` (the key let go) when the view has no such
+ * action, no status, or nothing to say (no object to act on).
  */
 export function play(id: ViewActionId, writes: Writes, t: (key: string) => string): boolean {
   const action = actions.value[id];
@@ -123,11 +122,11 @@ export function play(id: ViewActionId, writes: Writes, t: (key: string) => strin
   const why = may ? undefined : action.why?.();
   // Nothing to act on (no row, no node chosen): nothing to say, at any date or width.
   if (!may && why === undefined) return false;
-  // Under `valid_at` alone, an action that is not `dated` waits for the present.
-  const words =
-    fits || (action.lasting && why !== undefined)
-      ? why
-      : (refusalWords(writes, t) ?? t("edit.why.past"));
+  const words = rankedRefusal({
+    lasting: why,
+    // Under `valid_at` alone, an action that is not `dated` waits for the present.
+    gate: fits ? undefined : (refusalWords(writes, t) ?? t("edit.why.past")),
+  });
   if (!words || !action.say) return false;
   action.say(words);
   return true;

@@ -6,7 +6,7 @@ import {
   type Violation,
 } from "@kartenn/sdk";
 import { covers } from "../rights/index.ts";
-import type { WriteRefusal as GateRefusal } from "../time/index.ts";
+import { rankedRefusal, type WriteRefusal as GateRefusal } from "../time/index.ts";
 import type { Refusal as WriteRefusal } from "../views/edit/inline.ts";
 import type { GateWords, Pending, Refusal } from "./model.ts";
 
@@ -63,9 +63,11 @@ export function globalRefusal(input: {
   /** A lasting reason of the screen, said after the permission and before the gate. */
   lasting?: string | undefined;
 }): Refusal | undefined {
-  if (!holdsGlobally(input.me, input.permission)) return { forbidden: input.permission };
-  if (input.lasting !== undefined) return { reason: input.lasting };
-  return input.refused ? { reason: input.words[input.refused] } : undefined;
+  return rankedRefusal<Refusal>({
+    lasting: holdsGlobally(input.me, input.permission) ? null : { forbidden: input.permission },
+    state: input.lasting === undefined ? null : { reason: input.lasting },
+    gate: input.refused ? { reason: input.words[input.refused] } : null,
+  });
 }
 
 /** The operations of the shapes this file reads. */

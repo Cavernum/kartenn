@@ -135,7 +135,6 @@ useViewAction("create", {
   allowed: () => !refusal(null),
   why: () => refusalSentence(refusal(null), t),
   say: status,
-  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,

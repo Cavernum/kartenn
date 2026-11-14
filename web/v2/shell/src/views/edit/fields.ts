@@ -1,6 +1,6 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { Rights } from "../../rights/permissions.ts";
-import type { Writes } from "../../time/index.ts";
+import { rankedRefusal, type Writes } from "../../time/index.ts";
 import { anchorOf, collectionById, type CollectionId, type Item } from "../collections.ts";
 
 // What an edit of an object of the referential writes (REQ-021-15, 36; design 021 « Édition
@@ -520,6 +520,8 @@ export function editability(
   writes: Writes,
   collection: { id: CollectionId; type: string },
   column: string,
+  /** A lasting reason of the caller (no editor, a value unread), said after the right. */
+  own: NotEditable | null = null,
 ): Editability {
   const edit = EDITS[collection.id];
   const property = PROPERTY_COLUMN.exec(column)?.[1];
@@ -528,14 +530,18 @@ export function editability(
   if (!property && !edit.modification.some((field) => field.name === column)) {
     return { editable: false, why: { kind: "none" } };
   }
-  // Under `as_of` or in a narrow frame nothing is written, whatever the rights (the gate's
-  // refusal); the dated draft (`valid_at` alone) is said only to whom may write it, a
-  // missing right named first.
-  if (!writes.draft) return { editable: false, why: { kind: writes.refused ?? "past" } };
+  // The missing right first, then the gate (`rankedRefusal`, task 021-21h): under `as_of`
+  // or in a narrow frame nothing is written; under `valid_at` alone, the dated draft.
   const permission = property ? propertyRight(property) : editRight(collection.type);
-  if (!rights.has(permission)) return { editable: false, why: { kind: "forbidden", permission } };
-  if (!writes.quickEdit) return { editable: false, why: { kind: "dated" } };
-  return { editable: true };
+  const why = rankedRefusal<NotEditable>({
+    lasting: rights.has(permission) ? own : { kind: "forbidden", permission },
+    gate: !writes.draft
+      ? { kind: writes.refused ?? "past" }
+      : writes.quickEdit
+        ? null
+        : { kind: "dated" },
+  });
+  return why ? { editable: false, why } : { editable: true };
 }
 
 /** The field of the patch of a collection named `name`, if any. */

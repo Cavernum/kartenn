@@ -121,10 +121,13 @@ describe("`c` and `e` refused say why (task 021-12k)", () => {
     await expect
       .poll(() => statuses(empty.root))
       .toContain("Ajout impossible : aucun domaine que vous puissiez lire.");
-    // Off the present, the present first (the domain or not).
+    // Off the present too, no domain before the past: the lasting reason first (task 021-21h).
     await empty.router.push(`/topology?as_of=${AS_OF}`);
     expect(play("create", timeIn(empty.router), t)).toBe(true);
-    await expect.poll(() => statuses(empty.root)).toContain("<past>");
+    await expect
+      .poll(() => statuses(empty.root))
+      .toContain("Ajout impossible : aucun domaine que vous puissiez lire.");
+    expect(statuses(empty.root)).not.toContain("<past>");
     app?.unmount();
     app = undefined;
     queryClient.clear();
@@ -152,11 +155,19 @@ describe("`c` and `e` refused say why (task 021-12k)", () => {
     expect(play("create", timeIn(router), t)).toBe(true);
     await expect.poll(() => statuses(root)).toContain("Lecture seule : il faut core.address.edit");
     expect(editRequest().value).toBeNull();
-    // Under `as_of`, a domain read: `c` and `e` say the present, before the permission.
+    // Under `as_of`, a domain read: `c` and `e` say the permission, before the present
+    // (task 021-21h: the lasting reason first).
     await router.push(`/topology?node=${PREFIX}&as_of=${AS_OF}`);
+    await expect
+      .poll(() => (play("create", timeIn(router), t), statuses(root)))
+      .toContain("Lecture seule : il faut core.address.edit");
+    await expect
+      .poll(() => (play("edit", timeIn(router), t), statuses(root)))
+      .toContain("Lecture seule : il faut core.prefix.edit");
+    // Each key taken, as it was under the past.
     expect(play("create", timeIn(router), t)).toBe(true);
-    await expect.poll(() => statuses(root)).toContain("<past>");
     expect(play("edit", timeIn(router), t)).toBe(true);
+    expect(statuses(root)).not.toContain("<past>");
     expect(editRequest().value).toBeNull();
   });
 
