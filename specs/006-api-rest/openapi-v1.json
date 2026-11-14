@@ -8413,9 +8413,17 @@
               "null"
             ]
           },
+          "author": {
+            "$ref": "#/components/schemas/IdentityRef",
+            "description": "The author of that changeset, as the identities name it at the read (pseudonymised\nonce the person is, REQ-004-33), for whoever reads the object (Q-021-29)."
+          },
           "changeset": {
             "$ref": "#/components/schemas/ChangesetRef",
             "description": "The changeset that wrote it."
+          },
+          "motive": {
+            "description": "The motive of that changeset, served with the object (Q-021-30).",
+            "type": "string"
           },
           "object": {
             "$ref": "#/components/schemas/ModuleObject",
@@ -8437,6 +8445,8 @@
           "valid_from",
           "asserted_from",
           "changeset",
+          "motive",
+          "author",
           "object"
         ],
         "type": "object"

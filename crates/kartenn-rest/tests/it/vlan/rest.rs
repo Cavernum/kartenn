@@ -46,10 +46,15 @@ impl Authenticator for As {
 impl Env {
     /// The router of an instance without any module, as the person `identity`.
     fn app(&self, identity: Uuid) -> Router {
+        self.app_bounded(identity, Duration::from_secs(60))
+    }
+
+    /// [`Env::app`], its longest write transaction `bound`.
+    fn app_bounded(&self, identity: Uuid, bound: Duration) -> Router {
         let api = Api {
             pool: self.pool.clone(),
             ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
-            bound: Duration::from_secs(60),
+            bound,
             journal: PgAuditJournal::new(self.pool.clone(), Instance::new("test")),
             audit: ReadAudit::default(),
             sources: kartenn_service::expected::Sources::none(),
@@ -426,6 +431,108 @@ async fn occupancy_over_http(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["items"][0]["object"]["kind"], "vlan_group", "{body}");
     assert_eq!(body["items"][0]["object"]["domain"], lab.to_string());
+}
+
+/// The history of a VLAN and of its group names the motive and the author of each
+/// changeset as that of an object of the core (task 021-11p8, Q-021-24): the author read
+/// from the identities at each read, never frozen, pseudonymised once the person is
+/// (REQ-004-33), for a reader of the VLANs without `core.rbac.read` (Q-021-29, 30).
+#[kartenn_testing::pg_test]
+async fn history_of_a_vlan_names_the_motive_and_the_author(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    sqlx::query(
+        "UPDATE person SET display_name = 'Camille Martin', email = 'camille.martin@example.org'
+         WHERE id = $1",
+    )
+    .bind(env.author)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 10),
+            &[(7, "active")],
+        )
+        .await;
+    let vlan = env.vlan_of(group, 7).await;
+    let asserted: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let uri = format!("/v1/vlans/{vlan}/history");
+    let past = format!(
+        "{uri}?as_of={}",
+        asserted
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+            .replace('+', "%2B")
+    );
+    // No bound on the writes: a second past `asserted`, a read at it is in the frozen
+    // past, and would be `immutable` were its authors not read now.
+    let reader = env.app_bounded(
+        env.person(&["core.vlan_group.read", "core.vlan.read"], None)
+            .await,
+        Duration::ZERO,
+    );
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let (status, headers, _) = call(&reader, "GET", &past, None, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers["cache-control"], "private, no-cache");
+    let tag = headers["etag"].to_str().unwrap().to_owned();
+
+    let author = env.author;
+    let named = json!({
+        "id": author,
+        "href": format!("/v1/identities/{author}"),
+        "name": "Camille Martin",
+    });
+    for history in [uri.clone(), format!("/v1/vlan-groups/{group}/history")] {
+        let (status, _, body) = call(&reader, "GET", &history, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["items"][0]["motive"], "test", "{body}");
+        assert_eq!(body["items"][0]["author"], named, "{body}");
+    }
+
+    let officer = env.app(env.person(&["core.identity.pseudonymise"], None).await);
+    let request = Request::post(format!("/v1/identities/{author}/pseudonymisation"))
+        .header(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer test"),
+        )
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            json!({ "motive": "droit à l'effacement" }).to_string(),
+        ))
+        .unwrap();
+    let response = officer.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let (_, _, body) = call(&reader, "GET", &uri, None, &[]).await;
+    let text = body.to_string();
+    assert!(
+        !text.contains("Camille") && !text.contains("Martin"),
+        "{body}"
+    );
+    assert!(!text.contains("camille.martin@example.org"), "{body}");
+    let pseudonym = format!("personne #{}", &author.to_string()[..8]);
+    assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
+    assert_eq!(body["items"][0]["motive"], "test");
+    // At the same past `as_of` too: a new body, a new tag, no 304.
+    let (status, headers, body) = call(
+        &reader,
+        "GET",
+        &past,
+        None,
+        &[("if-none-match", tag.clone())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers["cache-control"], "private, no-cache");
+    assert_ne!(headers["etag"], tag.as_str());
+    assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
 }
 
 #[kartenn_testing::pg_test]
