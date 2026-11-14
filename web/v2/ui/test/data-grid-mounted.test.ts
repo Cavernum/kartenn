@@ -7,7 +7,7 @@ import { createApp, h, nextTick, shallowReactive, type App, type Component } fro
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import type { CellRef, GridColumn } from "../src/components/DataGrid/grid.ts";
-import { headShift } from "../src/components/internal/virtualRows.ts";
+import { ANCHORED_ROWS, headShift } from "../src/components/internal/virtualRows.ts";
 
 // A paged list past the pages its cache keeps (task 021-22f): the cache drops the first
 // page as it reads the next one, every row moves up a page among the rows of the grid, and
@@ -195,6 +195,35 @@ describe("DataGrid: a page dropped at the head of a paged list (task 021-22f)", 
     expect(grid.scrollTop).toBe(offset);
   });
 
+  it("anchors nothing for a row created or removed at the head, scrolled or not", async () => {
+    const { props, grid } = await mountGrid();
+    const created = { id: "aaa", label: "Créée" };
+    for (const top of [0, 5_000]) {
+      await scrollGrid(grid, top);
+      // A row created that sorts first: at the top of the list, seen at its place.
+      props.rows = [created, ...rowsOf(0, 1000)];
+      await settle();
+      expect(grid.scrollTop, `created, at ${top}`).toBe(top);
+      if (top === 0) expect(rowUnder(grid, 0)!.key).toBe("aaa");
+      // Removed again: the rows move up one row, the scroll offset kept.
+      props.rows = rowsOf(0, 1000);
+      await settle();
+      expect(grid.scrollTop, `removed, at ${top}`).toBe(top);
+      // The first row removed.
+      props.rows = rowsOf(1, 1000);
+      await settle();
+      expect(grid.scrollTop, `first removed, at ${top}`).toBe(top);
+      props.rows = rowsOf(0, 1000);
+      await settle();
+    }
+  });
+
+  it("anchors nothing for a page dropped while the grid is at its top", async () => {
+    const { props, grid } = await mountGrid();
+    await dropFirstPage(props);
+    expect(grid.scrollTop).toBe(0);
+  });
+
   it("keeps the cell of the focus focused and an open editor with its text", async () => {
     const { props, grid } = await mountGrid();
     for (let top = 0; top <= 21_000; top += 3_500) await scrollGrid(grid, top);
@@ -231,18 +260,23 @@ describe("DataGrid: a page dropped at the head of a paged list (task 021-22f)", 
 describe("headShift: rows gone or come at the head only (task 021-22f)", () => {
   const keys = (from: number, to: number) => rowsOf(from, to).map((row) => row.id);
   it("is the first page dropped, the next one read or not, or a page read before", () => {
-    expect(headShift(keys(0, 1000), keys(100, 1100))).toBe(true);
-    expect(headShift(keys(0, 1000), keys(100, 1000))).toBe(true);
-    expect(headShift(keys(100, 1100), keys(0, 1000))).toBe(true);
+    expect(headShift(keys(0, 1000), keys(100, 1100))).toBe(100);
+    expect(headShift(keys(0, 1000), keys(100, 1000))).toBe(100);
+    expect(headShift(keys(100, 1100), keys(0, 1000))).toBe(-100);
+    // A row: counted as such, below `ANCHORED_ROWS`.
+    expect(headShift(keys(0, 1000), keys(1, 1000))).toBe(1);
+    expect(headShift(keys(0, 1000), ["aaa", ...keys(0, 1000)])).toBe(-1);
+    expect(ANCHORED_ROWS).toBeGreaterThan(1);
+    expect(ANCHORED_ROWS).toBeLessThanOrEqual(100);
   });
   it("is neither a page read at the end, nor a sort, nor rows of another list", () => {
-    expect(headShift(keys(0, 900), keys(0, 1000))).toBe(false);
-    expect(headShift(keys(0, 1000), keys(0, 1000))).toBe(false);
-    expect(headShift(keys(0, 1000), keys(0, 1000).reverse())).toBe(false);
-    expect(headShift(keys(0, 1000), keys(5000, 6000))).toBe(false);
-    expect(headShift([], keys(0, 100))).toBe(false);
+    expect(headShift(keys(0, 900), keys(0, 1000))).toBe(0);
+    expect(headShift(keys(0, 1000), keys(0, 1000))).toBe(0);
+    expect(headShift(keys(0, 1000), keys(0, 1000).reverse())).toBe(0);
+    expect(headShift(keys(0, 1000), keys(5000, 6000))).toBe(0);
+    expect(headShift([], keys(0, 100))).toBe(0);
     // A row of the middle gone too: not a move of the head alone.
     const holed = keys(100, 1100).filter((key) => key !== "a500");
-    expect(headShift(keys(0, 1000), holed)).toBe(false);
+    expect(headShift(keys(0, 1000), holed)).toBe(0);
   });
 });

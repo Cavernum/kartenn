@@ -656,9 +656,9 @@ function widgetsOf(cell: HTMLElement): HTMLElement[] {
 }
 /** A widget of a cell (never the cell itself, nor an editor) leaves the tab order. */
 const tame = (el: Element) => tameControl(el, "[data-column]", ".k-data-grid__editor");
-/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
 /** The widgets `tame` may take out of the tab order: never a cell (each has a `tabindex`). */
 const TAMED = `:is(${WIDGETS}):not([data-column])`;
+/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
 function tameWidgets(): void {
   for (const el of grid.value?.querySelectorAll(TAMED) ?? []) tame(el);
 }
