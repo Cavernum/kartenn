@@ -767,10 +767,17 @@ describe("TreeGrid: a row renders again only when its own row changes (task 021-
     app.config.errorHandler = (error) => {
       throw error;
     };
+    // The renders of the rows (task 021-22e-c).
+    const renders = { rows: 0 };
+    app.mixin({
+      updated() {
+        if (this.$options.__name === "TreeGridRow") renders.rows += 1;
+      },
+    });
     apps.push(app);
     app.mount(root);
     const rendered = () => root.querySelectorAll("[role='row'][data-node]").length;
-    return { props, asked, cells, rendered };
+    return { props, asked, cells, rendered, renders, root };
   }
 
   it.each([false, true])(
@@ -781,10 +788,11 @@ describe("TreeGrid: a row renders again only when its own row changes (task 021-
       const rows = tree.rendered();
       expect(rows).toBeGreaterThan(2);
       expect(rows).toBeLessThan(300);
-      // The row's state, for the row and for its words; the cells' states, for the error
-      // of the node cell, the state and the error of the other one (before: six and seven).
+      // The row's state, for the row and for its words; the cells' states once each, kept
+      // for the row and the table of the reasons (before the task 021-22e-c: three for the
+      // two cells, before the task 021-22e-b: six and seven).
       for (const [node, n] of tree.asked) expect(n, node).toBeLessThanOrEqual(2);
-      for (const [node, n] of tree.cells) expect(n, node).toBeLessThanOrEqual(3);
+      for (const [node, n] of tree.cells) expect(n, node).toBeLessThanOrEqual(2);
       tree.asked.clear();
       tree.cells.clear();
       // The tree renders again (its name), no row changes: none asks again.
@@ -797,4 +805,41 @@ describe("TreeGrid: a row renders again only when its own row changes (task 021-
       expect(tree.cells.size).toBe(0);
     },
   );
+
+  // Before the task 021-22e-c, each row read the roving stop and the selection itself: a
+  // step of the focus, a row selected rendered every row of the window.
+  it("a step of the focus renders the row it leaves and the row it reaches; so does a selection", async () => {
+    const tree = counted(false);
+    await nextTick();
+    const node = (n: number) =>
+      tree.root.querySelectorAll<HTMLElement>("[role='row'][data-node] [data-column='']")[n]!;
+    node(0).focus();
+    await nextTick();
+    for (let step = 1; step <= 3; step++) {
+      tree.renders.rows = 0;
+      tree.cells.clear();
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
+      await nextTick();
+      await nextTick();
+      expect(document.activeElement).toBe(node(step));
+      expect(tree.renders.rows, `step ${step}`).toBe(2);
+      expect(tree.cells.size, `step ${step}`).toBe(0);
+    }
+    const press = async (key: string) => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      await nextTick();
+      await nextTick();
+    };
+    // A first selection: every row says it is not selected, rendered once.
+    await press(" ");
+    await press("ArrowDown");
+    tree.renders.rows = 0;
+    await press(" ");
+    const selected = (n: number) => node(n).closest("[role='row']")!.getAttribute("aria-selected");
+    expect([selected(3), selected(4)]).toEqual(["false", "true"]);
+    // The selection moved: the row it leaves, the row it reaches.
+    expect(tree.renders.rows).toBe(2);
+  });
 });

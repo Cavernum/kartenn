@@ -6,9 +6,11 @@
 // A row of a node of `TreeGrid` (task 021-22e-b), its own component: as the tree scrolls,
 // the tree renders its list of rows, and a row renders again only when its props change
 // (the row of the model it shows, its index: a recycled row) or what it read changed (the
-// focus, the editor, the host's states). Each state of the row and of its cells is asked
-// of the host once per render (`state`, `cells`), not once per attribute. The styles are
-// the tree's (`TreeGrid.vue`).
+// focus, the editor, the host's states). The roving stop and the selection it reads through
+// its own key, in computeds that keep their value (task 021-22e-c): a step of the focus, a
+// selection that moves render the rows whose answer changes, never the others. Each state
+// of the row and of its cells is asked of the host once per render (`state`, `cells`), not
+// once per attribute. The styles are the tree's (`TreeGrid.vue`).
 import { computed, onMounted, onUpdated, ref, type FunctionalComponent, type Slot } from "vue";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import CellError from "../DataGrid/CellError.vue";
@@ -44,6 +46,11 @@ const move = computed(() => props.c.moveOf(props.row.node));
 const refused = computed(() => props.c.refusal(props.row.node));
 const words = computed(() => props.c.rowWords(props.row.node));
 const addLabel = computed(() => props.c.addLabel(props.row.node));
+// The tree's shared state, through the key of this row.
+const stop = computed(() => props.c.stopIn(props.row.key));
+const selected = computed(() =>
+  props.c.selected.value === undefined ? undefined : props.row.key === props.c.selected.value,
+);
 
 /** What a cell shows, asked once: its state, error, editor, description, tab stop. */
 function cellView(column: GridColumn) {
@@ -61,7 +68,7 @@ function cellView(column: GridColumn) {
     describedBy: message ? c.errorId(index, column.id) : c.reasonOf(row.node, column),
     errorId: message ? c.errorId(index, column.id) : undefined,
     anchor: message ? c.errorAnchor(row.node, column) : null,
-    tabindex: editing ? undefined : c.isStop(row.key, column.id) ? 0 : -1,
+    tabindex: editing ? undefined : stop.value === column.id ? 0 : -1,
   };
 }
 const head = computed(() => cellView(props.c.treeColumn.value));
@@ -86,9 +93,7 @@ onUpdated(() => props.c.tame(el.value));
     :aria-posinset="props.row.posInSet"
     :aria-rowindex="props.index + 2"
     :aria-expanded="hasChildren(node) ? props.c.isExpanded(props.row.key) : undefined"
-    :aria-selected="
-      props.c.selected.value === undefined ? undefined : props.row.key === props.c.selected.value
-    "
+    :aria-selected="selected"
     :aria-busy="move === 'pending' || state === 'loading-children' ? 'true' : undefined"
     :data-state="state"
     :data-move="move"

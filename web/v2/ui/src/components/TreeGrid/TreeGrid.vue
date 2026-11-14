@@ -52,7 +52,18 @@
 // comes to show, as a list keyed by its rows would (design 007: elements created again as
 // the rows scroll). The slot `extension` (`GridColumn.element`), keyed the same way, puts
 // the host's content in such a cell instead.
+// The body renders, for each part of the window, a gap, the row that reads the next page of
+// a list, a notice after its siblings (out of their set, never selected, activated), or a
+// node in its own component (`TreeGridRow`), rendered again only when what it shows
+// changes. No comment in the template there: between the branches of `v-if`, in
+// development, it would make each of them a fragment, patched whole; outside them, it is
+// shipped (task 021-22e-c, as `DataGrid`).
+// The host's functions (`cellState`, `editable`, `readonlyReason`, `stateReason`,
+// `nodeState`…) read a reactive state, as a computed does: what they say of the cells of a
+// node is asked once and kept while what they read holds (task 021-22e-c), by its row and
+// by the table of the hidden reasons alike.
 import {
+  type ComputedRef,
   computed,
   nextTick,
   onBeforeUnmount,
@@ -102,7 +113,7 @@ import {
   type TreeNodeState,
   type TreeRow,
 } from "./tree.ts";
-import type { TreeGridRowContext } from "./row.ts";
+import type { CellFacts, TreeGridRowContext } from "./row.ts";
 import TreeGridRow from "./TreeGridRow.vue";
 
 defineOptions({ inheritAttrs: false });
@@ -473,8 +484,46 @@ async function startEditing(cell: CellRef): Promise<void> {
 
 // ——— States and errors of cells ———
 
-function stateOf(node: TreeNode, column: GridColumn): string | undefined {
+/**
+ * What the host says of a cell: its state, whether it has an editor, its reasons. Asked
+ * once per node and per column, kept in a computed of the node while what the host read
+ * holds (task 021-22e-c): a row that comes as the tree scrolls asks it once for all its
+ * cells, the rows that stay and the table of the hidden reasons ask nothing again.
+ */
+function factsOfCell(node: TreeNode, column: GridColumn): CellFacts {
   const state = props.cellState?.(node, column);
+  const editable = canEdit(node, column);
+  // Why the cell is in its state (nothing for an error, which its message says), then
+  // why it has no editor (a cell of an extension is no field), each once.
+  const notes = hasReasons.value
+    ? notesOfTexts([
+        props.stateReason && typeof state === "string"
+          ? props.stateReason(node, column)
+          : undefined,
+        props.editable && props.readonlyReason && !column.element && !editable
+          ? props.readonlyReason(node, column)
+          : undefined,
+      ])
+    : [];
+  return { state, editable, notes };
+}
+const factsCache = new WeakMap<TreeNode, ComputedRef<Map<string, CellFacts>>>();
+function factsOf(node: TreeNode, column: GridColumn): CellFacts {
+  let facts = factsCache.get(node);
+  if (!facts) {
+    facts = computed(
+      () =>
+        new Map(
+          [treeColumn.value, ...shown.value].map((c) => [c.id, factsOfCell(node, c)] as const),
+        ),
+    );
+    factsCache.set(node, facts);
+  }
+  // A column not rendered (none asks it but a key that names it): asked at once.
+  return facts.value.get(column.id) ?? factsOfCell(node, column);
+}
+function stateOf(node: TreeNode, column: GridColumn): string | undefined {
+  const state = factsOf(node, column).state;
   return state === undefined ? undefined : typeof state === "string" ? state : "error";
 }
 const CELL_WORDS = { pending: "pending", draft: "inDraft", review: "inReview" } as const;
@@ -488,7 +537,7 @@ function messageOf(
   column: GridColumn,
 ): { error: string; code?: string } | undefined {
   if (isEditing(node.id, column.id) && editor.error.value) return { error: editor.error.value };
-  const state = props.cellState?.(node, column);
+  const state = factsOf(node, column).state;
   return typeof state === "object" ? state : undefined;
 }
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
@@ -517,22 +566,12 @@ function errorAnchor(node: TreeNode, column: GridColumn): HTMLElement | null {
 // Why a cell is in its state (`stateReason`) and why a cell of an editable treegrid has
 // no editor (`readonlyReason`), as `DataGrid` (`internal/cellReasons.ts`): hidden
 // sentences outside the rows, the description of the cell, one tooltip for the tree.
-// A cell of an extension is no field: no reason why it has no editor.
-const readonlyText = (node: TreeNode, column: GridColumn) =>
-  props.editable && props.readonlyReason && !column.element && !canEdit(node, column)
-    ? props.readonlyReason(node, column)
-    : undefined;
-/** Why the cell is in its state; nothing for an error, which its message says. */
-function stateText(node: TreeNode, column: GridColumn): string | undefined {
-  const state = props.stateReason ? stateOf(node, column) : undefined;
-  return state !== undefined && state !== "error" ? props.stateReason!(node, column) : undefined;
-}
+// A cell of an extension is no field: no reason why it has no editor (`factsOfCell`).
 const hasReasons = computed(
   () => !!(props.editable && props.readonlyReason) || !!props.stateReason,
 );
-/** Its state's reason, then why not, each once. */
-const notesOf = (node: TreeNode, column: GridColumn): string[] =>
-  notesOfTexts([stateText(node, column), readonlyText(node, column)]);
+/** Its state's reason, then why not, each once: kept with the node's cells. */
+const notesOf = (node: TreeNode, column: GridColumn): string[] => factsOf(node, column).notes;
 const cellReasons = useCellReasons<TreeNode>({
   enabled: () => hasReasons.value,
   notesOf,
@@ -764,9 +803,9 @@ const rowContext: TreeGridRowContext = {
   selected,
   editable: () => !!props.editable,
   isExpanded,
-  isStop,
+  stopIn: (key) => (current.value?.row === key ? current.value.column : null),
   isEditing,
-  canEdit,
+  canEdit: (node, column) => factsOf(node, column).editable,
   nodeState: (node) => props.nodeState?.(node),
   stateOf,
   stateWord,
@@ -944,7 +983,6 @@ onBeforeUnmount(() => observer?.disconnect());
             aria-hidden="true"
             :style="{ '--k-tree-grid-gap': `${part.gap}px` }"
           ></div>
-          <!-- The row that reads the next page of a list. -->
           <div
             v-else-if="part.row.kind === 'more'"
             :ref="virtual.measure"
@@ -976,7 +1014,6 @@ onBeforeUnmount(() => observer?.disconnect());
               <span v-else class="k-tree-grid__more-label">{{ t("moreRows") }}</span>
             </div>
           </div>
-          <!-- A notice after its siblings: out of their set, never selected, activated. -->
           <div
             v-else-if="part.row.kind === 'notice'"
             :ref="virtual.measure"
@@ -1007,7 +1044,6 @@ onBeforeUnmount(() => observer?.disconnect());
               <span class="k-tree-grid__more-label">{{ part.row.node.label }}</span>
             </div>
           </div>
-          <!-- A node: its own component, rendered again only when its row changes. -->
           <TreeGridRow
             v-else
             :ref="virtual.measure"
@@ -1350,11 +1386,19 @@ onBeforeUnmount(() => observer?.disconnect());
     color: var(--k-state-ko-fg);
   }
 
-  /* The « + » of a node, at the end of its cell: shown where the user is. */
+  /* The « + » of a node, at the end of its cell: shown where the user is. Elsewhere
+   * transparent, still in the accessibility tree, its room kept; its icon (`aria-hidden`)
+   * not laid out (task 021-22e-c: the icon of the « + » of each row that comes, laid out
+   * again at each frame of a scroll), laid out under a touch screen's hover too, where the
+   * « + » stays transparent. */
   .k-tree-grid__add {
     flex: none;
     margin-inline-start: auto;
     opacity: 0;
+  }
+
+  .k-tree-grid__row:not(:focus-within, :hover, [aria-selected="true"]) .k-tree-grid__add > .k-icon {
+    display: none;
   }
 
   .k-tree-grid__row:focus-within .k-tree-grid__add,

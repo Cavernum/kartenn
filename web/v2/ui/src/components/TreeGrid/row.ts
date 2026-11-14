@@ -5,10 +5,14 @@
 // What a row of `TreeGrid` reads of its tree (`TreeGridRow`, task 021-22e-b): one object,
 // the same for every row and every render, so that a row whose own props did not change
 // (its row of the model, its index) renders no more as the tree scrolls; what it reads
-// through these functions is tracked by its own render, as it was by the tree's.
+// through these functions is tracked by its own render, as it was by the tree's. The roving
+// stop and the selection a row reads through its own key, in a computed that keeps its
+// value (task 021-22e-c, as `DataGrid/row.ts`): a step of the focus, a selection that moves
+// render the row they leave and the row they reach, never the others. What the host says
+// of a cell (`canEdit`, `stateOf`, `messageOf`, `reasonOf`) the tree keeps for its node.
 
 import type { ComputedRef, Ref, Slot } from "vue";
-import type { CellRef, GridColumn } from "../DataGrid/grid.ts";
+import type { CellRef, CellState, GridColumn } from "../DataGrid/grid.ts";
 import type { useTreeMove } from "../internal/treeMove.ts";
 import type { ListOption } from "../Select/select.ts";
 import type { TreeNode, TreeNodeState, TreeRow } from "./tree.ts";
@@ -22,6 +26,15 @@ export interface CellMessage {
   code?: string;
 }
 
+/** What the host says of a cell, asked once per node and kept (`TreeGrid`, `factsOf`). */
+export interface CellFacts {
+  state: CellState | undefined;
+  /** It has an editor (`editable`, never in an extension's cell). */
+  editable: boolean;
+  /** Why it is in its state, then why it has no editor, each once. */
+  notes: string[];
+}
+
 export interface TreeGridRowContext {
   /** The tree column, then the columns rendered. */
   treeColumn: ComputedRef<GridColumn>;
@@ -32,7 +45,8 @@ export interface TreeGridRowContext {
   /** The host made the tree editable. */
   editable(): boolean;
   isExpanded(key: string): boolean;
-  isStop(row: string, column: string): boolean;
+  /** The column of the roving stop in the row `key`; `null`: elsewhere. */
+  stopIn(key: string): string | null;
   isEditing(row: string, column: string): boolean;
   canEdit(node: TreeNode, column: GridColumn): boolean;
   nodeState(node: TreeNode): TreeNodeState | undefined;
