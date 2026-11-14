@@ -642,9 +642,9 @@ useViewAction("create", {
       ? t("edit.addIn", { within: valueOf(targetPrefix.value) })
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
   allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
-  // Refused, `c` says why by the status of the view (the gate first, `view.ts`; the « + »
-  // says the permission first: task 21h): no
-  // domain to add in, once the domains are read; else what the « + » says.
+  // Refused, `c` says why by the status of the view: no domain to add in, once the domains
+  // are read; else what the « + » says. `view.ts` says the gate first, the « + » the
+  // permission first (task 21h).
   why: () => {
     if (domain.value === undefined) {
       return domains.isSuccess.value && domainItems.value.length === 0
