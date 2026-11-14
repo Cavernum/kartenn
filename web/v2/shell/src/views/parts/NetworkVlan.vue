@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // The VLAN a network carries, in a cell of the list of prefixes (REQ-026-6; maquette E12,
 // colonne VLAN : la propriété `core.vlan` d'un réseau): read with the properties of its
-// row at the dates of the page, only while the cell is in view and through the gate of the
-// shell (`data/gate.ts`, the name of the VLAN too), the read under way given up when it
-// leaves the view (`data/inView.ts`); its name a link to its record. A container carries none (« — » without a read); a
+// row at the dates of the page, only while the cell is in view and batched with the reads of
+// the other cells by the SDK (task 021-11p10-c; the name of the VLAN through the gate of the
+// shell, `data/gate.ts`), the read under way given up when it leaves the view
+// (`data/inView.ts`); its name a link to its record. A container carries none (« — » without a read); a
 // property the reader may not read is said masked, never « no VLAN ». Until it is read, an
 // ellipsis; a read refused, said short with the code of its problem (`problems/`). Each
 // sign is said in words to assistive technologies.
@@ -11,7 +12,7 @@ import { reads } from "@kartenn/sdk";
 import { CodeBadge, NoValue } from "@kartenn/ui";
 import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { giveUpUnseen, limited } from "../../data/gate.ts";
+import { giveUpUnseen } from "../../data/gate.ts";
 import { useInView } from "../../data/inView.ts";
 import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
@@ -33,15 +34,8 @@ const options = () =>
     validAt: time.value.validAt,
     asOf: time.value.asOf,
   });
-const resolved = useQuery(() => {
-  const read = options();
-  return {
-    ...read,
-    queryFn: (context: Parameters<typeof read.queryFn>[0]) =>
-      limited(context.signal, () => read.queryFn(context)),
-    enabled: props.network && inView.value,
-  };
-});
+// The cells that come in view together read as one request (the SDK batches them).
+const resolved = useQuery(() => ({ ...options(), enabled: props.network && inView.value }));
 const vlan = computed(() =>
   resolved.data.value ? vlanOfProperties(resolved.data.value.data) : null,
 );

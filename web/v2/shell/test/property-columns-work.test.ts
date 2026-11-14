@@ -12,7 +12,8 @@ import { loadSession, type Me } from "../src/rights/index.ts";
 import { keepColumns } from "../src/views/viewSettings.ts";
 
 // The work of a list's columns of properties at each response (task 021-22f-d): a response
-// of `/properties` makes its row anew, the others kept, in one pass of the grid. Before,
+// of `/properties` makes its rows whose value changes anew, the others kept, in one pass of
+// the grid; a batch of the window (task 11p10-c) the same. Before,
 // each response rebuilt the results by row, made every row loaded anew and had the grid
 // count its keys again: O(responses × rows loaded) where O(rows of the response) is enough.
 
@@ -78,6 +79,26 @@ async function mounted() {
   keepColumns("u-1", "prefixes", { "prop.custom.zone": true });
   setFetch((async (input: RequestInfo | URL) => {
     const url = String(input);
+    // A batch (task 021-11p10-c): answered once each of its rows is.
+    if (url.startsWith("/v1/prefixes/properties?")) {
+      const ids = new URL(url, "http://localhost").searchParams.getAll("id");
+      const zones = new Map<string, string>();
+      return new Promise<Response>((resolve) => {
+        for (const one of ids) {
+          waiting.set(one, (zone) => {
+            zones.set(one, zone);
+            if (zones.size < ids.length) return;
+            const items = ids.map((of) => ({
+              id: of,
+              properties: { "custom.zone": zones.get(of) },
+              sources: {},
+              masked: [],
+            }));
+            resolve(json({ items }));
+          });
+        }
+      });
+    }
     const read = /^\/v1\/prefixes\/([^/?]+)\/properties/.exec(url);
     if (read) {
       return new Promise<Response>((resolve) =>
@@ -136,6 +157,10 @@ function answer(of: string, zone: string) {
   waiting.get(of)!(zone);
   waiting.delete(of);
 }
+/** Every read sent answered, `zone` but for the rows of `apart`. */
+function answerAll(zone: string, apart: Record<string, string> = {}) {
+  for (const of of [...waiting.keys()]) answer(of, apart[of] ?? zone);
+}
 
 /** Settled: no pass of the grid during a few turns of the loop. */
 async function settled() {
@@ -146,15 +171,22 @@ async function settled() {
   }
 }
 
-describe("a response of properties makes its row anew, alone (task 021-22f-d)", () => {
-  it("of 1 000 rows loaded, one new row object, one pass of the grid", async () => {
+describe("a response of properties makes its rows anew, alone (tasks 021-22f-d, 11p10-c)", () => {
+  it("of 1 000 rows loaded, a batch read again where one value changes: one new row object, one pass of the grid", async () => {
     await mounted();
+    const first = [...waiting.keys()][0]!;
+    answerAll("-");
+    await settled();
+    // Every row read again, in one batch: the value of one alone changes.
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "properties",
+    });
+    await expect.poll(() => waiting.has(first)).toBe(true);
     await settled();
     const before = passes.at(-1)!;
     expect(before).toHaveLength(ROWS);
     passes.length = 0;
-    const first = [...waiting.keys()][0]!;
-    answer(first, "ouest");
+    answerAll("-", { [first]: "ouest" });
     await expect.poll(() => shown(first)).toBe("ouest");
     await settled();
     const after = passes.at(-1)!;
@@ -216,10 +248,10 @@ describe("a row kept is never stale (task 021-22f-d)", () => {
   it("a value read again: its row anew, with it", async () => {
     await mounted();
     const first = [...waiting.keys()][0]!;
-    answer(first, "ouest");
+    answerAll("-", { [first]: "ouest" });
     await expect.poll(() => shown(first)).toBe("ouest");
     await settled();
-    // Every read answered: the one sent again is not behind them (`limited`).
+    // Every read answered: the one sent again goes alone, by the read of its object.
     while (waiting.size > 0) {
       for (const of of [...waiting.keys()]) answer(of, "-");
       await settled();
@@ -251,7 +283,7 @@ describe("a row kept is never stale (task 021-22f-d)", () => {
   it("a row read again by the list: that row anew, its value of property kept", async () => {
     await mounted();
     const first = [...waiting.keys()][0]!;
-    answer(first, "ouest");
+    answerAll("-", { [first]: "ouest" });
     await expect.poll(() => shown(first)).toBe("ouest");
     await settled();
     const before = passes.at(-1)!;

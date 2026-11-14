@@ -8,7 +8,7 @@ import {
   type Request,
 } from "@playwright/test";
 import { benchPage, framed, heap, quantile, settle, timed, type Frames } from "../bench/measure.ts";
-import { BASE_URL, STATE } from "../fixtures/env.ts";
+import { BASE_URL, readsOf, STATE } from "../fixtures/env.ts";
 import { loginIn } from "../fixtures/journeys.ts";
 import { OTHER_DOMAIN } from "./global-setup.ts";
 
@@ -542,15 +542,20 @@ const FRESH = 25_000;
 function freshReads(page: Page): (path: string) => boolean {
   const pending = new Map<string, number>();
   const answered = new Map<string, number>();
-  const pathOf = (request: Request) => new URL(request.url()).pathname;
-  const add = (path: string, n: number) => pending.set(path, (pending.get(path) ?? 0) + n);
-  page.on("request", (request) => add(pathOf(request), 1));
-  page.on("requestfailed", (request) => add(pathOf(request), -1));
+  // A batch of properties reads each of its objects (task 021-11p10-c).
+  const pathsOf = (request: Request) => readsOf(request.url());
+  const add = (request: Request, n: number) => {
+    for (const path of pathsOf(request)) pending.set(path, (pending.get(path) ?? 0) + n);
+  };
+  page.on("request", (request) => add(request, 1));
+  page.on("requestfailed", (request) => add(request, -1));
   page.on("requestfinished", (request) => {
     // Its status known before it leaves the reads under way.
     void request.response().then((response) => {
-      if (response && response.status() < 400) answered.set(pathOf(request), Date.now());
-      add(pathOf(request), -1);
+      if (response && response.status() < 400) {
+        for (const path of pathsOf(request)) answered.set(path, Date.now());
+      }
+      add(request, -1);
     });
   });
   return (path) =>

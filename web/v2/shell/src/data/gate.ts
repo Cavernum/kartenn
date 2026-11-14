@@ -2,9 +2,10 @@ import { queryClient } from "@kartenn/sdk";
 import type { QueryClient, QueryKey } from "@tanstack/query-core";
 
 // The one gate of the reads the shell makes row by row or cell by cell (task 021-11p10-a):
-// the properties of the rows of a list (`views/propertyColumns.ts`), the VLAN of a network
-// (`views/parts/NetworkVlan.vue`), the name of an object an answer only references
-// (`views/record/ObjectName.vue`). A list shows dozens of rows, each with its reads: all at
+// the name of an object an answer only references (`views/record/ObjectName.vue`). The
+// properties of the rows of a list and the VLAN of a network no longer pass it: the SDK
+// sends them as one request per window (task 021-11p10-c). A list shows dozens of rows,
+// each with its reads: all at
 // once they overflow the shedding limit of the server (REQ-006-30, twenty in flight) and
 // the reader's quota (REQ-006-29), refusing the other reads of the page with them. One cap
 // for the whole shell, well under the server's, leaves room for the reads of the screen

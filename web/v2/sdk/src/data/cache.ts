@@ -21,6 +21,7 @@ import { search } from "../api/client.ts";
 import { FILTERS } from "../api/filters.ts";
 import { ApiProblem } from "../api/problem.ts";
 import type { paths } from "../api/schema";
+import { createBatcher } from "./batch.ts";
 import {
   isImmutable,
   isRevalidated,
@@ -290,6 +291,7 @@ export interface CacheDeps {
 export function createQueries({ client, queryClient }: CacheDeps) {
   /** Hashes of the queries to read again without `If-None-Match` (`truncated`, 022). */
   const unconditional = new Set<string>();
+  const batcher = createBatcher(client);
 
   async function conditional<T>(
     key: QueryKey,
@@ -394,8 +396,24 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       time?: TimeArg | null,
     ): ReadOptions<T, SubKey> {
       const key = keys.sub(type, id, sub, params, time);
-      const url = urlOf(`${collection(type)}/${encodeURIComponent(id)}/${sub}`, key[4], key[5]);
-      return read<T, SubKey>(key, url, sub === "children" ? "children" : "object");
+      const path = collection(type);
+      const url = urlOf(`${path}/${encodeURIComponent(id)}/${sub}`, key[4], key[5]);
+      const one = read<T, SubKey>(key, url, sub === "children" ? "children" : "object");
+      // The resolved properties, every key: batched with the others of the window
+      // (`batch.ts`, task 021-11p10-c), under the key of this read.
+      if (sub !== "properties" || Object.keys(key[4]).length > 0) return one;
+      return {
+        ...one,
+        queryFn: async (context) => {
+          const alone = (signal: AbortSignal) => one.queryFn({ ...context, signal });
+          const entry = (await batcher.load(path, id, key[5], context.signal, alone)) as Entry<T>;
+          // An answer of a batch equal to the entry kept gives it back, as a 304 would.
+          const kept = queryClient.getQueryData<Entry<T>>(key);
+          return kept && kept !== entry && replaceEqualDeep(kept.data, entry.data) === kept.data
+            ? kept
+            : entry;
+        },
+      };
     },
 
     /**
