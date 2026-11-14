@@ -11026,6 +11026,8 @@ export interface operations {
   list_addresses: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug of the domain (repeated: one of). */
         domain?: string;
         /** @description The address (repeated: one of). */
@@ -13428,6 +13430,8 @@ export interface operations {
   list_domains: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug equal to (repeated: one of). */
         slug?: string;
         /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -14501,6 +14505,8 @@ export interface operations {
   list_entities: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug equal to (repeated: one of). */
         slug?: string;
         /** @description Slug of the parent entity (repeated: one of). */
@@ -24230,6 +24236,8 @@ export interface operations {
   list_prefixes: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug of the domain (repeated: one of). */
         domain?: string;
         /** @description The prefix, in CIDR notation (repeated: one of). */
@@ -25094,6 +25102,8 @@ export interface operations {
   list_ranges: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug of the domain (repeated: one of). */
         domain?: string;
         /** @description The first address of the range (repeated: one of). */
@@ -26976,6 +26986,8 @@ export interface operations {
   list_sites: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Slug equal to (repeated: one of). */
         slug?: string;
         /** @description Slug of the parent site (repeated: one of). */
@@ -27535,6 +27547,8 @@ export interface operations {
   list_vlan_groups: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         slug?: string;
         /** @description The entity, site or domain the group is anchored on. */
@@ -28086,6 +28100,8 @@ export interface operations {
   list_vlans: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most; an object the caller may not read is absent from the page, as an unknown one. */
+        id?: string[];
         /** @description The group. */
         group?: string;
         /** @description A VID, or a range `a..b`. */

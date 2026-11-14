@@ -21,7 +21,9 @@ use kartenn_store_pg::filter::Condition;
 use serde::Deserialize;
 use serde_json::Value;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
+use crate::cursor::MAX_SIZE;
 use crate::problem::{Problem, ProblemKind};
 
 /// The `Accept-Query` header (RFC 10008 §3).
@@ -134,6 +136,37 @@ pub fn prefix(params: &mut Vec<(String, String)>) -> Result<Option<String>, Prob
         false
     });
     error.map_or(Ok(found), Err)
+}
+
+/// The filter `id` (H23, REQ-006-41), taken out of `params` (those left by
+/// [`crate::cursor::Page`], which a cursor keeps): the objects among these identifiers,
+/// each once, given [`MAX_SIZE`] times at most (the largest page); empty: no such filter.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `id`: a value that is not a UUID, or the `id` past the bound,
+/// refused as soon as it is read.
+pub fn ids(params: &mut Vec<(String, String)>) -> Result<Vec<Uuid>, Problem> {
+    let mut ids = Vec::new();
+    let mut rest = Vec::with_capacity(params.len());
+    for (name, value) in params.drain(..) {
+        if name != "id" {
+            rest.push((name, value));
+            continue;
+        }
+        if ids.len() == usize::from(MAX_SIZE) {
+            return Err(bad(format!("id is given more than {MAX_SIZE} times")));
+        }
+        ids.push(
+            value
+                .parse::<Uuid>()
+                .map_err(|_| bad(format!("id: {value:?} is not a UUID")))?,
+        );
+    }
+    *params = rest;
+    ids.sort_unstable();
+    ids.dedup();
+    Ok(ids)
 }
 
 fn condition(name: &str, op: &str, values: &[&str]) -> Result<Condition, Problem> {

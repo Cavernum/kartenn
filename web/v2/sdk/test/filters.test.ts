@@ -18,7 +18,7 @@ describe("filter model (REQ-021-18)", () => {
   it("offers the filters of the route and those of the properties its objects carry", () => {
     const model = filterModel("/v1/prefixes", declarations);
     const names = model.map((f) => f.name);
-    expect(names.slice(0, 4)).toEqual(["domain", "value", "within", "nature"]);
+    expect(names.slice(0, 5)).toEqual(["id", "domain", "value", "within", "nature"]);
     expect(names).toContain("prop.core.owner");
     expect(names).toContain("prop.policy.environment:exists");
     expect(names).toContain("prop.ops.priority:between");

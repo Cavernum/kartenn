@@ -252,6 +252,35 @@ fn the_contract_is_openapi_3_1_its_query_in_an_extension() {
     assert!(document["paths"]["/v1/me"]["get"].get("security").is_none());
 }
 
+/// The filter `id` of the lists of the core and of the VLANs (REQ-006-41, H20): a query
+/// parameter, optional, an array of UUIDs.
+#[test]
+fn the_lists_of_the_core_declare_the_id_filter() {
+    let reference = reference();
+    for collection in [
+        "entities",
+        "sites",
+        "domains",
+        "prefixes",
+        "ranges",
+        "addresses",
+        "vlan-groups",
+        "vlans",
+    ] {
+        let parameters = &reference["paths"][format!("/v1/{collection}")]["get"]["parameters"];
+        let id = parameters
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "id")
+            .unwrap_or_else(|| panic!("{collection}: no filter id"));
+        assert_eq!(id["in"], "query", "{collection}");
+        assert_eq!(id["required"], false, "{collection}");
+        assert_eq!(id["schema"]["type"], "array", "{collection}");
+        assert_eq!(id["schema"]["items"]["format"], "uuid", "{collection}");
+    }
+}
+
 /// The extension `x-kartenn` of the reference (023/A5, task 023-5): every collection of
 /// the core and of the business modules tells the clients its natural key, among the
 /// filters of its list, and its columns; `kartenn policy check` is named.

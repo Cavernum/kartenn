@@ -204,6 +204,7 @@ fn declare_filters(mut list: crate::openapi::Op, kind: Kind) -> crate::openapi::
     let text = || String::schema();
     let named = |collection: &str| Some(json!({ "collection": collection }));
     let reference = |name: &str| RefOr::Ref(utoipa::openapi::Ref::from_schema_name(name));
+    list = list.ids();
     for field in filter_fields(kind) {
         list = match (*field, kind) {
             ("slug", _) => list.filter(field, "Slug equal to (repeated: one of).", text(), None),
@@ -822,6 +823,8 @@ fn slug(text: &str) -> Option<String> {
 /// The criteria of the filters of a list of `kind`.
 #[derive(Debug, Default)]
 struct Wanted {
+    /// The objects among these, sorted (REQ-006-41); empty: any.
+    ids: Vec<Uuid>,
     slugs: Vec<String>,
     links: Vec<String>,
     values: Vec<String>,
@@ -837,6 +840,7 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
     let mut wanted = Wanted::default();
     let mut params = params.to_vec();
     wanted.prefix = filter::prefix(&mut params)?;
+    wanted.ids = filter::ids(&mut params)?;
     if wanted.prefix.is_some() && !suggested(kind) {
         return Err(bad("unknown parameter q"));
     }
@@ -1066,7 +1070,7 @@ async fn list(
                 slugs: &wanted.slugs,
                 links: &wanted.links,
                 values: &wanted.values,
-                ids: &[],
+                ids: &wanted.ids,
                 within: &wanted.within,
                 usages: &wanted.usages,
                 prefix: wanted.prefix.as_deref(),
@@ -1101,6 +1105,11 @@ async fn list(
             ids.truncate(size);
             page.next_current(&api.ring, name, &moment, json!(ids[size - 1]))
         });
+        // The filter `id` is kept after the engine, as `within` and `usage` are: the
+        // cursor stays that of the engine, a page may hold fewer objects.
+        if !wanted.ids.is_empty() {
+            ids.retain(|id| wanted.ids.binary_search(id).is_ok());
+        }
         let (mut rows, versions) = if ids.is_empty() {
             (Vec::new(), HashMap::new())
         } else {

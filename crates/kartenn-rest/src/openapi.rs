@@ -587,6 +587,21 @@ impl Op {
         )
     }
 
+    /// The filter `id` of a list (H23, REQ-006-41; read by [`crate::filter::ids`]).
+    #[must_use]
+    pub fn ids(self) -> Self {
+        self.repeated(
+            "id",
+            &format!(
+                "Identifier of the object (repeated: one of), {} at most; an object the \
+                 caller may not read is absent from the page, as an unknown one.",
+                crate::cursor::MAX_SIZE
+            ),
+            true,
+            false,
+        )
+    }
+
     /// A filter of the query string of a list, of schema `schema`; `client`, when given,
     /// is its extension `x-kartenn` (`collection`: the list its values come from).
     #[must_use]

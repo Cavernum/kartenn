@@ -17,6 +17,7 @@ export interface Filter {
 /** The filters of each list of the contract, by path (021/X41, REQ-021-35). */
 export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/addresses": [
+    { name: "id", type: "array" },
     { name: "domain", type: "string", collection: "/v1/domains" },
     { name: "value", type: "string" },
     { name: "within", type: "string" },
@@ -94,12 +95,14 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/clusters/{id}/history": [],
   "/v1/clusters/{id}/machines": [],
   "/v1/domains": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "q", type: "string" },
   ],
   "/v1/domains/{id}/history": [],
   "/v1/domains/{id}/roots": [],
   "/v1/entities": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "parent", type: "string", collection: "/v1/entities" },
     { name: "q", type: "string" },
@@ -250,6 +253,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/policy-values": [{ name: "axis", type: "string" }],
   "/v1/policy-values/{id}/history": [],
   "/v1/prefixes": [
+    { name: "id", type: "array" },
     { name: "domain", type: "string", collection: "/v1/domains" },
     { name: "value", type: "string" },
     { name: "within", type: "string" },
@@ -303,6 +307,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/proposals": [],
   "/v1/ranges": [
+    { name: "id", type: "array" },
     { name: "domain", type: "string", collection: "/v1/domains" },
     { name: "first", type: "string" },
     { name: "within", type: "string" },
@@ -353,18 +358,21 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/services/{id}/history": [],
   "/v1/sites": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "parent", type: "string", collection: "/v1/sites" },
     { name: "q", type: "string" },
   ],
   "/v1/sites/{id}/history": [],
   "/v1/vlan-groups": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "anchor", type: "string" },
     { name: "q", type: "string" },
   ],
   "/v1/vlan-groups/{id}/history": [],
   "/v1/vlans": [
+    { name: "id", type: "array" },
     { name: "group", type: "string" },
     { name: "vid", type: "string" },
     { name: "name", type: "string" },

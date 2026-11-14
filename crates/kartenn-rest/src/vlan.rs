@@ -335,13 +335,15 @@ fn vlan_dto((id, group, vid, name, status): VlanRow) -> VlanDto {
 const GROUP_COLUMNS: &str = "id, slug, anchor_kind, anchor_id, vid_min, vid_max";
 const VLAN_COLUMNS: &str = "id, group_id, vid, name, status";
 
-/// The filters of a list, each given once, among `names`.
-fn filters<'a>(
-    page: &'a Page,
-    names: &[&str],
-) -> Result<std::collections::BTreeMap<&'a str, &'a str>, Problem> {
+/// The filters of a list by name, and the identifiers of its filter `id`.
+type Filters<'a> = (std::collections::BTreeMap<&'a str, &'a str>, Vec<Uuid>);
+
+/// The filters of a list, each given once, among `names`, and the identifiers of its filter
+/// `id` (see [`crate::filter::ids`]).
+fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
+    let ids = crate::filter::ids(&mut page.filters.clone())?;
     let mut found = std::collections::BTreeMap::new();
-    for (name, value) in &page.filters {
+    for (name, value) in page.filters.iter().filter(|(name, _)| name != "id") {
         if !names.contains(&name.as_str()) {
             return Err(kit::bad(format!("unknown parameter {name}")));
         }
@@ -349,7 +351,7 @@ fn filters<'a>(
             return Err(kit::bad(format!("{name} is given more than once")));
         }
     }
-    Ok(found)
+    Ok((found, ids))
 }
 
 fn uuid(name: &str, text: &str) -> Result<Uuid, Problem> {
@@ -415,7 +417,7 @@ async fn list_groups(
 ) -> Result<Response, Problem> {
     const NAME: &str = "vlan-groups";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(&page, &["slug", "anchor", "q"])?;
+    let (wanted, ids) = filters(&page, &["slug", "anchor", "q"])?;
     let anchor = wanted
         .get("anchor")
         .map(|a| uuid("anchor", a))
@@ -434,6 +436,7 @@ async fn list_groups(
             AND ($5::uuid IS NULL OR x.anchor_id = $5)
             AND ($6::text IS NULL OR (x.slug, x.id) > ($6, $7::uuid))
             AND ($9::text IS NULL OR x.slug LIKE $9)
+            AND (cardinality($10::uuid[]) = 0 OR x.id = ANY($10))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $8",
@@ -454,6 +457,7 @@ async fn list_groups(
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
+        .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -484,7 +488,7 @@ async fn list_vlans(
 ) -> Result<Response, Problem> {
     const NAME: &str = "vlans";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(
+    let (wanted, ids) = filters(
         &page,
         &["group", "vid", "name", "name_prefix", "status", "q"],
     )?;
@@ -518,6 +522,7 @@ async fn list_vlans(
                          OR (x.group_id, x.vid, x.id) > ($10, $11::smallint, $12::uuid))
                     AND ($14::text IS NULL OR lower(x.name) LIKE $14
                          OR x.vid::text LIKE $14)
+                    AND (cardinality($15::uuid[]) = 0 OR x.id = ANY($15))
                   ORDER BY x.group_id, x.vid, x.id
                   OFFSET 0) x
           WHERE ($3::jsonb IS NULL OR {})
@@ -545,6 +550,7 @@ async fn list_vlans(
         .bind(after.map(|a| a.2))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
+        .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -897,7 +903,8 @@ fn collection_routes(
         &format!("list_{operation_name}"),
         TAG,
         &format!("The {name} the caller may read."),
-    );
+    )
+    .ids();
     for (filter, description) in filters {
         list_op = if *filter == "q" {
             list_op.suggestion(description)
