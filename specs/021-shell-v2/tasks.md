@@ -6843,7 +6843,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     parcours comptées par leur première ligne (une relecture, par l'invalidation d'un
     autre parcours, n'est pas une page lue).
 
-- [ ] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
+- [x] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
   pourquoi le préchargement manque, puis exclure du p75 toute navigation non
   préchargée (ou l'imprimer à part) — verify : passe réduite, dix navigations
@@ -6944,7 +6944,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead` de `views/carried.ts` :
     une trentaine d'importeurs à pointer sur `carried.ts`, dont `admin/*` que la 21e
     modifie en ce moment, laissés pour une tâche hors de ces branches.
-- [ ] 22q. Relevé de la seconde passe réduite et ce qu'elle laisse (session principale, le
+- [x] 22q. Relevé de la seconde passe réduite et ce qu'elle laisse (session principale, le
   2026-11-14, `bench-web small`, main 24622281, seule sur la machine, les quatre verrous
   libres, charge 1,4) ; entre parenthèses la première passe (main e86f6af1) :
   shell initial 296,1 Ko (306,3 ; budget 300) tenu ; navigation en cache, dix préchargées,
@@ -7007,7 +7007,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     ligne) ; l'arbre de 10⁴ lignes, 23,49 % de trames perdues et 1 tâche longue de 56 ms
     (budget 2 % et 0 ; 22e, dont la cause nommée par la 22e-c, les SVG des lignes et le
     survol, attend un arbitrage B1, B2, B3 ou C).
-- [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
+- [x] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
   parties occupées hors `meta.queries` : occupation, résumés des plugins), puis
@@ -7084,7 +7084,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     Firefox), le test seul passant trois fois sur trois ; un passage avec l'ancien
     `data/query.ts` échoue de même : instabilité de ces deux parcours sous deux
     navigateurs en parallèle, antérieure à la tâche, à suivre à part.
-  - [ ] 22o-b. La grille d'une liste ne se rend pas en entier quand on presse un lien de
+  - [x] 22o-b. La grille d'une liste ne se rend pas en entier quand on presse un lien de
     ses cellules : au `focusin` d'un appui de pointeur, `active` et `focused` changent et
     tout le `DataGrid` se rend à nouveau, avec la `ListView` qui le lie (`v-model:active`),
     ≈ 30 ms de JS sous CPU ×4 pour un clic qui quitte la page — verify : Vitest du
