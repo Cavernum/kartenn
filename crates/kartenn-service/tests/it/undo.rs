@@ -290,6 +290,75 @@ async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     assert_eq!(undo.unsupported[0].0, "property");
 }
 
+/// A proposal that creates an address, validated by another, then undone (the journey of
+/// spec 021, task 14): the inverse closes the address the validation created.
+#[kartenn_testing::pg_test]
+async fn a_validated_proposal_is_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let validator: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'v') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let editor = kartenn_service::authz::Grants::new()
+        .everywhere(f.author, "core.address.edit")
+        .everywhere(f.author, "core.domain.read");
+    let request = ChangesetRequest {
+        author: f.author,
+        motive: "proposal".into(),
+        period: None,
+        operations: vec![Operation::CreateAddress {
+            local: None,
+            domain: Ref::Id(f.domain),
+            address: "10.1.2.20".into(),
+            usage: AddressUsage::Host,
+        }],
+        simulate: false,
+        idempotency_key: None,
+        approval_self: true,
+    };
+    let proposal = match submit(&f.store, &editor, &request, MAX_OPERATIONS)
+        .await
+        .unwrap()
+    {
+        Outcome::Pending { changeset, .. } => changeset,
+        other => panic!("expected pending, got {other:?}"),
+    };
+    // Validated a moment after it was proposed, as a reviewer does.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    match kartenn_service::review::validate_pending(
+        &f.store,
+        &Unrestricted,
+        &kartenn_service::expected::Sources::none(),
+        proposal,
+        &validator.into(),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap()
+    {
+        Outcome::Applied { .. } => {}
+        other => panic!("expected applied, got {other:?}"),
+    }
+    let undo = inverse(&f.store, proposal, validator)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(undo.conflicts.is_empty(), "{:?}", undo.conflicts);
+    match f.run(&undo.request).await {
+        Outcome::Applied { .. } => {}
+        other => panic!("expected the inverse applied, got {other:?}"),
+    }
+    let left: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM address WHERE address = '10.1.2.20' AND valid_period @> now()",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+}
+
 const IDP: &str = "https://idp.example.invalid";
 
 impl Fixture {

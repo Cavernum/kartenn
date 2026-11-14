@@ -851,6 +851,10 @@ async fn write_journal(
                  $11, CASE WHEN $4 = 'pending' THEN now() + make_interval(days => $15) END, $12, $13, $14, $17,
                  $19, $20)
          ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, validator_id = EXCLUDED.validator_id,
+             -- Applied on its validation, a changeset without a period of its own wrote at
+             -- that instant, not at its submission: its inverse starts there (REQ-004-34).
+             default_period = CASE WHEN EXCLUDED.state = 'applied' THEN EXCLUDED.default_period
+                                   ELSE changeset.default_period END,
              applied_at = EXCLUDED.applied_at, violations = EXCLUDED.violations,
              anomalies = EXCLUDED.anomalies, diff_summary = EXCLUDED.diff_summary,
              cascaded = EXCLUDED.cascaded,
