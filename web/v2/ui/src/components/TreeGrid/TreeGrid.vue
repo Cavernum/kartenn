@@ -61,6 +61,7 @@ import {
   ref,
   useAttrs,
   useId,
+  useSlots,
   watch,
 } from "vue";
 import { t } from "../../i18n.ts";
@@ -220,6 +221,7 @@ const editing = defineModel<CellRef | undefined>("editing", { default: undefined
 const visibility = defineModel<ColumnVisibility>("columnVisibility", { default: () => ({}) });
 
 const attrs = useAttrs();
+const slots = useSlots();
 const rootAttrs = computed(() => ({ class: attrs.class, style: attrs.style }));
 const gridAttrs = computed(() =>
   Object.fromEntries(Object.entries(attrs).filter(([key]) => key !== "class" && key !== "style")),
@@ -1189,7 +1191,7 @@ onBeforeUnmount(() => observer?.disconnect());
                     :row="part.row.node"
                     :column="column"
                     :extra="extraOf(part.row.node, column)"
-                    ><template v-if="$slots.extension" #default="given"
+                    ><template v-if="slots.extension" #default="given"
                       ><slot name="extension" v-bind="given" /></template></ExtensionCell
                   ><NoValue v-else-if="cellOf(part.row.node, column) === null" /><template v-else>{{
                     cellOf(part.row.node, column)
