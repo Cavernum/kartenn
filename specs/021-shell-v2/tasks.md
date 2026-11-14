@@ -7146,7 +7146,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     pas la largeur avant d'être confirmée, refus dit sous les actions après fermeture
     (annonce à écouter au lecteur d'écran, le focus revenu sur le bouton refusé) ; les
     dialogues rétrécis des comptes, identités et émetteurs testés montés, pas en parcours
-- [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
+- [x] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
   motif `narrow` de la 21c sur les actions de la fiche (« Modifier », « Actions »), son
   onglet VLAN et son avis des trous, les anomalies et l'arbre de la topographie —
   REQ-021-29 — verify : parcours `accessibility` à 768 px : « Modifier » d'une fiche et une
@@ -7158,6 +7158,49 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     fichier repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`, entrées `21f`)
   - dépend de : 21c (11o et 11p5, qui touchaient la topographie et l'historique, sont
     fusionnées)
+  - fait le 2026-11-14 — chaque surface lit `useWrites()` et dit `refusalWords` au point
+    d'action, le droit manquant d'abord (raison durable), la porte ensuite : la fiche
+    (`RecordView.vue` : `blockedBy` pour « Modifier », « Clore… », le « Créer un VLAN » de
+    l'onglet du groupe ; `gateOpen` relit la porte quand « Modifier », une entrée du menu ou
+    la création agit, la raison dite par le statut de la fiche), l'onglet VLAN d'un réseau
+    (`NetworkVlanTab.vue` : la date, `valid_at` seul compris, puis la largeur), les
+    anomalies (`AnomalyGrid.vue` : « Acquitter », la date puis la largeur, passées au
+    dialogue), le « + » de l'arbre et « Ajouter dans » (`TopologyView.vue`, `addRefusal` ;
+    la porte en un `computed` de la vue, jamais par ligne ; `addIn` la relit). Un dialogue
+    ou un formulaire ouvert quand la fenêtre rétrécit garde sa saisie et n'envoie rien : le
+    dialogue d'acquittement (`AcknowledgeDialog.vue`, prop `refused` : « Acquitter » refusé
+    avec la raison, Entrée la dit dans le dialogue) et « Poser un VLAN existant » (Entrée
+    dit le refus dans le formulaire). Les quatre fichiers repris quittent `PERIOD_ONLY` ;
+    `GapsNotice.vue` y reste en `kept`. Tests : `test/record-gate.test.ts` (montés :
+    « Modifier », le « + », « Acquitter » et son dialogue, « Poser le VLAN », chacun refusé
+    à l'étroit puis rendu à la largeur, le droit manquant dit avant la largeur) ; parcours
+    `accessibility` à 768 px (« Modifier » d'une fiche atteint et pressé au clavier, aucun
+    panneau ; une cellule de l'arbre et le « + » disent le motif ; revenus à 1024 px)
+  - choix : `GapsNotice.vue` passe en `kept` dans `PERIOD_ONLY` au lieu d'en sortir : c'est
+    une lecture (les trous sont ceux du présent), il n'écrit rien ; l'onglet VLAN d'un
+    réseau et l'acquittement gardent leur refus hors du présent sous `valid_at` seul
+    (l'opération non datée s'appliquerait tout de suite), la date dite avant la largeur,
+    comme `ChangesetView` (21d), avec leurs mots (`edit.why.past`,
+    `views.anomalies.notPresent`) ; refusé, « Poser le VLAN » cesse d'être le bouton de
+    soumission (`type="button"`) : Entrée dans le champ envoie le formulaire, qui dit la
+    raison (droit, date, largeur, déclaration, réglage au brouillon) au lieu de rien ; le
+    refus redit d'un dialogue ou du formulaire montre la raison du moment et compte un tour
+    (`:key`), l'alerte réinsérée relue à chaque Entrée ; le dialogue garde « Acquitter »
+    refusé au clic (infobulle), comme le renommage de la 21d
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : un second Entrée réannonce le
+    refus (l'alerte réinsérée) ; la raison affichée suit celle du moment ; Entrée dans
+    « Poser un VLAN existant » dit aussi les refus hors de la porte
+  - reste : pour la 21h, l'ordre des fonctions communes de la 21c, appelées sans être
+    changées : `play` (`shortcuts/view.ts`, `e` et `c` de la fiche et de l'arbre) dit la
+    porte avant le droit, `moveEntryRefusal` (`edit/moves.ts`, « Changer de parent… » de
+    la fiche) dit `narrow` avant le droit manquant, `editability` (cellules de l'arbre)
+    de même ; `addIn` (`TopologyView.vue`) et `gateOpen` (`RecordView.vue`) relisent la
+    porte seule au moment d'agir, sans le droit ; les actions des plugins du menu
+    « Actions » ne passent pas par la porte (21g) ; la soumission implicite par Entrée du
+    formulaire « Poser un VLAN existant » (sans bouton de soumission une fois refusé)
+    n'est prouvée que par un `dispatchEvent("submit")` en Vitest, pas dans un navigateur ;
+    l'annonce de l'alerte réinsérée et du statut de la fiche après la fermeture du menu, à
+    écouter au lecteur d'écran
 - [ ] 21g. Édition réservée aux largeurs ≥ 1024 px, plugins : la largeur du cadre transmise
   aux plugins avec la période (le contexte du SDK, `setContext` de `time/index.ts`, vers la
   ligne 90, ne porte que `time`), et leurs écritures et leurs commandes de palette
