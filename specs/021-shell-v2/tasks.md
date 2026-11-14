@@ -4706,7 +4706,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
 
 ## P3 — Plugins (phase 5)
 
-- [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
+- [x] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
   avec `@kartenn/ui`, espace `network`, filtres typés, édition en place — REQ-021-27,
   REQ-026-6 — verify : parcours `vlan` vert
   - où : `web/plugins/vlan/src/index.ts` (comportement actuel), `public/manifest.json`,
@@ -4716,7 +4716,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/shell/src/plugins/slots.ts`), parcours `plugins` étendu (onglet `notes` du
     plugin de test sur `vlan`)
   - dépend de : 11, 12, 16
-  - en cours : fait le 2026-11-01 — le VLAN dans les vues génériques de la 11 : deux
+  - fait le 2026-11-01 — le VLAN dans les vues génériques de la 11 : deux
     collections de plus (`vlan-groups`, `vlans`, `web/v2/shell/src/views/collections.ts`),
     donc listes filtrées par l'URL (modèle de `/v1/vlan-groups` et `/v1/vlans` : clé, VID,
     nom, statut, groupe), fiches, routes et préchargement, emplacements des plugins
@@ -4769,7 +4769,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     sans `expected` (un brouillon ne voit pas un VLAN changé depuis sa lecture). Place des
     VLAN : espace `network` (REQ-021-2, cette ligne), la maquette E12 les met sous
     Référentiel — écart signalé, non tranché.
-  - reste : tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
+  - reste (au 2026-11-01, réparti le 2026-11-14 ci-dessous) : tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
     cœur ») ; ancre d'un groupe par glisser
     (panneau seulement) ; cohérence d'un réseau avec l'ancre du groupe
     (`core.vlan.site_mismatch`) dans l'onglet Réseaux ; onglet Interfaces (plugin
@@ -4786,6 +4786,79 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`session`, `time`, `edit`), des modules refusés par `integrity` dont le contenu reçu
     est vide (empreinte SHA-384 de la chaîne vide) ; les mêmes parcours passent seuls
     (14/14) ; `vlan` et `plugins` verts dans les deux navigateurs.
+  - clos le 2026-11-14 — relevé clause par clause contre le code (main `337fdae9`,
+    parcours repassés sur `5d8f076f`, après la 11o et la 11p7).
+    Parcours `vlan` : vert (`e2e/journeys/vlan.spec.ts`, deux tests, Chromium et Firefox),
+    étendu des refus du serveur sur le champ VID avec leur code (`core.vlan.vid_duplicate`
+    pour un VID pris dans le groupe, `core.vlan.vid_out_of_range` hors de sa plage, pointeur
+    `/operations/0` → champ clé `vid`, `fieldOfPointer`), saisie abandonnée sans écriture.
+    Onglets et colonnes des plugins sur `vlan` et `vlan_group` : `ListView.vue`
+    (`useExtensions("column", kind)`) et `RecordView.vue` (`useExtensions("tab" | "panel" |
+    "action", kind)`), génériques par la sorte de la collection ; prouvés par le parcours
+    `plugins` (« the screens of the referential… ») : colonne `notes-flag` sur `/vlans` et
+    `/vlan-groups`, onglet `notes` sur la fiche d'un VLAN et d'un groupe, axe à chaque pas (le
+    plugin de test `e2e/plugins/notes` déclare désormais l'onglet sur `vlan_group` et la
+    colonne sur `vlan` et `vlan_group`). Lignes de `web/v2/PARITE.md` § « VLAN » : toutes
+    cochées (vues `groups` et `vlans`, onglet `network` et colonne `vlan` des préfixes, action
+    `create-vlan`, parcours réécrit), la dernière par la 17b. Manque trouvé au relevé et
+    comblé : « Créer un VLAN » d'un groupe n'était offert que dans son état vide ; il est
+    l'action d'une `Toolbar` au-dessus des VLAN (`record/GroupVlansTab.vue`, maquette E12
+    « Actions du groupe »), là pendant la lecture, vide ou non, refusé avec sa permission ;
+    le même bouton avant et après le premier VLAN, qui reprend le focus à la fermeture du
+    panneau d'édition (parcours `vlan`) ; Vitest `test/group-vlans.test.ts` (3 : barre du
+    groupe vide, même bouton une fois le VLAN relu, refus et sa raison). Le parcours `vlan`
+    cherchait aussi le lien du groupe sur la fiche d'un VLAN sur toute la page, que
+    l'onglet « Propriétés » nomme désormais aussi : cherché dans les attributs. Reste réparti : onglet Interfaces → fait par la 18 (`plugins/machines`, onglet
+    `interfaces-of` sur `vlan`, parcours `machines`) ; captures des vrais écrans → 12l ;
+    tuile « groupes les plus remplis » → 17c ; ancre par glisser → 17d ; cohérence
+    `core.vlan.site_mismatch` dans l'onglet Réseaux → 17e ; filtre de la colonne VLAN des
+    préfixes → 17f. Aucun n'est nommé par le verify de la 17 ni par la liste de parité : la
+    27 ne les attend pas. Vérifié : parcours `vlan` et `plugins` (26, Chromium et Firefox) ;
+    `k-web2-check --base main` : 1086 tests, 2738 captures sur 2738 (tout : les catalogues
+    du shell changent), aucune réécrite ; `no_old_permission` vert.
+  - choix (2026-11-14) : « Créer un VLAN » sans raccourci `c` sur la fiche, que la
+    maquette lui donne (`useViewAction("create")` n'est posé que par les listes et la
+    Topographie ; le poser sur toute fiche pour la seule sorte `vlan_group` ferait dire un
+    refus à `c` partout ailleurs) ; une seule barre pour tous les états hors erreur, l'état
+    vide sans bouton propre (son action est celle de la barre juste au-dessus) : un seul nœud,
+    donc le focus rendu à l'ouvreur le trouve encore, et rien ne se décale quand la liste
+    arrive (relectures UI et a11y du 2026-11-14) ; `Toolbar` à une action gardée, comme la
+    maquette, pour la place des actions à venir (« Modifier le groupe », décompte).
+- [ ] 17c. Tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
+  cœur », ligne Tuile ; maquette E0) — REQ-021-9, REQ-026-6 — verify : Vitest de
+  `HomeView` ; parcours `shell` (tuile lue)
+  - où : `web/v2/shell/src/views/HomeView.vue` (tuile VLAN : `reserved`, `deprecated`
+    seulement), `VlanStats` du contrat (`/v1/stats`, `web/v2/sdk/src/api/schema.d.ts`),
+    `record/VlanOccupancyPanel.vue` (`BarList`) à imiter
+  - à arbitrer d'abord (contrat) : `VlanStats` ne sert aucune occupation par groupe ;
+    l'ajouter à `/v1/stats` (filtrée par les droits, comme les autres compteurs) ou lire
+    l'occupation groupe par groupe côté client (coût, plafond) — hors chemin de la bascule
+- [ ] 17d. Ancre d'un groupe de VLAN par glisser (design § « VLAN, écrans du cœur » :
+  « ancre par glisser ») ; aujourd'hui choisie dans le panneau d'édition seulement —
+  verify : script clavier de l'alternative (WCAG 2.5.7) ; parcours `vlan`
+  - où : liste `/vlan-groups` (`views/ListView.vue`, `collections.ts`), `draft.move` et
+    `canMove` de la tâche 24 (`views/edit/moves.ts`) à imiter ; `TreeGrid` (attendre la
+    fusion de la 11o, qui le modifie)
+  - à arbitrer : sur quoi lâcher (arbre des ancres entités, sites, domaines ; aucune vue ne
+    les montre ensemble) — hors chemin de la bascule
+- [ ] 17e. Cohérence d'un réseau avec l'ancre du groupe de son VLAN
+  (`core.vlan.site_mismatch`, avertissement 008/V9) dans l'onglet Réseaux d'un VLAN :
+  colonne « Cohérence » en `StatusBadge` et `CodeBadge`, `InlineAlert` qui nomme les sites
+  (maquette E12) — verify : Vitest de l'onglet ; parcours `vlan` (un réseau hors du site
+  du groupe)
+  - où : `web/v2/shell/src/views/record/VlanNetworksTab.vue` ; maquette
+    `_ui/ecrans/E12Vlan.vue` (colonne `coherence`, vers la ligne 525) ; anomalies d'un objet
+    (`record/AnomaliesTab.vue`, filtre `object` de la 11k) à imiter si l'avertissement est
+    gardé en anomalie ; jeu de parcours sans site (`global-setup.ts`)
+- [ ] 17f. Filtre de la colonne VLAN de la liste des préfixes (`networkVlan`) : un VLAN
+  choisi par son nom, filtre `prop.core.vlan` — verify : Vitest des filtres ; parcours
+  `vlan` (la liste filtrée par l'URL)
+  - où : `web/v2/shell/src/views/collections.ts` (colonne `vlan` des préfixes, sans
+    `filter`), `views/ListView.vue` (A7 : filtre offert si le modèle sert le paramètre),
+    filtres typés des propriétés de la 11p3 à imiter
+  - à vérifier d'abord : `prop.core.vlan` servi par le modèle de `/v1/prefixes`, et une
+    pastille qui nomme le VLAN plutôt que son UUID (même écueil que `group` de `/v1/vlans`,
+    noté à la 17) — hors chemin de la bascule
 - [x] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
