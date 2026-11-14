@@ -53,18 +53,23 @@ export function useCellReasons<R>(host: CellReasonsHost<R>) {
     for (const row of host.rendered()) {
       for (const column of columns) for (const text of host.notesOf(row, column)) found.add(text);
     }
+    // The sentences no row in the document says any more leave the table of ids: it holds
+    // those of the rows rendered, never every sentence the grid ever said (task 021-22o-b).
+    for (const text of numbers.keys()) if (!found.has(text)) numbers.delete(text);
     return [...found];
   });
   /**
-   * The id of the hidden sentence `text`: the same for the life of the grid, whatever the
-   * rows rendered around it (task 021-22e-b: a row of `TreeGrid` that stays in view keeps
-   * its description as the tree scrolls, and so does not render again).
+   * The id of the hidden sentence `text`: the same while a row in the document says it,
+   * whatever the rows rendered around it (task 021-22e-b: a row that stays in view keeps
+   * its description as the list scrolls, and so does not render again). A sentence gone
+   * and said again takes a new number, never one another sentence had.
    */
   const numbers = new Map<string, number>();
+  let next = 0;
   function reasonId(text: string): string {
     let n = numbers.get(text);
     if (n === undefined) {
-      n = numbers.size;
+      n = next++;
       numbers.set(text, n);
     }
     return `${host.idPrefix}-reason-${n}`;

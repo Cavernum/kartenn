@@ -50,7 +50,6 @@ import {
   nextTick,
   onBeforeUnmount,
   onMounted,
-  onUpdated,
   ref,
   useAttrs,
   useId,
@@ -60,19 +59,14 @@ import {
 import { t } from "../../i18n.ts";
 import Checkbox from "../Checkbox/Checkbox.vue";
 import Icon from "../Icon/Icon.vue";
-import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import type { ListOption } from "../Select/select.ts";
 import NoValue from "../NoValue/NoValue.vue";
-import CellError from "./CellError.vue";
+import DataGridRow from "./DataGridRow.vue";
+import type { CellView, DataGridRowContext, RowAt } from "./row.ts";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
-import {
-  CELL_WIDGETS,
-  ExtensionCell,
-  tameControl,
-  useExtensionControls,
-} from "../internal/extensionCell.ts";
+import { CELL_WIDGETS, tameControl, useExtensionControls } from "../internal/extensionCell.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
@@ -324,11 +318,9 @@ function stateOf(row: R, column: GridColumn): string | undefined {
   return state === undefined ? undefined : typeof state === "string" ? state : "error";
 }
 const WORDS = { pending: "pending", draft: "inDraft", review: "inReview" } as const;
-/** The state said in words, for assistive technologies (never colour alone). */
-function stateWord(row: R, column: GridColumn): string | undefined {
-  const state = stateOf(row, column);
-  return state && state in WORDS ? t(WORDS[state as keyof typeof WORDS]) : undefined;
-}
+/** A state said in words, for assistive technologies (never colour alone). */
+const wordOf = (state: string | undefined): string | undefined =>
+  state && state in WORDS ? t(WORDS[state as keyof typeof WORDS]) : undefined;
 function errorOf(row: R, column: GridColumn): { error: string; code?: string } | undefined {
   const state = props.cellState?.(row, column);
   return typeof state === "object" ? state : undefined;
@@ -437,23 +429,34 @@ const errorId = (r: number, c: number) => `k-data-grid-${uid}-error-${r}-${c}`;
 // editable grid offers no editor (`readonlyReason`): each distinct sentence of the rows in
 // the document once, hidden, the description of its cells (`aria-describedby`), never in
 // their name.
-const readonlyText = (row: R, column: GridColumn) =>
-  props.editable && props.readonlyReason && !canEdit(row, column)
-    ? props.readonlyReason(row, column)
-    : undefined;
-/** Why the cell is in its state; nothing for an error, which its message says. */
-function stateText(row: R, column: GridColumn): string | undefined {
-  if (!props.stateReason) return undefined;
-  const state = stateOf(row, column);
-  return state !== undefined && state !== "error" ? props.stateReason(row, column) : undefined;
-}
 /** Why the row is in its state, said by its first cell, the one with the row's mark. */
-function rowTexts(row: R, column: GridColumn): readonly (string | undefined)[] {
+function rowTexts(row: R, column: GridColumn, state: RowState | undefined): readonly string[] {
   // The first rendered column: the cell of the row's mark and hidden word (`c === 0`).
-  if (!props.rowReason || column.id !== shown.value[0]?.id || !props.rowState?.(row)) return [];
+  if (!props.rowReason || column.id !== shown.value[0]?.id || !state) return [];
   const said = props.rowReason(row);
   return typeof said === "string" ? [said] : (said ?? []);
 }
+/**
+ * The sentences of a cell whose states are known (its row's, its own, whether it has an
+ * editor): its row's reason, its state's (none for an error, which its message says), then
+ * why no editor.
+ */
+const notesKnown = (
+  row: R,
+  column: GridColumn,
+  rowState: RowState | undefined,
+  state: string | undefined,
+  editable: boolean,
+): string[] =>
+  notesOfTexts([
+    ...rowTexts(row, column, rowState),
+    props.stateReason && state !== undefined && state !== "error"
+      ? props.stateReason(row, column)
+      : undefined,
+    props.editable && props.readonlyReason && !editable
+      ? props.readonlyReason(row, column)
+      : undefined,
+  ]);
 /** Some reason may be said: a hidden sentence per text, and the tooltip. */
 const hasReasons = computed(
   () => !!(props.editable && props.readonlyReason) || !!props.stateReason || !!props.rowReason,
@@ -464,7 +467,7 @@ const hasReasons = computed(
  * description, one tooltip line).
  */
 const notesOf = (row: R, column: GridColumn): string[] =>
-  notesOfTexts([...rowTexts(row, column), stateText(row, column), readonlyText(row, column)]);
+  notesKnown(row, column, props.rowState?.(row), stateOf(row, column), canEdit(row, column));
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
 function errorAt(k: string): boolean {
@@ -484,14 +487,6 @@ function messageOf(row: R, column: GridColumn): { error: string; code?: string }
   return errorOf(row, column);
 }
 const hasError = (row: R, column: GridColumn) => !!messageOf(row, column);
-const errorShown = (row: R, column: GridColumn) =>
-  hasError(row, column) &&
-  (isEditing(row, column) || shownError.value === cellKey(keyOf(row), column.id));
-/** The cell under an open error, for its layer to stand against. */
-function errorAnchor(row: R, column: GridColumn): HTMLElement | null {
-  if (!errorShown(row, column)) return null;
-  return cellElement({ row: keyOf(row), column: column.id });
-}
 const cellElement = (cell: CellRef) =>
   grid.value?.querySelector<HTMLElement>(
     `[data-row="${CSS.escape(cell.row)}"][data-column="${CSS.escape(cell.column)}"]`,
@@ -515,7 +510,7 @@ const cellReasons = useCellReasons<R>({
   idPrefix: `k-data-grid-${uid}`,
   widgets: ".k-data-grid__editor, a, button, input",
 });
-const { reasons, reasonId, reasonOf } = cellReasons;
+const { reasons, reasonId } = cellReasons;
 const reasonTip = cellReasons.tip;
 const tipText = cellReasons.text;
 const pinTip = cellReasons.pin;
@@ -582,7 +577,10 @@ const ROW_MARKS = {
   removed: { icon: "minus", word: "removedInDraft" },
 } as const;
 /** The icon and the hidden word of a row with a state. */
-const markOf = (row: R) => ROW_MARKS[props.rowState?.(row) ?? "draft"];
+const markOf = (state: RowState) => {
+  const mark = ROW_MARKS[state];
+  return { icon: mark.icon, word: t(mark.word) };
+};
 
 /**
  * The rows that just joined a draft (design « Mouvement »): their background fades from
@@ -658,16 +656,18 @@ function widgetsOf(cell: HTMLElement): HTMLElement[] {
 const tame = (el: Element) => tameControl(el, "[data-column]", ".k-data-grid__editor");
 /** The widgets `tame` may take out of the tab order: never a cell (each has a `tabindex`). */
 const TAMED = `:is(${WIDGETS}):not([data-column])`;
-/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
-function tameWidgets(): void {
+/**
+ * The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid), all
+ * at its mount, then as they come or turn focusable, whatever renders them — a row rendered
+ * alone (`DataGridRow`), a component of the host's slot that renders after a read (a link
+ * shown once its target is known), the element of an extension column: each mutation looked
+ * at in its own subtree (`useExtensionControls`), never the whole grid at each of its renders
+ * (task 021-22o-b: a render of the grid that renders no row reads no row).
+ */
+onMounted(() => {
   for (const el of grid.value?.querySelectorAll(TAMED) ?? []) tame(el);
-}
-onMounted(tameWidgets);
-onUpdated(tameWidgets);
-// The element of an extension column (or what the host puts in the slot `extension`)
-// renders when it likes: its controls leave the tab order as they come.
-const extended = computed(() => props.columns.some((column) => column.element));
-useExtensionControls(grid, () => extended.value, tame);
+});
+useExtensionControls(grid, () => true, tame);
 
 // ——— Selection ———
 
@@ -763,6 +763,100 @@ function onDblclick(event: MouseEvent): void {
   const column = cell ? columnOf(cell.column) : undefined;
   if (cell && row && column && canEdit(row, column)) void startEditing(cell);
 }
+
+// ——— Rows ———
+
+/**
+ * The cells of a row (`DataGridRow`): each state of the host asked once per cell — its
+ * state, whether it has an editor, its reasons —, the row's state once per row; the grid's
+ * shared state as it stands in the row (`at`).
+ */
+function cellsOf(row: R, index: number, at: RowAt, rowState: RowState | undefined): CellView[] {
+  return shown.value.map((column, c): CellView => {
+    const editingHere = at.editing === column.id;
+    const given = props.cellState?.(row, column);
+    const state = given === undefined ? undefined : typeof given === "string" ? given : "error";
+    const message =
+      editingHere && draftError.value
+        ? { error: draftError.value }
+        : typeof given === "object"
+          ? given
+          : undefined;
+    const editable = canEdit(row, column);
+    const errorOpen = !!message && (editingHere || at.error === column.id);
+    const id = message ? errorId(index, c) : undefined;
+    const notes = hasReasons.value
+      ? notesKnown(row, column, rowState, state, editable).map(reasonId)
+      : [];
+    return {
+      column,
+      c,
+      editing: editingHere,
+      state,
+      word: wordOf(state),
+      message,
+      readonly: !!props.editable && !editable,
+      describedBy: id ?? (notes.length ? notes.join(" ") : undefined),
+      errorId: id,
+      errorOpen,
+      tabindex: editingHere ? undefined : at.stop === column.id ? 0 : -1,
+      extra:
+        column.element && props.elementProps
+          ? (props.elementProps(row, column) ?? null)
+          : undefined,
+    };
+  });
+}
+/** The column of `cell` when it stands in the row `key`, else none. */
+const columnIn = (cell: CellRef | undefined, key: string) =>
+  cell !== undefined && cell.row === key ? cell.column : null;
+/**
+ * What every row reads of the grid (`DataGridRow`): one object for all of them, so that a
+ * row whose row, key and index stay renders no more when the grid renders. The host's
+ * functions (`cellState`, `rowState`, `editable`, the reasons) are asked again when what they
+ * read changes: they read reactive state, as a computed does, and a row changed in place is
+ * a reactive row (a host that rebuilds its rows gives new objects).
+ */
+const rowContext: DataGridRowContext<R> = {
+  shown,
+  checkboxes,
+  selectable: () => props.selectable,
+  stack: () => !!props.stack,
+  rowOffset: () => props.rowOffset,
+  priority,
+  colIndex,
+  widthOf,
+  widthStyle,
+  stopIn: (key) => columnIn(current.value, key),
+  editingIn: (key) => columnIn(editing.value, key),
+  errorIn(key) {
+    // The key of the open error is `cellKey(row, column)`: the row's whole, then the column.
+    const open = shownError.value;
+    const head = cellKey(key, "");
+    return open !== null && open.startsWith(head) ? open.slice(head.length) : null;
+  },
+  isSelected: (key) => selectedSet.value.has(key),
+  isFresh: (key) => fresh.value.has(key),
+  rowState: (row) => props.rowState?.(row),
+  markOf,
+  cellsOf,
+  has: (name) => !!slots[name],
+  editorOptions: editor.options,
+  draft,
+  setDraft: (value) => (draft.value = value),
+  choose: editor.choose,
+  editorLabel,
+  measure,
+  onAnimationend,
+  onCellEnter,
+  onCellLeave,
+  noteShift,
+  onBox: (key) => void onBox(key),
+  errorLeave: () => (hovered.value = null),
+  errorDismiss: () => errors.dismiss(),
+  errorBack: focusCell,
+  errorBlur: () => (focused.value = null),
+};
 
 // ——— Width of the columns ———
 
@@ -1186,6 +1280,9 @@ onBeforeUnmount(() => observer?.disconnect());
         </div>
       </div>
       <div v-else role="rowgroup" class="k-data-grid__body">
+        <!-- A row: its own component, rendered again only when its row changes (no comment
+             between `v-if` and `v-else`: in development, it would make each row a fragment
+             patched in full, every row rendered again with the grid). -->
         <template v-for="part in parts" :key="part.key">
           <div
             v-if="'gap' in part"
@@ -1193,170 +1290,21 @@ onBeforeUnmount(() => observer?.disconnect());
             aria-hidden="true"
             :style="{ '--k-data-grid-gap': `${part.gap}px` }"
           ></div>
-          <div
+          <DataGridRow
             v-else
-            :ref="measure"
-            role="row"
-            class="k-data-grid__row"
-            :data-index="part.index"
-            :aria-rowindex="props.rowOffset + part.index + 2"
-            :aria-selected="props.selectable ? isSelected(part.row) : undefined"
-            :data-row-state="props.rowState?.(part.row)"
-            :data-fresh="fresh.has(part.key) ? 'true' : undefined"
-            @animationend="onAnimationend(part.key, $event)"
-          >
-            <div
-              v-if="checkboxes"
-              role="gridcell"
-              class="k-data-grid__cell k-data-grid__select"
-              :data-row="part.key"
-              :data-column="SELECT_COLUMN"
-              aria-colindex="1"
-              :tabindex="tabindex(part.key, SELECT_COLUMN)"
-              @click.capture="noteShift"
-            >
-              <Checkbox
-                :label="`${t('selectRow')} ${part.key}`"
-                hide-label
-                size="sm"
-                :model-value="isSelected(part.row)"
-                @update:model-value="onBox(part.key)"
-              />
-            </div>
-            <div
-              v-for="(column, c) in shown"
-              :key="column.id"
-              role="gridcell"
-              class="k-data-grid__cell"
-              :class="{ 'k-mono': column.mono }"
-              :data-row="part.key"
-              :data-column="column.id"
-              :data-align="column.align"
-              :data-priority="priority(column)"
-              :data-width="widthOf(column)"
-              :style="widthStyle(column)"
-              :data-wrap="column.wrap ? 'true' : undefined"
-              :data-label="props.stack && c > 0 && !column.actions ? column.label : undefined"
-              :data-actions="column.actions ? 'true' : undefined"
-              :data-state="stateOf(part.row, column)"
-              :data-editing="isEditing(part.row, column) ? 'true' : undefined"
-              :aria-colindex="colIndex(column)"
-              :aria-readonly="props.editable && !canEdit(part.row, column) ? 'true' : undefined"
-              :aria-busy="stateOf(part.row, column) === 'pending' ? 'true' : undefined"
-              :aria-invalid="messageOf(part.row, column) ? 'true' : undefined"
-              :aria-describedby="
-                hasError(part.row, column) ? errorId(part.index, c) : reasonOf(part.row, column)
-              "
-              :data-error-open="errorShown(part.row, column) ? 'true' : undefined"
-              :tabindex="isEditing(part.row, column) ? undefined : tabindex(part.key, column.id)"
-              @pointerenter="onCellEnter(part.row, column, $event)"
-              @pointerleave="onCellLeave(part.index, c, $event)"
-            >
-              <div v-if="isEditing(part.row, column) && slots.editor" class="k-data-grid__editor">
-                <slot
-                  name="editor"
-                  :row="part.row"
-                  :column="column"
-                  :value="draft"
-                  :update="(value: string) => (draft = value)"
-                  :label="editorLabel(part.row, column)"
-                  :invalid="!!messageOf(part.row, column)"
-                  :described-by="hasError(part.row, column) ? errorId(part.index, c) : undefined"
-                />
-              </div>
-              <div
-                v-else-if="isEditing(part.row, column)"
-                class="k-field-frame k-data-grid__editor"
-                data-size="md"
-                :data-invalid="messageOf(part.row, column) ? 'true' : undefined"
-              >
-                <CellSelect
-                  v-if="editor.options.value"
-                  :options="editor.options.value"
-                  :value="draft"
-                  :label="editorLabel(part.row, column)"
-                  :mono="column.mono"
-                  :invalid="!!messageOf(part.row, column)"
-                  :described-by="hasError(part.row, column) ? errorId(part.index, c) : undefined"
-                  @update="(value: string) => (draft = value)"
-                  @done="editor.choose"
-                />
-                <input
-                  v-else
-                  v-model="draft"
-                  class="k-field-frame__input"
-                  :class="{ 'k-mono': column.mono }"
-                  type="text"
-                  spellcheck="false"
-                  :aria-label="editorLabel(part.row, column)"
-                  :aria-invalid="messageOf(part.row, column) ? 'true' : undefined"
-                  :aria-describedby="
-                    hasError(part.row, column) ? errorId(part.index, c) : undefined
-                  "
-                />
-              </div>
-              <template v-else>
-                <template v-if="c === 0 && props.rowState?.(part.row)">
-                  <Icon :name="markOf(part.row).icon" class="k-data-grid__row-mark" />
-                  <span class="k-visually-hidden">({{ t(markOf(part.row).word) }})</span>
-                </template>
-                <span class="k-data-grid__value">
-                  <ExtensionCell
-                    v-if="column.element"
-                    :tag="column.element"
-                    :row="part.row"
-                    :column="column"
-                    :extra="
-                      props.elementProps
-                        ? (props.elementProps(part.row, column) ?? null)
-                        : undefined
-                    "
-                    ><template v-if="slots.extension" #default="given"
-                      ><slot name="extension" v-bind="given" /></template
-                  ></ExtensionCell>
-                  <slot
-                    v-else
-                    name="cell"
-                    :row="part.row"
-                    :column="column"
-                    :value="part.row[column.id]"
-                    ><NoValue v-if="part.row[column.id] === null" /><template v-else>{{
-                      part.row[column.id]
-                    }}</template></slot
-                  >
-                </span>
-                <Icon
-                  v-if="stateOf(part.row, column) === 'pending'"
-                  name="loader-circle"
-                  class="k-spinner k-data-grid__mark"
-                />
-                <Icon
-                  v-else-if="stateOf(part.row, column) === 'error'"
-                  name="circle-x"
-                  class="k-data-grid__mark"
-                />
-                <Icon
-                  v-else-if="stateOf(part.row, column) === 'review'"
-                  name="eye"
-                  class="k-data-grid__mark"
-                />
-                <span v-if="stateWord(part.row, column)" class="k-visually-hidden"
-                  >({{ stateWord(part.row, column) }})</span
-                >
-              </template>
-              <CellError
-                v-if="hasError(part.row, column)"
-                :id="errorId(part.index, c)"
-                :error="messageOf(part.row, column)!.error"
-                :code="messageOf(part.row, column)!.code"
-                :anchor="errorAnchor(part.row, column)"
-                @leave="hovered = null"
-                @dismiss="errors.dismiss()"
-                @back="focusCell(part.index, c)"
-                @blur="focused = null"
-              />
-            </div>
-          </div>
+            :row="part.row"
+            :row-key="part.key"
+            :index="part.index"
+            :c="rowContext"
+            ><template #cell="given"
+              ><slot name="cell" v-bind="given"
+                ><NoValue v-if="given.value === null" /><template v-else>{{
+                  given.value
+                }}</template></slot
+              ></template
+            ><template #editor="given"><slot name="editor" v-bind="given" /></template
+            ><template #extension="given"><slot name="extension" v-bind="given" /></template
+          ></DataGridRow>
         </template>
       </div>
     </div>
