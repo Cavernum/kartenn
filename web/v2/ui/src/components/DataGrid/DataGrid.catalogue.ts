@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineComponent, h, ref, type Component } from "vue";
+import { defineComponent, h, onBeforeUnmount, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoFrame from "../../demo/DemoFrame.vue";
 import { DEMO_CELL, defineDemoCell } from "../../demo/extensionCell.ts";
@@ -319,6 +319,53 @@ const virtualGrid = defineComponent({
   },
 });
 
+/**
+ * The rows of a page of the server, and the pages the cache keeps: a copy of `MAX_PAGES`
+ * of the SDK, which `@kartenn/ui` does not import.
+ */
+const PAGE = 100;
+const KEPT = 10;
+/**
+ * A paged list past ten pages (task 021-22f): the window within two screens of the end of
+ * the loaded rows reads the next page (`useNextPage`), which comes a moment later; the
+ * cache keeps ten, the first dropped as the eleventh comes. The rows in view stay put.
+ */
+const pagedGrid = defineComponent({
+  setup() {
+    const first = ref(0);
+    const view = ref<GridWindow>({ start: 0, end: 0, size: 0 });
+    let reading = 0;
+    const onWindow = (next: GridWindow) => {
+      view.value = next;
+      const loaded = KEPT * PAGE;
+      if (reading || next.size === 0 || loaded - next.end >= 2 * next.size) return;
+      if (first.value + loaded >= tenThousand.length) return;
+      reading = window.setTimeout(() => {
+        first.value += PAGE;
+        reading = 0;
+      }, 300);
+    };
+    onBeforeUnmount(() => window.clearTimeout(reading));
+    const pages = tenThousand.length / PAGE;
+    return () =>
+      h("div", [
+        h(DataGrid as Component, {
+          ...base,
+          label: "Préfixes lus page par page",
+          rows: tenThousand.slice(first.value, first.value + KEPT * PAGE),
+          rowCount: tenThousand.length,
+          rowOffset: first.value,
+          onWindow,
+        }),
+        h(
+          "p",
+          { "data-demo": "pages", "data-first": first.value },
+          `Pages gardées : ${first.value / PAGE + 1} à ${first.value / PAGE + KEPT} sur ${pages} ; en vue : lignes ${first.value + view.value.start + 1} à ${first.value + view.value.end} sur ${tenThousand.length.toLocaleString("fr-FR")} (un écran : ${view.value.size})`,
+        ),
+      ]);
+  },
+});
+
 /** A column of an extension (W5): a custom element per row, its `row` set as a property. */
 const extension = () => {
   defineDemoCell();
@@ -548,6 +595,14 @@ export default {
         "Dix mille lignes : quelques dizaines dans le document, la ligne du focus gardée, la fenêtre dite",
       props: {},
       demo: virtualGrid,
+      wide: true,
+    },
+    {
+      name: "paged",
+      description:
+        "Liste lue page par page au-delà de dix pages : la première lâchée quand la onzième arrive, les lignes en vue gardées à leur place",
+      props: {},
+      demo: pagedGrid,
       wide: true,
     },
     {

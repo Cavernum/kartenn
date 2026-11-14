@@ -10,7 +10,15 @@
 // of a paged list).
 
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { computed, onMounted, onUpdated, ref, type ComponentPublicInstance, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUpdated,
+  ref,
+  type ComponentPublicInstance,
+  type Ref,
+} from "vue";
 
 /**
  * The parts of a virtualised body, in order: the rows to render (`index`), and between
@@ -235,9 +243,32 @@ export function useVirtualRows(host: VirtualRowsHost) {
   );
   /** The key each element was last measured under: a recycled row changes it. */
   const measuredAs = new WeakMap<HTMLElement, string>();
+  /** The rows to measure once their render is committed (`measure`, `commit`). */
+  const unmeasured = new Set<HTMLElement>();
+  /**
+   * A row element given by its template ref, measured once the render is committed, never
+   * at once: Vue calls a function ref in the middle of the patch, where a measure lays out
+   * a body half patched (task 021-22f: the gap before the window unmounted, the rows after
+   * it not yet mounted, at the end of a list, the scroller's height shrinks to the rows
+   * left and the browser clamps the scroll offset there, to the top of the list). Measured
+   * after the flush that patches it, whichever component renders it (`nextTick`): the rows
+   * of `Tree` are in the slot of `TreeRoot`, which renders again without `Tree`; the host's
+   * own render measures them sooner (`commit`).
+   */
   function measure(el: Element | ComponentPublicInstance | null): void {
     const node = el instanceof Element ? el : (el?.$el as Element | undefined);
     if (!virtual.value || !(node instanceof HTMLElement)) return;
+    unmeasured.add(node);
+    if (unmeasured.size === 1) void nextTick(measureQueued);
+  }
+  /** The rows queued by `measure`, measured; those gone from the document left out. */
+  function measureQueued(): void {
+    const rows = [...unmeasured];
+    unmeasured.clear();
+    for (const node of rows) measureNow(node);
+  }
+  function measureNow(node: HTMLElement): void {
+    if (!virtual.value || !node.isConnected) return;
     const v = virtualizer.value;
     // An element shows another row now: its former key forgets it, or measuring that
     // key's next element would stop observing this one, still in use.
@@ -277,6 +308,7 @@ export function useVirtualRows(host: VirtualRowsHost) {
   let computedLast: typeof rendered | undefined;
   const commit = () => {
     if (computedLast) rendered = computedLast;
+    measureQueued();
     // The anchoring done once the rows are rendered: kept, `anchorTo: "end"` would also pin
     // the view to the end of the list while a row there changes size.
     if (anchoring) {

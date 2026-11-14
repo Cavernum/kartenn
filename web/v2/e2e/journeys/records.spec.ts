@@ -13,7 +13,8 @@ import {
 // Lists and records of the new shell (spec 021, task 11; REQ-021-9, 18, 22), ported from
 // web/e2e/journeys/records.spec.ts: from a domain to a prefix to an address, its inherited
 // property explained, its history; a long list virtualised, its next page read ahead and a
-// row opened at the keyboard; a refused cursor starts the list again; a filtered link
+// row opened at the keyboard; past ten pages, each page read shown and none read ahead of
+// the view (021-22f); a refused cursor starts the list again; a filtered link
 // copied opens the same list; the filter of a column is the bar's; the history of a network
 // renumbered, each version with its motive and its author (task 11p5).
 
@@ -131,6 +132,133 @@ test("a long list keeps a few dozen rows, reads ahead, and opens a row by keyboa
   await expect(
     page.getByRole("heading", { level: 1, name: titled("2001:db8:2::2") }),
   ).toBeVisible();
+});
+
+test("past ten pages: each page read is shown, none read ahead of the view, the end reached", async ({
+  page,
+  login,
+}) => {
+  // The networks of the domain, more than 1 100 (the wide container's children): twelve
+  // pages, the cache keeping ten (task 021-22f). The eleventh lands with the first
+  // dropped and the rows in view kept in place: the window the grid gave was at the end of
+  // the rows before, and read as it stood it read the twelfth at once, under the view.
+  await login("alice");
+  // The pages read, each once: the list read again (a change of another journey
+  // invalidates it, each page under a new cursor) brings no page.
+  const pages: { url: string; ids: string[]; next: boolean }[] = [];
+  const firsts = new Set<string>();
+  let started = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/v1/prefixes" && request.method() === "GET") started++;
+  });
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.pathname !== "/v1/prefixes" || response.request().method() !== "GET") return;
+    void response
+      .json()
+      .then((body: { items?: { id: string }[]; links?: { next?: string } }) => {
+        const ids = (body.items ?? []).map((item) => item.id);
+        if (ids.length === 0 || firsts.has(ids[0]!)) return;
+        firsts.add(ids[0]!);
+        pages.push({ url: url.search, ids, next: !!body.links?.next });
+      })
+      .catch(() => undefined);
+  });
+  await page.goto(`/prefixes?domain=${DATA.domain}`);
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  await expect(grid.locator("[role='gridcell']").first()).toBeVisible();
+  // Every row in the document once (the keys of its cells).
+  await grid.evaluate((el) => {
+    const seen = new Set<string>();
+    (window as unknown as { __rows: Set<string> }).__rows = seen;
+    const scan = () => {
+      for (const cell of el.querySelectorAll<HTMLElement>("[data-row]"))
+        if (cell.dataset.row) seen.add(cell.dataset.row);
+    };
+    scan();
+    new MutationObserver(scan).observe(el, { subtree: true, childList: true, attributes: true });
+  });
+  // The last row wholly in view: its key and the top of its box in the grid.
+  const lastInView = () =>
+    grid.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      let last: { key: string; top: number } | null = null;
+      for (const row of el.querySelectorAll<HTMLElement>("[role='row'][data-index]")) {
+        const r = row.getBoundingClientRect();
+        const key = row.querySelector<HTMLElement>("[data-row]")?.dataset.row;
+        if (key && r.top >= box.top && r.bottom <= box.top + el.clientHeight + 1)
+          last = { key, top: Math.round(r.top - box.top) };
+      }
+      return last;
+    });
+  // To the end of the rows kept until one page more is read, then that page in.
+  // No more scroll once a read has started (its response parsed a moment later).
+  const readOneMore = async () => {
+    const before = pages.length;
+    const asked = started;
+    await expect(async () => {
+      if (started === asked) await toEnd(grid);
+      expect(pages.length).toBeGreaterThan(before);
+    }).toPass({ timeout: 15_000 });
+    const read = pages.at(-1)!;
+    try {
+      await expect
+        // A read cancelled by the list read again is read anew once that is done.
+        .poll(() => shownOf(read.ids), {
+          message: `page ${pages.length} shown`,
+          timeout: 15_000,
+        })
+        .toBe(true);
+    } catch (error) {
+      // What the grid holds then: the pages read (first or next, their rows), its window.
+      console.log(
+        `INFO a page read not shown: pages ${pages.length} started ${started} ${pages.map((p) => `${p.url.includes("cursor") ? "c" : "f"}${p.ids.length}`).join(",")} ${await grid.evaluate(
+          (el) => {
+            const idx = [...el.querySelectorAll<HTMLElement>("[role='row'][data-index]")].map((r) =>
+              Number(r.dataset.index),
+            );
+            return `top ${el.scrollTop} h ${el.scrollHeight} rows ${Math.min(...idx)}..${Math.max(...idx)} count ${el.getAttribute("aria-rowcount")}`;
+          },
+        )}`,
+      );
+      throw error;
+    }
+  };
+  /** Whether a row of `ids` was in the document. */
+  const shownOf = (ids: string[]) =>
+    page.evaluate(
+      (keys) => keys.some((key) => (window as unknown as { __rows: Set<string> }).__rows.has(key)),
+      ids,
+    );
+  for (let n = 2; n <= 10; n++) await readOneMore();
+  expect(pages).toHaveLength(10);
+  // The eleventh: the view stays on its rows, nothing more read without a scroll.
+  // The eleventh in, the first dropped: the last row in view is still the tenth's last.
+  const asked = started;
+  await expect(async () => {
+    if (started === asked) await toEnd(grid);
+    expect(pages).toHaveLength(11);
+  }).toPass({ timeout: 15_000 });
+  await expect.poll(async () => (await lastInView())?.key).toBe(pages[9]!.ids.at(-1));
+  const before = (await lastInView())!;
+  await page.waitForTimeout(1_000);
+  expect(pages).toHaveLength(11);
+  expect(await lastInView()).toEqual(before);
+  // On to the end of the list: each page read shown, the last one without a next.
+  await expect(async () => {
+    await toEnd(grid);
+    expect(pages.at(-1)!.next).toBe(false);
+  }).toPass({ timeout: 30_000 });
+  await toEnd(grid);
+  await expect(grid.locator(`[data-row="${pages.at(-1)!.ids.at(-1)}"]`).first()).toBeVisible();
+  const shown = await page.evaluate(() => [
+    ...(window as unknown as { __rows: Set<string> }).__rows,
+  ]);
+  for (const read of pages)
+    expect(
+      read.ids.some((id) => shown.includes(id)),
+      read.url,
+    ).toBe(true);
 });
 
 test("a refused cursor starts the list again from its first page", async ({ page, login }) => {

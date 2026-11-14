@@ -7,7 +7,8 @@ import { expect, openState, test } from "../fixtures/index.ts";
 // Up and Page Down; sort and filter of a header; selection by Space, Shift with an arrow,
 // Ctrl+A and the checkboxes; in-place editing (Enter or F2, Escape, Enter or Tab), the
 // local check and the host's states after a commit; the width of a column by its handle;
-// ten thousand rows virtualised, the focus exact and kept mounted.
+// ten thousand rows virtualised, the focus exact and kept mounted; a paged list past ten
+// pages, its first page dropped, the rows in view kept in their place (task 021-22f).
 
 /** The row and column keys of the element that has the focus in a grid. */
 const focusedCell = (page: Page) =>
@@ -605,6 +606,60 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(
       grid.getByRole("checkbox", { name: "Sélectionner toutes les lignes" }),
     ).toBeChecked();
+  });
+
+  test("a paged list past ten pages: the first dropped, the rows in view kept in their place", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "paged");
+    const grid = page.getByRole("grid", { name: "Préfixes lus page par page" });
+    const pages = page.locator("[data-demo='pages']");
+    await expect(grid).toHaveAttribute("aria-rowcount", "10001");
+    // The key of the last row in view and the top of its box in the grid, while the
+    // pages kept start at `first` (none otherwise: the next page came meanwhile).
+    const lastInView = (first: number) =>
+      grid.evaluate((el, at) => {
+        const shown = document.querySelector<HTMLElement>("[data-demo='pages']");
+        if (Number(shown?.dataset.first) !== at) return null;
+        const box = el.getBoundingClientRect();
+        let last: { key: string; top: number } | null = null;
+        for (const row of el.querySelectorAll<HTMLElement>(".k-data-grid__body > [role='row']")) {
+          const r = row.getBoundingClientRect();
+          const key = row.querySelector<HTMLElement>("[data-row]")?.dataset.row;
+          if (key && r.top >= box.top && r.bottom <= box.top + el.clientHeight + 1)
+            last = { key, top: Math.round(r.top - box.top) };
+        }
+        return last;
+      }, first);
+    const prefixOf = (i: number) => `10.${Math.floor(i / 256)}.${i % 256}.0/24`;
+    // The eleventh, twelfth and thirteenth pages, the kept ones starting at `first`.
+    for (const first of [0, 100, 200]) {
+      // To the end of the rows kept, as the wheel would: the last kept row in view, then
+      // the next page read and the first one dropped (021-22f: the grid sent to the top).
+      await grid.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+      await expect
+        .poll(async () => (await lastInView(first))?.key, { intervals: [20] })
+        .toBe(prefixOf(first + 999));
+      const before = (await lastInView(first))!;
+      await expect(pages).toHaveAttribute("data-first", String(first + 100));
+      // The row stays where it stood, the rows of the new page come under it.
+      await expect
+        .poll(() =>
+          grid.evaluate((el, key) => {
+            const row = el.querySelector(`[data-row="${key}"]`)?.closest("[role='row']");
+            return row
+              ? Math.round(row.getBoundingClientRect().top - el.getBoundingClientRect().top)
+              : null;
+          }, before.key),
+        )
+        .toBe(before.top);
+      await expect(grid.locator(`[data-row="${prefixOf(first + 1000)}"]`).first()).toBeAttached();
+      // Its place in the whole list said as before (`rowOffset`), the count unchanged.
+      await expect(
+        grid.locator("[role='row']").filter({ has: page.locator(`[data-row="${before.key}"]`) }),
+      ).toHaveAttribute("aria-rowindex", String(first + 1001));
+      await expect(grid).toHaveAttribute("aria-rowcount", "10001");
+    }
   });
 
   test("an extension column: one custom element per row, given its row", async ({ page }) => {
