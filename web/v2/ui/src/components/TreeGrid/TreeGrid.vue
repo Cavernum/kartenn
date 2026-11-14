@@ -50,7 +50,8 @@
 // on a row it leaves out); never edited, its controls out of the tab order (Enter or F2
 // reach them). Keyed by its row: a recycled element of row creates it again for the row it
 // comes to show, as a list keyed by its rows would (design 007: elements created again as
-// the rows scroll).
+// the rows scroll). The slot `extension` (`GridColumn.element`), keyed the same way, puts
+// the host's content in such a cell instead.
 import {
   computed,
   nextTick,
@@ -82,7 +83,12 @@ import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEd
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
 import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
-import { CELL_WIDGETS, ExtensionCell } from "../internal/extensionCell.ts";
+import {
+  CELL_WIDGETS,
+  ExtensionCell,
+  tameControl,
+  useExtensionControls,
+} from "../internal/extensionCell.ts";
 import type { ListOption } from "../Select/select.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import MoveDialog from "../internal/MoveDialog.vue";
@@ -774,52 +780,20 @@ const widgetsOf = (cell: HTMLElement) => [
 function tame(): void {
   for (const button of grid.value?.querySelectorAll<HTMLElement>(".k-tree-grid__cell button") ?? [])
     button.tabIndex = -1;
-  if (extended.value) tameElements(grid.value);
+  if (!extended.value) return;
+  for (const el of grid.value?.querySelectorAll(`${ELEMENT_CELL} :is(${CELL_WIDGETS})`) ?? [])
+    tameOne(el);
 }
 onMounted(tame);
 onUpdated(tame);
-// The element of an extension renders when it likes (its plugin, after a read): its
-// controls leave the tab order as they come or turn focusable, in the light DOM (ADR 0038,
-// § 4), as in `DataGrid`. Observed only while a column has an element: nothing for a row
-// of a tree without one.
+// The element of an extension (or what the host puts in the slot `extension`) renders when
+// it likes: its controls leave the tab order as they come, as in `DataGrid`; nothing
+// observed for a tree without such a column.
 const extended = computed(() => props.columns.some((column) => column.element));
 const ELEMENT_CELL = ".k-tree-grid__cell[data-element]";
 /** A control in the element of an extension cell leaves the tab order. */
-function tameOne(el: Element): void {
-  if (!(el instanceof HTMLElement) || !el.matches(CELL_WIDGETS) || el.matches("[data-column]"))
-    return;
-  if (el.parentElement?.closest(ELEMENT_CELL) && el.tabIndex !== -1) el.tabIndex = -1;
-}
-function tameElements(root: ParentNode | null): void {
-  for (const el of root?.querySelectorAll(`${ELEMENT_CELL} :is(${CELL_WIDGETS})`) ?? [])
-    tameOne(el);
-}
-let mutations: MutationObserver | undefined;
-function onMutations(records: MutationRecord[]): void {
-  for (const record of records) {
-    if (record.type === "attributes") tameOne(record.target as Element);
-    for (const node of record.addedNodes) {
-      if (!(node instanceof Element)) continue;
-      tameOne(node);
-      for (const el of node.querySelectorAll(CELL_WIDGETS)) tameOne(el);
-    }
-  }
-}
-function observeElements(): void {
-  mutations?.disconnect();
-  mutations = undefined;
-  if (!extended.value || !grid.value || typeof MutationObserver === "undefined") return;
-  mutations = new MutationObserver(onMutations);
-  mutations.observe(grid.value, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["tabindex", "href", "contenteditable"],
-  });
-}
-onMounted(observeElements);
-watch(extended, observeElements, { flush: "post" });
-onBeforeUnmount(() => mutations?.disconnect());
+const tameOne = (el: Element) => tameControl(el, ELEMENT_CELL);
+useExtensionControls(grid, () => extended.value, tameOne);
 onMounted(() => {
   virtual.readEstimate();
   measureHead();
@@ -1213,11 +1187,13 @@ onBeforeUnmount(() => observer?.disconnect());
                     :key="part.row.key"
                     :tag="column.element"
                     :row="part.row.node"
+                    :column="column"
                     :extra="extraOf(part.row.node, column)"
-                  /><NoValue v-else-if="cellOf(part.row.node, column) === null" /><template
-                    v-else
-                    >{{ cellOf(part.row.node, column) }}</template
-                  ></span
+                    ><template v-if="$slots.extension" #default="given"
+                      ><slot name="extension" v-bind="given" /></template></ExtensionCell
+                  ><NoValue v-else-if="cellOf(part.row.node, column) === null" /><template v-else>{{
+                    cellOf(part.row.node, column)
+                  }}</template></span
                 >
                 <Icon
                   v-if="stateOf(part.row.node, column) === 'pending'"

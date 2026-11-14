@@ -31,7 +31,8 @@
 // follows a commit is said by an alert).
 // Columns resizable by the keyboard (`resizable`: F2 on a header reaches its handle, a
 // Window Splitter: arrows, Home, End) and the pointer (drag, or a click for the next
-// token width, WCAG 2.5.7). A column of an extension holds a custom element per row.
+// token width, WCAG 2.5.7). A column of an extension holds a custom element per row, or
+// what the host puts in the slot `extension` (`GridColumn.element`).
 // A cell whose value is `null` (without a `cell` slot) is absent, said by `NoValue` (a
 // dash shown, « non renseigné » read); `undefined` and `""` stay blank, as before.
 // Adaptation to the width (design « Adaptation à la largeur »): the root is a container;
@@ -66,7 +67,12 @@ import NoValue from "../NoValue/NoValue.vue";
 import CellError from "./CellError.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
-import { CELL_WIDGETS, ExtensionCell } from "../internal/extensionCell.ts";
+import {
+  CELL_WIDGETS,
+  ExtensionCell,
+  tameControl,
+  useExtensionControls,
+} from "../internal/extensionCell.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
@@ -169,8 +175,10 @@ const props = withDefaults(
     rowOffset?: number;
     /** The columns take a width from the keyboard and the pointer (`columnWidths`). */
     resizable?: boolean;
-    /** The properties of the elements of the extension columns, beside `row`. */
-    /** `undefined` for a row: no element in that cell (as `TreeGrid`). */
+    /**
+     * The properties of the elements of the extension columns, beside `row`; `undefined`
+     * for a row: no element in that cell (as `TreeGrid`).
+     */
     elementProps?:
       ((row: R, column: GridColumn) => Record<string, unknown> | undefined) | undefined;
   }>(),
@@ -630,47 +638,17 @@ function widgetsOf(cell: HTMLElement): HTMLElement[] {
   );
 }
 /** A widget of a cell (never the cell itself, nor an editor) leaves the tab order. */
-function tame(el: Element): void {
-  if (!(el instanceof HTMLElement) || !el.matches(WIDGETS) || el.matches("[data-column]")) return;
-  if (!el.parentElement?.closest("[data-column]") || el.closest(".k-data-grid__editor")) return;
-  if (el.tabIndex !== -1) el.tabIndex = -1;
-}
+const tame = (el: Element) => tameControl(el, "[data-column]", ".k-data-grid__editor");
 /** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
-function tameWidgets(root: ParentNode | null = grid.value): void {
-  for (const el of root?.querySelectorAll(WIDGETS) ?? []) tame(el);
+function tameWidgets(): void {
+  for (const el of grid.value?.querySelectorAll(WIDGETS) ?? []) tame(el);
 }
-onMounted(() => tameWidgets());
-onUpdated(() => tameWidgets());
-// The element of an extension column renders when it likes (its plugin, after a read):
-// its controls leave the tab order as they come or turn focusable, in the light DOM (ADR
-// 0038, § 4), each mutation looked at in its own subtree.
-let mutations: MutationObserver | undefined;
-function onMutations(records: MutationRecord[]): void {
-  for (const record of records) {
-    if (record.type === "attributes") tame(record.target as Element);
-    for (const node of record.addedNodes) {
-      if (!(node instanceof Element)) continue;
-      tame(node);
-      tameWidgets(node);
-    }
-  }
-}
+onMounted(tameWidgets);
+onUpdated(tameWidgets);
+// The element of an extension column (or what the host puts in the slot `extension`)
+// renders when it likes: its controls leave the tab order as they come.
 const extended = computed(() => props.columns.some((column) => column.element));
-function observeExtensions(): void {
-  mutations?.disconnect();
-  mutations = undefined;
-  if (!extended.value || !grid.value || typeof MutationObserver === "undefined") return;
-  mutations = new MutationObserver(onMutations);
-  mutations.observe(grid.value, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["tabindex", "href", "contenteditable"],
-  });
-}
-onMounted(observeExtensions);
-watch(extended, observeExtensions);
-onBeforeUnmount(() => mutations?.disconnect());
+useExtensionControls(grid, () => extended.value, tame);
 
 // ——— Selection ———
 
@@ -1308,12 +1286,15 @@ onBeforeUnmount(() => observer?.disconnect());
                     v-if="column.element"
                     :tag="column.element"
                     :row="part.row"
+                    :column="column"
                     :extra="
                       props.elementProps
                         ? (props.elementProps(part.row, column) ?? null)
                         : undefined
                     "
-                  />
+                    ><template v-if="slots.extension" #default="given"
+                      ><slot name="extension" v-bind="given" /></template
+                  ></ExtensionCell>
                   <slot
                     v-else
                     name="cell"

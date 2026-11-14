@@ -675,4 +675,52 @@ describe("TreeGrid: an extension column over recycled rows (task 021-11o)", () =
     expect(recycled.length).toBeGreaterThan(0);
     for (const { node, element } of after) expect(element?.textContent, node).toBe(node);
   });
+
+  it("creates the host's content of the slot `extension` again when a recycled row shows another node", async () => {
+    // Content with a state of its own, the node it was created for: kept, it would follow
+    // the row element to the node it comes to show.
+    const Host = {
+      props: ["row"],
+      setup(props: { row: TreeNode }) {
+        const created = props.row.id;
+        return () => h("output", created);
+      },
+    };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const expanded = shallowReactive({ value: ["v1"] });
+    const app = createApp({
+      render: () =>
+        h(
+          TreeGrid as Component,
+          {
+            label: "Cent mille",
+            treeLabel: "Nœud",
+            nodes: virtualTree(),
+            expanded: expanded.value,
+            columns: [{ id: "ext", label: "Extension", element: TAG }],
+          },
+          { extension: (given: { row: TreeNode }) => h(Host, { row: given.row }) },
+        ),
+    });
+    apps.push(app);
+    app.mount(root);
+    await nextTick();
+    const shown = () =>
+      [...root.querySelectorAll<HTMLElement>("[role='row'][data-node]")].map((row) => ({
+        row,
+        node: row.dataset.node!,
+        content: row.querySelector('[data-column="ext"] output')?.textContent,
+      }));
+    const before = shown();
+    for (const { node, content } of before) expect(content, node).toBe(node);
+    expanded.value = ["v2"];
+    await nextTick();
+    await nextTick();
+    const after = shown();
+    expect(
+      after.some(({ row, node }) => before.some((was) => was.row === row && was.node !== node)),
+    ).toBe(true);
+    for (const { node, content } of after) expect(content, node).toBe(node);
+  });
 });

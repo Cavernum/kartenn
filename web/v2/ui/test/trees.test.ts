@@ -6,6 +6,7 @@ import { createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import type { GridColumn } from "../src/components/DataGrid/grid.ts";
+import type { ExtensionSlotProps } from "../src/components/internal/extensionCell.ts";
 import Tree from "../src/components/Tree/Tree.vue";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
 import {
@@ -520,6 +521,32 @@ describe("TreeGrid (complete)", () => {
     // A column of the tree's own keeps its values and its absent ones.
     expect(html).not.toMatch(/data-column="env"[^>]*data-element/);
     expect(html).toContain("non renseigné");
+  });
+
+  it("an extension column filled by the host's slot `extension`: the node or the row given", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            TreeGrid as Component,
+            {
+              label: "Arbre",
+              treeLabel: "Nœud",
+              nodes: [{ id: "d", label: "Domaine", children: [{ id: "x", label: "X" }] }],
+              expanded: ["d"],
+              columns: [extension],
+              elementProps: (node: TreeNode) => (node.id === "d" ? undefined : { object: "o-x" }),
+            },
+            {
+              extension: (given: ExtensionSlotProps) =>
+                h("output", `${(given.row as TreeNode).id} ${String(given.properties.object)}`),
+            },
+          ),
+      }),
+    );
+    expect(html).not.toContain("<k-demo-cell");
+    expect(cellHtml(html, "x", "ext")).toContain("<output>x o-x</output>");
+    expect(cellHtml(html, "d", "ext")).not.toContain("<output>");
   });
 
   it("an extension column virtualised: elements for the rows of the window only", async () => {

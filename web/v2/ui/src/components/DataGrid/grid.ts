@@ -34,7 +34,11 @@ export interface GridColumn {
    * A column of an extension (a plugin, point `column`, W5): each cell holds a custom
    * element of this tag, created for its row (again when virtualisation brings the row
    * back), its `row` property set to the row and the others to what `elementProps` of the
-   * grid gives. The grid knows nothing of plugins; the host passes the tag it registered.
+   * grid gives (`undefined` for a row: no element in that cell). The grid knows nothing of
+   * plugins; the host passes the tag it registered. A host that fills the slot `extension`
+   * of the grid (`ExtensionSlotProps`: the row, the column, the other properties) puts its
+   * own content in each such cell instead (the shell: its host of an extension, an error of
+   * the element confined to its cell), the cell kept as the grid makes it.
    */
   element?: string;
 }

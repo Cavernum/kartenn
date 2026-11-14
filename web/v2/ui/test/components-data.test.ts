@@ -9,6 +9,7 @@ import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
 import { bodyParts, keptIndexes, rowSlots } from "../src/components/internal/virtualRows.ts";
 import { useCellEditor, useCommitWatch } from "../src/components/internal/cellEditor.ts";
+import type { ExtensionSlotProps } from "../src/components/internal/extensionCell.ts";
 import type { ListOption } from "../src/components/Select/select.ts";
 import { nextTick, ref } from "vue";
 import type { CellRef, CellState, GridCommit } from "../src/components/DataGrid/grid.ts";
@@ -438,6 +439,39 @@ describe("DataGrid", () => {
     expect(html).not.toMatch(/data-column="label"[^>]*aria-readonly/);
     // An extension cell is never editable.
     expect(html).toMatch(/data-column="ext"[^>]*aria-readonly="true"/);
+  });
+
+  it("puts the host's slot `extension` in an extension cell, nothing where elementProps gives nothing", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            DataGrid as Component,
+            {
+              label: "Préfixes",
+              columns: [...columns, { id: "ext", label: "Extension", element: "k-demo-cell" }],
+              rows,
+              rowKey: "prefix",
+              elementProps: (row: { prefix: string }) =>
+                row.prefix === "198.51.100.0/24"
+                  ? undefined
+                  : { object: "o1", row: { prefix: "autre" } },
+            },
+            {
+              extension: (given: ExtensionSlotProps) =>
+                h(
+                  "output",
+                  `${given.column.id} ${(given.row as { prefix: string }).prefix} ${Object.keys(given.properties).join(",")}`,
+                ),
+            },
+          ),
+      }),
+    );
+    // The host's content stands for the element: the row `elementProps` gives, its other
+    // properties apart; none in the row it leaves out.
+    expect(html).not.toContain("<k-demo-cell");
+    expect(html.match(/<output>/g)).toHaveLength(1);
+    expect(text(html)).toContain("ext autre object");
   });
 
   it("selects one row only when `single`: no aria-multiselectable", async () => {
