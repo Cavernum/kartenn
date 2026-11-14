@@ -195,6 +195,7 @@
       "noVlans": "Aucun VLAN dans ce groupe",
       "noVlansText": "Créez le premier : son VID proposé est le prochain libre du groupe.",
       "createVlan": "Créer un VLAN",
+      "vlansActions": "Actions des VLAN du groupe {name}",
       "occupancyOf": "Occupation du groupe {name}",
       "occupancyError": "L'occupation du groupe n'a pas pu être lue.",
       "slicesOf": "Tranches de VID du groupe {name}",
