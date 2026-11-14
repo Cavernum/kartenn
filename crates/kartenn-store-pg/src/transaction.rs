@@ -10,25 +10,27 @@
 //! never committed in another), then are all refused once it aborts, until
 //! `transaction_timeout` ends the session.
 //!
-//! Here the `BEGIN` runs in a task of its own, which a dropped caller does not cancel:
-//! begun, the transaction returns to the caller, or, the caller gone, is dropped by the
-//! task and rolled back by sqlx as any other. Every transaction of the pool begins here
-//! (`Pool::begin` and `Pool::begin_with` are not called elsewhere in this crate).
+//! Here the connection is taken in the caller's future, which a dropped caller leaves with
+//! its place in the queue of the pool; only the `BEGIN` on the connection taken runs in a
+//! task of its own, which a dropped caller does not cancel: begun, the transaction returns
+//! to the caller, or, the caller gone, is dropped by the task and rolled back by sqlx as any
+//! other. The task costs a spawn per transaction. The `BEGIN` goes through
+//! `Transaction::begin` on the connection, what `Pool::begin` does once it has one (public
+//! but hidden in sqlx's documentation: to check at each upgrade of sqlx). Every transaction
+//! of the pool begins here (`Pool::begin` and `Pool::begin_with` are not called elsewhere
+//! in this crate).
 
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{PgPool, Postgres, SqlSafeStr, SqlStr, Transaction};
 use tracing::Instrument;
 
-/// A transaction on `pool`, begun even if the caller's future is dropped meanwhile.
+/// A transaction on `pool`, begun even if the caller's future is dropped once it holds a
+/// connection.
 ///
 /// # Errors
 ///
 /// Database errors; [`sqlx::Error::WorkerCrashed`] if the runtime stops before the task.
 pub async fn begin(pool: &PgPool) -> sqlx::Result<Transaction<'static, Postgres>> {
-    let pool = pool.clone();
-    joined(tokio::spawn(
-        async move { pool.begin().await }.in_current_span(),
-    ))
-    .await
+    on_taken(pool, None).await
 }
 
 /// A transaction on `pool` begun by `statement` (`BEGIN ISOLATION LEVEL …`), as
@@ -41,16 +43,16 @@ pub async fn begin_with(
     pool: &PgPool,
     statement: &'static str,
 ) -> sqlx::Result<Transaction<'static, Postgres>> {
-    let pool = pool.clone();
-    joined(tokio::spawn(
-        async move { pool.begin_with(statement).await }.in_current_span(),
-    ))
-    .await
+    on_taken(pool, Some(statement.into_sql_str())).await
 }
 
-async fn joined(
-    task: tokio::task::JoinHandle<sqlx::Result<Transaction<'static, Postgres>>>,
+async fn on_taken(
+    pool: &PgPool,
+    statement: Option<SqlStr>,
 ) -> sqlx::Result<Transaction<'static, Postgres>> {
+    // Cancellable: a caller dropped here takes no connection.
+    let conn = pool.acquire().await?;
+    let task = tokio::spawn(Transaction::begin(conn, statement).in_current_span());
     match task.await {
         Ok(begun) => begun,
         Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
