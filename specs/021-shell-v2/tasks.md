@@ -2075,7 +2075,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : tâche 13 (« reste » et relevé du 2026-11-11) ; `web/v2/shell/src/` (`KeyLabel`,
     `DeclarationValues`), `web/v2/sdk/src/data/labels.ts` ; spec 018 (« Repris par la 021 »)
   - dépend de : 13
-- [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
+- [x] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
   serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours
   `changesets`, `draft` réécrits ; captures E4, E5
@@ -2087,7 +2087,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/plugins/`), parcours `plugins` étendu (action `review` du plugin de
     test `notes`, son dialogue fermé par `kartenn-close`)
   - dépend de : 12
-  - en cours : fait le 2026-11-01 — SDK : `writes.decide` (validation, rejet avec motif,
+  - premier passage, fait le 2026-11-01 — SDK : `writes.decide` (validation, rejet avec motif,
     retrait, annulation `?approval=self`, sous `If-Match` = l'`ETag` du changeset lu ;
     décidé : changeset, listes et `/v1/proposals` relus, une validation ou une annulation
     appliquée invalide ce qu'elle écrit ; 412 : changeset relu, rien à rejouer), offert au
@@ -2233,6 +2233,33 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     d'opération, « Tout afficher » d'une `DiffList`, icône de l'état « en revue », contrat
     de `GET /v1/changesets` ; de la 14e, l'aperçu daté de la Topographie (une règle à
     poser) et la période par onglet (`sessionStorage`).
+  - fait le 2026-11-14, relevé contre le code (main 83dd485f), sans code ajouté : chaque
+    clause de `verify` tenue. Parcours réécrits : `web/v2/e2e/journeys/changesets.spec.ts`
+    (six tests : proposition de Carol validée depuis « À instruire » puis annulée, rejet
+    à motif, refus replié dans « … » en fenêtre étroite, retrait par l'autrice, valeur
+    masquée, violations par règle) et `draft.spec.ts` (neuf tests : Ctrl+Entrée et
+    résumé prérempli, « Appliquer » refusé sans `approval.self`, violation retirée puis
+    brouillon repris et supprimé ailleurs, période sous `valid_at`, réponse perdue et
+    même clé, lecture seule sous `as_of`, date d'ajout, « Renommer… », opération
+    modifiée). Actions des plugins sur le type `changeset` : `useExtensions("action",
+    "changeset")` de `shell/src/changesets/ChangesetView.vue`, parcours `plugins`
+    « an action on the type changeset… ». Captures E4 et E5 : celles des maquettes
+    (`E4Changeset.vue`, `E5Brouillon.vue`, `e2e/visual/__screenshots__/ecrans.spec.ts/E4-*`
+    et `E5-*`), acceptées le 2026-11-11 ; celles des vrais écrans relèvent de la 12l (non
+    placée). `web/v2/PARITE.md` : toutes les lignes « Changesets et brouillon » cochées ;
+    la phrase des plugins Politique et Flux, qui disait encore « reste de la tâche 14 »,
+    renvoie aux tâches 3, 19 et 2, 10 de la 017. Vitest `shell/test/changesets.test.ts`,
+    `draft-replace.test.ts`, `sdk/test/drafts.test.ts`, `write.test.ts` : 80 sur 80 ;
+    parcours `changesets`, `draft`, `plugins` : 52 sur 52 dans les deux navigateurs.
+  - choix : aucun code (les sous-tâches 14a, 14c à 14l ont levé le reste de `verify`) ;
+    l'icône de l'état « en revue » et `PATCH /v1/drafts/{id}`, listés plus haut à
+    arbitrer, sont tranchés par A16 et A17 (`decisions.md`).
+  - reste (hors de `verify`, à l'utilisateur, inchangé) : « Revue requise » avant la
+    soumission (`ChangesetSimulated` ne dit pas qu'une politique retient), composants du
+    résultat de simulation et de la ligne d'opération, « Tout afficher » d'une
+    `DiffList`, contrat de `GET /v1/changesets` (`state` sans énumération, `from`/`to`
+    sans `date-time`) ; de la 14e, l'aperçu daté de la Topographie et la période par
+    onglet.
 - [x] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
