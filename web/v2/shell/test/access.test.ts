@@ -45,15 +45,50 @@ describe("global permissions", () => {
     expect(holdsGlobally(null, ACCOUNT_ADMIN)).toBe(false);
   });
 
-  it("refuses by the permission first, then by the past", () => {
-    const words = { permission: ACCOUNT_ADMIN, past: "passé" };
-    expect(globalRefusal({ ...words, me: me([]), present: false })).toEqual({
-      forbidden: ACCOUNT_ADMIN,
-    });
-    expect(globalRefusal({ ...words, me: me(["*"]), present: false })).toEqual({
+  // The lasting reasons first (the permission, a reason of the screen), then the gate of
+  // writes (the past, a frame under 1024 px; task 021-21e2, REQ-021-29).
+  const words = { past: "passé", narrow: "étroit" };
+  const base = { permission: ACCOUNT_ADMIN, words };
+  it("refuses by the permission first, then by the gate: the past, the width", () => {
+    for (const refused of ["past", "narrow", null] as const) {
+      expect(globalRefusal({ ...base, me: me([]), refused })).toEqual({
+        forbidden: ACCOUNT_ADMIN,
+      });
+    }
+    expect(globalRefusal({ ...base, me: me(["*"]), refused: "past" })).toEqual({
       reason: "passé",
     });
-    expect(globalRefusal({ ...words, me: me(["*"]), present: true })).toBeUndefined();
+    expect(globalRefusal({ ...base, me: me(["*"]), refused: "narrow" })).toEqual({
+      reason: "étroit",
+    });
+  });
+
+  it("says a lasting reason of the screen after the permission, before the gate", () => {
+    const lasting = "déjà au brouillon";
+    expect(globalRefusal({ ...base, me: me([]), refused: "narrow", lasting })).toEqual({
+      forbidden: ACCOUNT_ADMIN,
+    });
+    for (const refused of ["past", "narrow", null] as const) {
+      expect(globalRefusal({ ...base, me: me(["*"]), refused, lasting })).toEqual({
+        reason: lasting,
+      });
+    }
+  });
+
+  it("opens nothing: the gate open, the refusals of the rights alone", () => {
+    // Every case of rights: the gate open refuses nothing a right lets through, and
+    // refuses again what a right refuses.
+    const cases = [[], ["*"], [ACCOUNT_ADMIN], ["core.account.*"], ["core.rbac.read"]];
+    for (const global of cases) {
+      const holds = holdsGlobally(me(global), ACCOUNT_ADMIN);
+      const open = globalRefusal({ ...base, me: me(global), refused: null });
+      expect(open).toEqual(holds ? undefined : { forbidden: ACCOUNT_ADMIN });
+      for (const refused of ["past", "narrow"] as const) {
+        const shut = globalRefusal({ ...base, me: me(global), refused });
+        expect(shut).toBeDefined();
+        if (!holds) expect(shut).toEqual(open);
+      }
+    }
   });
 });
 
@@ -152,7 +187,7 @@ describe("service accounts", () => {
 
 describe("the write of a secret", () => {
   /** A write whose answer comes when the test says. */
-  function pending() {
+  function pending(gate: { why?: string } = {}) {
     let answer: (data: unknown) => void = () => undefined;
     const post = vi.fn(
       () => new Promise<{ data: unknown }>((resolve) => (answer = (data) => resolve({ data }))),
@@ -164,10 +199,40 @@ describe("the write of a secret", () => {
       queryClient: { invalidateQueries } as never,
       t: (key) => key,
       notify,
+      held: () => gate.why,
     });
-    return { write, answer: (data: unknown) => answer(data), notify, invalidateQueries };
+    return { write, answer: (data: unknown) => answer(data), notify, invalidateQueries, post };
   }
   const made = { state: "applied", secret: { id: "s", value: "ksk_test_value" } };
+
+  it("sends nothing while the gate of writes refuses, read at the moment of sending", async () => {
+    // Task 021-21e2 (REQ-021-29): the window narrowed after the dialog opened.
+    const gate: { why?: string } = { why: "étroit" };
+    const { write, answer, post } = pending(gate);
+    expect(await write.create("sync", null, "why")).toBe(false);
+    expect(await write.renew("id", "sync", null, "why")).toBe(false);
+    expect(post).not.toHaveBeenCalled();
+    expect(write.busy.value).toBe(false);
+    expect(write.secret.value).toBeNull();
+    // Widened: the write goes.
+    delete gate.why;
+    const done = write.create("sync", null, "why");
+    expect(post).toHaveBeenCalledTimes(1);
+    answer(made);
+    expect(await done).toBe(true);
+  });
+
+  it("keeps a secret shown as the gate shuts: a read, nothing made again", async () => {
+    const gate: { why?: string } = {};
+    const { write, answer, post } = pending(gate);
+    const done = write.create("sync", null, "why");
+    answer(made);
+    expect(await done).toBe(true);
+    gate.why = "étroit";
+    expect(write.secret.value?.value).toBe("ksk_test_value");
+    expect(write.account.value).toBe("sync");
+    expect(post).toHaveBeenCalledTimes(1);
+  });
 
   it("keeps the secret answered for its dialog, busy while in flight", async () => {
     const { write, answer, invalidateQueries } = pending();

@@ -5,7 +5,10 @@
 // elements and batches; why its sort failed (006/H18: back to `uploading`, the violations
 // by the rank of their element); the report of its batches. « Reprendre » a paused one,
 // « Annuler l'import » (confirmed: a cancelled import does not resume; the batches applied
-// stay), written at once by their routes: neither is an operation of a changeset.
+// stay), written at once by their routes: neither is an operation of a changeset. Off the
+// present and under 1024 px wide (the gate of writes), both are refused with that reason,
+// the gate read again when sending: a cancellation confirmed as the window narrowed sends
+// nothing, said under the actions.
 import { api, keys, reads } from "@kartenn/sdk";
 import {
   AlertDialog,
@@ -21,9 +24,9 @@ import { useI18n } from "vue-i18n";
 import { useQuery, useQueryClient } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useProblems, type ProblemLine } from "../problems/index.ts";
-import { useTime } from "../time/index.ts";
 import { keepRecordName } from "../views/names.ts";
 import AdminLines from "./AdminLines.vue";
+import { useAdminGate } from "./gate.ts";
 import {
   IMPORT_POLL_MS,
   importBadge,
@@ -36,7 +39,6 @@ import {
 
 const props = defineProps<{ id: string }>();
 const { t, te, locale } = useI18n();
-const time = useTime();
 const queryClient = useQueryClient();
 const problems = useProblems();
 
@@ -86,7 +88,23 @@ const writeError = shallowRef<unknown>(null);
 const writeTitle = ref("");
 const confirming = ref(false);
 const heading = useTemplateRef<HTMLElement>("heading");
-const pastRefusal = computed(() => (time.value.present ? {} : { reason: t("edit.why.past") }));
+// The gate of writes (the present, 1024 px wide): no right of the client refuses them (the
+// server judges), the gate does.
+const gate = useAdminGate();
+const gateRefusal = computed(() => (gate.why.value ? { reason: gate.why.value } : {}));
+/**
+ * Whether the last action was not sent: the gate refused at the moment of sending (the
+ * cancellation confirmed after the window narrowed). Its reason, the gate's now, is said
+ * under the actions until the gate opens again.
+ */
+const refusedAtSend = ref(false);
+const held = computed(() => (refusedAtSend.value ? gate.why.value : undefined));
+watch(
+  () => gate.why.value,
+  (why) => {
+    if (why === undefined) refusedAtSend.value = false;
+  },
+);
 const actions = computed<ToolbarAction[]>(() => {
   const now = item.value;
   if (!now || !importOpen(now)) return [];
@@ -98,15 +116,18 @@ const actions = computed<ToolbarAction[]>(() => {
             label: t("admin.imports.resume"),
             icon: "refresh-cw",
             variant: "primary",
-            ...pastRefusal.value,
+            ...gateRefusal.value,
           } as ToolbarAction,
         ]
       : []),
-    { id: "cancel", label: t("admin.imports.cancel"), icon: "circle-x", ...pastRefusal.value },
+    { id: "cancel", label: t("admin.imports.cancel"), icon: "circle-x", ...gateRefusal.value },
   ];
 });
 async function steer(action: "resume" | "cancel"): Promise<void> {
   if (busy.value) return;
+  // The gate read when sending (not only the buttons): nothing sent, said under them.
+  refusedAtSend.value = gate.why.value !== undefined;
+  if (refusedAtSend.value) return;
   busy.value = true;
   writeError.value = null;
   try {
@@ -154,6 +175,7 @@ function onAction(id: string): void {
         align="start"
         @action="onAction"
       />
+      <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
       <InlineAlert
         v-if="writeError !== null"
         tone="ko"

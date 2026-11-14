@@ -37,13 +37,6 @@ afterEach(() => setFrameWidth("wide"));
  * (`_ui/`) are not the shell's.
  */
 const PERIOD_ONLY: Readonly<Record<string, "21d" | "21e" | "21f" | "kept">> = {
-  // Its rest, 21e2: the accounts, the identities, the issuers, the imports.
-  "admin/AccountDetail.vue": "21e",
-  "admin/AccountsView.vue": "21e",
-  "admin/IdentityDetail.vue": "21e",
-  "admin/ImportDetail.vue": "21e",
-  "admin/IssuersView.vue": "21e",
-  "admin/access.ts": "21e",
   // `offered`: the period beside the width (a command held by the width alone is kept).
   "shortcuts/view.ts": "kept",
   "views/RecordView.vue": "21f",

@@ -679,6 +679,42 @@ test("under 1024 px « Créer » of the groups says the width; at 1024 px it com
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+// The service accounts under 1024 px (task 21e2; REQ-021-29): at 768 px « Créer » is
+// refused with the width, reached and pressed at the keyboard without opening anything,
+// `c` says the width; at 1024 px it opens its dialog again. No account nor secret is made.
+test("under 1024 px « Créer » of the service accounts says the width; at 1024 px it comes back", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/admin/accounts");
+  await atRest(page);
+  const main = page.getByRole("main");
+  // The list or its empty state: whichever the journeys before left.
+  const toolbar = main.getByRole("toolbar", { name: "Actions des comptes de service" });
+  await expect(toolbar).toBeVisible();
+  const create = toolbar.getByRole("button", { name: /^Créer/ });
+  await expect(create).toHaveAttribute("aria-disabled", "true");
+  await expect(create).toHaveAccessibleDescription(NARROW);
+  await expectAccessible(page);
+  await tabTo(page, create);
+  await page.keyboard.press("Enter");
+  await expect(create).toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("c");
+  await expect(page.getByRole("status").filter({ hasText: NARROW })).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(page.locator("[data-width='standard']")).toHaveCount(1);
+  await expect(create).not.toHaveAttribute("aria-disabled", "true");
+  await create.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Créer un compte de service" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
 // a journey fail.
 test.describe("guards of every journey", () => {
