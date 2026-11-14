@@ -4,6 +4,7 @@
 
 import { defineComponent, h, onMounted, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
+import { DEMO_CELL, defineDemoCell } from "../../demo/extensionCell.ts";
 import { dragOver, keyboardTree, pagedTree, virtualTree } from "../../demo/trees.ts";
 import { settleDemo } from "../../demo/settle.ts";
 import { moveHost } from "../../demo/treeHost.ts";
@@ -288,6 +289,22 @@ const virtual = defineComponent({
   },
 });
 
+/**
+ * A column of an extension (W5), as in `DataGrid`: a custom element per node, its `row`
+ * given by `elementProps` (here the cells of the prefix); none in a domain's row.
+ */
+const extension = () => {
+  defineDemoCell();
+  return h(TreeGrid as Component, {
+    ...base,
+    columns: [
+      ...columns,
+      { id: "probe", label: "Supervision (extension)", width: "md", element: DEMO_CELL },
+    ],
+    elementProps: (node: TreeNode) => (node.objectKey ? { row: node.cells } : undefined),
+  });
+};
+
 /** Children read page by page: the host gives a page of five each time it is asked. */
 const paged = defineComponent({
   setup() {
@@ -539,6 +556,14 @@ export default {
         addBlocked: (node: TreeNode) =>
           node.id === "p5" ? { forbidden: "core.prefix.edit" } : undefined,
       },
+      wide: true,
+    },
+    {
+      name: "extension",
+      description:
+        "Colonne d'une extension, comme dans DataGrid : un élément personnalisé par nœud, recréé quand sa ligne revient ; aucun sur la ligne d'un domaine",
+      props: {},
+      demo: extension,
       wide: true,
     },
     {

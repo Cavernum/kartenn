@@ -9,7 +9,8 @@ import { expect, openState, test } from "../fixtures/index.ts";
 // cells, the arrows, Home, End, Ctrl+Home, Ctrl+End; in-place
 // editing (Enter or F2, Escape, Enter or Tab) with the host's states; moves of declared
 // parents (drag checked first, Ctrl+X and Ctrl+V, « Déplacer vers… »); a hundred thousand
-// nodes, the focus exact after 500 presses and kept mounted; children page by page.
+// nodes, the focus exact after 500 presses and kept mounted; children page by page; the
+// cell of an extension column, its controls out of the tab order, reached by Enter or F2.
 
 /** The row and column of the cell that has the focus (`""`: the node cell). */
 const focusedCell = (page: Page) =>
@@ -141,6 +142,47 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     expect(await focusedCell(page)).toBe("d1|env");
     await page.keyboard.press("Control+End");
     expect(await focusedCell(page)).toBe("p5|used");
+  });
+
+  test("an extension column: an element per node, its link reached by Enter and left by Escape; one tab stop", async ({
+    page,
+  }) => {
+    await openState(page, "TreeGrid", "extension");
+    const tree = page.getByRole("treegrid", { name: "Arbre des préfixes" });
+    await expect(tree.getByRole("columnheader", { name: "Supervision (extension)" })).toBeVisible();
+    // One per prefix, none in the domain's row (`elementProps` leaves it out).
+    await expect(tree.locator("k-demo-cell")).toHaveCount(5);
+    await expect(tree.locator("[data-row='d1'][data-column='probe'] k-demo-cell")).toHaveCount(0);
+    const probe = (row: string) => tree.locator(`[data-row='${row}'][data-column='probe']`);
+    await expect(probe("p2")).toHaveText("Non sondé");
+    // Its link came after the tree rendered: out of the tab order all the same.
+    const link = probe("p1").getByRole("link", { name: "Sondé" });
+    await expect(link).toHaveAttribute("tabindex", "-1");
+    await tabIn(page);
+    expect(await focusedCell(page)).toBe("d1|");
+    await page.keyboard.press("ArrowDown");
+    // Serveurs is open: Right goes into its row, End to its last cell, the element's.
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("End");
+    expect(await focusedCell(page)).toBe("p1|probe");
+    await page.keyboard.press("Enter");
+    await expect(link).toBeFocused();
+    await page.keyboard.press("Escape");
+    expect(await focusedCell(page)).toBe("p1|probe");
+    // F2 goes in too; the arrows go on from the cell.
+    await page.keyboard.press("F2");
+    await expect(link).toBeFocused();
+    await page.keyboard.press("F2");
+    expect(await focusedCell(page)).toBe("p1|probe");
+    await page.keyboard.press("ArrowDown");
+    expect(await focusedCell(page)).toBe("p2|probe");
+    await page.keyboard.press("ArrowLeft");
+    expect(await focusedCell(page)).toBe("p2|used");
+    // One tab stop still: Tab leaves the tree.
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement?.closest("[role='treegrid']"))).toBe(
+      false,
+    );
   });
 
   test("a closed list in a cell: Enter opens it, Enter chooses; Escape closes, then cancels; Tab goes on", async ({

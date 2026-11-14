@@ -1251,9 +1251,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     datée) ; `model` recalculé à chaque page de déclarations (noms appris perdus, identifiant
     montré un instant) ; `referenceLabel` refait `useScopeNames`/`nameOf` ; le cas refusé du
     test passerait sans la lecture, `cacheObject` non testé seul.
-- [ ] 11o. Colonnes des plugins sur l'arbre de la Topographie (reste de la 11) : le
-  `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, une
-  `ExtensionElement` par cellule, son `status`), `TopologyView.vue` y met
+- [x] 11o. Colonnes des plugins sur l'arbre de la Topographie (reste de la 11) : le
+  `TreeGrid` prend les colonnes d'élément comme la `DataGrid` (`elementProps`, l'élément
+  du plugin par cellule ; amendée le 2026-11-14 après la revue : l'`ExtensionElement` par
+  cellule et son `status`, clause de REQ-021-13, passent à la 11o2, pour les deux
+  grilles), `TopologyView.vue` y met
   `gridColumns("prefix")` après les colonnes du cœur — REQ-021-13, REQ-021-9 — verify :
   Vitest du `TreeGrid` (colonne d'élément, ligne virtualisée), script
   `e2e/components/tree-grid.spec.ts` (cellule d'élément atteinte au clavier) ; parcours
@@ -1265,6 +1267,61 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `e2e/journeys/plugins.spec.ts` ; inventaire de `specs/020-systeme-de-design/design.md`
     et de la skill `kartenn-ui`
   - dépend de : 11
+  - fait le 2026-11-14 — `TreeGrid.vue` prend les colonnes d'élément (`element`,
+    `elementProps`) par `ExtensionCell`, sortie de `DataGrid.vue` dans
+    `internal/extensionCell.ts` avec le sélecteur des contrôles (`CELL_WIDGETS`) que les
+    deux grilles partagent ; cellule jamais éditée ni dite sans éditeur, ses contrôles hors
+    tabulation (au rendu et, seulement s'il existe une colonne d'élément, par un
+    `MutationObserver` comme la `DataGrid`), atteints par Entrée ou F2, Échap et F2 au
+    retour ; l'élément clé par sa ligne : un élément de ligne recyclé (22e) le recrée pour le
+    nœud qu'il vient montrer, sans rien changer au recyclage des lignes. État de catalogue
+    `extension`. `TopologyView.vue` met `gridColumns(useExtensions("column", "prefix"))`
+    après les colonnes du cœur, `elementProps` donnant l'`object` et le `row` (le nœud tel
+    que sa page le sert) aux seules lignes de préfixe lues ; plugin de test `notes` : sa
+    colonne aussi sur `prefix`. Vitest `ui/test/trees.test.ts` (« an extension column… »,
+    « …virtualised… »), `ui/test/trees-mounted.test.ts` (« gives each row its own element,
+    created again when a recycled row shows another node », en échec sans la clé) ; script
+    `e2e/components/tree-grid.spec.ts` (« an extension column… ») ; parcours `plugins`
+    (« the topography places the column of the prefixes… »). `k-web2-check --base main` :
+    1074 tests, ciblé 2323 captures sur 2738 ; captures `TreeGrid-extension-*` ajoutées,
+    `TreeGrid-*-confortable` réécrites (un état de plus).
+  - choix : `elementProps` peut rendre `undefined` (aucun élément sur la ligne : un nœud
+    d'un autre type, une ligne d'aperçu), dans le `TreeGrid` et, pour un même contrat, dans
+    la `DataGrid` (dont l'hôte, `ListView`, rend toujours des propriétés) ; F2 depuis un
+    contrôle que la cellule ne liste pas (racine fantôme) revient à la cellule ; `row` vaut
+    le nœud par défaut, l'hôte en donne un autre par `elementProps` ; la cellule d'une extension héberge
+    l'élément brut comme la `DataGrid` (la bibliothèque ignore les plugins), pas
+    l'`ExtensionElement` du shell : un élément qui lève est rapporté par le navigateur et
+    laisse la cellule vide, sans encart ; clip de la valeur à marge (`overflow-clip-margin`)
+    pour l'anneau de focus d'un contrôle de l'élément, comme la `DataGrid` ; colonne de
+    priorité 3 comme dans les listes (`gridColumns`) : masquée dans l'arbre plus étroit que
+    `lg`, à un choix de « Colonnes ».
+  - reste : pas d'encart d'erreur par cellule pour l'élément d'une colonne (ni dans la
+    `DataGrid`) ; un contrôle en racine fantôme n'est ni sorti de la tabulation ni listé
+    (ADR 0038 § 4 : DOM léger) ; anneau de focus d'un contrôle de cellule jamais capturé ;
+    effet sur le défilement à mesurer par la passe `bench-web` (élément recréé par ligne
+    recyclée, seulement avec une colonne d'extension).
+- [ ] 11o2. Erreur d'un plugin confinée à sa cellule (relevé de la revue de la 11o, le
+  2026-11-14) : l'élément d'une colonne d'extension qui lève laisse aujourd'hui une
+  cellule vide et muette, dans le `TreeGrid` comme dans la `DataGrid`, alors que la même
+  extension en onglet de fiche montre son encart ; les deux grilles offrent une fente de
+  cellule où le shell pose son `ExtensionElement` (encart avec le code `plugin.element`,
+  `status`, liens de l'élément suivis par le routeur), la bibliothèque continuant
+  d'ignorer les plugins ; `tame`, `onMutations` et `observeExtensions`, recopiés d'une
+  grille à l'autre, sortis dans `internal/extensionCell.ts` ; `objectRef` stable d'un
+  rendu à l'autre (`.object` n'est plus réaffecté à chaque déplacement du focus) —
+  REQ-021-13 — verify : Vitest des deux grilles (un élément qui lève à la construction
+  et à `connectedCallback` : encart et code dans sa cellule, les autres cellules et
+  lignes intactes ; `elementProps` rendant `undefined` dans la `DataGrid` ; ligne
+  recyclée : l'encart ne suit pas la ligne) ; parcours `plugins` (une colonne de `notes`
+  qui lève, sur une liste et sur la Topographie) ; `k-web2-check --base main`
+  - où : `web/v2/ui/src/components/internal/extensionCell.ts`, `TreeGrid/TreeGrid.vue`,
+    `DataGrid/DataGrid.vue` et `DataGrid/grid.ts` (doc de `GridColumn.element`) ;
+    `web/v2/shell/src/plugins/ExtensionElement.vue` et `slots.ts` (`gridColumns`),
+    `views/ListView.vue`, `views/TopologyView.vue` (`elementProps`, `objectRef`) ;
+    plugin de test `web/v2/e2e/plugins/notes`
+  - dépend de : 11o ; avant la bascule (27) ; le recyclage des lignes de la 22e ne doit
+    rien y perdre (passe réduite `bench-web` par la session principale)
 - [x] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
   **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
   au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;

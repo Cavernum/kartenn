@@ -76,6 +76,7 @@ import {
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay, useStatus } from "./edit/say.ts";
+import { gridColumns, objectRef, useExtensions } from "../plugins/slots.ts";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
@@ -472,11 +473,22 @@ const nodeState = (node: TreeNode): TreeNodeState | undefined =>
       ? draftStateOf(node.id, inDraft.value, preview.value)
       : undefined;
 // The occupancy first, as the mock-up E1; the nature (not in the mock-up, kept from task
-// 11) beside it, the first to hide.
+// 11) beside it, the first to hide; then the columns of the plugins for the prefixes
+// (REQ-021-13, task 11o): each cell of a prefix an element of the plugin, given the prefix
+// as its page serves it and the object it stands for; none in a row of another kind, nor
+// in a row of the preview.
+const extensions = useExtensions("column", "prefix");
 const columns = computed<GridColumn[]>(() => [
   { id: "occupancy", label: t("views.record.occupancy"), width: "sm", align: "end" },
   { id: "detail", label: t("views.record.nature"), width: "sm", priority: 2 },
+  ...gridColumns(extensions.value, (key) => t(key)),
 ]);
+const elementProps = (node: TreeNode) => {
+  const read = nodeById(node.id);
+  return read?.kind === "prefix"
+    ? { object: objectRef("prefix", read.id, read.href), row: read }
+    : undefined;
+};
 
 /** The open nodes: closed again with the domain or the dates (their pages start again). */
 const expanded = ref<string[]>([]);
@@ -836,6 +848,7 @@ onBeforeUnmount(() => stopIntent());
             :cell-state="cellState"
             :readonly-reason="readonlyReason"
             :state-reason="stateReason"
+            :element-props="elementProps"
             parent-mode="derived"
             @load="onLoad"
             @activate="onActivate"

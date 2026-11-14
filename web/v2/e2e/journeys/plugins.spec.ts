@@ -7,8 +7,9 @@ import { apiCall, DATA, expect, expectAccessible, test } from "../fixtures/journ
 // `incompatible` (ui ^3), `throws` (exception while loading) and `silent` (no
 // definePlugin) are set aside; the digest of `forged` is forged here. Ported from
 // web/e2e/journeys/plugins.spec.ts. The tile of the home page, the tab and the panel of a
-// prefix and the column of the addresses are placed by the screens of task 11; the actions
-// on the type `changeset` by its record (task 14).
+// prefix and the column of the addresses are placed by the screens of task 11, the column
+// of the prefixes on the tree of the topography by task 11o; the actions on the type
+// `changeset` by its record (task 14).
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 const about = (page: Page, name: string) =>
@@ -199,6 +200,38 @@ test("the screens of the referential place the tile, the tab, the panel and the 
     .getByRole("tab", { name: "Notes" })
     .click();
   await expect(page.locator("notes-tab")).toHaveText(`Notes de vlan ${vlan}`);
+  await expectAccessible(page);
+});
+
+test("the topography places the column of the prefixes: an element in a prefix's row, given it", async ({
+  page,
+  login,
+}) => {
+  await login("bob");
+  await page.goto("/topology");
+  const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${DATA.domain}` });
+  // Of priority 3, as in the lists: hidden in a tree narrower than `lg`, one choice away
+  // (« Colonnes »), its elements created all the same.
+  await expect(tree.locator("[role='columnheader'][data-column='x.notes.flag']")).toHaveText(
+    /Repère/,
+  );
+  const row = tree.locator("[role='row'][data-node]").filter({
+    has: page.getByText(DATA.prefix, { exact: true }),
+  });
+  const flag = row.locator("notes-flag");
+  await expect(flag).toHaveText("•");
+  // Its object and its row: the prefix as the page of the tree serves it.
+  const given = await flag.evaluate((el) => {
+    const { object, row } = el as HTMLElement & {
+      object?: { type: string; id: string; href: string };
+      row?: { id: string; kind: string; value: string };
+    };
+    return { object, row: row && { id: row.id, kind: row.kind, value: row.value } };
+  });
+  expect(given.object?.type).toBe("prefix");
+  expect(given.row).toMatchObject({ kind: "prefix", value: DATA.prefix });
+  expect(given.object?.id).toBe(given.row?.id);
+  expect(given.object?.href).toContain(`/v1/prefixes/${given.row?.id}`);
   await expectAccessible(page);
 });
 

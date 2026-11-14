@@ -43,9 +43,10 @@ export function tabItems(extensions: readonly Placed[], t: (key: string) => stri
 }
 
 /**
- * The columns the plugins add to the lists of `type` (`DataGrid`, `element`): each cell an
- * element of the plugin, its `row` the representation of the row; `elementProps` of the
- * grid gives it its `object` (`objectOf`).
+ * The columns the plugins add to the lists of `type` (`DataGrid`, `element`) and to the tree
+ * of the topography (`TreeGrid`, the prefixes): each cell an element of the plugin, its
+ * `row` the representation of the row; `elementProps` of the grid gives it its `object`
+ * (`objectRef`).
  */
 export function gridColumns(
   extensions: readonly Placed[],
