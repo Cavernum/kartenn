@@ -48,11 +48,6 @@ const PERIOD_ONLY: Readonly<Record<string, "21d" | "21e" | "21f" | "kept">> = {
   "admin/RolesView.vue": "21e",
   "admin/access.ts": "21e",
   "admin/model.ts": "21e",
-  "changesets/ChangesetView.vue": "21d",
-  "changesets/model.ts": "21d",
-  "draft/DraftsView.vue": "21d",
-  "draft/LostSubmissions.vue": "21d",
-  "draft/state.ts": "21d",
   // `offered`: the period beside the width (a command held by the width alone is kept).
   "shortcuts/view.ts": "kept",
   "views/RecordView.vue": "21f",

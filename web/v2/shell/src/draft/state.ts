@@ -12,7 +12,7 @@ import { computed, ref, shallowReactive, toValue, type MaybeRefOrGetter } from "
 import { lacking } from "../changesets/model.ts";
 import { useQuery } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
-import { useTime, writesOf, type Time } from "../time/index.ts";
+import { useTime, useWrites, type Time, type WriteRefusal } from "../time/index.ts";
 
 // A draft of the server as its tab and its page read it (REQ-021-6, 11; spec 024 § A; design
 // 021 « Cadre » : pied de l'onglet Brouillon): the draft by its identifier, its simulation —
@@ -22,9 +22,21 @@ import { useTime, writesOf, type Time } from "../time/index.ts";
 // all it touches), « Soumettre en revue », « Enregistrer le brouillon »; an impossible one
 // stays, disabled, with its reason or its permission (REQ-021-37). Under `as_of` the
 // draft is read only; under `valid_at` alone it is submitted, its period from that date
-// (REQ-021-5).
+// (REQ-021-5). Under 1024 px wide, read only too (REQ-021-29, Q-021-12): the gate of writes
+// (`useWrites`), its refusal said at each action, nothing typed lost.
 
 export type DraftAction = "apply" | "review" | "save";
+
+/**
+ * Why the draft is not written now, in the words of the catalogue (`drafts.why.past`,
+ * `drafts.why.narrow`); `undefined` when it is.
+ */
+export function draftWhy(
+  refused: WriteRefusal | null,
+  words: (key: string) => string,
+): string | undefined {
+  return refused === null ? undefined : words(`drafts.why.${refused}`);
+}
 
 /**
  * The period of the changeset a draft submits (its dates of effect, `valid_from` and
@@ -121,8 +133,11 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
       : undefined,
   );
   const operations = computed(() => draft.value?.operations ?? []);
-  /** The draft may be written: not under `as_of` (REQ-021-5). */
-  const writable = computed(() => writesOf(time.value).draft);
+  const writes = useWrites();
+  /** The draft may be written: not under `as_of` (REQ-021-5), nor under 1024 px (REQ-021-29). */
+  const writable = computed(() => writes.value.draft);
+  /** Why it may not: `past` before `narrow` (widening opens no past date); `null` when it may. */
+  const refused = computed(() => writes.value.refused);
   /**
    * A submission of the draft awaits its retry (no answer): its period is the one sent,
    * fixed until an answer (REQ-006-15).
@@ -172,15 +187,16 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
 
   /**
    * The actions of the split button, each with why it is impossible now: an empty draft,
-   * a simulation still to come or with errors, a permission lacking (« Appliquer »), a
-   * state known at a past date (`as_of`: nothing written, the draft not saved either).
+   * a simulation still to come or with errors, a permission lacking (« Appliquer »), the
+   * gate of writes (a state known at a past date, `as_of`, or a window under 1024 px:
+   * nothing written, the draft not saved either).
    */
   function actions(
     words: (key: string, values?: Record<string, unknown>) => string,
   ): SplitAction[] {
-    const past = writable.value ? undefined : words("drafts.why.past");
-    const blocked = past
-      ? past
+    const gate = draftWhy(refused.value, words);
+    const blocked = gate
+      ? gate
       : operations.value.length === 0
         ? words("drafts.why.empty")
         : simulating.value
@@ -190,7 +206,7 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
             : errors.value > 0
               ? words("drafts.why.violations", { n: errors.value })
               : undefined;
-    const refused = (reason: string | undefined, forbidden?: string) =>
+    const refusedBy = (reason: string | undefined, forbidden?: string) =>
       forbidden && !reason
         ? { disabled: true, forbidden }
         : reason
@@ -201,20 +217,22 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
         id: "apply",
         label: words("drafts.action.apply"),
         icon: "circle-check",
-        ...refused(blocked, applyLacking.value),
+        ...refusedBy(blocked, applyLacking.value),
       },
-      { id: "review", label: words("drafts.action.review"), icon: "send", ...refused(blocked) },
-      { id: "save", label: words("drafts.action.save"), icon: "draft", ...refused(past) },
+      { id: "review", label: words("drafts.action.review"), icon: "send", ...refusedBy(blocked) },
+      { id: "save", label: words("drafts.action.save"), icon: "draft", ...refusedBy(gate) },
     ];
   }
 
   /**
    * The action by default: « Appliquer » when possible, else « Soumettre », else save. A
    * simulation still to come does not change it (« Appliquer » waits, maquette E5): the
-   * rights and the time choose meanwhile.
+   * rights and the time choose meanwhile. Nor does the width (every action refused by it
+   * alone): the action the rights choose stays, refused with the width, as it comes back
+   * once the window widens.
    */
   function preferred(list: readonly SplitAction[]): DraftAction {
-    if (simulating.value && writable.value) {
+    if (refused.value === "narrow" || (simulating.value && writable.value)) {
       return applyLacking.value === undefined ? "apply" : "review";
     }
     const possible = (id: DraftAction) => list.some((a) => a.id === id && !a.disabled);
@@ -226,6 +244,7 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
     draft,
     operations,
     writable,
+    refused,
     awaiting,
     period,
     simulation,

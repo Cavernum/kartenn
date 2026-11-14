@@ -7,9 +7,11 @@
 // deletion of an inactive draft is announced (`expires_at`). A removal refused is said here
 // (`problems/`), the focus kept in the list. Under `as_of` the draft is read only, said at
 // its head (design 021 « Écrans » : lecture seule annoncée en tête), each removal refused.
-// « Modifier » of a line (task 14l, Q-021-17) opens the edit panel of its kind prefilled
-// from the operation, which replaces it at its place; refused, with its reason, for an
-// operation no panel writes (a closure, a move…) and under `as_of`.
+// Under 1024 px wide (the gate of writes, REQ-021-29), each removal and « Modifier » are
+// refused with the width, at the button, without a notice at the head: the list stays
+// read. « Modifier » of a line (task 14l, Q-021-17) opens the edit panel of its kind
+// prefilled from the operation, which replaces it at its place; refused, with its reason,
+// for an operation no panel writes (a closure, a move…) and by the gate.
 import { drafts, type Draft, type Entry } from "@kartenn/sdk";
 import { Cluster, DiffValue, Icon, IconButton, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
 import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
@@ -25,7 +27,7 @@ import { useKeyLabel } from "../views/data.ts";
 import LostSubmissions from "./LostSubmissions.vue";
 import OperationText from "./OperationText.vue";
 import { listedOperations, operationLine, withoutOperation } from "./operations.ts";
-import { useDraftQueries } from "./state.ts";
+import { draftWhy, useDraftQueries } from "./state.ts";
 
 const props = withDefaults(defineProps<{ id: string | null; page?: boolean }>(), {
   page: false,
@@ -33,9 +35,11 @@ const props = withDefaults(defineProps<{ id: string | null; page?: boolean }>(),
 const { t } = useI18n();
 const words = useChangesetWords();
 const keyLabel = useKeyLabel();
-const { query, draft, operations, writable, simulated, violations } = useDraftQueries(
+const { query, draft, operations, writable, refused, simulated, violations } = useDraftQueries(
   () => props.id,
 );
+/** Why nothing is written now (the gate of writes), if so. */
+const gateWhy = computed(() => draftWhy(refused.value, t));
 
 const general = computed(() => violations.value.get(-1) ?? []);
 const counts = computed(() => simulated.value?.diff ?? []);
@@ -61,7 +65,7 @@ function modifyLabel(position: number): string {
 const edits = computed(() => operations.value.map((operation) => editOfOperation(operation)));
 /** Why « Modifier » is refused on a line: under `as_of`, or no panel for its operation. */
 function modifyReason(index: number): string | undefined {
-  if (!writable.value) return t("drafts.why.past");
+  if (gateWhy.value) return gateWhy.value;
   return edits.value[index] ? undefined : t("drafts.why.noPanel");
 }
 /**
@@ -204,7 +208,12 @@ const value = (text: string | null | undefined) =>
     />
     <Skeleton v-else-if="!draft" variant="rows" :rows="3" />
     <template v-else>
-      <InlineAlert v-if="!writable" tone="warn" icon="lock" :title="t('drafts.readOnly')" />
+      <InlineAlert
+        v-if="refused === 'past'"
+        tone="warn"
+        icon="lock"
+        :title="t('drafts.readOnly')"
+      />
       <InlineAlert
         v-if="draft.expires_at"
         tone="warn"
@@ -243,7 +252,7 @@ const value = (text: string | null | undefined) =>
                 variant="ghost"
                 :label="removeLabel(index)"
                 :loading="removing === index"
-                v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+                v-bind="gateWhy ? { reason: gateWhy } : {}"
                 @click="remove(index)"
               />
             </Cluster>

@@ -7,6 +7,9 @@
 // its violations with their codes and the sections of the modules. The author of a pending
 // changeset reads why another must validate it (`changeset.approval.self`). Each decision
 // goes under `If-Match` of the state read; a refusal is said above the record (`problems/`).
+// Off the present, and under 1024 px wide (the gate of writes, REQ-021-29), nothing is
+// decided: each decision refused with its reason, the record read; a dialog left open as
+// the window narrows keeps what it holds, its decision refused.
 import { queryClient, reads, type Operation } from "@kartenn/sdk";
 import { review, type Decision, type DecisionOutcome } from "@kartenn/sdk/host";
 import {
@@ -42,7 +45,7 @@ import { actionItems, objectRef, placed, useExtensions } from "../plugins/slots.
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, useWrites } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { useSay } from "../views/edit/say.ts";
 import { rowsOf, useKeyLabel } from "../views/data.ts";
@@ -68,6 +71,7 @@ const route = useRoute();
 const router = useRouter();
 const session = useSession();
 const time = useTime();
+const writes = useWrites();
 const words = useChangesetWords();
 const keyLabel = useKeyLabel();
 const toasts = injectToasts();
@@ -114,14 +118,20 @@ function cachedName(id: string): string | null {
   return null;
 }
 
-// The review actions by the rights of the reader (REQ-021-10, 37), refused ones kept.
+// The review actions by the rights of the reader (REQ-021-10, 37), refused ones kept. A
+// decision applies at once: off the present it is refused (`valid_at` alone included,
+// which leaves only the draft to a write), else by the gate of writes (the width).
 const context = computed(() => ({
   me: session.value.me?.identity ?? null,
   rights: session.value.rights,
-  present: time.value.present,
+  refused: time.value.present ? writes.value.refused : ("past" as const),
 }));
 const decisions = computed<ReviewAction[]>(() =>
   changeset.value ? reviewActions(changeset.value, context.value) : [],
+);
+/** Why nothing is decided now, if so: said by a dialog left open as the window narrowed. */
+const gateWhy = computed(() =>
+  context.value.refused ? t(`changesets.why.${context.value.refused}`) : undefined,
 );
 const ICONS = {
   validation: "check",
@@ -216,6 +226,12 @@ async function focusBar(): Promise<void> {
 
 async function decide(action: Decision, options: { motive?: string } = {}): Promise<boolean> {
   if (busy.value) return false;
+  // Refused since its dialog opened (the window narrowed): said, nothing sent; the undo's
+  // dialog is closed by its confirmation, a toast then says it (the rejection's, in itself).
+  if (gateWhy.value) {
+    toasts?.show({ tone: "warn", title: gateWhy.value });
+    return false;
+  }
   busy.value = true;
   refusal.value = undefined;
   try {
@@ -240,6 +256,11 @@ const motive = ref("");
 const motiveError = ref<string | undefined>();
 const rejectForm = ref<HTMLElement | null>(null);
 const undoing = ref(false);
+/** The refusal of the gate said in the dialog of the rejection; gone once the gate opens. */
+const rejectGate = ref<string | undefined>();
+watch(gateWhy, (why) => {
+  if (!why) rejectGate.value = undefined;
+});
 
 async function onAction(id: string): Promise<void> {
   const decision = decisions.value.find((d) => d.id === id);
@@ -248,6 +269,7 @@ async function onAction(id: string): Promise<void> {
     if (id === "rejection") {
       motive.value = "";
       motiveError.value = undefined;
+      rejectGate.value = undefined;
       rejecting.value = true;
     } else if (id === "undo") undoing.value = true;
     else await decide(id as Decision);
@@ -262,6 +284,12 @@ async function onAction(id: string): Promise<void> {
 }
 
 async function reject(): Promise<void> {
+  // Refused by the gate (the window narrowed since the dialog opened): said in the dialog,
+  // before the motive is checked (a toast lies under a modal); the motive kept.
+  if (gateWhy.value) {
+    rejectGate.value = gateWhy.value;
+    return;
+  }
   if (motive.value.trim() === "") {
     motiveError.value = t("changesets.motiveMissing");
     // The focus to the field in error (3.3.1).
@@ -568,13 +596,19 @@ const counted = computed(() =>
         :error="motiveError"
         required
       />
+      <InlineAlert v-if="rejectGate" tone="warn" icon="lock" :title="rejectGate" />
       <RefusalAlert v-if="refusal && rejecting" :refusal="refusal" />
     </form>
     <template #actions>
       <Button variant="ghost" @click="rejecting = false">{{ t("views.cancel") }}</Button>
-      <Button variant="danger" icon="x" :loading="busy" @click="reject">{{
-        t("changesets.reject")
-      }}</Button>
+      <Button
+        variant="danger"
+        icon="x"
+        :loading="busy"
+        v-bind="gateWhy ? { reason: gateWhy } : {}"
+        @click="reject"
+        >{{ t("changesets.reject") }}</Button
+      >
     </template>
   </Dialog>
   <AlertDialog
