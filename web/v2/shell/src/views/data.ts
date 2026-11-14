@@ -47,6 +47,7 @@ export function useDeclarations(carrier: () => string | null): {
   /** The first page failed: nothing is known of the declarations. */
   failed: ComputedRef<boolean>;
   error: Readonly<Ref<unknown>>;
+  refetch: () => void;
 } {
   const list = useInfiniteQuery(() => {
     const kind = carrier();
@@ -80,6 +81,7 @@ export function useDeclarations(carrier: () => string | null): {
     ),
     failed: computed(() => !none.value && list.data.value === undefined && list.isError.value),
     error: list.error,
+    refetch: () => void list.refetch(),
   };
 }
 
@@ -93,6 +95,10 @@ export function useDeclarationsOf(keys: () => readonly string[]): {
   of: (key: string | null | undefined) => DeclarationOfModel | undefined;
   /** A read failed: the declaration of a key may be missing for that. */
   failed: ComputedRef<boolean>;
+  /** Why, the first refusal. */
+  error: ComputedRef<unknown>;
+  /** Reads again the keys refused. */
+  refetch: () => void;
 } {
   const wanted = computed(() => [...new Set(keys())].sort());
   const results = useQueries(() => wanted.value.map(declarationRead));
@@ -107,6 +113,10 @@ export function useDeclarationsOf(keys: () => readonly string[]): {
   return {
     of: (key) => (key ? byKey.value.get(key) : undefined),
     failed: computed(() => results.value.some((result) => result.isError)),
+    error: computed(() => results.value.find((result) => result.isError)?.error),
+    refetch: () => {
+      for (const result of results.value) if (result.isError) void result.refetch();
+    },
   };
 }
 

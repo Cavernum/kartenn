@@ -68,7 +68,10 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
   });
 
   /** The tab of P1 against a fake API whose gaps answer `gaps`; the URLs read. */
-  async function mount(gaps: (url: string) => Response): Promise<{
+  async function mount(
+    gaps: (url: string) => Response,
+    declarations?: (url: string) => Response,
+  ): Promise<{
     root: HTMLElement;
     seen: string[];
   }> {
@@ -82,6 +85,7 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
       const url = String(input);
       seen.push(url);
       if (url.startsWith("/v1/property-gaps")) return gaps(url);
+      if (declarations && url.startsWith("/v1/property-declarations")) return declarations(url);
       if (url.startsWith(`/v1/prefixes/${P1}/properties`)) {
         const self = node(P1, "prefix");
         return json(200, {
@@ -246,6 +250,47 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
     expect(alert.textContent).toContain("urn:kartenn:problem:validation");
     await expect.poll(() => text(root, "core.site", "source")).toBe("Directe");
     // « Réessayer » reads them again: none now, the alert gone.
+    refused = false;
+    [...alert.querySelectorAll("button")]
+      .find((b) => b.textContent?.includes("Réessayer"))!
+      .click();
+    await expect.poll(() => root.querySelector(".k-inline-alert")).toBeNull();
+  });
+
+  it("reads by key the declarations its kind lacks, says their refusal, and retries", async () => {
+    let refused = true;
+    const { root, seen } = await mount(
+      () => json(200, { items: [], links: {} }),
+      (url) => {
+        const params = new URL(url, "https://k").searchParams;
+        // The kind's: `core.site` alone; every other key is read by its own.
+        if (params.get("carrier") === "prefix") {
+          const site = { id: "d1", key: "core.site", type: "text", carriers: ["prefix"] };
+          return json(200, { items: [site], links: {} });
+        }
+        return refused
+          ? json(
+              403,
+              { type: "urn:kartenn:problem:forbidden", title: "Forbidden", status: 403 },
+              { "Content-Type": "application/problem+json" },
+            )
+          : json(200, { items: [], links: {} });
+      },
+    );
+    await expect.poll(() => root.querySelector(".k-inline-alert[role='alert']")).not.toBeNull();
+    const alert = root.querySelector<HTMLElement>(".k-inline-alert")!;
+    expect(alert.textContent).toContain("Les propriétés déclarées n'ont pas pu être lues.");
+    expect(alert.textContent).toContain("urn:kartenn:problem:forbidden");
+    // The values stay shown.
+    await expect.poll(() => text(root, "core.site", "source")).toBe("Directe");
+    // Neither the kind's key nor the masked one asked by its key.
+    const byKey = seen
+      .filter((url) => url.startsWith("/v1/property-declarations?"))
+      .map((url) => new URL(url, "https://k").searchParams.get("q"))
+      .filter((q) => q !== null);
+    expect(byKey).toContain("core.owner");
+    expect(byKey).not.toContain("core.site");
+    expect(byKey).not.toContain("core.secret");
     refused = false;
     [...alert.querySelectorAll("button")]
       .find((b) => b.textContent?.includes("Réessayer"))!

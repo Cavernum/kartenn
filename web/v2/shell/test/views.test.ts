@@ -439,12 +439,18 @@ describe("the routes of the referential", () => {
       seen.push(url);
       const body = url.startsWith("/v1/labels")
         ? { lang: "fr", default_lang: "fr", revision: "1", spaces: {} }
-        : { items: url.startsWith("/v1/property-declarations") ? DECLARATIONS : [], links: {} };
+        : // The declarations the addresses carry, as `carrier=address` serves them.
+          {
+            items: url.startsWith("/v1/property-declarations?carrier=address")
+              ? DECLARATIONS.filter((d) => d.carriers.includes("core.address"))
+              : [],
+            links: {},
+          };
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", ETag: '"v1"' },
       });
     }) as typeof fetch);
-    const link = `/addresses?within=192.0.2.0%2F24&prop.core.owner=${ENTITY}`;
+    const link = "/addresses?within=192.0.2.0%2F24&prop.dns.ttl=3600";
     await router.push(link);
     app = createApp(Root);
     app.use(createShellI18n("fr")).use(router);
@@ -456,7 +462,7 @@ describe("the routes of the referential", () => {
       "https://k",
     );
     expect(read.searchParams.get("within")).toBe("192.0.2.0/24");
-    expect(read.searchParams.get("prop.core.owner")).toBe(ENTITY);
+    expect(read.searchParams.get("prop.dns.ttl")).toBe("3600");
     // The property filter waited for the declarations: no read without it.
     expect(seen.filter((url) => url.startsWith("/v1/addresses"))).toHaveLength(1);
     await nextTick();
@@ -505,18 +511,18 @@ describe("the routes of the referential", () => {
       : null;
 
   it("reads every page of the declarations a property filter needs before the list", async () => {
-    const { seen } = await mounted(`/addresses?prop.core.owner=${ENTITY}`, (url) => {
+    // `dns.ttl`, carried by the addresses: the server serves it under `carrier=address`.
+    const ttl = DECLARATIONS.find((d) => d.key === "dns.ttl")!;
+    const { seen } = await mounted("/addresses?prop.dns.ttl=60", (url) => {
       if (url === "/v1/property-declarations?carrier=address") {
         return page([OTHER(1)], "/v1/property-declarations?cursor=2");
       }
-      if (url.startsWith("/v1/property-declarations?cursor=2")) return page([DECLARATIONS[0]!]);
+      if (url.startsWith("/v1/property-declarations?cursor=2")) return page([ttl]);
       return page([]);
     });
     await expect.poll(() => addresses(seen).length).toBe(1);
     // Read once, after the second page, with its filter.
-    expect(new URL(addresses(seen)[0]!, "https://k").searchParams.get("prop.core.owner")).toBe(
-      ENTITY,
-    );
+    expect(new URL(addresses(seen)[0]!, "https://k").searchParams.get("prop.dns.ttl")).toBe("60");
     const second = seen.findIndex((url) => url.includes("cursor=2"));
     expect(seen.indexOf(addresses(seen)[0]!)).toBeGreaterThan(second);
     // Those of the addresses alone, never the whole catalog (task 021-11p7).
