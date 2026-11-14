@@ -1866,6 +1866,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `k-check` 1 420 ; `k-web2-check --base main` (tout, la fixture le demande).
   - choix : le `BEGIN` dans une tâche plutôt qu'un correctif de sqlx (`[patch]`, une
     dépendance) ou une vérification à chaque remise au pool (un aller-retour de plus) ;
+    la connexion prise dans le futur de l'appelant, seul le `BEGIN` sur elle dans la tâche
+    (correction après revue, test d'abord rouge : cinq `begin` lâchés en attente d'une
+    connexion la prenaient ensuite chacun, `BEGIN` et `ROLLBACK` pour rien devant les
+    requêtes admises après, hors du plafond des requêtes en vol) ; coût : un `spawn` par
+    transaction, et `Transaction::begin` de sqlx, public mais caché de sa documentation,
+    à revoir à chaque montée de sqlx ;
     `kartenn-bench` et `kartenn-testing` gardent `Pool::begin` (aucun futur lâché) ;
     transitions coupées dans `expectAccessible` plutôt qu'une attente propre à chaque
     parcours (toute bascule tardive y passait).
@@ -1878,9 +1884,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       d'`admin.spec.ts:419` (Chromium) pris dedans, la connexion perdue. Même famille que
       la 11p10 (une lecture par ligne) : lectures par lots, plafond de concurrence dans le
       SDK, ou taille du plafond.
-    - rapporter le défaut de `TransactionManager::begin` à sqlx ; une règle
-      `clippy::disallowed_methods` sur `Pool::begin` attendrait que les tests aient leur
-      exception.
+    - rapporter le défaut de `TransactionManager::begin` à sqlx ; garde-fou
+      `clippy::disallowed_methods` sur `Pool::begin` et `Pool::begin_with` (les tests, une
+      trentaine d'appels, auraient leur exception) ; mineurs de la revue.
+    - vu une fois au passage complet après la correction (284 sur 285, journal du serveur
+      sans un refus) : `moves.spec.ts:495` sous Firefox, le premier champ du panneau
+      « Changer de parent… » pas encore focalisé (`:526`, « inactive »), avant tout appel
+      d'`expectAccessible` ; non reproduit, sans lien établi avec cette tâche.
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
