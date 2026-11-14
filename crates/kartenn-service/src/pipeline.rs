@@ -365,7 +365,9 @@ impl Planned {
 /// An object an operation designates (REQ-004-4; REQ-002-12, amendment of 2026-11-14).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reference {
-    /// The field of the operation that designates it, as the request names it.
+    /// The path of the field that designates it in the JSON of the operation: `domain`,
+    /// `scope.id`, `scopes[].id` (an element of a list), `id` for its target or for the
+    /// flattened scope of an obligation.
     pub(crate) field: &'static str,
     /// The object.
     pub(crate) to: Ref,
@@ -438,6 +440,8 @@ pub(crate) fn references(op: &Operation) -> Vec<Reference> {
             vec![reference("property", *property, ObjectKind::Property)]
         }
         Operation::AddObligation { property, scope } => {
+            // The scope is flattened into the operation: `{"scope": "domain", "id": …}`, its
+            // `id` the only field of that name there.
             let mut found = vec![reference("property", *property, ObjectKind::Property)];
             match scope {
                 crate::operations::ObligationInput::Domain { id } => {
@@ -469,7 +473,9 @@ pub(crate) fn references(op: &Operation) -> Vec<Reference> {
                 .collect()
         }
         Operation::Rename { kind, id, .. } => vec![reference("id", *id, kind.kind())],
-        Operation::Bind { scope, .. } => scope_reference("scope", *scope).into_iter().collect(),
+        Operation::Bind { scope, .. } => scope_reference("scope.id", *scope)
+            .into_iter()
+            .collect(),
         Operation::AttachIssuer { entity, .. } | Operation::DetachIssuer { entity, .. } => entity
             .iter()
             .map(|r| reference("entity", *r, ObjectKind::Entity))
@@ -478,8 +484,12 @@ pub(crate) fn references(op: &Operation) -> Vec<Reference> {
             domains, scopes, ..
         } => domains
             .iter()
-            .map(|d| reference("domains", Ref::Id(*d), ObjectKind::Domain))
-            .chain(scopes.iter().filter_map(|s| scope_reference("scopes", *s)))
+            .map(|d| reference("domains[]", Ref::Id(*d), ObjectKind::Domain))
+            .chain(
+                scopes
+                    .iter()
+                    .filter_map(|s| scope_reference("scopes[].id", *s)),
+            )
             .collect(),
         Operation::CreateDomain { .. }
         | Operation::DeclareProperty { .. }
@@ -1127,17 +1137,98 @@ struct Designation {
     kind: ObjectKind,
 }
 
-/// REQ-002-12 (amendment of 2026-11-14): each object designated by identifier exists, of
-/// the kind expected, at the start of the period of its operation (transaction time when it
-/// has none), read under the locks of the changeset, one read per date. Whether it covers
-/// the whole period is left to the write itself (`changeset.operation.no_version`) and to
-/// the temporal foreign keys (task 002-30). `periods` are those of the operations of the
-/// request.
-async fn check_designations<T: WriteTx>(
+/// The refusals of [`check_designations`], split by what the author may know (INV-63: what
+/// is invisible to him is as if absent).
+struct Unknown {
+    /// The designations of objects whose kind the author may read: refused at once.
+    revealed: Vec<Violation>,
+    /// The others: the changeset goes on, so that the rights refuse it as they would an
+    /// object out of reach; refused by these only once every right is granted.
+    hidden: Vec<Violation>,
+}
+
+/// The read permission of the objects of `kind`, `None` for the declarations and their
+/// closed lists, which every author reads (spec 003).
+fn read_permission(kind: ObjectKind) -> Option<String> {
+    Some(match kind {
+        ObjectKind::Domain => "core.domain.read".into(),
+        ObjectKind::Prefix => "core.prefix.read".into(),
+        ObjectKind::Range => "core.range.read".into(),
+        ObjectKind::Address => "core.address.read".into(),
+        ObjectKind::Entity => "core.entity.read".into(),
+        ObjectKind::Site => "core.site.read".into(),
+        ObjectKind::VlanGroup => "core.vlan_group.read".into(),
+        ObjectKind::Vlan => "core.vlan.read".into(),
+        ObjectKind::Module(kind) => kartenn_core::authz::type_read_permission(kind.as_str()),
+        ObjectKind::Property | ObjectKind::EnumValue => return None,
+    })
+}
+
+/// REQ-002-12 (amendment of 2026-11-14): the designations of [`unknown_designations`],
+/// each revealed to the author only if he may read an object of its kind there: on an
+/// identifier that names nothing, the RBAC grants that only by a global binding (or by a
+/// binding on that identifier itself), so that an author bound to some scopes only gets
+/// the refusal of his rights, the same as for an object that exists out of his reach.
+async fn check_designations<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
+    authorizer: &A,
+    author: &crate::authz::Subject,
     designated: &[Designation],
     periods: &[Option<Period>],
-) -> Result<Vec<Violation>, RequestError> {
+) -> Result<Unknown, RequestError> {
+    let mut split = Unknown {
+        revealed: Vec::new(),
+        hidden: Vec::new(),
+    };
+    for d in unknown_designations(tx, designated, periods).await? {
+        let readable = match read_permission(d.kind) {
+            None => true,
+            Some(permission) => authorizer
+                .authorize_in(tx, author, &permission, &[d.id])
+                .await?
+                .is_empty(),
+        };
+        let violation = unknown_violation(d);
+        if readable {
+            split.revealed.push(violation);
+        } else {
+            split.hidden.push(violation);
+        }
+    }
+    Ok(split)
+}
+
+/// The refusal of a designation that names nothing in force of its kind.
+fn unknown_violation(d: &Designation) -> Violation {
+    let mut violation = Violation::new(
+        &rules::REFERENCE_UNKNOWN,
+        format!(
+            "operation {}, `{}`: no {} {} in force at the start of its period",
+            d.operation,
+            d.field,
+            d.kind.name(),
+            d.id
+        ),
+    )
+    .with_subjects([d.id])
+    .with_detail(serde_json::json!({
+        "field": d.field,
+        "expected": d.kind.name(),
+    }));
+    violation.operation = Some(d.operation);
+    violation
+}
+
+/// REQ-002-12 (amendment of 2026-11-14): the designations whose object does not exist, of
+/// the kind expected, at the start of the period of its operation (transaction time when it
+/// has none), one read per date. Whether it covers the whole period is left to the write
+/// itself (`changeset.operation.no_version`) and to the temporal foreign keys (task
+/// 002-30). `periods` are those of the operations of the request.
+async fn unknown_designations<'d, T: WriteTx>(
+    tx: &mut T,
+    designated: &'d [Designation],
+    periods: &[Option<Period>],
+) -> Result<Vec<&'d Designation>, RequestError> {
     let mut dates: Vec<Option<Instant>> = Vec::with_capacity(designated.len());
     let mut by_date: Vec<(Option<Instant>, Vec<Uuid>)> = Vec::new();
     for d in designated {
@@ -1164,25 +1255,7 @@ async fn check_designations<T: WriteTx>(
         .iter()
         .zip(dates)
         .filter(|(d, at)| found.get(&(*at, d.id)) != Some(&d.kind))
-        .map(|(d, _)| {
-            let mut violation = Violation::new(
-                &rules::REFERENCE_UNKNOWN,
-                format!(
-                    "operation {}, `{}`: no {} {} in force at the start of its period",
-                    d.operation,
-                    d.field,
-                    d.kind.name(),
-                    d.id
-                ),
-            )
-            .with_subjects([d.id])
-            .with_detail(serde_json::json!({
-                "field": d.field,
-                "expected": d.kind.name(),
-            }));
-            violation.operation = Some(d.operation);
-            violation
-        })
+        .map(|(d, _)| d)
         .collect())
 }
 
@@ -2559,6 +2632,7 @@ async fn stages<S: Store, A: Authorizer>(
         mut violations,
         domains,
         keys,
+        hidden,
     ) = loop {
         let mut tx = store.begin().await?;
         // ADR 0026, amendment 3: what the modules may read of who stands behind it.
@@ -2652,16 +2726,23 @@ async fn stages<S: Store, A: Authorizer>(
         let (domains, public, keys) = or_roll_back!(tx, lock_targets(&mut tx, &planned).await);
         or_roll_back!(tx, tx.lock(&domains, public).await);
         or_roll_back!(tx, tx.lock_keys(&keys).await);
-        // REQ-002-12 (amendment of 2026-11-14): under the locks, which a closure of the
-        // objects designated takes too.
+        // REQ-002-12 (amendment of 2026-11-14), after the locks. The read sees every closure
+        // committed before it (read committed). A closure of a domain, of the tree of the
+        // entities or of the sites, or of an addressing object takes the lock that a write
+        // in it takes here (`lock_targets`): it cannot commit between this read and our
+        // commit. Nothing locks the other references (a property, a value of a closed list,
+        // the scope of a binding or of a policy, an object bound to an external identifier,
+        // an object of a module): a closure of one committed meanwhile, like a domain closed
+        // while it still holds prefixes, is left to the temporal foreign keys (task 002-30).
         let unknown = or_roll_back!(
             tx,
-            check_designations(&mut tx, &designated, &requested).await
+            check_designations(&mut tx, authorizer, author, &designated, &requested).await
         );
-        if !unknown.is_empty() {
+        if !unknown.revealed.is_empty() {
             tx.rollback().await?;
-            return refuse(store, req, changeset, unknown, mode, context).await;
+            return refuse(store, req, changeset, unknown.revealed, mode, context).await;
         }
+        let hidden = unknown.hidden;
         let moved = or_roll_back!(
             tx,
             moved(
@@ -2679,7 +2760,7 @@ async fn stages<S: Store, A: Authorizer>(
             None => {
                 break (
                     tx, prepared, planned, origins, periods, cascaded, window, violations, domains,
-                    keys,
+                    keys, hidden,
                 );
             }
             Some(_) if replays < MAX_REPLAYS => {
@@ -2893,6 +2974,12 @@ async fn stages<S: Store, A: Authorizer>(
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
+    }
+    // REQ-002-12 (amendment of 2026-11-14), INV-63: the designations hidden from the author,
+    // refused once every right is granted, so that none refuses before his rights do.
+    if !hidden.is_empty() {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, hidden, mode, context).await;
     }
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;

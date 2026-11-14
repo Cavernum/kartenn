@@ -853,8 +853,23 @@ async fn a_right_to_edit_alone_makes_a_proposal(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
 }
 
-/// REQ-002-12 (amendment of 2026-11-14), REQ-002-37: a right held on one domain reaches no
-/// object through a domain that does not exist, and no binding names one.
+/// The refusal as its author sees it, the identifiers of the objects it creates aside: its
+/// rules, messages and operations, and how many objects each names.
+fn refusal(outcome: &Outcome) -> Vec<(&'static str, String, Option<usize>, usize)> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations
+            .iter()
+            .map(|v| (v.rule.id, v.message.clone(), v.operation, v.subjects.len()))
+            .collect(),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// REQ-002-12 (amendment of 2026-11-14), REQ-002-37, INV-63: a right held on one domain
+/// reaches no object through a domain that does not exist; and the rights come before the
+/// references, so that an author without the right on the domain designated learns
+/// nothing of it (unknown, of another kind, closed or out of reach, the same refusal);
+/// whoever holds that right learns that it designates nothing.
 #[kartenn_testing::pg_test]
 async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
     let t = Tree::new(&pool).await;
@@ -870,6 +885,10 @@ async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
         .await;
     let who = t.identity().await;
     t.bind(Binding::Identity(who.id), editor, "lab", None).await;
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
     let create = |domain: Uuid| Operation::CreatePrefix {
         local: None,
         domain: Ref::Id(domain),
@@ -878,18 +897,63 @@ async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
         point_to_point: false,
         anycast: false,
     };
-    // In its domain, applied; on an identifier nothing bears, or that of an entity, refused.
+    // A domain closed.
+    let owner = t.find("property_declaration", "key", "core.owner").await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                Operation::CreateDomain {
+                    local: Some(1),
+                    slug: "gone".into(),
+                },
+                Operation::AssignProperty {
+                    object: Ref::Local(1),
+                    kind: ObjectKind::Domain,
+                    property: Ref::Id(owner),
+                    values: vec![RawInput::Text(t.ids["vendor"].to_string())],
+                },
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let gone: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'gone'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![Operation::Close {
+                kind: ObjectKind::Domain,
+                id: Ref::Id(gone),
+                expected: None,
+                cascade: false,
+            }],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // In its domain, applied.
     let outcome = t.submit_as(&who, vec![create(t.ids["lab"])]).await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    for domain in [Uuid::now_v7(), t.ids["group"]] {
+    // Out of it, the same refusal whatever the identifier names: nothing, an entity, a
+    // closed domain, a domain in force it may not write.
+    let unknown = Uuid::now_v7();
+    let out_of_reach = refusal(&t.submit_as(&who, vec![create(t.ids["other"])]).await);
+    assert_eq!(
+        out_of_reach.iter().map(|v| v.0).collect::<Vec<_>>(),
+        ["core.object.forbidden"]
+    );
+    for domain in [unknown, t.ids["group"], gone] {
         let outcome = t.submit_as(&who, vec![create(domain)]).await;
-        assert_eq!(rules_of(&outcome), ["core.reference.unknown"]);
+        assert_eq!(refusal(&outcome), out_of_reach, "{domain}");
+    }
+    // Whoever holds every right learns that the identifier designates nothing.
+    for domain in [unknown, t.ids["group"], gone] {
+        let outcome = t.submit_as(&root, vec![create(domain)]).await;
+        assert_eq!(rules_of(&outcome), ["core.reference.unknown"], "{domain}");
     }
     // Not even an administrator of everything binds a role on a domain that does not exist.
-    let root = t.identity().await;
-    let admin = t.role("root", &["*"]).await;
-    t.bind(Binding::Identity(root.id), admin, "global", None)
-        .await;
     let user = t.identity().await;
     let outcome = t
         .submit_as(
