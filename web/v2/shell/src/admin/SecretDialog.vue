@@ -6,7 +6,9 @@
 // jamais affiché », the code to copy, its expiry, « J'ai copié le secret ». The focus goes
 // to the copy, never to the cross; Escape, the cross or a click outside ask first (closed
 // by mistake, a secret shown once is lost), and do nothing while the write is in flight. The secret lives in this dialog only
-// (`useSecretWrite`): closed, it is forgotten.
+// (`useSecretWrite`): closed, it is forgotten. Left open as the window narrows under
+// 1024 px (the gate of writes), the form keeps its input and sends nothing, the reason in
+// the dialog; a secret already shown stays readable and copyable (a read) until closed.
 import {
   AlertDialog,
   Button,
@@ -86,7 +88,19 @@ const motiveError = computed(() =>
     : undefined,
 );
 
+/**
+ * Why nothing is sent now: the window narrowed (or the period moved) since it opened. Said
+ * on the form only: a secret already shown stays readable and copyable until closed. Not
+ * while the write is in flight: sent before the gate shut, it goes on.
+ */
+const held = computed(() =>
+  mode.value === "form" && !write.busy.value ? write.gate.why.value : undefined,
+);
+
 async function submit(): Promise<void> {
+  // Refused by the gate, read when sending (`run` reads it again): said in the dialog, the
+  // input kept.
+  if (held.value) return;
   tried.value = true;
   const dated = expiry.value?.check() ?? true;
   if (nameError.value || motiveError.value || !dated) return;
@@ -151,6 +165,7 @@ const expiryDate = computed(() => shown.value?.expires_at?.slice(0, 10) ?? null)
             required
             autocomplete="off"
           />
+          <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
           <RefusalAlert v-if="write.refusal.value" :refusal="write.refusal.value" :note="null" />
         </Stack>
       </form>
@@ -169,6 +184,7 @@ const expiryDate = computed(() => shown.value?.expires_at?.slice(0, 10) ?? null)
           type="submit"
           :form="formId"
           :loading="write.busy.value"
+          v-bind="held ? { reason: held } : {}"
           >{{ props.account ? t("admin.secret.make") : t("admin.accounts.create") }}</Button
         >
       </template>

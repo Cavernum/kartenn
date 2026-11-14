@@ -5,6 +5,8 @@
 // value: the key of the ring that made the digest, the creation, the expiry, each with
 // « Révoquer », to the draft (`revoke_service_secret`), the row marked there and its action
 // « Annuler la révocation ». Its state is that of its identity (`/admin/identities/:id`).
+// Off the present and under 1024 px wide (the gate of writes), each write is refused with
+// that reason, after the permission; the account read.
 import { reads, type Operation } from "@kartenn/sdk";
 import {
   EmptyState,
@@ -22,7 +24,6 @@ import { RouterLink } from "vue-router";
 import { useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
-import { useTime } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { keepRecordName } from "../views/names.ts";
 import {
@@ -40,7 +41,6 @@ import SecretDialog from "./SecretDialog.vue";
 const props = defineProps<{ id: string }>();
 const { t } = useI18n();
 const session = useSession();
-const time = useTime();
 const draft = useAdminDraft();
 
 const read = useQuery(() => reads.read("/v1/service-accounts/{id}", { params: { id: props.id } }));
@@ -54,15 +54,21 @@ const secrets = computed(() =>
   account.value ? secretRows(account.value.secrets, draft.operations.value, props.id) : [],
 );
 
+// The right, then the gate of writes (the present, 1024 px wide).
 const refusal = computed(() =>
   globalRefusal({
     me: session.value.me,
     permission: ACCOUNT_ADMIN,
-    present: time.value.present,
-    past: t("edit.why.past"),
+    refused: draft.gate.refused.value,
+    words: draft.gate.words.value,
   }),
 );
 const refusalOf = () => refusal.value ?? {};
+/**
+ * The gate alone, for the action of a row the draft marks (taking its revocation out of
+ * the draft): no right refuses it, the gate does (the draft is written).
+ */
+const gateRefusal = computed(() => (draft.gate.why.value ? { reason: draft.gate.why.value } : {}));
 const renewing = ref(false);
 const actions = computed<ToolbarAction[]>(() => [
   { id: "renew", label: t("admin.secret.renew"), icon: "key-round", ...refusalOf() },
@@ -160,7 +166,7 @@ async function onSecret(row: SecretRow): Promise<void> {
                   })
                 "
                 :loading="draft.busy.value"
-                v-bind="row.pending ? {} : refusalOf()"
+                v-bind="row.pending ? gateRefusal : refusalOf()"
                 @click="onSecret(row)"
               />
             </span>

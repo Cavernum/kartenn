@@ -5,7 +5,8 @@
 // and its entity; « Détacher » detaches the row chosen; both to the draft
 // (`attach_issuer`, `detach_issuer`), a detachment marked in place, an attachment at the
 // end, the action of a marked row taking it out of the draft. Under `core.issuer.admin`,
-// held on the whole organisation (005). Three states.
+// held on the whole organisation (005); off the present and under 1024 px wide (the gate
+// of writes), each write refused with that reason, after the permission. Three states.
 import type { Operation } from "@kartenn/sdk";
 import {
   Button,
@@ -13,6 +14,7 @@ import {
   DataGrid,
   Dialog,
   EmptyState,
+  InlineAlert,
   Select,
   Stack,
   TextField,
@@ -28,9 +30,10 @@ import { useI18n } from "vue-i18n";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { nameOf, type Item } from "../views/collections.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import {
   attachmentKey,
@@ -41,12 +44,15 @@ import {
   type AttachmentRow,
 } from "./access.ts";
 import { useAdminDraft } from "./draft.ts";
+import { refusalSentence } from "./gate.ts";
 import { useList, useScopeNames } from "./reads.ts";
 
 const { t, locale } = useI18n();
 const session = useSession();
-const time = useTime();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status below.
+const draft = useAdminDraft({ say: (text) => status(text) });
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.issuers"));
 const { query, rows } = useList("/v1/issuer-attachments");
@@ -84,21 +90,28 @@ const selected = ref<string | undefined>(undefined);
 const chosen = computed(() => shown.value.find((a) => a.key === selected.value));
 const onSelected = (keys: string[]) => (selected.value = keys[0]);
 
-const refusal = computed(
-  () =>
-    globalRefusal({
-      me: session.value.me,
-      permission: ISSUER_ADMIN,
-      present: time.value.present,
-      past: t("edit.why.past"),
-    }) ?? {},
-);
+// The right, then the gate of writes (the present, 1024 px wide); `c` says the same reason
+// as « Rattacher » (`lasting`), the palette keeps it when the gate alone holds it.
+const refusalAt = (refused: WriteRefusal | null) =>
+  globalRefusal({
+    me: session.value.me,
+    permission: ISSUER_ADMIN,
+    refused,
+    words: draft.gate.words.value,
+  });
+const refusal = computed(() => refusalAt(draft.gate.refused.value) ?? {});
+/** The gate alone, for the action of a row the draft marks (it writes the draft). */
+const gateRefusal = computed(() => (draft.gate.why.value ? { reason: draft.gate.why.value } : {}));
 const detachAction = computed<ToolbarAction>(() => {
   const row = chosen.value;
   const base = { id: "detach", icon: row?.pending ? "undo-2" : "trash" } as const;
   if (!row) return { ...base, label: t("admin.issuers.detach"), reason: t("admin.issuers.choose") };
-  if (row.pending === "removed") return { ...base, label: t("admin.issuers.undoDetach") };
-  if (row.pending === "added") return { ...base, label: t("admin.issuers.dropAttach") };
+  if (row.pending === "removed") {
+    return { ...base, label: t("admin.issuers.undoDetach"), ...gateRefusal.value };
+  }
+  if (row.pending === "added") {
+    return { ...base, label: t("admin.issuers.dropAttach"), ...gateRefusal.value };
+  }
   return { ...base, label: t("admin.issuers.detach"), ...refusal.value };
 });
 const actions = computed<ToolbarAction[]>(() => [
@@ -127,7 +140,10 @@ async function onAction(id: string): Promise<void> {
 useViewAction("create", {
   label: () => t("admin.issuers.attachTitle"),
   run: () => (attaching.value = true),
-  allowed: () => Object.keys(refusal.value).length === 0,
+  allowed: () => !refusalAt(null),
+  why: () => refusalSentence(refusalAt(null), t),
+  say: status,
+  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -176,7 +192,11 @@ const entityError = computed(() =>
     ? t("admin.required", { field: t("admin.issuers.entity") })
     : undefined,
 );
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
 async function attach(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (issuerError.value || entityError.value) return;
   const target = scope.value === "entity" ? (entity.value ?? null) : null;
@@ -236,6 +256,7 @@ async function attach(): Promise<void> {
       :note="null"
     />
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <Dialog v-model:open="attaching" :title="t('admin.issuers.attachTitle')" size="md">
     <form :id="formId" novalidate @submit.prevent="attach">
       <Stack gap="3">
@@ -259,6 +280,7 @@ async function attach(): Promise<void> {
           :suggest="suggest"
           required
         />
+        <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
         <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
       </Stack>
     </form>
@@ -270,6 +292,7 @@ async function attach(): Promise<void> {
         type="submit"
         :form="formId"
         :loading="draft.busy.value"
+        v-bind="held ? { reason: held } : {}"
         >{{ t("admin.toDraft") }}</Button
       >
     </template>

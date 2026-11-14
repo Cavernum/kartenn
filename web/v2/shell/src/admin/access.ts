@@ -6,8 +6,9 @@ import {
   type Violation,
 } from "@kartenn/sdk";
 import { covers } from "../rights/index.ts";
+import type { WriteRefusal as GateRefusal } from "../time/index.ts";
 import type { Refusal as WriteRefusal } from "../views/edit/inline.ts";
-import type { Pending, Refusal } from "./model.ts";
+import type { GateWords, Pending, Refusal } from "./model.ts";
 
 // The access to kartenn as the administration reads and writes it (005, REQ-005-17;
 // spec 025, REQ-025-11; REQ-021-12; design 021 « Administration »; maquette E7, vues
@@ -47,15 +48,24 @@ export function holdsGlobally(me: Me | null | undefined, permission: string): bo
   return me?.global_permissions.some((entry) => covers(entry, permission)) ?? false;
 }
 
-/** Why an action under a global permission is refused: the permission, then the past. */
+/**
+ * Why an action under a global permission is refused: the lasting reasons first — the
+ * permission, then the screen's own (`lasting`: a change of it already in the draft) —,
+ * then the gate of writes (the past, a frame under 1024 px: `useAdminGate`). The gate only
+ * adds refusals: open (`refused: null`), the refusals are those of the rights.
+ */
 export function globalRefusal(input: {
   me: Me | null | undefined;
   permission: string;
-  present: boolean;
-  past: string;
+  /** Why the gate of writes refuses every write (`useAdminGate`); `null` when open. */
+  refused: GateRefusal | null;
+  words: GateWords;
+  /** A lasting reason of the screen, said after the permission and before the gate. */
+  lasting?: string | undefined;
 }): Refusal | undefined {
   if (!holdsGlobally(input.me, input.permission)) return { forbidden: input.permission };
-  return input.present ? undefined : { reason: input.past };
+  if (input.lasting !== undefined) return { reason: input.lasting };
+  return input.refused ? { reason: input.words[input.refused] } : undefined;
 }
 
 /** The operations of the shapes this file reads. */

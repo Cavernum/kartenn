@@ -4,7 +4,9 @@
 // kind (person, service account, break-glass account) and its state; « Désactiver » (or
 // « Réactiver ») and « Révoquer les sessions », to the draft (`set_identity_state`), and
 // « Pseudonymiser… » for a person or a requester (016), at once and confirmed (004,
-// REQ-004-33: irreversible).
+// REQ-004-33: irreversible). Off the present and under 1024 px wide (the gate of writes),
+// each is refused with that reason, after the lasting ones; the confirmation of the
+// pseudonymisation left open as the window narrows sends nothing, the reason in it.
 // In read: its groups of kartenn with « via » (direct, or the group of its IdP that makes
 // it a member), its effective rights (role, scope, the group that gives it), and the
 // groups of its IdP at its last login, without date (025, Q-025-1), each with the group of
@@ -28,7 +30,6 @@ import { useI18n } from "vue-i18n";
 import { useQuery, useQueryClient } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
-import { useTime } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal as WriteRefusal } from "../views/edit/inline.ts";
@@ -50,7 +51,6 @@ import { useList, useScopeNames } from "./reads.ts";
 const props = defineProps<{ id: string }>();
 const { t, locale } = useI18n();
 const session = useSession();
-const time = useTime();
 const keyLabel = useKeyLabel();
 const draft = useAdminDraft();
 const toasts = injectToasts();
@@ -91,24 +91,25 @@ const pendingWords = computed(() =>
         : t("admin.identities.enableDrafted"),
   ),
 );
-const refusal = computed(() =>
-  globalRefusal({
-    me: session.value.me,
-    permission: ACCOUNT_ADMIN,
-    present: time.value.present,
-    past: t("edit.why.past"),
-  }),
-);
+// The lasting reasons first (the right, a change of the state already drafted), then the
+// gate of writes (the present, 1024 px wide).
 const stateRefusal = computed(
-  () => refusal.value ?? (drafted.value.length ? { reason: t("admin.why.drafted") } : {}),
+  () =>
+    globalRefusal({
+      me: session.value.me,
+      permission: ACCOUNT_ADMIN,
+      refused: draft.gate.refused.value,
+      words: draft.gate.words.value,
+      lasting: drafted.value.length ? t("admin.why.drafted") : undefined,
+    }) ?? {},
 );
 const pseudonymiseRefusal = computed(
   () =>
     globalRefusal({
       me: session.value.me,
       permission: PSEUDONYMISE,
-      present: time.value.present,
-      past: t("edit.why.past"),
+      refused: draft.gate.refused.value,
+      words: draft.gate.words.value,
     }) ?? {},
 );
 const actions = computed<ToolbarAction[]>(() => {
@@ -181,7 +182,14 @@ const motiveError = computed(() =>
     ? t("admin.required", { field: t("admin.motive") })
     : undefined,
 );
+/**
+ * Why nothing is sent now: the window narrowed (or the period moved) since the dialog
+ * opened. An irreversible write: its confirmation sends nothing then, the motive kept.
+ */
+const held = computed(() => draft.gate.why.value);
 async function pseudonymise(): Promise<void> {
+  // The gate read when sending (not only the button): said in the dialog, nothing sent.
+  if (held.value) return;
   tried.value = true;
   if (motiveError.value || busy.value) return;
   busy.value = true;
@@ -332,14 +340,21 @@ async function pseudonymise(): Promise<void> {
             required
             autocomplete="off"
           />
+          <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
           <RefusalAlert v-if="pseudonymiseRefused" :refusal="pseudonymiseRefused" :note="null" />
         </Stack>
       </form>
       <template #actions>
         <Button variant="ghost" @click="pseudonymising = false">{{ t("admin.cancel") }}</Button>
-        <Button variant="danger" icon="eye-off" type="submit" :form="formId" :loading="busy">{{
-          t("admin.identities.pseudonymiseConfirm")
-        }}</Button>
+        <Button
+          variant="danger"
+          icon="eye-off"
+          type="submit"
+          :form="formId"
+          :loading="busy"
+          v-bind="held ? { reason: held } : {}"
+          >{{ t("admin.identities.pseudonymiseConfirm") }}</Button
+        >
       </template>
     </Dialog>
   </Stack>

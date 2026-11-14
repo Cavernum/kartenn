@@ -4,7 +4,8 @@
 // state and its active secrets; a row chosen opens its account in the Détail tab of the
 // right panel (`/admin/accounts/:id`); one whose secret the draft revokes is marked.
 // « Créer » (`c`) asks its name, the expiry of its first secret and the motive, then shows
-// the secret once. Three states.
+// the secret once; off the present and under 1024 px wide (the gate of writes), refused
+// with that reason, after the permission. Three states.
 import {
   DataGrid,
   EmptyState,
@@ -22,10 +23,12 @@ import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import { ACCOUNT_ADMIN, activeSecrets, globalRefusal, type AccountItem } from "./access.ts";
 import { useAdminDraft } from "./draft.ts";
+import { refusalSentence, useAdminGate } from "./gate.ts";
 import { useList } from "./reads.ts";
 import SecretDialog from "./SecretDialog.vue";
 
@@ -33,8 +36,11 @@ const props = defineProps<{ selected?: string | undefined }>();
 const { t, locale } = useI18n();
 const router = useRouter();
 const session = useSession();
-const time = useTime();
+const gate = useAdminGate();
+// The marks of the draft only: this list writes nothing to it.
 const draft = useAdminDraft();
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.accounts"));
 const { query, rows } = useList("/v1/service-accounts");
@@ -88,17 +94,17 @@ function onSelected(keys: string[]): void {
 }
 const onActivate = (cell: CellRef) => open(cell.row);
 
-// « Créer »: the global right and the present (nothing is written in the past).
+// « Créer »: the global right, then the gate of writes (the present, 1024 px wide); `c`
+// says the same reason as its button (`lasting`), and the palette keeps it when the gate
+// alone holds it (`allowed`: the right only).
 const creating = ref(false);
-const createRefusal = computed(
-  () =>
-    globalRefusal({
-      me: session.value.me,
-      permission: ACCOUNT_ADMIN,
-      present: time.value.present,
-      past: t("edit.why.past"),
-    }) ?? {},
-);
+const refusal = (refused: WriteRefusal | null) =>
+  globalRefusal({
+    me: session.value.me,
+    permission: ACCOUNT_ADMIN,
+    refused,
+    words: gate.words.value,
+  });
 const actions = computed<ToolbarAction[]>(() => [
   {
     id: "create",
@@ -106,13 +112,16 @@ const actions = computed<ToolbarAction[]>(() => [
     icon: "plus",
     variant: "primary",
     shortcut: ["c"],
-    ...createRefusal.value,
+    ...refusal(gate.refused.value),
   },
 ]);
 useViewAction("create", {
   label: () => t("admin.accounts.createTitle"),
   run: () => (creating.value = true),
-  allowed: () => Object.keys(createRefusal.value).length === 0,
+  allowed: () => !refusal(null),
+  why: () => refusalSentence(refusal(null), t),
+  say: status,
+  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -170,5 +179,6 @@ const total = computed(() =>
       </template>
     </DataGrid>
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <SecretDialog v-model:open="creating" :taken="rows.map((a) => a.name)" />
 </template>

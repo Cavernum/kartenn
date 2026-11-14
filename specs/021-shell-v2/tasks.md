@@ -7080,7 +7080,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     par un toast (comme la suppression et l'annulation de la 21d : `AlertDialog` n'a ni
     raison ni maintien ouvert) ; Entrée refusée dans un dialogue ne redit pas la raison
     (dite une fois au rétrécissement, et par le bouton)
-- [ ] 21e2. Édition réservée aux largeurs ≥ 1024 px, administration, comptes, identités,
+- [x] 21e2. Édition réservée aux largeurs ≥ 1024 px, administration, comptes, identités,
   émetteurs et imports : le motif `narrow` de la 21e sur leurs écritures — REQ-021-29 —
   verify : Vitest de `admin/access.ts` (`globalRefusal` : `narrow` après le droit
   manquant ; `refused: null`, mêmes refus qu'avant) ; un test monté sur le modèle de
@@ -7105,6 +7105,47 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     durable d'abord, la porte ensuite (21e). Chaque fichier repris quitte `PERIOD_ONLY` (entrées `21e` restantes de
     `web/v2/shell/test/writes.test.ts`)
   - dépend de : 21e
+  - fait le 2026-11-14 — `globalRefusal` (`access.ts`) prend `refused` (`useAdminGate`) et
+    les mots `GateWords` au lieu de `present` et `past`, et une raison durable propre à
+    l'écran (`lasting`) : le droit manquant, puis cette raison, puis la porte. Dite là où
+    `past` l'était : « Créer » des comptes de service (`c` : `allowed` et `why` durables,
+    `lasting`, `say`, statut poli), « Nouveau secret » et « Révoquer » d'un compte,
+    « Désactiver », « Révoquer les sessions » et « Pseudonymiser… » d'une identité,
+    « Rattacher » (`c` de même) et « Détacher » des émetteurs, « Reprendre » et « Annuler
+    l'import » ; l'action d'une ligne que marque le brouillon (« Annuler la révocation »,
+    « Annuler le détachement », l'ajout retiré) prend la porte seule. Les trois écritures
+    directes relisent la porte à l'envoi : `createSecretWrite` (`secret.ts`, dépendance
+    `held`) n'envoie rien quand elle refuse, `SecretDialog` le dit dans le dialogue
+    (`InlineAlert`, bouton à raison), saisie gardée, l'étape du secret montré intouchée
+    (lisible et copiable jusqu'à la fermeture) ; la pseudonymisation de `IdentityDetail`
+    de même (dialogue, motif gardé, rien envoyé) ; `steer` de `ImportDetail` n'envoie rien
+    et le dit sous les actions (`InlineAlert` warn, ôtée quand la porte rouvre) ; le dialogue
+    « Rattacher » des émetteurs comme `GroupForm`. Les six fichiers repris ont quitté
+    `PERIOD_ONLY`. Tests : `access.test.ts` (`globalRefusal` : la porte après le droit
+    manquant, la raison durable avant la porte, porte ouverte mêmes refus qu'avant dans
+    cinq cas de droits ; `createSecretWrite` : rien envoyé sous la porte, envoyé une fois
+    rouverte, un secret montré gardé quand elle se ferme), `admin-gate-access.test.ts`
+    (monté : « Créer » et `c` des comptes dans les quatre cas ; la palette, porte seule et
+    droit manquant ; la création d'un compte dialogue ouvert puis rétréci, saisie gardée,
+    rien envoyé, élargi puis envoyé ; un secret montré puis rétréci, lisible, rien
+    recréé ; la pseudonymisation confirmée à l'étroit, rien envoyé ; l'état d'une identité,
+    le droit manquant avant la largeur ; l'annulation d'un import confirmée à l'étroit,
+    rien envoyé, la raison dite) ; parcours `accessibility` à 768 px (« Créer » des comptes
+    de service refusé, atteint et pressé au clavier, `c` dit le motif, aucun dialogue ;
+    revenu à 1024 px, le dialogue s'ouvre)
+  - choix : « Déjà au brouillon » de l'état d'une identité passe avant la porte (raison
+    durable : elle ne change pas avec la largeur ; avant, la porte la masquait) ; le refus
+    d'un `steer` à l'envoi est dit dans le panneau sous les actions plutôt que par un toast
+    (l'`AlertDialog` fermé, le panneau reste là, testable sans hôte de toasts) ; `ImportDetail`
+    n'a pas de droit côté client (le serveur juge) : la porte seule ; aucune clé nouvelle
+    (`admin.why.forbidden`, `edit.why.narrow` déjà là)
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : l'alerte de `ImportDetail` dit la
+    raison de la porte telle qu'elle est (passé devenu étroit), pas celle de l'envoi
+    refusé ; `SecretDialog` ne dit pas « rien envoyé » pendant une écriture déjà partie
+  - reste : la confirmation d'annulation d'un import (`AlertDialog`, sans raison) ne dit
+    pas la largeur avant d'être confirmée, refus dit sous les actions après fermeture
+    (annonce à écouter au lecteur d'écran, le focus revenu sur le bouton refusé) ; les
+    dialogues rétrécis des comptes, identités et émetteurs testés montés, pas en parcours
 - [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
   motif `narrow` de la 21c sur les actions de la fiche (« Modifier », « Actions »), son
   onglet VLAN et son avis des trous, les anomalies et l'arbre de la topographie —
