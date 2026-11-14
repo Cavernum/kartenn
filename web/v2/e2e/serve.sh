@@ -66,7 +66,9 @@ budgets)
   # each of them invalidates every read of children in the trees (X24) — the container
   # under measure read again, page after page, while it scrolls. The bench measures the
   # browser on a quiet instance: the tasks disabled (the start enables again those of the
-  # modules only), and postponed past the bench.
+  # modules only), and postponed past the bench. The writes of another domain while a tree
+  # scrolls (A40, task 021-22m) are the bench's own, regular and bounded: its background
+  # writer (budgets/budgets.spec.ts) on the domain of budgets/global-setup.ts.
   psql "$database" -q -c "UPDATE job SET enabled = false, due_at = now() + interval '1 day'"
   "$release/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
     >"$state/breakglass-v2.txt"
