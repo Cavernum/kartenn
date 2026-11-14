@@ -6798,6 +6798,99 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`meta.queries`), `web/v2/e2e/budgets/budgets.spec.ts` (« navigations to a prefetched
     target »)
   - dépend de : 22g
+  - profil du 2026-11-14 (main 5dffa02a), hors banc : une sonde Playwright temporaire sur
+    le jeu des parcours (Chromium, CPU ×4, 1440 × 900, liste des préfixes du domaine
+    `production`, cinq fiches survolées puis ouvertes trois fois), trace CDP et
+    échantillons du profileur ramenés aux sources par les cartes du build. Fenêtre du
+    `pointerdown` au `k:view` : 170 ms en médiane (155 sans la trace) ; un clic de
+    Playwright date son `click` pendant la réaction au `pointerdown`, que le banc compte.
+    Postes, en ms par navigation (JS échantillonné, mises en page à part) :
+
+    | poste | ms |
+    | --- | --- |
+    | la grille de la liste au focus du lien pressé (`focusin` : `active` et `focused` changent, tout le `DataGrid` et `ListView` (`v-model:active`) se rendent à nouveau, `cellState`, `rowState`, `stateOf`, `reasonOf`… de chaque cellule en vue) | 30 (tâche de 43) |
+    | démontage de la liste (Vue, `removeChild`), dont une mise en page forcée de l'ancienne page dans `removeChild` | 21, dont 11 |
+    | cadre et routeur (fil d'Ariane, barre latérale, `RouterView`, garde des lectures) | 24 |
+    | montage de la fiche par Vue (composants et DOM) | 15 à 18 |
+    | mesures du `DataGrid` des propriétés à son montage (`readEstimate`, `measureKey` : `getComputedStyle`, `offsetLeft`) | 6, plus 8 de mise en page forcée |
+    | requêtes des lectures hors route (occupation, prochaine valeur libre, écarts), créées au montage | 6 |
+    | options des lectures, faites trois fois chacune (`defaultQueryOptions`, hachage de la clé) | 2 |
+    | mesure de la surface du cadre au changement de page (`scrollHeight`, mise en page forcée) | 2,5 |
+    | éléments des plugins (`ExtensionElement`, résumé d'`example`) | 2 |
+
+    Réponses aux questions de la tâche : seul l'onglet actif est monté (`Tabs`,
+    `unmount-on-hide`) ; le panneau des propriétés pèse par son `DataGrid` (mesures
+    ci-dessus) ; les emplacements de plugins, 2 ms ; les mots des écrans sont déjà lus à la
+    navigation mesurée (`lazyCatalog` garde sa promesse, aucune requête, des microtâches
+    seulement). La même ouverture au clavier (focus sur le lien, Entrée), sans la réaction
+    au `pointerdown`, prend 94 ms en médiane contre 149 à la souris : l'écart est la grille
+    de la liste. Une trace avec les piles des minuteurs (`devtools.timeline.stack`) gonfle
+    `setTimeout` et `clearTimeout` (45 ms, 1 ms sans elle) : profil refait sans.
+  - code fait le 2026-11-14, case laissée ouverte (passe réduite à la session
+    principale) : les lectures hors route du panneau d'occupation et de l'encart des écarts
+    partent une trame peinte après le montage (`views/record/painted.ts`, `usePainted` :
+    une trame, puis une tâche) ; ce que le cache tient s'affiche aussitôt (une requête pas
+    encore activée garde ses données). `useQuery` et `useInfiniteQuery`
+    (`data/query.ts`, `watchedOptions`) font les options une fois au montage, puis à
+    chaque changement. La surface du cadre (`ShellFrame.vue`) n'est plus mesurée quand le
+    routeur y met une page : la première notification de l'observateur de tailles, après
+    la mise en page, la mesure. Gain, mesuré dans un même passage (sonde, sans trace,
+    l'ancien et le nouveau chemin alternés par tour sur les mêmes fiches) : 102,5 → 94 ms
+    en médiane au clavier, 158,5 → 149 à la souris (plus bruité). Preuve :
+    `test/mount-work.test.ts` (le panneau d'occupation monté n'a rien lu avant sa trame,
+    puis lit ses deux lectures ; tenues en cache, elles s'affichent aussitôt sans relecture ;
+    les options d'une lecture faites une fois au montage, une fois par changement), qui
+    échoue sur l'ancien code. Passes réduites filtrées (`bench-web small -g "prefetched
+    target"`, indicatives) : avant, p75 308,4 ms, médiane 263,5, pire 485,6, sous la charge
+    de deux autres agents (bancs et parcours) ; après, créneaux libres au départ et à
+    l'arrivée, p75 123,6 ms, médiane 111,5, pire 210,6, dix préchargées, CLS 0,001 (la
+    référence calme de la session principale : 126,5, 120,5, 313,0).
+  - coût : une fiche dont l'occupation n'est pas en cache la reçoit une trame et une tâche
+    plus tard (≈ 20 à 30 ms sous CPU ×4), sous le même squelette ; « … » de la prochaine
+    valeur libre, de même.
+  - choix : lectures hors route différées plutôt qu'ajoutées à `meta.queries` (chaque
+    survol de la liste lirait quatre chemins au lieu de deux, et la garde attendrait
+    l'occupation d'un conteneur à chaque navigation non préchargée) ; une trame puis une
+    tâche, pour que la requête parte après la peinture et non dans la trame mesurée ;
+    `VlanOccupancyPanel` laissé tel quel (non mesuré) ; les mesures du `DataGrid` au
+    montage laissées : les ôter repousserait la mise en page après la marque sans
+    avancer la peinture.
+  - reste : le budget n'est pas tenu par la fiche seule ; ses deux premiers postes sont
+    dans la liste quittée, 22o-b et 22o-c. Mesures du `DataGrid` au montage
+    (`readEstimate`, `measureKey`) et `Presence` de reka-ui dans `TabsContent`
+    (`getComputedStyle(…).animationName`, ≈ 4 ms) : mises en page forcées pendant le
+    montage, à reprendre avec la 22o-b si elle ne suffit pas. Parcours `records` : trois
+    passages complets, chacun un échec différent dans les longues listes (« past ten
+    pages… » sous Firefox puis Chromium, « a long list keeps a few dozen rows… » sous
+    Firefox), le test seul passant trois fois sur trois ; un passage avec l'ancien
+    `data/query.ts` échoue de même : instabilité de ces deux parcours sous deux
+    navigateurs en parallèle, antérieure à la tâche, à suivre à part.
+  - [ ] 22o-b. La grille d'une liste ne se rend pas en entier quand on presse un lien de
+    ses cellules : au `focusin` d'un appui de pointeur, `active` et `focused` changent et
+    tout le `DataGrid` se rend à nouveau, avec la `ListView` qui le lie (`v-model:active`),
+    ≈ 30 ms de JS sous CPU ×4 pour un clic qui quitte la page — verify : Vitest du
+    `DataGrid` (un appui de pointeur sur un lien de cellule ne rend la grille qu'une fois
+    l'appui fini, le point d'arrêt de tabulation et l'erreur ouverte suivent ; le clavier
+    inchangé) ; scripts clavier de la grille ; parcours `records` ; passe réduite par la
+    session principale, p75 ≤ 100 ms
+    - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (`onFocusin`, `tabindex`,
+      `current`, `errorShown`, gabarit des cellules vers la ligne 1189),
+      `web/v2/shell/src/views/ListView.vue` (`v-model:active`, vers la ligne 366)
+    - options : différer la mise à jour d'`active` et `focused` d'un appui de pointeur
+      jusqu'après son `click` (une tâche, annulée au démontage : un clic qui navigue ne
+      rend rien), ou ne lire le point d'arrêt et l'état de chaque cellule que par ligne
+      (composant de ligne, `computed` par ligne) ; la première est locale, la seconde
+      profite aussi aux flèches
+    - dépend de : 22o
+  - [ ] 22o-c. Mise en page forcée au démontage d'une liste : quand le routeur remplace la
+    liste des préfixes par une fiche, `removeChild` de Vue force une mise en page de
+    l'ancienne page (11 ms sous CPU ×4), au clavier comme à la souris ; ni le focus, ni la
+    sélection, ni le survol (essayés : retirés avant, elle reste) — verify : trace de la
+    navigation sans `Layout` sous `removeChild`
+    - où : catégorie `disabled-by-default-devtools.timeline.invalidationTracking` d'une
+      trace CDP ; `web/v2/shell/src/views/ListView.vue`, `DataGrid.vue` (ce que la page
+      tient : grille défilante, en-tête collant, observateurs)
+    - dépend de : 22o
 - [ ] 22p. Place des lignes d'une liste passé dix pages : le shell ne passe jamais
   `rowOffset` à `DataGrid` ; la première page lâchée (`MAX_PAGES`), `aria-rowindex`
   repart de 2 pour la première ligne gardée et `aria-rowcount` dit les lignes gardées

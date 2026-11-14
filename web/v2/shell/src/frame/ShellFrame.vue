@@ -192,7 +192,10 @@ function toSurface(): void {
  * A surface that scrolls is reached by Tab and scrolled by the arrows (2.1.1), as the body
  * of a `Popover`: a tab stop while it overflows, in height or in width, whatever its page
  * holds (a view of text alone, a plugin's long list; task 029-5). Measured on the surface
- * and the pages it holds, the ones the router puts in it watched for.
+ * and the pages it holds, the ones the router puts in it watched for. Read by the observer
+ * of sizes alone, which notifies each element it starts observing once laid out: a page put
+ * in the surface is not measured while the router mounts it, which would lay the page out
+ * before its screen is drawn (task 021-22o).
  */
 const surface = ref<HTMLElement | null>(null);
 const surfaceScrolls = ref(false);
@@ -207,7 +210,6 @@ onMounted(() => {
   const observe = () => {
     surfaceSizes?.disconnect();
     for (const part of [el, ...el.children]) surfaceSizes?.observe(part);
-    measure();
   };
   observe();
   surfacePages = new MutationObserver(observe);
