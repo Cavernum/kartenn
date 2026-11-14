@@ -81,8 +81,9 @@ export function tameControl(el: Element, cell: string, except?: string): void {
 /**
  * The element of an extension renders when it likes (its plugin, after a read): its controls
  * leave the tab order as they come or turn focusable, in the light DOM (ADR 0038, § 4), each
- * mutation looked at in its own subtree by `tame`. Observed only while a column of the grid
- * has an element (`extended`): nothing for a grid without one.
+ * mutation looked at in its own subtree by `tame`. Observed while `extended` says so: the tree
+ * grid only with a column that has an element, the data grid always, for the widgets its
+ * host's components render on their own.
  */
 export function useExtensionControls(
   grid: Readonly<Ref<HTMLElement | null>>,

@@ -6827,7 +6827,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     s'ajoutent au pas ; aucun CSS, aucun test de banc ni jeu de données n'a changé entre les
     deux. Le p75 tombe sur la frontière des deux modes d'un pas (médiane 65,1, p75 104,9 : la
     moitié des appuis fait défiler la grille, son `window` et la `ListView` en plus) : l'écart
-    de 89,1 à 104,9 ms est la variance du banc, sur un pas qui rendait toute la grille. Borné
+    de 89,1 à 104,9 ms s'explique le plus simplement par la variance du banc, sur un pas qui
+    rendait toute la grille. La sonde tourne sous happy-dom : elle prouve que le travail JS
+    est inchangé, pas la mise en page ni la peinture, que `ShellFrame.vue` (mesure de la
+    surface), `frame/width.ts` et la mesure différée de `virtualRows.ts` ont pu changer
+    entre les deux commits. La passe réduite de référence après la 22o-b tranche. Borné
     par la 22o-b : un pas rend deux lignes (`shell/test/list-grid-work.test.ts`, qui échoue
     sur l'ancien code : 100 liens rendus au lieu de 4).
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
