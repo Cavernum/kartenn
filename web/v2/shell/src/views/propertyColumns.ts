@@ -1,7 +1,7 @@
 import { keys, qualify, queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, GridWindow, RowState } from "@kartenn/ui";
 import { computed, shallowRef, type ComputedRef } from "vue";
-import { useQueries } from "../data/query.ts";
+import { useQueries } from "../data/queries.ts";
 import { useTime } from "../time/index.ts";
 import { nameOf, type Collection, type Item } from "./collections.ts";
 import type { NotEditable } from "./edit/fields.ts";

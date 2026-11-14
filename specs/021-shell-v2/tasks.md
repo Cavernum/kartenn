@@ -6610,7 +6610,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     100 ms), médiane 120,5 ms, pire 313,0 ms, CLS 0,001. Le préchargement n'est plus en
     cause : le reste est le rendu de la fiche sous CPU ×4, porté par la 22o. Case cochée
     quand la 22o tient le budget.
-- [ ] 22n. Shell initial à 306,3 Ko gzip (budget 300 Ko), relevé par la passe réduite du
+- [x] 22n. Shell initial à 306,3 Ko gzip (budget 300 Ko), relevé par la passe réduite du
   2026-11-14 (main e86f6af1) : 295,6 Ko après la 22h, les tâches fusionnées depuis ont
   repris 10,7 Ko ; trouver ce qui est entré dans le premier lot (mesure module par
   module, comme la 22h) et le sortir à la demande — verify :
@@ -6620,6 +6620,51 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     et `ExtensionElement` en cellule (11o2), catalogues `views/i18n/*.json`, `sharePages`
     du SDK (22f)
   - dépend de : 22h
+  - fait le 2026-11-14 : 306,3 Ko avant (main 17984cee), 295,5 Ko après ; 295,9 Ko
+    rebasée sur main 032a8593 (21c et 21d, +0,4 Ko : `frame/width.ts` et la porte de
+    l'écriture, `edit.why.narrow` dans `shared/`). Mesure module
+    par module entre la 22h (eab60b9c) et main (cartes de sources, octets gzip par
+    source, approchés) : @kartenn/ui ≈ +5 Ko (cellules de la 11o2 et de la 21c :
+    `CellSelect`, `cellReasons`, `extensionCell`, `TreeGrid`, `virtualRows`), catalogues
+    JSON de l'entrée ≈ +2,9 Ko (`views` +2,2), SDK ≈ +1,3 Ko (`cache`, `dated`,
+    `filters`), `QueriesObserver` de query-core ≈ +1 Ko (`useQueries`), modules du shell
+    ≈ +1,5 Ko. Sortis du premier lot : les mots des écrans (`views/i18n/{fr,en}.json`,
+    ≈ 9,9 Ko), lus par `lazyCatalog` avec le chunk de chaque écran (`worded`,
+    `views/words.ts` ; `entryScreen` et `recordScreen` de `views/routes.ts`) et de chaque
+    panneau que le cadre ouvre lui-même (édition, clôture, brouillon : `ShellFrame.vue`) ;
+    ceux que le cadre lit avant tout écran (`labels`, `problem`, `views.retry` et les
+    mots communs, noms et valeurs des champs, `edit.why.past` et `edit.why.narrow`)
+    passent dans `views/i18n/shared/`. `useQueries` passe dans `data/queries.ts`, et ce que
+    les routes lisent de `views/data.ts` dans `views/carried.ts` (≈ 0,9 Ko).
+    `test/build.test.ts`, sur un build sous `NODE_ENV` `production` (comme `vite build`) :
+    chaque phrase propre aux catalogues des écrans et de l'administration est dans le
+    build et absente du premier lot ; aucune chaîne du premier lot ne nomme une clé que
+    seuls ces catalogues portent, entière ou tête d'une clé construite (`a.b.${…}`) ; le
+    premier lot tient son budget (échec au-delà de 300 Ko, avertissement au-delà de
+    296 Ko). `refusalWords` (`time/index.ts`) nomme chaque clé de la porte entière, pour
+    que l'analyse la voie. `test/setup.ts` lit les mots des écrans avant chaque fichier de
+    tests, qui monte un écran sans sa route ; `test/words.test.ts`, hors de ce
+    préchargement (registre remis à zéro, catalogue des écrans retenu) : chaque route du
+    cadre à chunk (hors vues des plugins) et chaque panneau du cadre (`frame/panels.ts`)
+    passent par `worded` (`isWorded`) ; l'accueil et « Clore… » ne rendent rien avant les
+    mots, puis leurs mots, jamais une clé ; une lecture perdue du lot fait échouer la
+    navigation, la suivante le relit. Vérification : `k-web2-check --base main`
+    (1144 tests, 2739 captures sur 2739 : tout, `data/query.ts` étant tiré par l'entrée) ;
+    parcours `draft`, `admin` et `accessibility`.
+  - choix : la porte par écran (`worded` au retour de `entryScreen`/`recordScreen`) plutôt
+    qu'une garde du routeur, qu'un routeur de test contournerait et qui retarderait la
+    page de connexion ; « À propos » à la demande essayé puis laissé : −0,3 Ko pour trois
+    chunks de plus au premier chargement.
+  - reste : le premier poste de la hausse, @kartenn/ui (≈ 131 Ko gzip, partagé entier par
+    la carte d'import, un seul chunk pour l'ordre de sa feuille), ne se découpe pas sans
+    arbitrage ; l'analyse des clés ne voit pas une clé construite par concaténation
+    (`"edit.why." + reason`, si le build la garde telle), ni une clé tenue
+    dans une variable venue d'ailleurs que d'une chaîne du premier lot (une donnée du
+    serveur), ni une clé d'un catalogue de plugin ; l'avertissement des 296 Ko s'imprime
+    dans la sortie de Vitest, que le verdict d'une ligne de `k-web2-check` ne reprend pas ;
+    `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead` de `views/carried.ts` :
+    une trentaine d'importeurs à pointer sur `carried.ts`, dont `admin/*` que la 21e
+    modifie en ce moment, laissés pour une tâche hors de ces branches.
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,

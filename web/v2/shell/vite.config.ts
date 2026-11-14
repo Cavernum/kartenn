@@ -240,5 +240,6 @@ export default defineConfig(({ mode }) => ({
   test: {
     name: "shell",
     environment: "node",
+    setupFiles: ["test/setup.ts"],
   },
 }));

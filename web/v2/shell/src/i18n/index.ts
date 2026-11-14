@@ -3,8 +3,8 @@ import { setLocale as setLibraryLocale } from "@kartenn/ui";
 import { createI18n } from "vue-i18n";
 import changesetsEn from "../changesets/i18n/en.json";
 import changesetsFr from "../changesets/i18n/fr.json";
-import viewsEn from "../views/i18n/en.json";
-import viewsFr from "../views/i18n/fr.json";
+import viewsEn from "../views/i18n/shared/en.json";
+import viewsFr from "../views/i18n/shared/fr.json";
 import en from "./en.json";
 import fr from "./fr.json";
 
@@ -120,7 +120,8 @@ export function createShellI18n(
     legacy: false,
     locale,
     fallbackLocale: "en",
-    // The screens of the referential keep their words apart (`views`, `labels`, task 11).
+    // The screens of the referential keep their words apart (`views`, `labels`, task 11):
+    // here those the frame reads, the others with the screens (`views/words.ts`, task 22n).
     messages: { fr: { ...fr, ...viewsFr }, en: { ...en, ...viewsEn } },
     missingWarn: false,
     fallbackWarn: false,
@@ -128,7 +129,8 @@ export function createShellI18n(
   // The changesets and the drafts (task 14), merged deep: they add words under `views` too.
   i18n.global.mergeLocaleMessage("fr", changesetsFr);
   i18n.global.mergeLocaleMessage("en", changesetsEn);
-  // The catalogs read on demand (the administration's, `admin/routes.ts`), here and later.
+  // The catalogs read on demand (the screens', `views/words.ts`; the administration's,
+  // `admin/routes.ts`), here and later.
   for (const catalog of read) mergeCatalog(i18n, catalog);
   shell = i18n;
   setTranslator((key, params, plugin) => {
