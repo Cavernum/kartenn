@@ -695,7 +695,8 @@ routeur complet, sauf mention « vrai TCP ».
 - [x] 32a. Brique commune, listes du noyau et des VLAN : `filter::ids` (retire `id` des
   paramètres comme `filter::prefix` ; UUID mal formé ou au-delà de la borne → 400 qui
   nomme `id`), `Op::ids` (sur `Op::repeated`) ; six listes du noyau (`Criteria.ids` sur
-  la lecture par clé naturelle, intersection sur la lecture par propriétés) ; groupes de
+  la lecture par clé naturelle, candidats du moteur sur la lecture par propriétés) ; une
+  page sans suite (REQ-006-41) ; groupes de
   VLAN et VLAN — verify : `k-check -p kartenn-rest` (deux identifiants dont un
   illisible : un seul rendu, page identique à celle d'un inconnu ; conjonction avec
   `domain` ; 1001 `id` → 400, 1000 → 200 ; `id` aux `parameters` de ces listes)
@@ -705,45 +706,57 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-store-pg/src/list.rs` (`Criteria.ids`, déjà en conjonction) ; tests
     `rest/tests/it/objects.rs` (lots de la 31, à imiter)
   - dépend de : —
-  fait : `filter.rs` (`ids` : retire `id` des paramètres, dédoublonne et trie, refuse dès
-  le 1001ᵉ), `openapi.rs` (`Op::ids`, tableau d'UUID facultatif), `objects.rs` (`id`
-  déclaré en tête des filtres de chaque liste du noyau ; `Criteria.ids` sur la lecture par
-  clé naturelle, la conjonction étant celle du magasin ; intersection après le moteur sur
-  la lecture par propriétés), `vlan.rs` (`filters` rend aussi les identifiants ;
-  `cardinality(…) = 0 OR x.id = ANY(…)` dans les deux listes, sous le prédicat de
-  lecture) ; contrat et types des deux SDK régénérés (`schema.d.ts`, `filters.ts`).
+  fait : `filter.rs` (`ids` : retire `id` des paramètres, dédoublonne et trie ;
+  `push_id` refuse dès le 1001ᵉ ; `window` : filtrée par `id`, une liste lit autant de
+  lignes que d'identifiants et n'offre pas de suite, `page_size` ou un curseur avec `id` →
+  400 qui le nomme), `cursor.rs` (`Page::sized`), `openapi.rs` (`Op::ids`, tableau d'UUID
+  facultatif), `objects.rs` (`id` déclaré en tête des filtres de chaque liste du noyau ;
+  `Criteria.ids` sur la lecture par clé naturelle, la conjonction étant celle du magasin ;
+  sur la lecture par propriétés, les candidats du moteur sont les `id` demandés),
+  `kartenn-store-pg/src/filter.rs` (`filter_all_in` prend `ids`, un prédicat
+  `id = ANY(…)` de plus après les conditions), `vlan.rs` (`filters` lit `id` dans le
+  même parcours ; `cardinality(…) = 0 OR x.id = ANY(…)` dans les deux listes, sous le
+  prédicat de lecture ; `window`) ; contrat et types des deux SDK régénérés
+  (`schema.d.ts`, `filters.ts`).
   Côté web, conséquence du contrat : `id` tenu hors de la barre de filtres du shell
   (`views/filters.ts`, `LEFT_OUT`, comme `q`) et attentes de noms mises à jour
   (`sdk/test/client.test.ts` des deux SDK, `web/v2/sdk/test/filters.test.ts`). Tests :
   `rest/tests/it/objects.rs` `the_id_filter_leaves_out_alike_the_unknown_the_foreign_and_the_unreadable`
   (statut, en-têtes hors `request-id` et octets identiques ; événement de lecture limité à
   l'objet lu), `the_id_filter_goes_in_conjunction_with_the_others` (clé naturelle,
-  domaine, `q`, propriétés ; ordre de la liste ; pages enchaînées par le curseur),
+  domaine, `q`, propriétés ; ordre de la liste),
+  `the_id_filter_answers_in_one_page_without_a_next` (60 objets, au-delà de la page par
+  défaut, sur les deux lectures : une page, ni `links.next` ni `Link` ; `page_size` ou un
+  curseur avec `id` → 400 qui le nomme),
   `the_id_filter_names_its_parameter_past_the_largest_page` (`QUERY` : 1000 → 200, 1001
   → 400 ; UUID mal formé ou vide → 400 qui nomme `id`) ; `vlan/rest.rs`
-  `groups_and_vlans_filtered_by_identifier` ; `contract.rs`
-  `the_lists_of_the_core_declare_the_id_filter`.
+  `groups_and_vlans_filtered_by_identifier` (VLAN et groupe illisibles : réponse
+  identique à celle d'un inconnu, en-têtes compris ; une page ; `page_size` → 400) ;
+  `contract.rs` `the_lists_of_the_core_declare_the_id_filter`.
   choix : borne `cursor::MAX_SIZE` (1000), comptée sur les `id` lus, doublons compris ;
-  poids au quota 1 (la taille de page borne la lecture) ; doublons lus une fois ; sur la
-  lecture par propriétés, `id` filtre après le moteur comme `within` et `usage` : le
-  curseur reste celui du moteur et une page peut être courte, voire vide avec une suite ;
-  les critères de l'événement de lecture gardent les `id` demandés parmi les filtres,
-  comme tout filtre d'une liste (le lot de la 31 les omet) ; `id` reste dans `FILTERS` du
-  SDK (l'URL d'une liste qui le porte n'est pas rejetée) mais hors de la barre.
+  poids au quota 1 (la taille de page borne la lecture) ; doublons lus une fois ; une
+  liste filtrée par `id` répond en une page, sans suite (arbitrage de la revue), donc
+  aucun curseur ne porte d'`id` ; les critères de l'événement de lecture gardent les `id`
+  demandés parmi les filtres, comme tout filtre d'une liste : c'est ce que l'appelant a
+  demandé (le lot de la 31 les omet de ses critères) ; `id` reste dans `FILTERS` du SDK
+  (l'URL d'une liste qui le porte n'est pas rejetée) mais hors de la barre.
   reste : 1000 `id` ne tiennent pas dans les 8 Kio d'une URL (≈ 200 au plus) : au-delà,
-  `QUERY` ; le curseur d'une page suivante porte les `id` et peut dépasser lui aussi la
-  limite d'URL si la fenêtre dépasse la page.
+  `QUERY` ; `prefetchFilters` (`web/v2/shell/src/views/routes.ts`, vers la ligne 66) lit
+  le modèle du SDK, sans `LEFT_OUT` : une URL portant `id` (ou `q`) serait préchargée
+  sous une autre clé que celle que la vue lit (le shell n'écrit pas `id` dans une URL).
 - [ ] 32b. Listes des machines : `id` sur les grappes, machines et interfaces ; `address`
   répété sur les interfaces (un parmi) — verify : `k-check -p kartenn-machines` (deux
   identifiants dont un illisible : un seul rendu ; conjonction ; deux adresses : leurs
-  deux interfaces)
+  deux interfaces ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400,
+  par `filter::window`)
   - où : `crates/kartenn-machines/src/rest.rs` (`list_clusters`, `list_machines`,
     `list_interfaces` vers les lignes 644, 887, 1071 ; `optional_uuid` de `address` →
     `uuid[]`)
   - dépend de : 32a
 - [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
   `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
-  conjonction)
+  conjonction ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400, par
+  `filter::window`)
   - où : `crates/kartenn-kube/src/rest/clusters.rs` (`list`), `rest/mirrors.rs`
     (`list<M>`), listes des correspondances de libellés, valeurs admises et libellés
     suivis (à repérer) ; `crates/kartenn-flow/src/rest.rs` (`page_of`, `list`, vers les
@@ -751,7 +764,8 @@ routeur complet, sauf mention « vrai TCP ».
   - dépend de : 32a
 - [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
   politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
-  d'objets, kube compris — verify : `k-check -p kartenn-policy`,
+  d'objets, kube compris — verify : `k-check -p kartenn-policy` (filtrée par `id`, une
+  page sans suite, `page_size` ou curseur → 400, par `filter::window`),
   `k-check -p kartenn-rest contract`
   - où : `crates/kartenn-policy/src/rest.rs` (`list`, vers la ligne 449),
     `crates/kartenn-rest/tests/it/contract.rs`
