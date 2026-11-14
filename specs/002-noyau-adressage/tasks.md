@@ -146,6 +146,56 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `crates/kartenn-core/src/rules.rs` (modèle : `RBAC_UNKNOWN_ROLE`, `GROUP_UNKNOWN`) et
   `code_labels.rs` ; `crates/kartenn-rest/src/operation.rs` (36-43, 673-689) ;
   `crates/kartenn-store-pg/src/write.rs` (vers 1334) ; `docs/spec/regles-noyau.md`
+  - découpée le 2026-11-14 (relevé par l'agent de la tâche, avant tout code) en 29a à 29d :
+    le recensement nomme aussi les références des opérations de modules (VLAN, groupe,
+    interface, machine), que chaque module résout par la fonction sans type que le
+    pipeline passe à `ModuleHandler::plan` (`pipeline.rs` vers 1165) ; y donner le type
+    attendu change le contrat des modules (ADR 0026) dans six crates.
+- [ ] 29a. Références des opérations du noyau : chaque `Ref::Id` que rend `references()`
+  (`pipeline.rs` vers 366) pour une opération du noyau, demandée ou ajoutée par le plan
+  d'un module, est relevée là où `plan()` la résout, puis lue en un seul lot par date de
+  validité après les verrous ; absente, d'un autre type ou close au début de la période de
+  l'opération : `core.reference.unknown` ; `Restore` hors du contrôle (sa cible peut être
+  close). Test des droits : un utilisateur lié au seul domaine A ne crée pas de préfixe sur
+  un domaine inconnu, et un `Bind` sur un domaine inventé est refusé. Requête des orphelins
+  par table (domaines des préfixes, plages, adresses et objets de modules, parents
+  d'entité et de site) — REQ-002-12 (amendée), REQ-002-37 — verify : test d'intégration
+  rouge d'abord (`tests/it/references.rs`) ; test qui parcourt le catalogue des
+  opérations du noyau (un exemple par variante d'`Operation`, chaque `Ref::Id` de son JSON
+  rendu par `references()` et refusé par la règle) ; la règle au catalogue ; `k-check`
+  où : `crates/kartenn-service/src/pipeline.rs` (`plan`, `stages` après `lock_targets`),
+  `port.rs` (`WriteTx`), `crates/kartenn-store-pg/src/write.rs` (modèle :
+  `object_kind_covering`, vers 2612), `crates/kartenn-core/src/rules.rs`,
+  `code_labels.rs`, `docs/spec/regles-noyau.md` ; tests voisins `tests/it/pipeline.rs`,
+  `anchors.rs`
+- [ ] 29b. Contrat de `ModuleHandler::plan` avec le type attendu — **arbitrage de
+  l'utilisateur : amendement de l'ADR 0026** — la fonction de résolution qu'un module
+  reçoit prend le type attendu (`Fn(Ref, ObjectKind) -> Option<Uuid>`) et chaque
+  `Ref::Id` qui la traverse entre dans le contrôle de la 29a ; VLAN et groupes de VLAN du
+  cœur, modules de test — REQ-002-12 (amendée) — verify : un groupe de VLAN ancré sur un
+  identifiant inconnu ou d'un autre type, un VLAN d'un groupe inconnu : 422
+  `core.reference.unknown` ; test qui parcourt les types d'opérations des modules du
+  build ; `k-check`
+  où : `crates/kartenn-service/src/module.rs` (`ModuleHandler::plan`, vers 525),
+  `pipeline.rs` (vers 1165), `crates/kartenn-service/src/vlan.rs` (398-540),
+  `crates/kartenn-store-pg/src/vlan.rs` (753), `tests/it/support/dummy_module.rs`,
+  `kit_module.rs` ; ADR 0026
+  dépend de : 29a
+- [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
+  machine ou grappe, `member_of`, machine, interface, adresse) — **arbitrage de
+  l'utilisateur : amendement de l'ADR 0026** — REQ-002-12 (amendée) — verify : une
+  interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
+  `core.reference.unknown` ; `k-check -p kartenn-machines`
+  où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
+  `crates/kartenn-machines/tests/it/machines.rs`
+  dépend de : 29b
+- [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`
+  — **arbitrage de l'utilisateur : amendement de l'ADR 0026** — REQ-002-12 (amendée) —
+  verify : une référence inconnue par module : 422 `core.reference.unknown` ; `k-check`
+  où : `crates/kartenn-kube/src/handler.rs`, `settings.rs` ;
+  `crates/kartenn-flow/src/handler.rs` ; `crates/kartenn-policy/src/handler.rs`,
+  `matrix.rs`, `infer.rs`
+  dépend de : 29b
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
