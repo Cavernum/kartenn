@@ -10,6 +10,7 @@
 import {
   keepPreviousData,
   QueryClient,
+  replaceEqualDeep,
   type InfiniteData,
   type Query,
   type QueryFunctionContext,
@@ -78,6 +79,37 @@ export const CHILDREN_PAGES = 100;
 const CHILDREN: ReadonlySet<string> = new Set(["children", "roots"]);
 
 /**
+ * The structural sharing of the pages of a list (task 021-22f): each page read compared
+ * with the page read before under the same cursor, never with the page at its place. Past
+ * `MAX_PAGES` the cache drops the first page and every page moves up one place: compared by
+ * place (the default of the cache), each kept page met another one, and each of its items
+ * became a copy, equal but another object, so that every row of a grid rendered again and
+ * every element of an extension column was created again (`ExtensionElement`). Here a kept
+ * page stays the same object, its items with it; unchanged, the data itself does.
+ */
+export function sharePages(before: unknown, after: unknown): unknown {
+  if (!isPages(before) || !isPages(after)) return replaceEqualDeep(before, after);
+  const byCursor = new Map<unknown, unknown>();
+  before.pageParams.forEach((cursor, i) => {
+    if (!byCursor.has(cursor)) byCursor.set(cursor, before.pages[i]);
+  });
+  const pages = after.pages.map((page, i) => {
+    const cursor = after.pageParams[i];
+    return byCursor.has(cursor) ? replaceEqualDeep(byCursor.get(cursor), page) : page;
+  });
+  const same = (a: readonly unknown[], b: readonly unknown[]) =>
+    a.length === b.length && a.every((value, i) => value === b[i]);
+  if (same(pages, before.pages) && same(after.pageParams, before.pageParams)) return before;
+  return { ...after, pages };
+}
+
+const isPages = (data: unknown): data is InfiniteData<unknown, unknown> =>
+  typeof data === "object" &&
+  data !== null &&
+  Array.isArray((data as Partial<InfiniteData<unknown>>).pages) &&
+  Array.isArray((data as Partial<InfiniteData<unknown>>).pageParams);
+
+/**
  * The freshness of a family for a key. A sub-resource read again at each use (the history,
  * served `no-cache`: its authors named as they read now, Q-021-29) is stale at once, at
  * every date: each read revalidates it (`If-None-Match`, 304 when nothing changed).
@@ -102,6 +134,7 @@ export interface ListOptions<T, K extends QueryKey = QueryKey> {
   initialPageParam: string | null;
   getNextPageParam: (last: Entry<Page<T>>) => string | undefined;
   maxPages: number;
+  structuralSharing: typeof sharePages;
   placeholderData: typeof keepPreviousData;
   staleTime: number;
   gcTime: number;
@@ -235,6 +268,7 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       // The cursor carries the filters and the dates: `next` is followed as it is.
       getNextPageParam: (last) => last.data.links?.next ?? undefined,
       maxPages,
+      structuralSharing: sharePages,
       placeholderData: keepPreviousData,
       ...freshness(family, key),
     };
