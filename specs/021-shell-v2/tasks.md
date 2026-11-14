@@ -6563,6 +6563,50 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     pas une tête de liste lâchée (`roots` passé `CHILDREN_PAGES`) ; aucun relecteur
     d'interface lancé (rien de visible ne change) ; l'ancrage n'est vu que dans happy-dom,
     pas dans un navigateur.
+  - suite après la mesure (2026-11-14, branche `tache-021-22f-banc`) : la passe réduite de la
+    session principale (e86f6af1) échouait avant le p95, 15 pages dessinées sur 18 voulues,
+    6 sans aucune ligne dessinée en 5 s. Le produit, pas le banc, deux causes vues dans
+    Chromium. (1) La vue renvoyée en tête de liste : au bout des lignes, aucun intervalle
+    après la fenêtre ; l'ancrage déplace la fenêtre d'une page, Vue démonte l'intervalle
+    d'avant (sa clé `gap-<index>` change) puis patche les lignes une à une, et la `ref` de
+    fonction de chaque ligne (`measure`) la mesurait au milieu du patch : le défileur, réduit
+    aux lignes restantes (814 px), ramenait le défilement à 336 px (sonde : 27 552 → 24 752
+    écrit par l'ancrage, puis 336 à la mesure suivante). `useVirtualRows` mesure désormais
+    les lignes reçues par `measure` une fois le rendu fini (`commit`, `onMounted` et
+    `onUpdated`), jamais dans leur `ref`. (2) Une page lue de trop : la page arrive avec la
+    première lâchée, et `useNextPage` relisait la dernière fenêtre, donnée parmi les lignes
+    d'avant, au bout de la liste : une page de plus aussitôt, posée sous les lignes en vue,
+    jamais montrée et une page de plus lâchée (une page sur deux du banc, d'où les 6).
+    `useNextPage` retire de la fenêtre les lignes lâchées en tête depuis qu'elle a été
+    donnée (`droppedRows`, par le curseur de la première page gardée). Vérification : état
+    `paged` du catalogue de `DataGrid` et `components/data-grid.spec.ts` « a paged list past
+    ten pages » (échoue sans (1) : la ligne gardée hors du document) ;
+    `shell/test/prefetch.test.ts` « reads nothing more when the first page is dropped »
+    (échoue sans (2)) ; `components/data-grid.spec.ts` 16 passés ; `k-web2-check --base
+    main` (1108 tests, ciblé : 2337 captures sur 2740). Passes réduites filtrées
+    (`bench-web small -g "100 rows"`, machine chargée par d'autres agents) : (a) sonde,
+    avant les corrections, 9 pages dessinées, 12 non, la grille à 336 px après chaque
+    page ; (b) avec (1) seule, 15 dessinées, 6 non ; (c) avec (1) et (2), 20 pages
+    dessinées sur 20, aucune non dessinée, p95 238,8 ms, médiane 105,9 ms, pire 598,6 ms :
+    budget de 100 ms toujours dépassé, case laissée ouverte.
+  - choix (suite) : mesure différée pour tous les hôtes de `useVirtualRows` (`DataGrid`,
+    `TreeGrid`, `Tree` : la même `ref` au milieu du patch), plutôt qu'une hauteur minimale du
+    corps ou des clés d'intervalles stables (un intervalle patché plus court aurait encore
+    raboté la vue d'une dizaine de lignes) ; la fenêtre décalée des lignes lâchées plutôt
+    qu'ignorée jusqu'à la suivante (pas d'attente d'une émission que la grille dédoublonne) ;
+    le test dans un navigateur (état `paged`), happy-dom ne mesurant pas (tailles en cache).
+  - reste (suite) : le p95 (238,8 ms sur machine chargée) contre 100 ms, à remesurer par la
+    session principale sur machine calme ; les coûts suivants déjà nommés : re-rendu de
+    toute la fenêtre à chaque page, une application `machines` par cellule d'extension,
+    `drafted` en O(n) ; (relecture a11y) le shell ne passe pas `rowOffset` à `DataGrid`
+    (`ListView`, `ChangesetsView`, `AuditView`, `ImportsView`) : passé dix pages,
+    `aria-rowindex` repart de 2 pour la première ligne gardée ; le focus gardé à travers une
+    page lâchée n'est vu que dans happy-dom (`data-grid-mounted.test.ts`), pas dans le
+    navigateur.
+  - relectures (suite) : `ui-reviewer` (légende de l'état `paged` alignée sur `virtual` :
+    totaux, un écran ; `KEPT` dit copie de `MAX_PAGES`) et `a11y-auditor`
+    (`aria-rowindex` et `aria-rowcount` vérifiés après chaque page lâchée ; minuteur de la
+    démo arrêté au démontage), corrigés.
 
 - [ ] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
