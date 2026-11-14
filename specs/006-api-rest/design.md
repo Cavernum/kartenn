@@ -314,7 +314,8 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   ceux du changeset, l'auteur lu dans les identités à chaque lecture, jamais recopié,
   si bien qu'une personne pseudonymisée s'y lit « personne #… » (REQ-004-33) ; l'un et
   l'autre servis à qui lit l'objet, sans `core.rbac.read` ni `core.changeset.read`
-  (021-11p2, Q-021-24, 29, 30)), trié
+  (021-11p2, Q-021-24, 29, 30) ; de même pour l'historique d'un objet de module, d'un
+  VLAN ou d'un groupe de VLAN, schéma `ModuleVersion`, 021-11p8), trié
   par début de validité puis d'assertion ;
   lisible si l'objet l'est aujourd'hui (sinon 404), audité comme une lecture.
   `valid_at` donné ne garde que les versions valides à cette date (toutes leurs

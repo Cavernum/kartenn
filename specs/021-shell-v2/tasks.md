@@ -1385,7 +1385,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     500 ; les tables d'objets du cœur n'ont pas de clé étrangère vers `changeset`
     (`0004_core_objects.sql`), l'invariant n'est tenu que par le code ; `journal()` des
     tests est codé en dur sur l'auteur système et les domaines.
-- [ ] 11p8. Motif et auteur dans `ModuleVersion` (Q-021-24, 29, 30, ajout seul) :
+- [x] 11p8. Motif et auteur dans `ModuleVersion` (Q-021-24, 29, 30, ajout seul) :
   l'historique d'un objet de module et d'un VLAN ou groupe de VLAN
   (`GET /v1/<collection>/{id}/history` des modules, route transversale des VLAN) sert
   `motive` et `author` (`IdentityRef`) comme `Version`, déjà lus par `list::versions_page`
@@ -1400,6 +1400,19 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `tests/it/vlan/rest.rs` (historique d'un groupe), fixtures journalisées comme
     `journal()` de `tests/it/objects.rs` ; contrat et SDK comme 11p1
   - dépend de : 11p2
+  - fait le 2026-11-14 — `ModuleVersionDto` sert `motive` et `author` (`IdentityRef`),
+    `module_version_of` faillible comme `version_of` ; l'historique des modules et des
+    VLAN répond `moment.live()` ; contrat (ajout seul), SDK et design de la 006
+    (« Historique ») mis à jour ; it `history_of_a_module_object_names_the_motive_and_the_author`
+    (`tests/it/modules.rs`) et `history_of_a_vlan_names_the_motive_and_the_author`
+    (`tests/it/vlan/rest.rs`, VLAN et groupe) : motif et nom pour un lecteur du seul objet,
+    `private, no-cache` à un `as_of` figé, puis après pseudonymisation « personne #… »,
+    au présent comme au passé figé, ETag changé.
+  - choix : la vérification du journal de `version_of` extraite en
+    `objects::journaled`, partagée par les deux rendus (même 500 journalisé
+    `http.history.unjournaled`) ; les fixtures de `tests/it/modules.rs` journalisent leur
+    changeset (`changeset`, `thing_by`, l'auteur système pour `thing`) ; `app_bounded`
+    ajouté aux deux fichiers de test pour lire au passé figé sans attendre la borne.
 - [x] 11p3. Déclarations filtrables (Q-021-27, ajout seul) : `GET /v1/property-declarations`
   accepte `carrier=<sorte>` (déclarations dont `carriers` contient la sorte du cœur ou le
   type qualifié d'un module) et `q=` (préfixe de la clé ou d'un libellé, sans casse, en
