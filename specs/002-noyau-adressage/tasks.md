@@ -248,7 +248,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     passent dans un seul commit (29b1), les tests de refus suivent (29b2, 29c, 29d).
     Arbitré le même jour : le résolveur reçoit aussi le champ, que le refus nomme
     (`detail.field`, comme en 29a).
-- [ ] 29b1. Contrat typé de la résolution d'un module, en un commit atomique sur les six
+- [x] 29b1. Contrat typé de la résolution d'un module, en un commit atomique sur les six
   crates : l'amendement 17 de l'ADR 0026 (commit `docs(adr)` à part, avant le code), puis
   `ModuleHandler::plan` reçoit `resolve: &dyn Fn(Ref, ObjectKind, &str) -> Option<Uuid>`
   (référence, type attendu, champ) ; chaque `Ref::Id` qui la traverse devient une
@@ -268,6 +268,28 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   (`kartenn-service`, `kartenn-rest`, `kartenn-server`, `kartenn-machines` sous
   `tests/it/`) ; ADR 0026
   dépend de : 29a
+  - fait le 2026-11-14 : amendement 17 de l'ADR 0026 ; alias `module::Resolve` ; dans
+    `pipeline::plan`, chaque `Ref::Id` que résout un module devient une `Designation`
+    (champ en `Cow`, le chemin JSON du corps) lue par `check_designations` comme celles du
+    noyau ; types et champs donnés partout : VLAN et groupes du cœur (`anchor.entity`,
+    `anchor.site`, `anchor.domain`, `owner`, `group`, `id`), `machines` (propriétaire,
+    site, `host.machine`, `host.cluster`, `member_of`, `machine`, `interface`,
+    `address`, `vlan.access`, `vlan.native`, `vlan.tagged[]`, `id`), `kube` (domaines,
+    préfixes `pod_containers[]`/`service_networks[]`, `machines_cluster`, `machine`,
+    propriétaire, site, grappe, `id` et `namespace` des paramètres), `flow` (extrémités
+    `source.id`/`destination.id` par leur type, service `policy.service`, entité, flux),
+    `policy` (`Fields::object`/`objects` avec le type de chaque champ, axe, matrice,
+    règles d'inférence), modules de test. Jeu de données : aucun refusé ; une attente
+    changée, `machines::closed_vlan_refused` (un VLAN clos ou inconnu : la règle attendue
+    passe de `machines.vlan.mode` à `core.reference.unknown`, le refus arrivant désormais
+    avant le module, comme les six tests changés de la 29a)
+  - choix : le groupe du connecteur d'une grappe `kube` (`connector_group`) est un groupe
+    du RBAC, pas un `ObjectKind` : hors de `resolve`, lu par son identifiant, une référence
+    locale refusée (aucune opération n'en définit sous un nom local) et jugé comme avant
+    par `kube.cluster.connector_group` ; une désignation répétée (comparaison d'une
+    extrémité inchangée dans `flow.update`) est relevée comme les autres
+  - reste : l'exemption de `created` pour l'objet d'une mise à jour ou d'une clôture
+    (29b2) ; tests de refus par module (29b2, 29c, 29d)
 - [ ] 29b2. Références des VLAN et groupes de VLAN du cœur et des modules de test, et
   objet écrit par un plan : seul un plan qui crée (`module_plan.creates`) met son objet
   dans `created` ; une mise à jour ou une clôture désigne un objet en vigueur, l'exemption

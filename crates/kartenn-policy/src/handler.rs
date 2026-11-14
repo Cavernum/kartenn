@@ -299,10 +299,11 @@ impl Handler {
 
     fn plan_update_axis(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let update: UpdateAxis = decode(operation)?;
-        let axis = resolve(update.id).ok_or_else(|| invalid(operation, "unknown axis"))?;
+        let axis = resolve(update.id, crate::objects::of(AXIS), "id")
+            .ok_or_else(|| invalid(operation, "unknown axis"))?;
         let mut patch = Map::new();
         if let Some(carrier) = update.carrier {
             patch.insert("carrier".into(), carrier.as_str().into());
@@ -623,7 +624,7 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         match operation.name.as_str() {
             "axis.designate" => Self::plan_designate(operation, object),

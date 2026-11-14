@@ -65,7 +65,7 @@ impl ModuleHandler for Kit {
         &self,
         _: &ModuleOperation,
         _: Uuid,
-        _: &dyn Fn(Ref) -> Option<Uuid>,
+        _: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         unreachable!("the test module has no operation")
     }

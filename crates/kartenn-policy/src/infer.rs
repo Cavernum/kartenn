@@ -726,7 +726,7 @@ impl ExpectedValueSource for InferenceSource {
 pub(crate) fn plan_rule(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &kartenn_service::module::Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let body = &operation.body;
     let known = [
@@ -744,13 +744,20 @@ pub(crate) fn plan_rule(
     if let Some(field) = body.keys().find(|k| !known.contains(&k.as_str())) {
         return Err(invalid(operation, format!("unknown field {field}")));
     }
+    // `domain` names a domain, `parent` and `id` a rule of inference.
     let reference = |name: &str| -> Result<Option<Uuid>, Violation> {
+        let kind = if name == "domain" {
+            kartenn_service::ObjectKind::Domain
+        } else {
+            crate::objects::of(INFERENCE_RULE)
+        };
         body.get(name)
             .filter(|v| !v.is_null())
             .map(|v| {
                 let r: Ref = serde_json::from_value(v.clone())
                     .map_err(|_| invalid(operation, format!("{name} is a reference")))?;
-                resolve(r).ok_or_else(|| invalid(operation, format!("{name}: unknown object")))
+                resolve(r, kind, name)
+                    .ok_or_else(|| invalid(operation, format!("{name}: unknown object")))
             })
             .transpose()
     };

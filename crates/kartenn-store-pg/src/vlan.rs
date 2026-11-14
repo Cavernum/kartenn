@@ -771,7 +771,7 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         vlan::plan(operation, object, resolve)
     }

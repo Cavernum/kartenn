@@ -366,7 +366,7 @@ mod write {
     pub(crate) fn plan_set(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let set = decode(operation)?;
         let _ = (set.local, &set.if_match);
@@ -437,7 +437,7 @@ mod write {
     fn planned_set(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
         set: Set,
     ) -> Result<ModulePlan, Violation> {
         for value in [&set.source, &set.destination] {
@@ -445,13 +445,17 @@ mod write {
                 return Err(invalid(operation, "an environment is a value key"));
             }
         }
-        let flow_type =
-            resolve(set.flow_type).ok_or_else(|| invalid(operation, "unknown flow type"))?;
+        let (flow_type_kind, pattern_kind) = (
+            crate::objects::of(crate::module::FLOW_TYPE),
+            crate::objects::of(crate::module::PATTERN),
+        );
+        let flow_type = resolve(set.flow_type, flow_type_kind, "flow_type")
+            .ok_or_else(|| invalid(operation, "unknown flow type"))?;
         let patterns = set
             .patterns
             .into_iter()
             .map(|r| {
-                resolve(r)
+                resolve(r, pattern_kind, "patterns[]")
                     .map(|id| id.to_string())
                     .ok_or_else(|| invalid(operation, "unknown pattern"))
             })

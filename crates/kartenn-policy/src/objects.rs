@@ -7,7 +7,7 @@
 
 use kartenn_core::labels::Labels;
 use kartenn_core::rules::Violation;
-use kartenn_service::module::ModulePlan;
+use kartenn_service::module::{ModulePlan, Resolve};
 use kartenn_service::operations::{ModuleOperation, Ref};
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
@@ -21,10 +21,17 @@ use crate::rules::{RULE_CONDITIONAL_DENY, RULE_FLOW_SELECTOR_EMPTY, RULE_TERM_EM
 /// The longest description of a flow type, in characters.
 const DESCRIPTION_MAX_CHARS: usize = 4000;
 
+/// The kind of the objects of the qualified type `name` (ADR 0026, amendment 17).
+pub(crate) fn of(name: &str) -> kartenn_service::ObjectKind {
+    kartenn_service::ObjectKind::Module(
+        kartenn_service::operations::ModuleKind::parse(name).expect("a valid kind"),
+    )
+}
+
 /// The fields of an operation on an object, by name.
 struct Fields<'a> {
     operation: &'a ModuleOperation,
-    resolve: &'a dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &'a Resolve<'a>,
 }
 
 impl Fields<'_> {
@@ -63,24 +70,25 @@ impl Fields<'_> {
             .transpose()
     }
 
-    /// The object of a reference.
-    fn object(&self, value: &Value) -> Result<Uuid, Violation> {
+    /// The object of a reference, of the qualified type `kind`, in `field`.
+    fn object(&self, value: &Value, kind: &str, field: &str) -> Result<Uuid, Violation> {
         let reference: Ref = serde_json::from_value(value.clone())
             .map_err(|_| invalid(self.operation, format!("{value} is not a reference")))?;
-        (self.resolve)(reference)
+        (self.resolve)(reference, of(kind), field)
             .ok_or_else(|| invalid(self.operation, format!("{value}: unknown object")))
     }
 
-    /// The objects of a list of references.
-    fn objects(&self, name: &str) -> Result<Option<Vec<String>>, Violation> {
+    /// The objects of a list of references to objects of the qualified type `kind`.
+    fn objects(&self, name: &str, kind: &str) -> Result<Option<Vec<String>>, Violation> {
         self.get(name)
             .map(|list| {
                 let list = list
                     .as_array()
                     .ok_or_else(|| invalid(self.operation, format!("{name} is a list")))?;
+                let field = format!("{name}[]");
                 let mut ids: Vec<String> = list
                     .iter()
-                    .map(|r| self.object(r).map(|id| id.to_string()))
+                    .map(|r| self.object(r, kind, &field).map(|id| id.to_string()))
                     .collect::<Result<_, _>>()?;
                 ids.sort_unstable();
                 ids.dedup();
@@ -125,7 +133,9 @@ fn service(f: &Fields<'_>, columns: &mut Map<String, Value>) -> Result<(), Viola
     if let Some(flow_type) = f.get("flow_type") {
         columns.insert(
             "flow_type_id".into(),
-            f.object(flow_type)?.to_string().into(),
+            f.object(flow_type, FLOW_TYPE, "flow_type")?
+                .to_string()
+                .into(),
         );
     }
     if let Some(entries) = f.get("entries") {
@@ -178,17 +188,18 @@ fn rule(f: &Fields<'_>, columns: &mut Map<String, Value>) -> Result<(), Violatio
             .collect();
         columns.insert("same".into(), axes.into());
     }
-    for (field, column) in [
-        ("flow_types", "flow_type_ids"),
-        ("services", "service_ids"),
-        ("required_patterns", "required_pattern_ids"),
+    for (field, column, kind) in [
+        ("flow_types", "flow_type_ids", FLOW_TYPE),
+        ("services", "service_ids", SERVICE),
+        ("required_patterns", "required_pattern_ids", PATTERN),
     ] {
-        if let Some(ids) = f.objects(field)? {
+        if let Some(ids) = f.objects(field, kind)? {
             columns.insert(column.into(), ids.into());
         }
     }
     if let Some(pattern) = f.get("pattern") {
-        columns.insert("pattern_id".into(), f.object(pattern)?.to_string().into());
+        let pattern = f.object(pattern, PATTERN, "pattern")?;
+        columns.insert("pattern_id".into(), pattern.to_string().into());
     }
     texts(f, columns)
 }
@@ -204,8 +215,11 @@ fn condition(f: &Fields<'_>, columns: &mut Map<String, Value>) -> Result<(), Vio
         columns.insert("kind".into(), kind.into());
         columns.insert("params".into(), params);
     }
-    for (field, column) in [("rules", "rule_ids"), ("flow_types", "flow_type_ids")] {
-        if let Some(ids) = f.objects(field)? {
+    for (field, column, kind) in [
+        ("rules", "rule_ids", RULE),
+        ("flow_types", "flow_type_ids", FLOW_TYPE),
+    ] {
+        if let Some(ids) = f.objects(field, kind)? {
             columns.insert(column.into(), ids.into());
         }
     }
@@ -368,7 +382,7 @@ fn whole_rule(operation: &ModuleOperation, row: &Map<String, Value>) -> Result<(
 pub(crate) fn plan_object(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Option<Result<ModulePlan, Violation>> {
     let (kind, action) = operation.name.rsplit_once('.')?;
     let spec = SPECS
@@ -382,7 +396,7 @@ fn plan_with(
     action: &str,
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     // A key for every object but an exempt role; labels too, required but on a condition
     // and a signal (design « Données »; spec 018, R8).
@@ -437,7 +451,7 @@ fn plan_with(
         }
         "update" => {
             let id = f.required("id")?.clone();
-            let id = f.object(&id)?;
+            let id = f.object(&id, spec.kind, "id")?;
             if spec.kind == RULE
                 && let Some(Value::String(effect)) = columns.get("effect")
                 && effect == "deny"

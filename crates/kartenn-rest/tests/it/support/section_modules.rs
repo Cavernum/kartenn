@@ -14,7 +14,7 @@ use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffRow, DiffSection, Findings, Module, ModuleHandler,
     ModulePlan, ModuleRegistry, ModuleTx,
 };
-use kartenn_service::operations::{ModuleOperation, Ref};
+use kartenn_service::operations::ModuleOperation;
 use kartenn_service::port::StoreError;
 use serde_json::json;
 use uuid::Uuid;
@@ -43,7 +43,7 @@ impl ModuleHandler for AlphaHandler {
         &self,
         operation: &ModuleOperation,
         _object: Uuid,
-        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        _resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         Err(no_operation(operation))
     }
@@ -89,7 +89,7 @@ impl ModuleHandler for BetaHandler {
         &self,
         operation: &ModuleOperation,
         _object: Uuid,
-        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        _resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         Err(no_operation(operation))
     }

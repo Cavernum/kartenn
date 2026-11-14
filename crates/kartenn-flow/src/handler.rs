@@ -16,7 +16,7 @@ use kartenn_core::rules::Violation;
 use kartenn_policy::evaluate::{Outcome as PolicyOutcome, SynthesisVerdict};
 use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffSection, EndContext, Ending, Findings, ModuleHandler,
-    ModuleObjectRow, ModulePlan, ModuleTx, Reference,
+    ModuleObjectRow, ModulePlan, ModuleTx, Reference, Resolve,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, PeriodSpec, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -210,10 +210,26 @@ fn decode<T: serde::de::DeserializeOwned>(operation: &ModuleOperation) -> Result
 
 fn resolved(
     operation: &ModuleOperation,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
-    r: Ref,
+    resolve: &Resolve<'_>,
+    (r, kind, field): (Ref, ObjectKind, &str),
 ) -> Result<Uuid, Violation> {
-    resolve(r).ok_or_else(|| invalid(operation, format!("{r:?} names no object")))
+    resolve(r, kind, field).ok_or_else(|| invalid(operation, format!("{r:?} names no object")))
+}
+
+/// The kind of the objects of the qualified type `name`, of the core or of a module.
+fn kind_named(name: &str) -> ObjectKind {
+    ObjectKind::from_name(name)
+        .unwrap_or_else(|| ObjectKind::Module(ModuleKind::parse(name).expect("a valid kind")))
+}
+
+/// The kind of the object an endpoint of `kind` designates.
+fn endpoint_object(kind: EndpointKind) -> ObjectKind {
+    kind_named(pg::object_kind(kind))
+}
+
+/// The service of a flow, a service of the policy (REQ-011-3).
+fn service_kind() -> ObjectKind {
+    kind_named("policy.service")
 }
 
 fn completed(operation: &ModuleOperation, c: Option<Completed>) -> Result<Completed, Violation> {
@@ -470,7 +486,7 @@ impl Handler {
     fn plan_flow(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let input: FlowIn = decode(operation)?;
         let c = completed(operation, input.completed.clone())?;
@@ -487,12 +503,22 @@ impl Handler {
                     format!("the {name} is a {}, not an endpoint", e.kind),
                 )
             })?;
-            Ok((kind, resolved(operation, resolve, e.id)?))
+            let field = format!("{name}.id");
+            let id = resolved(operation, resolve, (e.id, endpoint_object(kind), &field))?;
+            Ok((kind, id))
         };
         let source = side(&input.source, "source")?;
         let destination = side(&input.destination, "destination")?;
-        let service = resolved(operation, resolve, input.service)?;
-        let entity = resolved(operation, resolve, input.entity)?;
+        let service = resolved(
+            operation,
+            resolve,
+            (input.service, service_kind(), "service"),
+        )?;
+        let entity = resolved(
+            operation,
+            resolve,
+            (input.entity, ObjectKind::Entity, "entity"),
+        )?;
         let owner = c
             .owner_property
             .ok_or_else(|| invalid(operation, "core.owner is not declared"))?;
@@ -552,16 +578,23 @@ impl Handler {
 
     fn plan_update(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let input: UpdateIn = decode(operation)?;
         let c = completed(operation, input.completed.clone())?;
-        let id = resolved(operation, resolve, input.id)?;
+        let id = resolved(
+            operation,
+            resolve,
+            (input.id, ObjectKind::Module(flow_kind()), "id"),
+        )?;
         if let Some(current) = &c.current {
             let same_side = |e: &Option<EndpointIn>, key: &str| match e {
                 None => true,
                 Some(e) => {
-                    let given = (e.kind.as_str(), resolve(e.id));
+                    let field = format!("{key}.id");
+                    let object = pg::kind_of(&e.kind)
+                        .and_then(|kind| resolve(e.id, endpoint_object(kind), &field));
+                    let given = (e.kind.as_str(), object);
                     current[key][0].as_str() == Some(given.0)
                         && current[key][1]
                             .as_str()
@@ -573,7 +606,7 @@ impl Handler {
                 current["service"]
                     .as_str()
                     .and_then(|s| s.parse::<Uuid>().ok())
-                    == resolve(s)
+                    == resolve(s, service_kind(), "service")
             });
             let same_kind = input
                 .kind
@@ -674,7 +707,7 @@ impl Handler {
 
     fn plan_on_flow(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let (flow, data) = if operation.name == "waive" {
             let input: WaiveIn = decode(operation)?;
@@ -697,7 +730,11 @@ impl Handler {
         };
         Ok(ModulePlan {
             kind: flow_kind(),
-            object: resolved(operation, resolve, flow)?,
+            object: resolved(
+                operation,
+                resolve,
+                (flow, ObjectKind::Module(flow_kind()), "flow"),
+            )?,
             // A flow requested in the same changeset is checked once written.
             creates: matches!(flow, Ref::Local(_)),
             domains: Vec::new(),
@@ -1056,7 +1093,7 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         match operation.name.as_str() {
             "request" | "register" => Self::plan_flow(operation, object, resolve),

@@ -15,7 +15,7 @@ use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, DeclaredParents, DiffContext, DiffSection, Edge, Findings,
-    ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference,
+    ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference, Resolve,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -177,7 +177,7 @@ struct VlanInput {
 /// The 802.1Q columns of the mode `value` (`null`: none), and the VLANs it cites.
 fn vlan_columns(
     value: &Value,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<(Map<String, Value>, Vec<Uuid>), Violation> {
     let input: VlanInput = if value.is_null() {
         VlanInput {
@@ -189,13 +189,17 @@ fn vlan_columns(
     } else {
         decode(value.clone(), "vlan")?
     };
-    let vlan = |r: Ref| resolve(r).ok_or_else(|| invalid("vlan: unknown VLAN"));
-    let access = input.access.map(vlan).transpose()?;
-    let native = input.native.map(vlan).transpose()?;
+    let vlan = |field: &'static str| {
+        move |r: Ref| {
+            resolve(r, ObjectKind::Vlan, field).ok_or_else(|| invalid("vlan: unknown VLAN"))
+        }
+    };
+    let access = input.access.map(vlan("vlan.access")).transpose()?;
+    let native = input.native.map(vlan("vlan.native")).transpose()?;
     let tagged = input
         .tagged
         .into_iter()
-        .map(vlan)
+        .map(vlan("vlan.tagged[]"))
         .collect::<Result<Vec<_>, _>>()?;
     let mode = VlanMode::from_parts(&input.mode, access, native, &tagged)?;
     let (access, native, tagged): (Option<Uuid>, Option<Uuid>, Vec<Uuid>) = match &mode {
@@ -280,17 +284,65 @@ fn body(operation: &ModuleOperation, fields: &[&str]) -> Result<Map<String, Valu
     Ok(operation.body.clone())
 }
 
-/// The reference of `field` resolved, when given.
+/// The kind of the objects of the type `kind` of the module.
+fn of(kind: ModuleKind) -> ObjectKind {
+    ObjectKind::Module(kind)
+}
+
+/// The owner (an entity) a creation names, resolved.
+fn owner_of(owner: Option<Ref>, resolve: &Resolve<'_>) -> Result<Option<Uuid>, Violation> {
+    owner
+        .map(|r| {
+            resolve(r, ObjectKind::Entity, "owner").ok_or_else(|| invalid("owner: unknown object"))
+        })
+        .transpose()
+}
+
+/// The site a creation names, resolved.
+fn site_of(site: Option<Ref>, resolve: &Resolve<'_>) -> Result<Site, Violation> {
+    Ok(match site {
+        Some(r) => Site::Set(
+            resolve(r, ObjectKind::Site, "site").ok_or_else(|| invalid("site: unknown object"))?,
+        ),
+        None => Site::Keep,
+    })
+}
+
+/// The host a machine names: a machine or a cluster, resolved by its own kind.
+fn host_of(
+    host: HostInput,
+    resolve: &Resolve<'_>,
+) -> Result<(Option<Uuid>, Option<Uuid>), Violation> {
+    Ok(match host {
+        HostInput::Machine(r) => (
+            Some(
+                resolve(r, of(machine_kind()), "host.machine")
+                    .ok_or_else(|| invalid("host: unknown machine"))?,
+            ),
+            None,
+        ),
+        HostInput::Cluster(r) => (
+            None,
+            Some(
+                resolve(r, of(cluster_kind()), "host.cluster")
+                    .ok_or_else(|| invalid("host: unknown cluster"))?,
+            ),
+        ),
+    })
+}
+
+/// The reference of `field` to an object of `kind` resolved, when given.
 fn resolved(
     value: Option<&Value>,
     field: &str,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    kind: ObjectKind,
+    resolve: &Resolve<'_>,
 ) -> Result<Option<Uuid>, Violation> {
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(v) => {
             let r: Ref = decode(v.clone(), field)?;
-            resolve(r)
+            resolve(r, kind, field)
                 .map(Some)
                 .ok_or_else(|| invalid(format!("{field}: unknown object")))
         }
@@ -376,20 +428,14 @@ impl Handler {
     fn plan_create_cluster(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let create: CreateCluster =
             decode(Value::Object(operation.body.clone()), &operation.tag())?;
         let _ = create.local;
         let slug = Slug::parse(&create.slug)?;
-        let owner = match create.owner {
-            Some(r) => Some(resolve(r).ok_or_else(|| invalid("owner: unknown object"))?),
-            None => None,
-        };
-        let site = match create.site {
-            Some(r) => Site::Set(resolve(r).ok_or_else(|| invalid("site: unknown object"))?),
-            None => Site::Keep,
-        };
+        let owner = owner_of(create.owner, resolve)?;
+        let site = site_of(create.site, resolve)?;
         Ok(ModulePlan {
             kind: cluster_kind(),
             object,
@@ -403,11 +449,11 @@ impl Handler {
 
     fn plan_update_cluster(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(operation, CLUSTER_FIELDS)?;
-        let cluster =
-            resolved(body.get("id"), "id", resolve)?.ok_or_else(|| invalid("id: required"))?;
+        let cluster = resolved(body.get("id"), "id", of(cluster_kind()), resolve)?
+            .ok_or_else(|| invalid("id: required"))?;
         let completed: Completed = decode(
             body.get("completed").cloned().unwrap_or_default(),
             "completed",
@@ -421,9 +467,9 @@ impl Handler {
         let owner = match body.get("owner") {
             None => None,
             Some(Value::Null) => return Err(invalid("owner: a cluster keeps an owner")),
-            Some(_) => resolved(body.get("owner"), "owner", resolve)?,
+            Some(_) => resolved(body.get("owner"), "owner", ObjectKind::Entity, resolve)?,
         };
-        let site = match resolved(body.get("site"), "site", resolve)? {
+        let site = match resolved(body.get("site"), "site", ObjectKind::Site, resolve)? {
             Some(site) => Site::Set(site),
             None if body.contains_key("site") => Site::Remove,
             None => Site::Keep,
@@ -442,39 +488,31 @@ impl Handler {
     fn plan_create_machine(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let create: CreateMachine =
             decode(Value::Object(operation.body.clone()), &operation.tag())?;
         let _ = create.local;
         let name = HostName::parse(&create.name)?;
         let kind = machine_kind_of(&create.kind)?;
-        let owner = match create.owner {
-            Some(r) => Some(resolve(r).ok_or_else(|| invalid("owner: unknown object"))?),
-            None => None,
-        };
-        let site = match create.site {
-            Some(r) => Site::Set(resolve(r).ok_or_else(|| invalid("site: unknown object"))?),
-            None => Site::Keep,
-        };
+        let owner = owner_of(create.owner, resolve)?;
+        let site = site_of(create.site, resolve)?;
         let (host_machine, host_cluster) = match create.host {
-            Some(HostInput::Machine(r)) => (
-                Some(resolve(r).ok_or_else(|| invalid("host: unknown machine"))?),
-                None,
-            ),
-            Some(HostInput::Cluster(r)) => {
-                check_host(kind, Host::Cluster)?;
-                (
-                    None,
-                    Some(resolve(r).ok_or_else(|| invalid("host: unknown cluster"))?),
-                )
+            Some(host) => {
+                if matches!(host, HostInput::Cluster(_)) {
+                    check_host(kind, Host::Cluster)?;
+                }
+                host_of(host, resolve)?
             }
             None => (None, None),
         };
         let member = match create.member_of {
             Some(r) => {
                 check_membership(kind)?;
-                Some(resolve(r).ok_or_else(|| invalid("member_of: unknown cluster"))?)
+                Some(
+                    resolve(r, of(cluster_kind()), "member_of")
+                        .ok_or_else(|| invalid("member_of: unknown cluster"))?,
+                )
             }
             None => None,
         };
@@ -503,11 +541,11 @@ impl Handler {
 
     fn plan_update_machine(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(operation, MACHINE_FIELDS)?;
-        let machine =
-            resolved(body.get("id"), "id", resolve)?.ok_or_else(|| invalid("id: required"))?;
+        let machine = resolved(body.get("id"), "id", of(machine_kind()), resolve)?
+            .ok_or_else(|| invalid("id: required"))?;
         let completed: Completed = decode(
             body.get("completed").cloned().unwrap_or_default(),
             "completed",
@@ -528,16 +566,7 @@ impl Handler {
             let (machine_host, cluster_host) = if host.is_null() {
                 (None, None)
             } else {
-                match decode::<HostInput>(host.clone(), "host")? {
-                    HostInput::Machine(r) => (
-                        Some(resolve(r).ok_or_else(|| invalid("host: unknown machine"))?),
-                        None,
-                    ),
-                    HostInput::Cluster(r) => (
-                        None,
-                        Some(resolve(r).ok_or_else(|| invalid("host: unknown cluster"))?),
-                    ),
-                }
+                host_of(decode::<HostInput>(host.clone(), "host")?, resolve)?
             };
             if machine_host == Some(machine) {
                 return Err(
@@ -550,7 +579,12 @@ impl Handler {
             keys.push(HOSTING_KEY.into());
         }
         if body.contains_key("member_of") {
-            let member = resolved(body.get("member_of"), "member_of", resolve)?;
+            let member = resolved(
+                body.get("member_of"),
+                "member_of",
+                of(cluster_kind()),
+                resolve,
+            )?;
             patch.insert("member_cluster_id".into(), json!(member));
         }
         Ok(ModulePlan {
@@ -569,12 +603,13 @@ impl Handler {
     fn plan_create_interface(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let create: CreateInterface =
             decode(Value::Object(operation.body.clone()), &operation.tag())?;
         let _ = (create.local, create.completed);
-        let machine = resolve(create.machine).ok_or_else(|| invalid("machine: unknown object"))?;
+        let machine = resolve(create.machine, of(machine_kind()), "machine")
+            .ok_or_else(|| invalid("machine: unknown object"))?;
         let name = interface_name(&create.name)?;
         let mac = create.mac.as_deref().map(Mac::parse).transpose()?;
         let (vlan, vlans) = vlan_columns(create.vlan.as_ref().unwrap_or(&Value::Null), resolve)?;
@@ -598,11 +633,11 @@ impl Handler {
 
     fn plan_update_interface(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(operation, INTERFACE_FIELDS)?;
-        let interface =
-            resolved(body.get("id"), "id", resolve)?.ok_or_else(|| invalid("id: required"))?;
+        let interface = resolved(body.get("id"), "id", of(interface_kind()), resolve)?
+            .ok_or_else(|| invalid("id: required"))?;
         let completed: Completed = decode(
             body.get("completed").cloned().unwrap_or_default(),
             "completed",
@@ -652,7 +687,7 @@ impl Handler {
     /// the address and the interface.
     fn plan_attachment(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
         attach: bool,
     ) -> Result<ModulePlan, Violation> {
         let body = Value::Object(operation.body.clone());
@@ -665,8 +700,10 @@ impl Handler {
             let _ = d.completed;
             (d.interface, d.address, false)
         };
-        let interface = resolve(interface).ok_or_else(|| invalid("interface: unknown object"))?;
-        let address = resolve(address).ok_or_else(|| invalid("address: unknown object"))?;
+        let interface = resolve(interface, of(interface_kind()), "interface")
+            .ok_or_else(|| invalid("interface: unknown object"))?;
+        let address = resolve(address, ObjectKind::Address, "address")
+            .ok_or_else(|| invalid("address: unknown object"))?;
         let verb = if attach { "attach" } else { "detach" };
         Ok(ModulePlan {
             kind: interface_kind(),
@@ -730,7 +767,7 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),

@@ -180,6 +180,10 @@ pub struct OperationType {
     pub defines: Option<&'static str>,
 }
 
+/// The resolution [`ModuleHandler::plan`] receives (ADR 0026, amendment 17): the object of
+/// a reference, given the kind it must have and the field of the body that carries it.
+pub type Resolve<'a> = dyn Fn(Ref, ObjectKind, &str) -> Option<Uuid> + 'a;
+
 /// An operation of a module, planned: decoded, checked locally, its references resolved.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModulePlan {
@@ -517,7 +521,11 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
 
     /// Decodes and checks `operation` locally; `object` is the identifier of the object it
     /// creates, if any; `resolve` gives the object of a reference (`None` for a local name
-    /// no earlier operation defines).
+    /// no earlier operation defines), given the kind it must have and the field of the
+    /// body that carries it (its JSON path: `owner`, `vlans[]`). A reference by identifier
+    /// is read once the locks are held: one that names nothing in force of that kind at the
+    /// start of the period of the operation refuses the changeset
+    /// (`core.reference.unknown`, ADR 0026, amendment 17).
     ///
     /// # Errors
     ///
@@ -526,7 +534,7 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation>;
 
     /// Gives `plan` the identifiers the pipeline drew for its operations of the core, once
