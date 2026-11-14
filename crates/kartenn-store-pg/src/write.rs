@@ -641,7 +641,9 @@ impl Store for PgStore {
     ))]
     async fn begin(&self) -> Result<PgTx, StoreError> {
         Ok(PgTx {
-            tx: self.pool.begin().await.map_err(store_err)?,
+            tx: crate::transaction::begin(&self.pool)
+                .await
+                .map_err(store_err)?,
             down_from: self.down_from,
             instance: self.instance.clone(),
             modules: self.modules.clone(),
@@ -656,7 +658,9 @@ impl Store for PgStore {
     }
 
     async fn journal_refused(&self, journal: &Journal<'_>) -> Result<(), StoreError> {
-        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(&self.pool)
+            .await
+            .map_err(store_err)?;
         write_journal(&mut tx, journal, &self.instance).await?;
         tx.commit().await.map_err(store_err)
     }

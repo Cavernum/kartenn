@@ -422,7 +422,9 @@ async fn record_batch(
         };
         return refused(&api, &context, id, &[whole]).await;
     }
-    let mut tx = api.pool.begin().await.map_err(|e| kit::store(&e))?;
+    let mut tx = kartenn_store_pg::transaction::begin(&api.pool)
+        .await
+        .map_err(|e| kit::store(&e))?;
     let recorded = match observations::record(&mut tx, id, principal.identity, &batch).await {
         Ok(recorded) => recorded,
         Err(RecordError::UnknownCluster(_)) => return Err(Problem::new(ProblemKind::NotFound)),

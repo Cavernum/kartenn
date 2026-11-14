@@ -36,7 +36,9 @@ impl PgRefreshExchanges {
     ) -> Result<Claim, StoreError> {
         // The lock serializes the reading and the claim among the instances; it is freed
         // at the commit, before the issuer is called (021/A24).
-        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(&self.pool)
+            .await
+            .map_err(store_err)?;
         sqlx::query(
             "SELECT pg_advisory_xact_lock(hashtextextended('refresh-exchange/' || encode($1, 'hex'), 0))",
         )

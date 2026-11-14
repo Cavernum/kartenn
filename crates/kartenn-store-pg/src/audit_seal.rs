@@ -83,7 +83,7 @@ pub async fn seal_once(
     key: Option<&SealKey>,
     instance: &Instance,
 ) -> Result<Option<Sealed>, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     match seal_in(&mut tx, key, instance).await {
         Ok(sealed) => {
             tx.commit().await.map_err(store_err)?;

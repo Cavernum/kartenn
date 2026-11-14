@@ -112,7 +112,7 @@ pub async fn purge(
 /// Drops the events and deliveries of a month (its partitions, or its rows in the default
 /// partitions), and records the purge, in one transaction.
 async fn drop_month(pool: &PgPool, criticality: &str, month: Date) -> Result<(), StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let suffix = format!(
         "{}_{:04}{:02}",
         criticality,

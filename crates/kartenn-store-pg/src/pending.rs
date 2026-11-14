@@ -398,7 +398,7 @@ pub async fn install_default_policies(
     modules: &kartenn_service::module::ModuleRegistry,
 ) -> Result<Vec<String>, StoreError> {
     let mut installed = Vec::new();
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     for (module, policy) in modules.default_policies() {
         let fresh: Option<String> = sqlx::query_scalar(
             "INSERT INTO module_default_policy (module, name) VALUES ($1, $2)

@@ -42,6 +42,7 @@ pub mod refresh_exchanges;
 pub mod registry;
 pub mod sections;
 pub mod temporal;
+pub mod transaction;
 pub mod tree;
 mod undo;
 pub mod vlan;

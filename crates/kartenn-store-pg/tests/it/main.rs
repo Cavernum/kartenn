@@ -15,4 +15,5 @@ mod properties;
 mod rbac_schema;
 mod refresh_exchanges;
 mod special_registry;
+mod transactions;
 mod versioning;

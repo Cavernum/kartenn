@@ -268,7 +268,7 @@ pub async fn create(
     instance: &Instance,
 ) -> Result<Draft, DraftError> {
     bounded(draft.operations.len())?;
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     room(&mut tx, draft.author).await?;
     sqlx::query(
         "INSERT INTO draft (id, author_id, title, reason, operations) VALUES ($1, $2, $3, $4, $5)",
@@ -340,7 +340,7 @@ pub async fn update(
     version: i64,
     change: Change,
 ) -> Result<Draft, DraftError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     let count = locked(&mut tx, id, author, version).await?;
     let kept = change
         .operations
@@ -383,7 +383,7 @@ pub async fn delete(
     audit: &AuditEvent,
     instance: &Instance,
 ) -> Result<(), DraftError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     locked(&mut tx, id, author, version).await?;
     sqlx::query("DELETE FROM draft WHERE id = $1")
         .bind(id)
@@ -409,7 +409,7 @@ pub async fn take_over(
     audit: &AuditEvent,
     instance: &Instance,
 ) -> Result<Draft, DraftError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     room(&mut tx, taker).await?;
     locked(&mut tx, id, author, version).await?;
     let found: FullRow = sqlx::query_as(sqlx::AssertSqlSafe(format!(
@@ -483,7 +483,7 @@ pub async fn submission_of(
 pub async fn expire(pool: &PgPool, instance: &Instance) -> Result<u64, StoreError> {
     let mut deleted = 0;
     loop {
-        let mut tx = pool.begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
         let gone: Vec<(Uuid, Uuid)> = sqlx::query_as(
             "DELETE FROM draft WHERE id IN (
                  SELECT id FROM draft WHERE updated_at < now() - make_interval(days => $1)

@@ -418,7 +418,7 @@ pub async fn filter_plan(
     let (wanted, values, low, high, carriers) =
         prepare(pool, property, condition, at, &Slots::of(0)).await?;
     let sql = filter_sql(&wanted, std::iter::empty());
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     // On a small test base the planner prefers sequential scans; forbid them to see
     // whether the indexes serve the query.
     sqlx::raw_sql("SET LOCAL enable_seqscan = off")

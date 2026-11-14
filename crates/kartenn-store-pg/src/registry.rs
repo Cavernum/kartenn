@@ -24,7 +24,7 @@ fn flag(f: Flag) -> &'static str {
 /// Database errors.
 pub async fn load(pool: &PgPool, registry: &SpecialRegistry) -> sqlx::Result<u64> {
     let mut inserted = 0;
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     for e in registry.entries() {
         inserted += sqlx::query(
             "INSERT INTO special_registry (registry_version, block, name, rfc, terminated, globally_reachable)

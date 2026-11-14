@@ -113,7 +113,7 @@ pub async fn declare_module_jobs(
 ) -> Result<(), StoreError> {
     let names: Vec<&str> = jobs.iter().map(|(n, _)| n.as_str()).collect();
     let periods: Vec<f64> = jobs.iter().map(|(_, p)| p.as_secs_f64()).collect();
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     sqlx::query(
         "INSERT INTO job (name, due_at, period, module, enabled)
          SELECT n, now(), make_interval(secs => p), split_part(n, '.', 1), true
