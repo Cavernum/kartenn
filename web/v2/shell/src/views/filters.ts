@@ -265,6 +265,29 @@ function valuesSuggest(key: string, read: SuggestRead, words: FilterWords): Sugg
   };
 }
 
+/** The namespace of the core's own properties (`core.site`, `core.owner`). */
+const CORE_KEYS = "core.";
+
+/**
+ * The suggestions of a property key (the gaps' `property`): the declarations whose key or a
+ * label starts with the text (`q`, a prefix, task 021-11p3), their first page; a text
+ * without a dot reads too the keys of the core it starts (`site` → `core.site`), which
+ * a prefix of the key alone would never reach. Each by its label, its key beside it.
+ */
+function keySuggest(read: SuggestRead, words: FilterWords): Suggest {
+  const path = "/v1/property-declarations" as ListPath;
+  return async (query, signal) => {
+    const q = query.trim();
+    const asked = q === "" ? [{}] : q.includes(".") ? [{ q }] : [{ q }, { q: CORE_KEYS + q }];
+    const pages = await Promise.all(asked.map((filters) => read(path, filters, signal)));
+    const keys = [...new Set(pages.flat().map((item) => text(item.key)))];
+    return keys.map((key) => {
+      const label = words.property(key);
+      return label ? { value: key, label, detail: key } : { value: key, label: key, mono: true };
+    });
+  };
+}
+
 /** The filter of a declared property: one entry for its key, its tests as operators. */
 function propertyFilter(
   key: string,
@@ -346,12 +369,10 @@ export function listFilterModel(
       property.suggest = referenceSuggest(target, read, names);
       property.valueLabel = (value) => names.of(target, value);
     } else if (PROPERTY_KEYS[path] === field.name) {
+      // Suggested by the server (`q`), never drawn from a catalog read whole.
       property.type = "enum";
-      property.options = declarations.map((d) => ({
-        value: d.key,
-        label: words.property(d.key) ?? d.key,
-        ...(words.property(d.key) ? { detail: d.key } : { mono: true }),
-      }));
+      property.suggest = keySuggest(read, words);
+      property.valueLabel = (value) => words.property(value);
     } else if (field.enum ?? CLOSED[path]?.[field.name]) {
       property.type = "enum";
       property.options = options(field.enum ?? CLOSED[path]![field.name]!, (value) =>

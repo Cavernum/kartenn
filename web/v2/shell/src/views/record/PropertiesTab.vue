@@ -30,7 +30,7 @@ import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import type { Collection } from "../collections.ts";
-import { useDeclarations, useKeyLabel } from "../data.ts";
+import { useDeclarations, useDeclarationsOf, useKeyLabel } from "../data.ts";
 import EditHint from "../edit/EditHint.vue";
 import { whyWords } from "../edit/inline.ts";
 import {
@@ -60,7 +60,10 @@ const props = defineProps<{
 const { t } = useI18n();
 const time = useTime();
 const keyLabel = useKeyLabel();
-const { declarations } = useDeclarations();
+// The declarations the object's kind carries (`carrier`): those its edits and its drafts
+// name. A value inherited from an object of another kind may be of a property this kind
+// does not carry (003: heirs that are no carriers): read by its key.
+const { declarations, settled } = useDeclarations(() => props.collection.kind);
 
 const resolved = useQuery(() =>
   reads.sub<Resolved>(props.collection.kind, props.id, "properties", null, {
@@ -92,8 +95,15 @@ const read = computed<PropertyRow[]>(() => {
  * read one's); `null` for a masked key, or a key only the draft adds.
  */
 const originOf = (key: string) => valueOriginOf(resolved.data.value?.data.sources[key]);
+const carried = computed(() => new Map(declarations.value.map((d) => [d.key, d])));
+// Asked once the kind's are read, for the keys they lack only.
+const inherited = useDeclarationsOf(() =>
+  settled.value
+    ? read.value.filter((row) => !row.masked && !carried.value.has(row.key)).map((r) => r.key)
+    : [],
+);
 const declarationOf = (key: string) =>
-  declarations.value.find((d) => d.key === key) as Declared | undefined;
+  (carried.value.get(key) ?? inherited.of(key)) as Declared | undefined;
 const targetOf = (key: string) => {
   const target = declarationOf(key)?.params?.target;
   return typeof target === "string" ? target : undefined;
@@ -176,7 +186,7 @@ function onCancelAsk(): void {
 
 <template>
   <Stack gap="3">
-    <GapsNotice :id="props.id" :declarations="declarations" />
+    <GapsNotice :id="props.id" />
     <div>
       <ProblemState
         v-if="resolved.isError.value"

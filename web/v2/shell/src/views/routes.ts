@@ -21,7 +21,7 @@ import type {
 import { adminRecord, adminScreen } from "../admin/routes.ts";
 import { changesRecord, changesScreen } from "../changesets/routes.ts";
 import { collectionById, type Collection } from "./collections.ts";
-import { rowsOf } from "./data.ts";
+import { carriedRead, carrierOf, rowsOf } from "./data.ts";
 import { paramsOf } from "./filters.ts";
 
 // The screens of the referential behind the entries of its space and the records (task 11;
@@ -46,9 +46,14 @@ export interface ScreenRoute {
   detail?: Component;
 }
 
-/** The declarations already in the cache (the filters of the properties type by them). */
-function cachedDeclarations(): Declaration[] {
-  const key = reads.list("/v1/property-declarations", null, null).queryKey;
+/**
+ * The declarations of the kind of a list already in the cache, read as its view reads them
+ * (`carrier`, `data.ts`): the filters of its properties type by them.
+ */
+function cachedDeclarations(path: ListPath): Declaration[] {
+  const carrier = carrierOf(path);
+  if (carrier === null) return [];
+  const key = carriedRead(carrier).queryKey;
   return rowsOf(queryClient.getQueryData<ListData<Declaration>>(key));
 }
 
@@ -59,7 +64,7 @@ function cachedDeclarations(): Declaration[] {
  */
 export function prefetchFilters(path: ListPath, query: LocationQuery): Filters | null {
   const { filters, rejected } = parseFilters(
-    filterModel(path, cachedDeclarations()),
+    filterModel(path, cachedDeclarations(path)),
     paramsOf(query),
   );
   return rejected.some((r) => r.name.startsWith("prop.") && r.reason === "unknown")
@@ -72,8 +77,14 @@ const listOf = (path: ListPath) => (_: RouteParams, time: TimeArg, query: Locati
   return filters === null ? [] : [reads.list(path, filters as never, time)];
 };
 
+/** The list of a collection, and the declarations of its kind its view reads beside it. */
 function collectionScreen(collection: Collection): ScreenRoute {
-  return { component: ListView, props: { collection }, queries: listOf(collection.path) };
+  const list = listOf(collection.path);
+  return {
+    component: ListView,
+    props: { collection },
+    queries: (params, time, query) => [...list(params, time, query), carriedRead(collection.kind)],
+  };
 }
 
 /** The screen of an entry of a space of the core, by its id; none yet for the others. */

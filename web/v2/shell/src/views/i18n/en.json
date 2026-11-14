@@ -366,9 +366,6 @@
       "valuesError": "The values could not be read.",
       "noValues": "No value in the list.",
       "none": "No declared property",
-      "countPartial": "{n} read, others remain | {n} read, others remain",
-      "partialTitle": "Incomplete list",
-      "partial": "Part of the declared properties was not read (cap of pages reached, or a page refused); the filters of the lists know only these.",
       "error": "The declared properties could not be read."
     }
   },

@@ -35,6 +35,7 @@ import {
   type ObjectRead,
   type SuggestRead,
 } from "../src/views/filters.ts";
+import { carriedRead } from "../src/views/data.ts";
 import { keepRecordName } from "../src/views/names.ts";
 import { shareOf } from "../src/views/occupancy.ts";
 import { prefetchFilters } from "../src/views/routes.ts";
@@ -161,10 +162,31 @@ describe("the model of the filters of a list", () => {
     const filters = filtersOfQuery(anomalies, { object });
     expect(filters).toEqual([{ key: "object", operator: "eq", values: [object] }]);
     expect(sentFilters("/v1/anomalies", anomalies, filters, [])).toEqual({ object });
-    const gaps = listFilterModel("/v1/property-gaps", DECLARATIONS, WORDS);
-    expect(gaps.find((p) => p.key === "property")!.options!.map((o) => o.value)).toContain(
-      "dns.ttl",
-    );
+  });
+
+  it("suggests the property of the gaps by the server's prefix, the core's keys too", async () => {
+    // `q` is a prefix of the key or of a label (021-11p3): « site » alone never reaches
+    // `core.site` by its key, `core.site` does.
+    const { read, asked } = suggestions([{ key: "core.site" }, { key: "core.owner" }]);
+    const gaps = listFilterModel("/v1/property-gaps", [], WORDS, read);
+    const property = gaps.find((p) => p.key === "property")!;
+    expect(property.options).toBeUndefined();
+    const found = await property.suggest!(" site ", new AbortController().signal);
+    expect(asked).toEqual([
+      { path: "/v1/property-declarations", filters: { q: "site" } },
+      { path: "/v1/property-declarations", filters: { q: "core.site" } },
+    ]);
+    // Each key once, by its label when the dictionary has one, else by its key.
+    expect(found).toEqual([
+      { value: "core.site", label: "core.site", mono: true },
+      { value: "core.owner", label: "Propriétaire", detail: "core.owner" },
+    ]);
+    // A key of a namespace typed: that prefix alone; nothing typed, the first page.
+    asked.length = 0;
+    await property.suggest!("dns.t", new AbortController().signal);
+    await property.suggest!("", new AbortController().signal);
+    expect(asked.map((one) => one.filters)).toEqual([{ q: "dns.t" }, {}]);
+    expect(property.valueLabel!("core.owner")).toBe("Propriétaire");
   });
 });
 
@@ -213,7 +235,8 @@ describe("the filters in the URL", () => {
   it("prefetches the very list a copied link opens (one key of the cache)", () => {
     const filters = filtersOfQuery(model, query);
     const shown = sentFilters("/v1/addresses", model, filters, DECLARATIONS);
-    queryClient.setQueryData(reads.list("/v1/property-declarations", null, null).queryKey, {
+    // The declarations of the addresses, as their view reads them (`carrier`).
+    queryClient.setQueryData(carriedRead("address").queryKey, {
       pages: [{ data: { items: DECLARATIONS, links: {} }, etag: null }],
       pageParams: [null],
     });
@@ -475,9 +498,15 @@ describe("the routes of the referential", () => {
   });
   const addresses = (seen: string[]) => seen.filter((url) => url.startsWith("/v1/addresses"));
 
+  /** The declarations of the kind a URL asks (`carrier`), `null` for another read. */
+  const carrierOfUrl = (url: string) =>
+    url.startsWith("/v1/property-declarations")
+      ? new URL(url, "https://k").searchParams.get("carrier")
+      : null;
+
   it("reads every page of the declarations a property filter needs before the list", async () => {
     const { seen } = await mounted(`/addresses?prop.core.owner=${ENTITY}`, (url) => {
-      if (url === "/v1/property-declarations") {
+      if (url === "/v1/property-declarations?carrier=address") {
         return page([OTHER(1)], "/v1/property-declarations?cursor=2");
       }
       if (url.startsWith("/v1/property-declarations?cursor=2")) return page([DECLARATIONS[0]!]);
@@ -490,18 +519,32 @@ describe("the routes of the referential", () => {
     );
     const second = seen.findIndex((url) => url.includes("cursor=2"));
     expect(seen.indexOf(addresses(seen)[0]!)).toBeGreaterThan(second);
+    // Those of the addresses alone, never the whole catalog (task 021-11p7).
+    const firsts = seen.filter(
+      (url) => url.startsWith("/v1/property-declarations") && !url.includes("cursor="),
+    );
+    expect(firsts.map(carrierOfUrl)).toEqual(firsts.map(() => "address"));
   });
 
-  it("past the cap of pages, a key still unknown is a chip not recognised, no list read", async () => {
-    const { seen, root } = await mounted("/addresses?prop.custom.absent=x", (url) => {
-      if (url.startsWith("/v1/property-declarations")) {
-        const at = Number(new URL(url, "https://k").searchParams.get("cursor") ?? "1");
-        return page([OTHER(at)], `/v1/property-declarations?cursor=${at + 1}`);
-      }
-      return page([]);
-    });
+  /** Twelve pages of declarations, one each, past the ten a list keeps in the cache. */
+  const twelve = (url: string) => {
+    if (!url.startsWith("/v1/property-declarations")) return page([]);
+    const at = Number(new URL(url, "https://k").searchParams.get("cursor") ?? "1");
+    return page([OTHER(at)], at < 12 ? `/v1/property-declarations?cursor=${at + 1}` : undefined);
+  };
+
+  it("follows every page of the declarations, none dropped, no cap", async () => {
+    const { seen } = await mounted("/addresses?prop.custom.p1=x&prop.custom.p12=y", twelve);
+    await expect.poll(() => addresses(seen).length).toBe(1);
+    const read = new URL(addresses(seen)[0]!, "https://k").searchParams;
+    expect([read.get("prop.custom.p1"), read.get("prop.custom.p12")]).toEqual(["x", "y"]);
+    expect(seen.filter((url) => url.startsWith("/v1/property-declarations"))).toHaveLength(12);
+  });
+
+  it("every page read, a key still unknown is a chip not recognised, no list read", async () => {
+    const { seen, root } = await mounted("/addresses?prop.custom.absent=x", twelve);
     await expect.poll(() => root.textContent).toContain("Filtre non reconnu : prop.custom.absent");
-    expect(seen.filter((url) => url.startsWith("/v1/property-declarations"))).toHaveLength(10);
+    expect(seen.filter((url) => url.startsWith("/v1/property-declarations"))).toHaveLength(12);
     expect(root.querySelector(".k-filter-chip__pill[data-state='invalid']")).not.toBeNull();
     expect(addresses(seen)).toEqual([]);
     expect(router.currentRoute.value.query["prop.custom.absent"]).toBe("x");

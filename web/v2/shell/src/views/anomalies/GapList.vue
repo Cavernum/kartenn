@@ -22,7 +22,7 @@ import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
-import { useDeclarations, useKeyLabel } from "../data.ts";
+import { useDeclarationsOf, useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
 import ObjectName from "../record/ObjectName.vue";
 import PropertyValue from "../record/PropertyValue.vue";
@@ -31,9 +31,12 @@ import { gapDetail as detailOf, noValue as empty, type Gap } from "./gap.ts";
 const { t, locale } = useI18n();
 const settings = useSettings();
 const keyLabel = useKeyLabel();
-const { declarations } = useDeclarations();
 const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
   useFilteredList<Gap>(() => "/v1/property-gaps");
+// The declarations of the properties of the rows only, each read by its key.
+const declared = useDeclarationsOf(() =>
+  rows.value.flatMap((gap) => (gap.property ? [gap.property] : [])),
+);
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
 useViewAction("filter", {
   label: () => t("views.list.filterAction", { name: t("views.anomalies.gaps") }),
@@ -55,8 +58,7 @@ const when = (iso: string) =>
 const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
 const valueOf = (gap: Gap, column: string): unknown =>
   column === "expected" ? gap.expected : gap.resolved;
-const byKey = computed(() => new Map(declarations.value.map((d) => [d.key, d])));
-const declarationOf = (key: string | null | undefined) => (key ? byKey.value.get(key) : undefined);
+const declarationOf = declared.of;
 const targetOf = (key: string | null | undefined) => {
   const target = declarationOf(key)?.params?.target;
   return typeof target === "string" ? target : undefined;

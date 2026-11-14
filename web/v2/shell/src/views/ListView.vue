@@ -161,7 +161,8 @@ const edit = useInlineEdit({
 });
 const active = ref<CellRef | undefined>();
 const editing = ref<CellRef | undefined>();
-const { declarations } = useDeclarations();
+// Those of the list's kind, the very read its filters take (`carrier`).
+const { declarations } = useDeclarations(() => props.collection.kind);
 const keyLabel = useKeyLabel();
 const valueLabel = (key: string, value: string) => keyLabel("value", `${key}/${value}`);
 const cells = usePropertyColumns({
