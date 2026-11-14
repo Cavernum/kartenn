@@ -5,6 +5,7 @@ import type { TreeNode } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { timeOf, writesOf } from "../src/time/index.ts";
@@ -179,6 +180,27 @@ describe("moves in a tree whose parent is declared", () => {
     expect(outcome.kind).toBe("refused");
     expect(moves().moveState(node(2))).toMatchObject({ refused: { ok: false } });
     expect(writes(seen)).toEqual([]);
+  });
+
+  it("refuses every move under 1024 px, the node left unmarked once wide (task 021-21c)", async () => {
+    const { moves, seen } = await mounted(EDIT, () => ({ status: 200, body: {} }));
+    setFrameWidth("narrow");
+    try {
+      const narrow = {
+        ok: false,
+        reason: "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.",
+      };
+      expect(moves().canMove(node(2), node(3))).toEqual(narrow);
+      const outcome = await moves().move({ node: node(2), target: node(3) });
+      expect(outcome).toEqual({ kind: "refused", check: narrow });
+      expect(moves().moveState(node(2))).toBeUndefined();
+      expect(writes(seen)).toEqual([]);
+      setFrameWidth("standard");
+      expect(moves().canMove(node(2), node(3))).toEqual({ ok: true });
+      expect(moves().moveState(node(2))).toBeUndefined();
+    } finally {
+      setFrameWidth("wide");
+    }
   });
 
   it("a move to the draft: its operation at the version read, marked once simulated", async () => {

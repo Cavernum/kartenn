@@ -31,10 +31,10 @@ import {
   type ShellActions,
 } from "../src/shortcuts/shell.ts";
 import { offered, play, runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
-import { timeOf as periodOf, writesOf } from "../src/time/index.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 
 /** The gate of writes at the period of `query`, in a wide frame (what `play` and `runnable` take). */
-const timeOf = (query: Record<string, string>) => writesOf(periodOf(query), "wide");
+const writesAt = (query: Record<string, string>) => writesOf(timeOf(query), "wide");
 
 // The shortcuts of the shell (REQ-021-3, 7, 8; design « Raccourcis »): the registry and its
 // conflicts, the one listener (sequences, fields, consumers of characters, layers,
@@ -394,8 +394,8 @@ describe("help", () => {
 
 describe("actions of the view", () => {
   it("plays `c` and `e` at the present only, when allowed; `/` at any date", () => {
-    const present = timeOf({});
-    const past = timeOf({ as_of: "2026-01-01T00:00:00Z" });
+    const present = writesAt({});
+    const past = writesAt({ as_of: "2026-01-01T00:00:00Z" });
     const scope = effectScope();
     let allowed = true;
     scope.run(() => {
@@ -420,10 +420,10 @@ describe("actions of the view", () => {
     });
     const valid_at = "2026-01-01T00:00:00Z";
     const as_of = "2026-06-30T12:00:00Z";
-    expect(runnable("edit", timeOf({ valid_at }))).not.toBeNull();
-    expect(runnable("create", timeOf({ valid_at }))).toBeNull();
-    expect(runnable("edit", timeOf({ valid_at, as_of }))).toBeNull();
-    expect(runnable("edit", timeOf({ as_of }))).toBeNull();
+    expect(runnable("edit", writesAt({ valid_at }))).not.toBeNull();
+    expect(runnable("create", writesAt({ valid_at }))).toBeNull();
+    expect(runnable("edit", writesAt({ valid_at, as_of }))).toBeNull();
+    expect(runnable("edit", writesAt({ as_of }))).toBeNull();
     scope.stop();
   });
 
@@ -447,25 +447,25 @@ describe("actions of the view", () => {
       useViewAction("create", { label: () => "Créer", run, say });
       useViewAction("filter", { label: () => "Filtrer", run, allowed: () => false });
     });
-    const present = timeOf({});
+    const present = writesAt({});
     const as_of = "2026-06-30T12:00:00Z";
     const valid_at = "2026-01-01T00:00:00Z";
     // Without the right: its permission said, the key taken, nothing run.
     expect(play("edit", present, t)).toBe(true);
     expect(said).toEqual(["Lecture seule : il faut core.prefix.edit"]);
     // Under `as_of`: off the present before the right (as the cells say it).
-    expect(play("edit", timeOf({ as_of }), t)).toBe(true);
+    expect(play("edit", writesAt({ as_of }), t)).toBe(true);
     expect(said.at(-1)).toBe("<edit.why.past>");
     // Nothing to act on (no row, no node): nothing said, the key let go, at any date.
     why = undefined;
     expect(play("edit", present, t)).toBe(false);
-    expect(play("edit", timeOf({ as_of }), t)).toBe(false);
+    expect(play("edit", writesAt({ as_of }), t)).toBe(false);
     expect(said).toHaveLength(2);
     // Allowed: under `valid_at` alone a `dated` action runs, another says the present.
     allowed = true;
-    expect(play("edit", timeOf({ valid_at }), t)).toBe(true);
+    expect(play("edit", writesAt({ valid_at }), t)).toBe(true);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(play("create", timeOf({ valid_at }), t)).toBe(true);
+    expect(play("create", writesAt({ valid_at }), t)).toBe(true);
     expect(said.at(-1)).toBe("<edit.why.past>");
     expect(play("create", present, t)).toBe(true);
     expect(run).toHaveBeenCalledTimes(2);
@@ -481,7 +481,7 @@ describe("actions of the view", () => {
     const second = { label: () => "b", run: vi.fn() };
     const removeFirst = setViewAction("edit", first);
     const removeSecond = setViewAction("edit", second);
-    const present = timeOf({});
+    const present = writesAt({});
     removeFirst();
     expect(runnable("edit", present)).toBe(second);
     removeSecond();
@@ -505,9 +505,9 @@ describe("actions of the view", () => {
       });
       useViewAction("filter", { label: () => "Filtrer", run });
     });
-    const narrow = writesOf(periodOf({}), "narrow");
-    const compact = writesOf(periodOf({ valid_at: "2026-01-01T00:00:00Z" }), "compact");
-    const asOf = writesOf(periodOf({ as_of: "2026-06-30T12:00:00Z" }), "narrow");
+    const narrow = writesOf(timeOf({}), "narrow");
+    const compact = writesOf(timeOf({ valid_at: "2026-01-01T00:00:00Z" }), "compact");
+    const asOf = writesOf(timeOf({ as_of: "2026-06-30T12:00:00Z" }), "narrow");
     // The key: taken, the width said, nothing run; `/` still filters.
     expect(play("edit", narrow, t)).toBe(true);
     expect(play("edit", compact, t)).toBe(true);
@@ -525,16 +525,33 @@ describe("actions of the view", () => {
     expect(said.at(-1)).toBe("<edit.why.narrow>");
     // The palette: the command kept under the width alone, its run says why; none without
     // the right, nor under `as_of` (as before).
-    expect(offered("edit", narrow, t)).toBeNull();
+    const now = timeOf({});
+    expect(offered("edit", now, "narrow", t)).toBeNull();
     allowed = true;
-    const command = offered("edit", narrow, t);
+    const command = offered("edit", now, "narrow", t);
     expect(command?.label()).toBe("Modifier");
     command!.run();
     expect(said.at(-1)).toBe("<edit.why.narrow>");
     expect(run).toHaveBeenCalledTimes(1);
-    expect(offered("edit", asOf, t)).toBeNull();
+    expect(offered("edit", timeOf({ as_of: "2026-06-30T12:00:00Z" }), "narrow", t)).toBeNull();
     // At 1024 px, the action again.
-    expect(offered("edit", writesOf(periodOf({}), "standard"), t)?.run).toBe(run);
+    expect(offered("edit", now, "standard", t)?.run).toBe(run);
+    scope.stop();
+  });
+
+  it("keeps a command in a narrow frame only when the period lets it run (task 021-21c)", () => {
+    const t = (key: string) => `<${key}>`;
+    const scope = effectScope();
+    scope.run(() => {
+      useViewAction("edit", { label: () => "Modifier", run: vi.fn(), say: vi.fn(), dated: true });
+      useViewAction("create", { label: () => "Créer", run: vi.fn(), say: vi.fn() });
+    });
+    const dated = timeOf({ valid_at: "2026-01-01T00:00:00Z" });
+    // Under `valid_at` alone: a `dated` action is held by the width only, kept; another is
+    // held by the period too, absent, as it is at any width.
+    expect(offered("edit", dated, "narrow", t)?.label()).toBe("Modifier");
+    expect(offered("create", dated, "narrow", t)).toBeNull();
+    expect(offered("create", dated, "wide", t)).toBeNull();
     scope.stop();
   });
 });

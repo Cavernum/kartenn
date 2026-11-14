@@ -244,6 +244,9 @@ export function useMoves(model: MoveModel) {
     const subject = model.subject(node);
     const to = target ? model.subject(target) : null;
     const verdict = canMove(node, target);
+    // Refused by the width: said, the node left unmarked (nothing of it is refused once wide).
+    if (!verdict.ok && writes.value.refused === "narrow")
+      return { kind: "refused", check: verdict };
     if (!verdict.ok) return refuse(node.id, verdict);
     if (!subject) return { kind: "unchanged" };
     if ((subject.parent ?? null) === (to?.id ?? null)) return { kind: "unchanged" };

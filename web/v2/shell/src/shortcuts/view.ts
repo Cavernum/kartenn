@@ -1,5 +1,6 @@
 import { onScopeDispose, shallowRef, type Ref } from "vue";
-import { refusalWords, type Writes } from "../time/index.ts";
+import type { WidthClass } from "@kartenn/ui";
+import { refusalWords, writesOf, type Time, type Writes } from "../time/index.ts";
 
 // The actions of the current view behind the shell's keys `/`, `c` and `e` (design 021
 // « Raccourcis ») and the palette's commands « Créer… », « Modifier… » (REQ-021-3): a view
@@ -76,21 +77,24 @@ export function runnable(id: ViewActionId, writes: Writes): ViewAction | null {
 }
 
 /**
- * The command of the palette for the action `id`: the action when it may run; under a
- * frame narrower than 1024 px, the only bar, a command of its label whose run says why by
- * the view's status (`play`), so that the palette shows what the width holds back; else
- * none (off the present or without the right, as the keys it stands for).
+ * The command of the palette for the action `id` at `time` in a frame of `width`: the
+ * action when it may run; when the width under 1024 px is the only bar (the period and the
+ * right let it run), a command of its label whose run says why by the view's status
+ * (`play`), so that the palette shows what the width holds back; else none (off the
+ * present or without the right, as the keys it stands for, at any width).
  */
 export function offered(
   id: ViewActionId,
-  writes: Writes,
+  time: Time,
+  width: WidthClass,
   t: (key: string) => string,
 ): Pick<ViewAction, "label" | "run"> | null {
+  const writes = writesOf(time, width);
   const action = runnable(id, writes);
   if (action) return action;
   const held = actions.value[id];
-  const wide = { quickEdit: true, draft: true, refused: null };
-  if (!held?.say || writes.refused !== "narrow" || !runnable(id, wide)) return null;
+  // Kept only when the width alone holds it back: the period (without a width) lets it run.
+  if (!held?.say || writes.refused !== "narrow" || !runnable(id, writesOf(time))) return null;
   return { label: held.label, run: () => play(id, writes, t) };
 }
 

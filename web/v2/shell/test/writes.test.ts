@@ -27,32 +27,82 @@ const PERIODS = {
 afterEach(() => setFrameWidth("wide"));
 
 /**
- * The surfaces that still read the period alone (`writesOf(time.value)`, without the width):
- * the simulation of a closure (a read), and those of tasks 21d to 21f, which take up
- * `useWrites()` and leave this list. A new one fails here: a write that forgets the width.
+ * The files of `src/` that decide on the period alone, without `useWrites()`: by
+ * `writesOf` without a width, by a `present` (`time.value.present`, `input.present`, a
+ * `present:` passed on), or by a test of `asOf` (`!x.asOf`, `x.asOf === null`, `x.asOf ?`);
+ * a date passed to a read (`asOf: time.value.asOf`) does not count. Each is the
+ * task that takes it up (`useWrites()`, `refusalWords`) and removes it from here, or one
+ * that reads the period alone on purpose (`kept`: a read, or the period beside the width).
+ * A new one fails here: a write that forgets the width. The mock-ups of the catalogue
+ * (`_ui/`) are not the shell's.
  */
-const PERIOD_ONLY = [
-  "draft/DraftsView.vue",
-  "draft/LostSubmissions.vue",
-  "draft/state.ts",
-  "views/RecordView.vue",
-  "views/TopologyView.vue",
-  "views/edit/ClosePanel.vue",
-];
+const PERIOD_ONLY: Readonly<Record<string, "21d" | "21e" | "21f" | "kept">> = {
+  "admin/AccountDetail.vue": "21e",
+  "admin/AccountsView.vue": "21e",
+  "admin/GroupDetail.vue": "21e",
+  "admin/GroupsView.vue": "21e",
+  "admin/IdentityDetail.vue": "21e",
+  "admin/ImportDetail.vue": "21e",
+  "admin/IssuersView.vue": "21e",
+  "admin/RoleDetail.vue": "21e",
+  "admin/RolesView.vue": "21e",
+  "admin/access.ts": "21e",
+  "admin/model.ts": "21e",
+  "changesets/ChangesetView.vue": "21d",
+  "changesets/model.ts": "21d",
+  "draft/DraftsView.vue": "21d",
+  "draft/LostSubmissions.vue": "21d",
+  "draft/state.ts": "21d",
+  // `offered`: the period beside the width (a command held by the width alone is kept).
+  "shortcuts/view.ts": "kept",
+  "views/RecordView.vue": "21f",
+  "views/TopologyView.vue": "21f",
+  "views/anomalies/AnomalyGrid.vue": "21f",
+  // The simulation of a closure, a read; its writes go through `action.ts`.
+  "views/edit/ClosePanel.vue": "kept",
+  "views/record/GapsNotice.vue": "21f",
+  "views/record/NetworkVlanTab.vue": "21f",
+};
 
-describe("the readers of the period alone", () => {
+/** A source without its comments (`//` to the end of the line, `/* … *\/`, `<!-- … -->`). */
+const uncommented = (source: string) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+
+/** What decides on the period: `writesOf` without a width, a `present`, a test of `asOf`. */
+const PERIOD_DECISION =
+  /writesOf\([^,()]*(\([^()]*\))?[^,()]*\)|\.present\b|\bpresent:|!\s*[\w.]+\.asOf\b|\.asOf\s*(===|!==|==|!=|\?[^.?]|&&|\|\|)/;
+
+describe("the deciders on the period alone", () => {
   // A path, not a URL: happy-dom's `URL` is not Node's.
   const SRC = join(import.meta.dirname, "../src");
-  it("are the ones listed, the others going through useWrites", () => {
+
+  it("tells a decision from a date read, comments aside", () => {
+    const decides = (source: string) => PERIOD_DECISION.test(uncommented(source));
+    expect(decides("if (!time.value.present) return;")).toBe(true);
+    expect(decides("globalRefusal({ present: time.value.present })")).toBe(true);
+    expect(decides("const w = computed(() => writesOf(time.value));")).toBe(true);
+    expect(decides("enabled: time.value.asOf === null,")).toBe(true);
+    expect(decides("if (!time.value.asOf) open();")).toBe(true);
+    expect(decides("reads.list(kind, { asOf: time.value.asOf, validAt })")).toBe(false);
+    expect(decides("writesOf(time.value, frameWidth.value)")).toBe(false);
+    expect(decides("// not at the present: time.value.present")).toBe(false);
+    expect(decides("/* time.value.present */ const url = 'https://example.org';")).toBe(false);
+  });
+
+  it("are the ones listed, each with its task; the others go through useWrites", () => {
     const files = readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter(
-      (name) => /\.(ts|vue)$/.test(name) && name !== "time/index.ts",
+      (name) => /\.(ts|vue)$/.test(name) && name !== "time/index.ts" && !name.startsWith("_ui/"),
     );
     const found = files
-      .filter((name) =>
-        /writesOf\([^,()]*(\([^()]*\))?[^,()]*\)/.test(readFileSync(join(SRC, name), "utf8")),
-      )
+      .filter((name) => {
+        const source = uncommented(readFileSync(join(SRC, name), "utf8"));
+        return !source.includes("useWrites()") && PERIOD_DECISION.test(source);
+      })
       .sort();
-    expect(found).toEqual(PERIOD_ONLY);
+    expect(found).toEqual(Object.keys(PERIOD_ONLY).sort());
   });
 });
 

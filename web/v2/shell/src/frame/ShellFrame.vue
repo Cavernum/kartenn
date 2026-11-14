@@ -537,7 +537,7 @@ const pluginCommands = shallowRef(commandRegistry.list());
 onBeforeUnmount(commandRegistry.subscribe(() => (pluginCommands.value = commandRegistry.list())));
 const commands = computed<PaletteEntry[]>(() => {
   const list: PaletteEntry[] = [];
-  const create = offered("create", writes.value, t);
+  const create = offered("create", time.value, frameWidth.value, t);
   if (create)
     list.push({
       id: "cmd:create",
@@ -546,7 +546,7 @@ const commands = computed<PaletteEntry[]>(() => {
       ...hint(["c"]),
       run: create.run,
     });
-  const edit = offered("edit", writes.value, t);
+  const edit = offered("edit", time.value, frameWidth.value, t);
   if (edit)
     list.push({
       id: "cmd:edit",
