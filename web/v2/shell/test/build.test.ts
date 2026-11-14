@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { initialFiles } from "../scripts/shell-size.ts";
+import type { Manifest } from "../scripts/size.ts";
+import admin from "../src/admin/i18n/index.ts";
+import screens from "../src/views/i18n/index.ts";
 
 // The builds of the shell (spec 020, tasks 6 and 8; REQ-020-10, 24): the production build
 // leaves the catalogue out; both preload the sans font, served from the origin.
@@ -12,7 +16,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const out = mkdtempSync(join(tmpdir(), "kartenn-shell-build-"));
 
-type Manifest = Record<string, { file: string; src?: string }>;
+/** The texts of a catalog, wherever they lie in it. */
+const leaves = (words: object): string[] =>
+  Object.values(words).flatMap((value: unknown) =>
+    typeof value === "string" ? [value] : typeof value === "object" && value ? leaves(value) : [],
+  );
 
 async function built(mode: string) {
   const outDir = join(out, mode);
@@ -123,6 +131,30 @@ describe("builds of the shell", () => {
       const app = /<div id="app">([\s\S]*?)<\/body>/.exec(html)?.[1] ?? "";
       for (const part of ["k-boot__sidebar", "k-boot__bar", "k-boot__panel"])
         expect(app).toContain(part);
+    }
+  });
+
+  it("reads the words of the screens and of the administration with them, never at first", () => {
+    // The catalogs read on demand (tasks 22h, 22n): each sentence of their own is in the
+    // build, none in what the document loads (scripts/shell-size.ts), an import of one from
+    // the frame bringing them back into the initial shell.
+    const initial = initialFiles(production.manifest, production.html)
+      .map((file) => readFileSync(join(production.outDir, file), "utf8"))
+      .join("\n");
+    // The words of the catalogs of the initial shell, which may hold a sentence of theirs.
+    const first = leaves(
+      import.meta.glob(
+        ["../src/i18n/*.json", "../src/views/i18n/shared/*.json", "../src/changesets/i18n/*.json"],
+        { eager: true, import: "default" },
+      ),
+    ).join("\n");
+    const sentences = [screens, admin]
+      .flatMap(leaves)
+      .filter((text) => text.length > 30 && /^[\w ,.:;'()-]+$/.test(text) && !first.includes(text));
+    expect(sentences.length).toBeGreaterThan(100);
+    for (const text of sentences) {
+      expect(production.js, text).toContain(text);
+      expect(initial, text).not.toContain(text);
     }
   });
 

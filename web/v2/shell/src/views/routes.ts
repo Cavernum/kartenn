@@ -21,8 +21,9 @@ import type {
 import { adminRecord, adminScreen } from "../admin/routes.ts";
 import { changesRecord, changesScreen } from "../changesets/routes.ts";
 import { collectionById, type Collection } from "./collections.ts";
-import { carriedRead, carrierOf, rowsOf } from "./data.ts";
+import { carriedRead, carrierOf, rowsOf } from "./carried.ts";
 import { paramsOf } from "./filters.ts";
+import { worded } from "./words.ts";
 
 // The screens of the referential behind the entries of its space and the records (task 11;
 // design 021 « Routes »): each a chunk of its own, read when its route opens, and the reads
@@ -87,8 +88,22 @@ function collectionScreen(collection: Collection): ScreenRoute {
   };
 }
 
+/** `screen`, its chunk read with the words of the screens (task 22n). */
+function withWords(screen: ScreenRoute | undefined): ScreenRoute | undefined {
+  return screen && { ...screen, component: worded(screen.component) };
+}
+
 /** The screen of an entry of a space of the core, by its id; none yet for the others. */
 export function entryScreen(id: string): ScreenRoute | undefined {
+  return withWords(coreScreen(id));
+}
+
+/** The record of an object of a collection of the referential (`/prefixes/:id`). */
+export function recordScreen(id: string): ScreenRoute | undefined {
+  return withWords(coreRecord(id));
+}
+
+function coreScreen(id: string): ScreenRoute | undefined {
   const collection = collectionById(id);
   if (collection) return collectionScreen(collection);
   switch (id) {
@@ -117,8 +132,7 @@ export function entryScreen(id: string): ScreenRoute | undefined {
   }
 }
 
-/** The record of an object of a collection of the referential (`/prefixes/:id`). */
-export function recordScreen(id: string): ScreenRoute | undefined {
+function coreRecord(id: string): ScreenRoute | undefined {
   const collection = collectionById(id);
   if (!collection) return changesRecord(id) ?? adminRecord(id);
   return {

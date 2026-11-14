@@ -11,7 +11,6 @@ import type { StreamState } from "@kartenn/sdk";
 import {
   InfiniteQueryObserver,
   MutationObserver,
-  QueriesObserver,
   QueryObserver,
   type DefaultError,
   type DefaultedInfiniteQueryObserverOptions,
@@ -106,34 +105,6 @@ export function useQuery<
   );
   onScopeDispose(unsubscribe);
   return { ...refs, refetch: (opts) => observer.refetch(opts) } as UseQueryResult<TData, TError>;
-}
-
-/**
- * Observes the queries of `options` (reactive: their number changes with it) while the
- * scope lives: their results in the same order (the cells of a column read row by row).
- */
-export function useQueries<O extends object>(
-  options: () => readonly O[],
-  client: QueryClient = useQueryClient(),
-): Readonly<Ref<readonly QueryObserverResult<unknown, DefaultError>[]>> {
-  // Options of the SDK's reads, typed by their own keys: the observer takes any key.
-  const defaulted = () =>
-    options().map((one) => client.defaultQueryOptions(one as unknown as QueryObserverOptions));
-  const observer = new QueriesObserver(client, defaulted());
-  const results = shallowRef<readonly QueryObserverResult<unknown, DefaultError>[]>(
-    observer.getCurrentResult(),
-  );
-  const unsubscribe = observer.subscribe((now) => (results.value = now));
-  watch(
-    defaulted,
-    (next) => {
-      observer.setQueries(next);
-      results.value = observer.getCurrentResult();
-    },
-    { flush: "sync" },
-  );
-  onScopeDispose(unsubscribe);
-  return readonly(results) as Readonly<Ref<readonly QueryObserverResult<unknown, DefaultError>[]>>;
 }
 
 export type UseInfiniteQueryResult<TData, TError = DefaultError> = ToRefs<

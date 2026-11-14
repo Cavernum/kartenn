@@ -1,0 +1,112 @@
+{
+  "labels": {
+    "kind": {
+      "core": {
+        "domain": "Domaine",
+        "prefix": "Préfixe",
+        "range": "Plage",
+        "address": "Adresse",
+        "entity": "Entité",
+        "site": "Site",
+        "vlan_group": "Groupe de VLAN",
+        "vlan": "VLAN"
+      }
+    },
+    "problem": {
+      "bad-request": "La requête est mal formée.",
+      "invalid-cursor": "Cette page a expiré ; la liste repart du début.",
+      "unauthenticated": "Vous n'êtes pas, ou plus, connecté.",
+      "forbidden": "Vous n'avez pas le droit de faire cela.",
+      "cross-site-request": "Requête refusée : elle ne vient pas de kartenn.",
+      "not-found": "Cet objet n'existe pas à ces dates, ou plus.",
+      "gone": "Cet objet est clos : ce qu'il portait ne se lit plus.",
+      "method-not-allowed": "Cette action n'est pas possible ici.",
+      "not-acceptable": "Le serveur ne sait pas répondre dans ce format.",
+      "conflict": "L'état actuel ne permet pas cette action.",
+      "undo-conflict": "Ce changeset ne peut plus être annulé : un changement plus récent le recouvre.",
+      "idempotency-in-progress": "La même demande est déjà en cours.",
+      "precondition-failed": "L'objet a changé depuis votre lecture.",
+      "payload-too-large": "La demande est trop volumineuse.",
+      "unsupported-media-type": "Le format de la demande n'est pas pris en charge.",
+      "changeset-refused": "Le changement est refusé par les règles de cohérence.",
+      "motive-required": "Un motif est obligatoire.",
+      "too-many-operations": "Trop d'opérations dans un seul changeset.",
+      "idempotency-key-reused": "Cette clé d'idempotence a déjà servi pour une autre demande.",
+      "invalid-member": "Un champ ne peut pas être écrit.",
+      "invalid-override": "Le filtre ou sa durée est invalide.",
+      "invalid-import": "L'import ne peut pas être ordonné.",
+      "invalid-batch": "Le lot est refusé en entier.",
+      "precondition-required": "La version lue de l'objet doit accompagner la modification.",
+      "rate-limited": "Trop de requêtes : patientez un instant.",
+      "unavailable": "Le service est momentanément indisponible.",
+      "internal": "Erreur interne du serveur.",
+      "exhausted": "Plus aucune valeur libre dans cet ensemble.",
+      "policy-query-too-large": "La requête de conformité est trop étendue.",
+      "draft-limit": "Vous avez atteint le nombre maximal de brouillons.",
+      "simulate-unsupported": "Cette écriture ne se simule pas."
+    }
+  },
+  "problem": {
+    "network": "Le serveur n'a pas pu être joint.",
+    "failed": "La requête n'a pas abouti.",
+    "client": "Une erreur de l'interface a interrompu l'affichage ; rechargez la page.",
+    "passOn": "Si l'erreur persiste, transmettez ces codes.",
+    "nextPage": "La suite de la liste n'a pas pu être lue",
+    "code": "Code du problème",
+    "requestId": "Request-Id"
+  },
+  "views": {
+    "actions": "Actions",
+    "cancel": "Annuler",
+    "retry": "Réessayer",
+    "loading": "Chargement",
+    "errorText": "Le reste de l'écran reste utilisable.",
+    "field": {
+      "id": "Identifiant",
+      "slug": "Clé",
+      "value": "Valeur",
+      "within": "Dans le préfixe",
+      "first": "Première adresse",
+      "last": "Dernière adresse",
+      "nature": "Nature",
+      "usage": "Usage",
+      "domain": "Domaine",
+      "parent": "Parent",
+      "public": "Publique",
+      "point_to_point": "Point à point",
+      "anycast": "Anycast",
+      "rule": "Règle",
+      "entity": "Entité",
+      "property": "Propriété",
+      "vid": "VID",
+      "name": "Nom",
+      "status": "Statut",
+      "group": "Groupe",
+      "anchor": "Ancre",
+      "range": "Plage de VID",
+      "vid_min": "Premier VID",
+      "vid_max": "Dernier VID",
+      "vlan": "VLAN"
+    },
+    "value": {
+      "boolean": { "true": "oui", "false": "non" },
+      "nature": { "container": "Conteneur", "network": "Réseau" },
+      "status": { "active": "Actif", "reserved": "Réservé", "deprecated": "Déprécié" },
+      "usage": {
+        "host": "Hôte",
+        "gateway": "Passerelle",
+        "vip": "Adresse virtuelle",
+        "anycast": "Anycast",
+        "reserved": "Réservée",
+        "dhcp": "DHCP",
+        "static": "Statique"
+      }
+    }
+  },
+  "edit": {
+    "why": {
+      "past": "Lecture seule hors du présent : revenez au présent pour modifier.",
+      "narrow": "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier."
+    }
+  }
+}

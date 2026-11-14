@@ -6610,7 +6610,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     100 ms), médiane 120,5 ms, pire 313,0 ms, CLS 0,001. Le préchargement n'est plus en
     cause : le reste est le rendu de la fiche sous CPU ×4, porté par la 22o. Case cochée
     quand la 22o tient le budget.
-- [ ] 22n. Shell initial à 306,3 Ko gzip (budget 300 Ko), relevé par la passe réduite du
+- [x] 22n. Shell initial à 306,3 Ko gzip (budget 300 Ko), relevé par la passe réduite du
   2026-11-14 (main e86f6af1) : 295,6 Ko après la 22h, les tâches fusionnées depuis ont
   repris 10,7 Ko ; trouver ce qui est entré dans le premier lot (mesure module par
   module, comme la 22h) et le sortir à la demande — verify :
@@ -6620,6 +6620,34 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     et `ExtensionElement` en cellule (11o2), catalogues `views/i18n/*.json`, `sharePages`
     du SDK (22f)
   - dépend de : 22h
+  - fait le 2026-11-14 : 306,3 Ko avant (main 17984cee), 295,5 Ko après. Mesure module
+    par module entre la 22h (eab60b9c) et main (cartes de sources, octets gzip par
+    source, approchés) : @kartenn/ui ≈ +5 Ko (cellules de la 11o2 et de la 21c :
+    `CellSelect`, `cellReasons`, `extensionCell`, `TreeGrid`, `virtualRows`), catalogues
+    JSON de l'entrée ≈ +2,9 Ko (`views` +2,2), SDK ≈ +1,3 Ko (`cache`, `dated`,
+    `filters`), `QueriesObserver` de query-core ≈ +1 Ko (`useQueries`), modules du shell
+    ≈ +1,5 Ko. Sortis du premier lot : les mots des écrans (`views/i18n/{fr,en}.json`,
+    ≈ 9,9 Ko), lus par `lazyCatalog` avec le chunk de chaque écran (`worded`,
+    `views/words.ts` ; `entryScreen` et `recordScreen` de `views/routes.ts`) et de chaque
+    panneau que le cadre ouvre lui-même (édition, clôture, brouillon : `ShellFrame.vue`) ;
+    ceux que le cadre lit avant tout écran (`labels`, `problem`, `views.retry` et les
+    mots communs, noms et valeurs des champs, `edit.why.past`) passent dans
+    `views/i18n/shared/`. `useQueries` passe dans `data/queries.ts`, et ce que les routes
+    lisent de `views/data.ts` dans `views/carried.ts` (≈ 0,9 Ko). `test/build.test.ts`
+    vérifie que chaque phrase propre aux catalogues des écrans et de l'administration est
+    dans le build et absente du premier lot ; `test/setup.ts` lit les mots des écrans
+    avant chaque fichier de tests, qui monte un écran sans sa route. Vérification :
+    `k-web2-check --base main` (1108 tests, 2739 captures sur 2739 : tout, `data/query.ts`
+    étant tiré par l'entrée) ; parcours `draft` et `admin`.
+  - choix : la porte par écran (`worded` au retour de `entryScreen`/`recordScreen`) plutôt
+    qu'une garde du routeur, qu'un routeur de test contournerait et qui retarderait la
+    page de connexion ; `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead`
+    pour ses trente importeurs ; « À propos » à la demande essayé puis laissé : −0,3 Ko
+    pour trois chunks de plus au premier chargement.
+  - reste : le premier poste de la hausse, @kartenn/ui (≈ 131 Ko gzip, partagé entier par
+    la carte d'import, un seul chunk pour l'ordre de sa feuille), ne se découpe pas sans
+    arbitrage ; aucune vérification ne voit le dépassement avant le banc (garde-fou
+    proposé à la session principale).
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
