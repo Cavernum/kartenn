@@ -1845,6 +1845,33 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       `sdk/src/api/problem.ts` (`Retry-After` porté par le problème), le test du cache du
       SDK, `web/v2/e2e/kartenn.toml` et `serve.sh` (une instance au quota par défaut)
     - dépend de : 11p9
+  - [ ] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
+    l'utilisateur le 2026-11-14) : les lectures de propriétés résolues demandées dans une
+    même fenêtre de quelques millisecondes, pour une même collection et les mêmes dates,
+    partent en une requête par lots (006-31, 200 identifiants au plus par requête) ; la
+    réponse est rangée dans le cache par entité, sous la clé de la lecture unitaire, si
+    bien que la fiche et la liste partagent toujours le même cache ; un identifiant omis
+    par le serveur rend l'état « illisible » de la lecture unitaire. Interne au SDK :
+    `reads.sub(…, "properties", …)` garde sa signature. `propertyColumns` et
+    `NetworkVlan` n'ont alors plus besoin de `limited` pour ces lectures — verify :
+    Vitest du SDK (40 lectures demandées dans la fenêtre : une requête ; deux dates :
+    deux requêtes ; 201 : deux requêtes ; une lecture annulée seule n'annule pas le lot ;
+    identifiant omis) ; Vitest monté d'une liste à colonne de propriété, 60 lignes en
+    vue : une requête de propriétés ; le parcours au quota par défaut de la 11p10-b ;
+    la 11p10 se clôt dessus
+    - où : `web/v2/sdk/src/data/` (`cache.ts`, `reads`), `sdk/src/api/schema.d.ts`,
+      `shell/src/views/propertyColumns.ts` (`useQueries`, `limited`),
+      `views/parts/NetworkVlan.vue`, `views/parts/vlan.ts` ; ADR 0037
+    - dépend de : 006-31, 22f-d, 11p10-a
+  - [ ] 11p10-d. Noms des objets référencés lus par fenêtre : `ObjectName` et les noms du
+    plugin machines passent par le regroupeur, sur le filtre `id` (006-32), une requête
+    par collection et par fenêtre ; puis, là où le corps porte désormais le résumé
+    (006-33), plus aucune lecture — verify : Vitest monté, 66 cellules de référence de
+    deux collections : deux requêtes ; `k-web2-e2e` complet, journal du serveur sans 429
+    ni 503 ; passe réduite du banc par la session principale
+    - où : `shell/src/views/record/ObjectName.vue`, `plugins/machines/src/
+      {MachineColumn.vue,reads.ts}`, le regroupeur de la 11p10-c
+    - dépend de : 006-32, 11p10-c
 - [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
   le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
   échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de

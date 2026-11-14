@@ -636,3 +636,40 @@ routeur complet, sauf mention « vrai TCP ».
   à mettre en commun dans `kartenn-testing` ; hors du pipeline, `expected.rs`,
   `module.rs`, `declarations.rs` et `rbac.rs` lâchent aussi leurs transactions par `?`,
   sans clé d'idempotence ni verrou consultatif non bloquant à libérer
+
+## Lectures par fenêtre (H23, amendement du 2026-11-14)
+
+- [ ] 31. Propriétés résolues par lots : `GET /v1/<collection>/properties` (`id` répété,
+  200 au plus ; `key` répété ; `valid_at`, `as_of`), servi par `reads::resolved_many` ;
+  identifiant inconnu, d'une autre collection ou illisible omis ; un événement d'audit
+  pour le lot ; poids au quota d'une unité par centaine d'identifiants entamée ; route
+  au contrat OpenAPI et types du SDK régénérés — REQ-006-40 — verify :
+  `k-check -p kartenn-rest` (chaque élément égal à la lecture unitaire, aux mêmes dates,
+  valeur sensible et masquage compris ; illisible omis sans différence avec inconnu ;
+  201 identifiants → 400 ; un seul événement d'audit ; poids au quota) ; banc HTTP
+  réduit, 200 objets × 6 clés sous le budget d'une page
+  - où : `crates/kartenn-rest/src/properties.rs` (lecture unitaire, vers les lignes
+    452-510, à imiter), `crates/kartenn-service/src/reads.rs` (`resolved_many`, vers la
+    ligne 232), `crates/kartenn-rest/src/quota.rs` (poids d'une requête), contrat
+    OpenAPI et `web/v2/sdk/src/api/schema.d.ts` ; `kartenn-bench` (`props.rs`, banc HTTP)
+  - dépend de : —
+- [ ] 32. Filtre `id` répété sur toute collection, `address` répété sur la liste des
+  interfaces ; déclarés au contrat — REQ-006-41 — verify : `k-check -p kartenn-rest`
+  (deux identifiants dont un illisible : un seul rendu ; conjonction avec un autre
+  filtre ; au-delà de la taille de page maximale → 400 ; le paramètre présent aux
+  `parameters` de chaque liste) ; `k-check -p kartenn-machines`
+  - où : `crates/kartenn-rest/src/objects.rs` (filtres, vers les lignes 195-197),
+    `crates/kartenn-store-pg/src/list.rs` (`Criteria.ids`, vers la ligne 190),
+    `crates/kartenn-machines/src/rest.rs` (`address`, vers la ligne 1087), contrat
+    OpenAPI (H20)
+  - dépend de : —
+- [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
+  référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
+  d'une propriété de type référence), puis `{id, clé naturelle, href}`, réduit à `{id}`
+  pour un objet illisible par l'appelant ; à découper par famille de corps avant d'être
+  lancée si le recensement dépasse une dizaine de fichiers — REQ-006-42 — verify :
+  `k-check -p kartenn-rest` (résumé présent ; `{id}` seul et identique pour un objet
+  illisible et pour un objet inconnu ; ETag changé quand la clé naturelle du lié change)
+  - où : `crates/kartenn-rest/src/` (résumé `domain` d'un préfixe comme modèle, H19),
+    contrat OpenAPI ; 005 (prédicat de lecture)
+  - dépend de : 31, 32 (le shell peut déjà grouper ses lectures sans elle)

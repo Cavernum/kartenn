@@ -68,6 +68,8 @@ Acceptation :
 kartenn doit renvoyer chaque objet en entier, avec pour chaque objet lié un résumé
 (identifiant, clé naturelle, `href`) et des liens (RFC 8288) ; les propriétés héritées
 doivent se lire par leur propre route. Ni `fields=` ni `expand=` en v1. [H13b]
+*Amendement du 2026-11-14 (H23)* : cette route existe aussi par lots (REQ-006-40), et
+le résumé vaut pour toute référence rendue (REQ-006-42).
 
 Acceptation :
 - Un préfixe porte `domain: {id, slug, href}` ; la lecture de l'objet lié par `href`
@@ -475,6 +477,47 @@ Bearer, contrôle d'accès, JSON, compression), et INV-36 (200 utilisateurs conc
 Acceptation :
 - Banc HTTP en processus, jeu de `bench-core` : chaque p95 sous son budget ; le surcoût
   par rapport au banc du service est rapporté (cible < 10 ms au p95).
+
+### J. Lectures par fenêtre (amendement du 2026-11-14, H23)
+
+#### REQ-006-40 — Propriétés résolues par lots
+kartenn doit rendre en une requête les propriétés résolues de plusieurs objets d'une
+même collection : `GET /v1/<collection>/properties`, `id` répété (200 au plus), `key`
+répété (facultatif), `valid_at` et `as_of` comme la lecture unitaire. [H23]
+
+Acceptation :
+- Chaque élément de `items` est égal à la réponse de la lecture unitaire du même objet,
+  aux mêmes dates : valeurs, sources, masquage.
+- Un identifiant inconnu, d'une autre collection ou illisible pour l'appelant est omis ;
+  la réponse reste 200 et ne distingue pas ces trois cas.
+- Plus de 200 identifiants, ou aucun → 400 qui nomme le paramètre.
+- Une valeur sensible n'est rendue que sous le droit de la lecture unitaire ; le lot
+  produit un seul événement d'audit, qui nomme les objets lus.
+- Le lot compte au quota de lecture pour une unité par centaine d'identifiants entamée
+  (REQ-006-29).
+- 200 objets × 6 clés : p95 sous le budget de la lecture d'une page (REQ-006-39),
+  mesuré au banc HTTP.
+
+#### REQ-006-41 — Filtre par identifiants
+kartenn doit accepter `id`, répété, comme filtre de toute collection (un parmi), et
+plusieurs valeurs pour le paramètre `address` de la liste des interfaces. [H23, H20]
+
+Acceptation :
+- `?id=<a>&id=<b>` rend les objets `a` et `b` lisibles par l'appelant, dans l'ordre de
+  la liste, combinés en conjonction avec les autres filtres.
+- Plus d'identifiants que la taille de page maximale → 400.
+- Le paramètre figure aux `parameters` de chaque liste du contrat.
+
+#### REQ-006-42 — Résumé de toute référence rendue
+kartenn doit rendre toute référence à un objet, dans tout corps, sous la forme du résumé
+de REQ-006-2 ; si l'objet visé n'est pas lisible par l'appelant, alors kartenn ne doit
+rendre que son identifiant. [H23, 005]
+
+Acceptation :
+- L'objet d'une anomalie et d'un écart, l'ancre et le groupe d'un VLAN, et la valeur
+  d'une propriété de type référence portent `{id, <clé naturelle>, href}`.
+- Pour un objet illisible par l'appelant : `{id}` seul, identique pour un objet inconnu.
+- L'ETag composite (H19) change quand la clé naturelle d'un objet lié change.
 
 ## Non-objectifs
 

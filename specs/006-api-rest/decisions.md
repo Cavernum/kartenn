@@ -521,6 +521,45 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - Pourquoi : ajouts seulement (H12) ; un client lit les paramètres au contrat (H20).
 - Décidé par : l'utilisateur (spec 018, 2026-10-23) ; forme du contrat : Claude
 
+## H23 — Lectures par fenêtre (amende H13b, REQ-006-2, 9 ; ajoute REQ-006-40 ; 021/11p10)
+- Constat (2026-11-14, diagnostic de fond de la 021) : la page d'une liste ne porte pas
+  tout ce que ses colonnes montrent, et le contrat n'offre aucune lecture groupée. Le
+  shell lit donc une fois par ligne ou par cellule (propriétés résolues, nom d'un objet
+  référencé, interface d'une adresse) : un seul utilisateur qui défile atteint le quota
+  de lecture (REQ-006-29) et un seul écran dépasse le plafond des requêtes en vol
+  (REQ-006-30). Le quota et le plafond sont justes ; c'est l'unité de lecture qui ne
+  l'est pas : la fenêtre affichée (quelques dizaines d'identifiants), pas la ligne. Le
+  magasin lit déjà par lots (`reads::resolved_many`, 512 objets × 6 clés sous 30 ms,
+  REQ-016-1 ; `Criteria.ids`) : la mesure que H13b demandait pour rouvrir la question
+  est faite.
+- Décision, trois ajouts au contrat (H12 : ajouts seulement) :
+  - **Propriétés résolues par lots** : `GET /v1/<collection>/properties`, `id` répété
+    (200 au plus), `key` répété (toutes les clés lisibles si absent), mêmes `valid_at`
+    et `as_of` que la lecture unitaire. Réponse `{items: [{id, properties, sources,
+    masked}]}`, chaque élément de la forme de la lecture unitaire. Un identifiant
+    inconnu ou illisible pour l'appelant est omis, sans erreur ni indice (005 :
+    invisible égale absent). Un seul événement d'audit pour le lot. Pas d'ETag. Au
+    quota de lecture, un lot pèse une unité par centaine d'identifiants entamée.
+  - **Filtre `id`** : `id` répété devient un filtre de toute collection (un parmi),
+    borné par la taille de page, déclaré au contrat (H20), sous le prédicat de lecture
+    de la liste. Le paramètre `address` de la liste des interfaces accepte de même
+    plusieurs valeurs.
+  - **Résumés complets** : toute référence rendue dans un corps porte le résumé de
+    REQ-006-2 (`id`, clé naturelle, `href`), y compris l'objet d'une anomalie ou d'un
+    écart, l'ancre et le groupe d'un VLAN, et la valeur d'une propriété de type
+    référence. Si l'objet visé n'est pas lisible par l'appelant, le résumé ne porte que
+    son `id` : ni clé naturelle ni `href`.
+- Pourquoi : la lecture par lots supprime la cause (une requête par fenêtre et par
+  nature de donnée) là où un plafond de concurrence ou un réessai ne font qu'étaler la
+  rafale. Ce n'est ni `fields=` ni `expand=` : des routes et des paramètres propres, au
+  coût borné par 200 identifiants, la liste garde son corps, son ETag et sa variante de
+  cache unique ; les raisons du rejet de H13b restent valables et le rejet tient.
+- Rejeté : `expand=` ou `props=` sur la liste (H13b ; la liste se relirait à chaque
+  choix de colonne) ; relever le quota ou le plafond (masque le défaut, REQ-006-29 et 30
+  protègent le serveur) ; un ETag sur le lot (empreinte de 200 objets, aucun client ne
+  la rejoue).
+- Décidé par : l'utilisateur (2026-11-14), sur proposition ; forme du contrat : Claude
+
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,
 routes de connexion, déconnexion et secours, variante de `logged_in` sans événement,
