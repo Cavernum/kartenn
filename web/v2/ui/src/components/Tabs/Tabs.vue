@@ -97,9 +97,12 @@ watch(active, (value) => shown.add(value), { immediate: true });
     padding-inline: var(--k-control-padding-inline-md);
     margin-block-end: calc(var(--k-border-width) * -1);
     font: inherit;
+    /* Never wider than the list: a label longer than it goes to the line (1.4.10). */
+    max-inline-size: 100%;
     font-weight: var(--k-weight-medium);
     color: var(--k-text-muted);
-    white-space: nowrap;
+    text-align: start;
+    overflow-wrap: break-word;
     cursor: pointer;
     background: none;
     border: 0;

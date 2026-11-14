@@ -67,3 +67,42 @@ test.describe("Tabs (APG Tabs, manual activation)", () => {
     await expect(history).toBeFocused();
   });
 });
+
+// In a narrow place (state `narrow`, 021 task 21b, WCAG 1.4.10): the tabs go to the line
+// instead of scrolling sideways, a label longer than the list goes to the line inside it,
+// and the arrows cross the rows.
+test.describe("Tabs in a narrow place", () => {
+  test.beforeEach(async ({ page }) => {
+    await openState(page, "Tabs", "narrow");
+  });
+
+  test("on several rows, each tab inside the list; the arrows cross the rows", async ({ page }) => {
+    const list = page.getByRole("tablist", { name: "Fiche étroite" });
+    const box = (await list.boundingBox())!;
+    const tabs = list.getByRole("tab");
+    await expect(tabs).toHaveCount(5);
+    const rows = new Set<number>();
+    for (const tab of await tabs.all()) {
+      const own = (await tab.boundingBox())!;
+      expect(own.x).toBeGreaterThanOrEqual(box.x - 1);
+      expect(own.x + own.width).toBeLessThanOrEqual(box.x + box.width + 1);
+      rows.add(Math.round(own.y));
+    }
+    expect(rows.size).toBeGreaterThan(1);
+    expect(await list.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+    // From the first row to the long tab of another one, and back round.
+    await page.getByRole("textbox", { name: "Préfixe" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(tabs.first()).toBeFocused();
+    for (let i = 0; i < 3; i += 1) await page.keyboard.press("ArrowRight");
+    const long = list.getByRole("tab", { name: /^Correspondances héritées/ });
+    await expect(long).toBeFocused();
+    expect((await long.boundingBox())!.y).toBeGreaterThan((await tabs.first().boundingBox())!.y);
+    await page.keyboard.press("Enter");
+    await expect(long).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowRight");
+    await expect(tabs.first()).toBeFocused();
+  });
+});
