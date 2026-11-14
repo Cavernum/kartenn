@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { initialFiles } from "../scripts/shell-size.ts";
+import { initialFiles, SHELL_BUDGET, shellMeasure } from "../scripts/shell-size.ts";
 import type { Manifest } from "../scripts/size.ts";
 import admin from "../src/admin/i18n/index.ts";
 import screens from "../src/views/i18n/index.ts";
@@ -22,15 +23,44 @@ const leaves = (words: object): string[] =>
     typeof value === "string" ? [value] : typeof value === "object" && value ? leaves(value) : [],
   );
 
+/** The keys of a catalog of one language, `a.b.c` for each of its texts. */
+const keys = (words: object, head = ""): string[] =>
+  Object.entries(words).flatMap(([key, value]: [string, unknown]) =>
+    typeof value === "string"
+      ? [head + key]
+      : typeof value === "object" && value
+        ? keys(value, `${head}${key}.`)
+        : [],
+  );
+
+/** The catalogs of the initial shell, one per language: the frame's, never on demand. */
+const FIRST = Object.values(
+  import.meta.glob<object>(
+    ["../src/i18n/*.json", "../src/views/i18n/shared/*.json", "../src/changesets/i18n/*.json"],
+    { eager: true, import: "default" },
+  ),
+);
+
+/** Above it, the weight of the initial shell is said: less than 4 Ko of margin left. */
+const SHELL_MARGIN = 296_000;
+
 async function built(mode: string) {
   const outDir = join(out, mode);
-  await build({
-    root,
-    mode,
-    configFile: join(root, "vite.config.ts"),
-    logLevel: "silent",
-    build: { outDir, emptyOutDir: true },
-  });
+  // As `vite build` does, whatever the mode: Vitest sets `NODE_ENV` to `test`, which would
+  // build the development code of vue and of the libraries, not what is served (task 22n).
+  const nodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    await build({
+      root,
+      mode,
+      configFile: join(root, "vite.config.ts"),
+      logLevel: "silent",
+      build: { outDir, emptyOutDir: true },
+    });
+  } finally {
+    process.env.NODE_ENV = nodeEnv;
+  }
   const manifest = JSON.parse(
     readFileSync(join(outDir, ".vite/manifest.json"), "utf8"),
   ) as Manifest;
@@ -45,6 +75,12 @@ async function built(mode: string) {
 
 let production: Awaited<ReturnType<typeof built>>;
 let catalogue: Awaited<ReturnType<typeof built>>;
+
+/** What the document of the production build loads (scripts/shell-size.ts), as text. */
+const initialText = () =>
+  initialFiles(production.manifest, production.html)
+    .map((file) => readFileSync(join(production.outDir, file), "utf8"))
+    .join("\n");
 
 beforeAll(async () => {
   production = await built("production");
@@ -138,16 +174,9 @@ describe("builds of the shell", () => {
     // The catalogs read on demand (tasks 22h, 22n): each sentence of their own is in the
     // build, none in what the document loads (scripts/shell-size.ts), an import of one from
     // the frame bringing them back into the initial shell.
-    const initial = initialFiles(production.manifest, production.html)
-      .map((file) => readFileSync(join(production.outDir, file), "utf8"))
-      .join("\n");
+    const initial = initialText();
     // The words of the catalogs of the initial shell, which may hold a sentence of theirs.
-    const first = leaves(
-      import.meta.glob(
-        ["../src/i18n/*.json", "../src/views/i18n/shared/*.json", "../src/changesets/i18n/*.json"],
-        { eager: true, import: "default" },
-      ),
-    ).join("\n");
+    const first = FIRST.flatMap(leaves).join("\n");
     const sentences = [screens, admin]
       .flatMap(leaves)
       .filter((text) => text.length > 30 && /^[\w ,.:;'()-]+$/.test(text) && !first.includes(text));
@@ -156,6 +185,49 @@ describe("builds of the shell", () => {
       expect(production.js, text).toContain(text);
       expect(initial, text).not.toContain(text);
     }
+  });
+
+  it("names in its first load only keys of its own catalogs, never one read with a screen", () => {
+    // A key the frame says before any screen (a refusal of the gate, a problem) lies in the
+    // catalogs of the initial shell (task 22n), else it shows as a key until the first
+    // screen reads the words of the screens. Each string of the first load is looked up:
+    // a key whole, or the head of a key built when said (`edit.why.${…}`), which may then
+    // end in none of the keys read later.
+    const first = new Set(FIRST.flatMap((catalog) => keys(catalog)));
+    const later = [screens, admin]
+      .flatMap((catalog) => [...keys(catalog.fr), ...keys(catalog.en)])
+      .filter((key) => !first.has(key));
+    const named = [...initialText().matchAll(/[`"']([a-z][\w-]*(?:\.[\w-]+)*\.?)(\$\{|[`"'])/g)];
+    const missing = named.flatMap(([, text, end]) =>
+      end === "${"
+        ? text!.endsWith(".")
+          ? later.filter((key) => key.startsWith(text!)).map((key) => `${text}… (${key})`)
+          : []
+        : later.includes(text!)
+          ? [text!]
+          : [],
+    );
+    expect([...new Set(missing)]).toEqual([]);
+    // The scan sees the keys the frame names (`time/index.ts`, `problems/index.ts`).
+    const texts = new Set(named.map(([, text]) => text));
+    for (const key of ["edit.why.past", "edit.why.narrow", "problem.network"])
+      expect(texts.has(key), key).toBe(true);
+  });
+
+  it("weighs its initial shell within the budget, a melting margin said", () => {
+    // The budget of `bench-web` (REQ-021-30, scripts/shell-size.ts), seen by the check of
+    // the task that passes it rather than by the bench (task 22n).
+    const measure = shellMeasure(
+      production.manifest,
+      production.html,
+      (file) => gzipSync(readFileSync(join(production.outDir, file)), { level: 9 }).length,
+    );
+    if (measure.bytes > SHELL_MARGIN)
+      console.warn(
+        `initial shell at ${(measure.bytes / 1000).toFixed(1)} Ko gzip: less than ` +
+          `${(SHELL_BUDGET - SHELL_MARGIN) / 1000} Ko under its budget of ${SHELL_BUDGET / 1000} Ko`,
+      );
+    expect(measure.bytes).toBeLessThanOrEqual(SHELL_BUDGET);
   });
 
   it("serves the runtime build of vue: nothing evaluated under the CSP", () => {

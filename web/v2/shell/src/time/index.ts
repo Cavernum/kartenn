@@ -162,11 +162,21 @@ export function useWrites(): ComputedRef<Writes> {
 }
 
 /**
+ * The key of each refusal of the gate, whole: the frame says it before any screen, so its
+ * words lie in the catalog of the initial shell (`views/i18n/shared/`), which
+ * `test/build.test.ts` checks of every key the first load names (task 22n).
+ */
+const REFUSAL_KEYS: Record<WriteRefusal, string> = {
+  past: "edit.why.past",
+  narrow: "edit.why.narrow",
+};
+
+/**
  * The sentence of a refusal of the gate (`edit.why.past`, `edit.why.narrow`), the one a
  * cell, a key, a command or a panel says; `null` when the draft is open.
  */
 export function refusalWords(writes: Writes, t: (key: string) => string): string | null {
-  return writes.refused === null ? null : t(`edit.why.${writes.refused}`);
+  return writes.refused === null ? null : t(REFUSAL_KEYS[writes.refused]);
 }
 
 /** The refusal of a date by the API (a 400): the field it is about, and its problem. */
