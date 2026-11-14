@@ -232,11 +232,28 @@ function urlOf(path: string, filters: Record<string, unknown>, time: TimeKey): s
   return path + search({ ...filters, valid_at: time.valid_at, as_of: time.as_of });
 }
 
-/** The first query function of an error: no retry on a problem the client caused. */
+/**
+ * Whether a read tries again, three attempts at most (task 021-11p10-b): after a failure of
+ * the network or the server, or a refusal by load it waits out, a 429 of the quota
+ * (REQ-006-29) or a 503 of the shedding whose `Retry-After` asks five seconds at most;
+ * never after another problem the client caused (401, 403, 404, 412, 422…), nor a refusal
+ * that asks a longer wait. A read given up is not tried again (the retryer of the cache stops
+ * at its cancel), and the writes are not queries.
+ */
 function retry(failures: number, error: unknown): boolean {
-  if (error instanceof ApiProblem && error.status >= 400 && error.status < 500) return false;
-  return failures < 2;
+  if (failures > 1) return false;
+  if (!(error instanceof ApiProblem)) return true;
+  return error.retryAfter === null
+    ? error.status >= 500
+    : (error.status === 429 || error.status === 503) && error.retryAfter <= 5;
 }
+
+/**
+ * The wait before trying again: the `Retry-After` of a refusal by load (`retry` let only
+ * those of five seconds at most through), else 1 s, then 2 s. Only an `ApiProblem` has one.
+ */
+const retryDelay = (failures: number, error: unknown): number =>
+  ((error as Partial<ApiProblem> | undefined)?.retryAfter ?? 2 ** failures) * SECOND;
 
 /** A new `QueryClient` with the defaults of the SDK. */
 export function createQueryClient(): QueryClient {
@@ -244,6 +261,7 @@ export function createQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         retry,
+        retryDelay,
         staleTime: FRESHNESS.object.staleTime,
         gcTime: FRESHNESS.object.gcTime,
         // Revalidation on focus and reconnection is the fallback without the event stream

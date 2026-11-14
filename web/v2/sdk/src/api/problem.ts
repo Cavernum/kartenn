@@ -29,6 +29,11 @@ export class ApiProblem extends Error {
   readonly detail: string | null;
   readonly violations: readonly Violation[];
   readonly requestId: string | null;
+  /**
+   * The seconds the answer asks to wait before trying again (`Retry-After`), if any; `NaN`
+   * for a form other than delay-seconds.
+   */
+  readonly retryAfter: number | null;
 
   constructor(init: {
     status: number;
@@ -37,6 +42,7 @@ export class ApiProblem extends Error {
     detail?: string | null;
     violations?: readonly Violation[];
     requestId?: string | null;
+    retryAfter?: number | null;
   }) {
     super(init.detail ?? init.title);
     this.name = "ApiProblem";
@@ -46,6 +52,7 @@ export class ApiProblem extends Error {
     this.detail = init.detail ?? null;
     this.violations = init.violations ?? [];
     this.requestId = init.requestId ?? null;
+    this.retryAfter = init.retryAfter ?? null;
   }
 
   /** The code shown (REQ-021-20): the slug of `type` (`urn:kartenn:problem:<slug>`). */
@@ -59,6 +66,7 @@ export class ApiProblem extends Error {
    */
   static async from(response: Response): Promise<ApiProblem> {
     const requestId = response.headers.get("Request-Id");
+    const wait = response.headers.get("Retry-After");
     let body: Record<string, unknown> | null = null;
     if (/json/.test(response.headers.get("Content-Type") ?? "")) {
       try {
@@ -72,10 +80,13 @@ export class ApiProblem extends Error {
     return new ApiProblem({
       status: response.status,
       type: text("type") ?? "about:blank",
-      title: text("title") ?? response.statusText ?? String(response.status),
+      title: text("title") ?? response.statusText,
       detail: text("detail"),
       violations: Array.isArray(body?.["violations"]) ? (body["violations"] as Violation[]) : [],
       requestId: requestId ?? text("instance"),
+      // Its delay-seconds (RFC 9110 §10.2.3), the only form kartenn sends; an HTTP-date
+      // is not read (`NaN`, a wait unknown).
+      retryAfter: wait === null ? null : +wait,
     });
   }
 }

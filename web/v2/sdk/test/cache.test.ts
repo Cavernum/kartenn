@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { InfiniteQueryObserver, QueryObserver } from "@tanstack/query-core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiProblem } from "../src/api/problem.ts";
 import { resetContext, setContext } from "../src/context.ts";
 import {
   CHILDREN_PAGES,
@@ -322,5 +323,90 @@ describe("reads (REQ-021-21, ADR 0037)", () => {
     await queryClient.refetchQueries({ queryKey: options.queryKey });
     await queryClient.refetchQueries({ queryKey: options.queryKey });
     expect(seen.map((r) => r.headers.get("If-None-Match"))).toEqual([null, null, '"1.a"']);
+  });
+});
+
+describe("refusals by load (task 021-11p10-b)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** A refusal of `status`, with its `Retry-After` if given. */
+  const refused = (status: number, retryAfter?: string) =>
+    new Response(JSON.stringify({ type: "urn:kartenn:problem:x", title: "x", status }), {
+      status,
+      headers: {
+        "Content-Type": "application/problem+json",
+        ...(retryAfter === undefined ? {} : { "Retry-After": retryAfter }),
+      },
+    });
+
+  /** A cache whose server gives the answers in order, then the prefix. */
+  function answering(...answers: Response[]) {
+    const cache = fakeCache(() => answers.shift() ?? json(prefix("10.0.0.0/24")));
+    const options = cache.reads.object("core.prefix", P1, null);
+    const observer = new QueryObserver(cache.queryClient, options);
+    const stop = observer.subscribe(() => {});
+    return { ...cache, observer, stop };
+  }
+
+  it.each([429, 503])(
+    "wait out a %i with its Retry-After, the read pending meanwhile, then show the data",
+    async (status) => {
+      const { observer, seen, stop } = answering(refused(status, "1"));
+      await vi.advanceTimersByTimeAsync(999);
+      expect(seen).toHaveLength(1);
+      expect(observer.getCurrentResult()).toMatchObject({
+        status: "pending",
+        fetchStatus: "fetching",
+        error: null,
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      expect(seen).toHaveLength(2);
+      expect(observer.getCurrentResult()).toMatchObject({ status: "success", error: null });
+      expect(observer.getCurrentResult().data?.data).toEqual(prefix("10.0.0.0/24"));
+      stop();
+    },
+  );
+
+  it.each([
+    ["a 401", refused(401, "1")],
+    ["a 403", refused(403, "1")],
+    ["a 404", refused(404, "1")],
+    ["a 412", refused(412, "1")],
+    ["a 422", refused(422, "1")],
+    ["a 429 without Retry-After", refused(429)],
+    ["a 429 asking more than five seconds", refused(429, "6")],
+    ["a 503 asking more than five seconds", refused(503, "6")],
+    ["a 429 whose Retry-After is an HTTP-date", refused(429, "Sun, 15 Nov 2026 08:00:00 GMT")],
+  ])("never read again after %s", async (_, answer) => {
+    const { observer, seen, stop } = answering(answer);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(seen).toHaveLength(1);
+    expect(observer.getCurrentResult()).toMatchObject({ status: "error" });
+    stop();
+  });
+
+  it("try three times at most, then show the last refusal", async () => {
+    const { observer, seen, stop } = answering(
+      refused(429, "1"),
+      refused(429, "1"),
+      refused(429, "1"),
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(seen).toHaveLength(3);
+    const { status, error } = observer.getCurrentResult();
+    expect(status).toBe("error");
+    expect(error).toBeInstanceOf(ApiProblem);
+    expect((error as ApiProblem).status).toBe(429);
+    stop();
+  });
+
+  it("never read again a read given up while it waits", async () => {
+    const { observer, queryClient, seen, stop } = answering(refused(429, "1"));
+    await vi.advanceTimersByTimeAsync(500);
+    await queryClient.cancelQueries({ queryKey: observer.getCurrentQuery().queryKey });
+    stop();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(seen).toHaveLength(1);
   });
 });
