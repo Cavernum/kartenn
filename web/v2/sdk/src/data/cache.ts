@@ -254,12 +254,19 @@ function retry(failures: number, error: unknown): boolean {
  * those of five seconds at most through), plus a jitter of up to a half of it, never less:
  * the reads refused together (the server rounds its wait up to the second) do not come back
  * in the same millisecond. Else 1 s, then 2 s, as before. Only an `ApiProblem` has one;
- * `random`, for the tests.
+ * `random`, for the tests. The jitter is drawn once per refusal: the reads of a batch refused
+ * together (`batch.ts`, one problem for all) go again at the same instant, in one batch.
  */
 export function retryDelay(failures: number, error: unknown, random = Math.random): number {
   const wait = (error as Partial<ApiProblem> | undefined)?.retryAfter;
-  return wait == null ? 2 ** failures * SECOND : wait * SECOND * (1 + random() / 2);
+  if (wait == null) return 2 ** failures * SECOND;
+  let delay = jitters.get(error as ApiProblem);
+  if (delay === undefined)
+    jitters.set(error as ApiProblem, (delay = wait * SECOND * (1 + random() / 2)));
+  return delay;
 }
+/** The wait drawn for each refusal, shared by the reads it refused. */
+const jitters = new WeakMap<ApiProblem, number>();
 
 /** A new `QueryClient` with the defaults of the SDK. */
 export function createQueryClient(): QueryClient {
@@ -407,6 +414,10 @@ export function createQueries({ client, queryClient }: CacheDeps) {
         queryFn: async (context) => {
           const alone = (signal: AbortSignal) => one.queryFn({ ...context, signal });
           const entry = (await batcher.load(path, id, key[5], context.signal, alone)) as Entry<T>;
+          // A batch goes without `If-None-Match`: the read asked unconditional is done.
+          unconditional.delete(
+            queryClient.getQueryCache().find({ queryKey: key, exact: true })?.queryHash ?? "",
+          );
           // An answer of a batch equal to the entry kept gives it back, as a 304 would.
           const kept = queryClient.getQueryData<Entry<T>>(key);
           return kept && kept !== entry && replaceEqualDeep(kept.data, entry.data) === kept.data

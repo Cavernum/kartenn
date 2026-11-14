@@ -30,6 +30,13 @@ interface Kept {
 export const BATCH_WINDOW = 10;
 /** The identifiers of one request at most (REQ-006-40). */
 export const BATCH_MAX = 200;
+/**
+ * The batches in flight at most, for the whole client: a fast scroll closes a window per
+ * frame, and a slow server would have them pile up past its shedding limit (REQ-006-30,
+ * twenty in flight). A window closed while none is free waits for one, still open to the
+ * reads that come (up to `BATCH_MAX`), its reads given up meanwhile gone before it leaves.
+ */
+export const BATCH_FLIGHTS = 4;
 
 /** A read waiting for its answer. */
 interface Member {
@@ -41,11 +48,15 @@ interface Member {
   batch: Batch;
 }
 
-/** The reads of a window, then of a request, by identifier. */
+/** The reads of a window, then of its request, by identifier. */
 interface Batch {
+  readonly group: string;
+  readonly collection: string;
+  readonly time: TimeKey;
   readonly members: Map<string, Set<Member>>;
-  /** The request under way, `null` while the window is open. */
+  /** The request under way, `null` while the window waits. */
   controller: AbortController | null;
+  timer: ReturnType<typeof setTimeout> | undefined;
 }
 
 /**
@@ -62,9 +73,12 @@ function leftOut(): ApiProblem {
 }
 
 /** The batcher over a client: `load` reads the properties of an object, batched. */
-export function createBatcher(client: Client, wait = BATCH_WINDOW) {
-  /** The windows open, by collection and dates. */
-  const open = new Map<string, Batch & { timer: ReturnType<typeof setTimeout> }>();
+export function createBatcher(client: Client, wait = BATCH_WINDOW, flights = BATCH_FLIGHTS) {
+  /** The windows that take reads still, by collection and dates. */
+  const open = new Map<string, Batch>();
+  /** The windows closed, waiting for a flight, oldest first. */
+  const due: Batch[] = [];
+  let flying = 0;
 
   /** A read leaves its batch: the request under way given up once no read waits for it. */
   function leave(member: Member, id: string): void {
@@ -75,25 +89,34 @@ export function createBatcher(client: Client, wait = BATCH_WINDOW) {
     if (batch.members.size === 0) batch.controller?.abort();
   }
 
-  /** The window of `group` closed: its reads sent, two hundred at a time. */
-  function close(group: string, collection: string, time: TimeKey): void {
-    const window = open.get(group);
-    if (!window) return;
-    open.delete(group);
-    clearTimeout(window.timer);
-    const ids = [...window.members.keys()];
-    for (let start = 0; start < ids.length; start += BATCH_MAX) {
-      const batch: Batch = { members: new Map(), controller: new AbortController() };
-      for (const id of ids.slice(start, start + BATCH_MAX)) {
-        const members = window.members.get(id)!;
-        for (const member of members) member.batch = batch;
-        batch.members.set(id, members);
-      }
-      void send(batch, collection, time);
+  /** The window closed (its delay out, or full): sent once a flight is free. */
+  function close(batch: Batch): void {
+    clearTimeout(batch.timer);
+    batch.timer = undefined;
+    if (!due.includes(batch)) due.push(batch);
+    if (batch.members.size >= BATCH_MAX && open.get(batch.group) === batch) {
+      open.delete(batch.group);
+    }
+    pump();
+  }
+
+  /** The windows due sent while flights are free; one emptied meanwhile, dropped. */
+  function pump(): void {
+    while (flying < flights && due.length > 0) {
+      const batch = due.shift()!;
+      if (open.get(batch.group) === batch) open.delete(batch.group);
+      if (batch.members.size === 0) continue;
+      flying++;
+      batch.controller = new AbortController();
+      void send(batch).finally(() => {
+        flying--;
+        pump();
+      });
     }
   }
 
-  async function send(batch: Batch, collection: string, time: TimeKey): Promise<void> {
+  async function send(batch: Batch): Promise<void> {
+    const { collection, time } = batch;
     const signal = batch.controller!.signal;
     const ids = [...batch.members.keys()];
     const settle = (id: string, done: (member: Member) => void) => {
@@ -151,10 +174,18 @@ export function createBatcher(client: Client, wait = BATCH_WINDOW) {
       const group = `${collection}\n${time.valid_at ?? ""}\n${time.as_of ?? ""}`;
       let window = open.get(group);
       if (!window) {
-        const timer = setTimeout(() => close(group, collection, time), wait);
-        window = { members: new Map(), controller: null, timer };
-        open.set(group, window);
+        const batch: Batch = {
+          group,
+          collection,
+          time,
+          members: new Map(),
+          controller: null,
+          timer: undefined,
+        };
+        batch.timer = setTimeout(() => close(batch), wait);
+        open.set(group, (window = batch));
       }
+      const into = window;
       return new Promise<Kept>((resolve, reject) => {
         const member: Member = {
           resolve: (entry) => {
@@ -166,18 +197,18 @@ export function createBatcher(client: Client, wait = BATCH_WINDOW) {
             reject(error);
           },
           alone,
-          batch: window,
+          batch: into,
         };
         const dropped = () => {
           leave(member, id);
           reject(signal.reason);
         };
         signal.addEventListener("abort", dropped, { once: true });
-        const members = window.members.get(id) ?? new Set();
+        const members = into.members.get(id) ?? new Set();
         members.add(member);
-        window.members.set(id, members);
-        // A full window goes at once.
-        if (window.members.size >= BATCH_MAX) close(group, collection, time);
+        into.members.set(id, members);
+        // A full window goes at once (or first, once a flight is free).
+        if (into.members.size >= BATCH_MAX) close(into);
       });
     },
   };

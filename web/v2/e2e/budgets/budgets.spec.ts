@@ -8,7 +8,7 @@ import {
   type Request,
 } from "@playwright/test";
 import { benchPage, framed, heap, quantile, settle, timed, type Frames } from "../bench/measure.ts";
-import { BASE_URL, readsOf, STATE } from "../fixtures/env.ts";
+import { BASE_URL, isBatch, readsOf, STATE } from "../fixtures/env.ts";
 import { loginIn } from "../fixtures/journeys.ts";
 import { OTHER_DOMAIN } from "./global-setup.ts";
 
@@ -551,9 +551,13 @@ function freshReads(page: Page): (path: string) => boolean {
   page.on("requestfailed", (request) => add(request, -1));
   page.on("requestfinished", (request) => {
     // Its status known before it leaves the reads under way.
-    void request.response().then((response) => {
+    void request.response().then(async (response) => {
       if (response && response.status() < 400) {
-        for (const path of pathsOf(request)) answered.set(path, Date.now());
+        // A batch answers the objects of its items alone: one left out is not fresh.
+        const items = isBatch(request.url())
+          ? ((await response.json()) as { items: { id: string }[] }).items
+          : undefined;
+        for (const path of readsOf(request.url(), items)) answered.set(path, Date.now());
       }
       add(request, -1);
     });

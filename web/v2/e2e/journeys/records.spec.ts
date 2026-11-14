@@ -568,7 +568,21 @@ test("a network of the list hovered reads its record alone, its properties read 
     .toEqual(
       expect.arrayContaining([`/v1/prefixes/${container}`, `/v1/prefixes/${container}/properties`]),
     );
-  expect((await hovered(DATA.prefix, net))()).toEqual([`/v1/prefixes/${net}`]);
+  /**
+   * Past the window of the batches, without a bare delay: the page sends a sentinel read on
+   * a timer set after any window open (the timers of the page go in order of their end), and
+   * the requests are seen in the order sent: once the sentinel seen, a batch due is seen too.
+   */
+  const pastTheWindow = async () => {
+    const sentinel = page.waitForRequest((r) => r.headers()["x-sentinel"] === "1");
+    await page.evaluate(() => {
+      setTimeout(() => void fetch("/v1/me", { headers: { "X-Sentinel": "1" } }), 50);
+    });
+    await sentinel;
+  };
+  const ofNet = await hovered(DATA.prefix, net);
+  await pastTheWindow();
+  expect(ofNet()).toEqual([`/v1/prefixes/${net}`]);
   const from = reads.length;
   await grid.getByRole("link", { name: DATA.prefix, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/prefixes/${net}$`));
@@ -576,6 +590,7 @@ test("a network of the list hovered reads its record alone, its properties read 
   // In cache: the screen reads neither the record nor its properties again (its panels
   // beside, the occupancy and the plugins', are no reads of its route).
   const again = [`/v1/prefixes/${net}`, `/v1/prefixes/${net}/properties`];
+  await pastTheWindow();
   expect(reads.slice(from).filter((path) => again.includes(path))).toEqual([]);
 });
 

@@ -109,8 +109,12 @@ describe("the properties of a list read by window (task 021-11p10-c)", () => {
     await router.isReady();
     const cell = (i: number) =>
       document.querySelector(`[data-row="${id(i)}"][data-column="prop.custom.zone"]`);
-    await expect.poll(() => cell(60)?.textContent).toContain(`zone ${id(60).slice(-3)}`);
-    await expect.poll(() => cell(1)?.textContent).toContain(`zone ${id(1).slice(-3)}`);
+    // The whole shell mounted: slow when every file of the suite runs at once.
+    const shown = { timeout: 10_000 };
+    await expect
+      .poll(() => cell(60)?.textContent ?? "", shown)
+      .toContain(`zone ${id(60).slice(-3)}`);
+    await expect.poll(() => cell(1)?.textContent ?? "", shown).toContain(`zone ${id(1).slice(-3)}`);
     const properties = sent.filter((url) => url.includes("/properties"));
     expect(properties).toHaveLength(1);
     expect(new URL(properties[0]!, "http://localhost").searchParams.getAll("id")).toHaveLength(

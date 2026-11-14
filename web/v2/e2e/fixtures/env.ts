@@ -10,11 +10,16 @@ export const STATE = fileURLToPath(new URL("../../../e2e/.state/", import.meta.u
 /**
  * The reads a request makes, by path: a batch of properties (`/v1/<c>/properties?id=…`,
  * REQ-006-40, task 021-11p10-c) reads `/v1/<c>/<id>/properties` for each of its `id`; any
- * other request, its path.
+ * other request, its path. Given the `items` of its answer, a batch reads those only: an
+ * object it leaves out is not read.
  */
-export function readsOf(url: string): string[] {
+export function readsOf(url: string, items?: readonly { id: string }[]): string[] {
   const { pathname, searchParams } = new URL(url);
   const batch = /^(\/v1\/[a-z-]+)\/properties$/.exec(pathname);
   if (!batch) return [pathname];
-  return searchParams.getAll("id").map((id) => `${batch[1]}/${id}/properties`);
+  const ids = items ? items.map((item) => item.id) : searchParams.getAll("id");
+  return ids.map((id) => `${batch[1]}/${id}/properties`);
 }
+
+/** Whether a request is a batch of properties (`readsOf`). */
+export const isBatch = (url: string) => /^\/v1\/[a-z-]+\/properties$/.test(new URL(url).pathname);

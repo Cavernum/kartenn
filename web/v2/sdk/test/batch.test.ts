@@ -3,12 +3,14 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { QueryObserver } from "@tanstack/query-core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "../src/api/client.ts";
 import { ApiProblem } from "../src/api/problem.ts";
 import { resetContext } from "../src/context.ts";
-import { BATCH_MAX } from "../src/data/batch.ts";
+import { BATCH_FLIGHTS, BATCH_MAX, createBatcher } from "../src/data/batch.ts";
 import type { Entry } from "../src/data/cache.ts";
-import { fakeCache, json, notModified, type Seen } from "./helpers.ts";
+import { timeKey } from "../src/data/keys.ts";
+import { fakeCache, fakeServer, json, notModified, problem, type Seen } from "./helpers.ts";
 
 // The reads of resolved properties batched by window (task 021-11p10-c, REQ-006-40): one
 // request per collection and dates, two hundred identifiers at most, each answer kept under
@@ -45,6 +47,10 @@ function batches(
     });
   });
 }
+
+/** A batch answered, every identifier asked in it. */
+const answered = (ids: readonly string[]) =>
+  json({ items: ids.map((one) => ({ id: one, ...resolved("est") })) });
 
 const batchesOf = (seen: readonly Seen[]) => seen.filter((request) => asked(request) !== null);
 
@@ -199,5 +205,130 @@ describe("the reads of properties batched (task 021-11p10-c)", () => {
     await queryClient.refetchQueries({ queryKey: options.queryKey });
     expect(seen).toHaveLength(2);
     expect(queryClient.getQueryData(options.queryKey)).toBe(first);
+  });
+});
+
+describe("a batch refused goes again as one batch (task 021-11p10-c)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const refusal = (status: number) =>
+    new Response(JSON.stringify({ type: "urn:kartenn:problem:x", title: "x", status }), {
+      status,
+      headers: { "Content-Type": "application/problem+json", "Retry-After": "1" },
+    });
+  type Answer = (ids: readonly string[]) => Response;
+
+  /** A hundred rows observed over a server giving `answers` to its batches in turn. */
+  function hundred(...answers: Answer[]) {
+    const cache = fakeCache((request) => (answers.shift() ?? answered)(asked(request)!));
+    const options = Array.from({ length: 100 }, (_, i) =>
+      cache.reads.sub("core.prefix", id(i), "properties"),
+    );
+    const observers = options.map((one) => new QueryObserver(cache.queryClient, one));
+    const stops = observers.map((observer) => observer.subscribe(() => {}));
+    const sizes = () => batchesOf(cache.seen).map((request) => asked(request)!.length);
+    return { ...cache, options, observers, sizes, stop: () => stops.forEach((s) => s()) };
+  }
+
+  it("a 429 Retry-After: 1 every time: three batches of 100, then the refusal on each row", async () => {
+    const { observers, seen, sizes, stop } = hundred(
+      () => refusal(429),
+      () => refusal(429),
+      () => refusal(429),
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sizes()).toEqual([100, 100, 100]);
+    expect(seen).toHaveLength(3);
+    const results = observers.map((observer) => observer.getCurrentResult());
+    expect(results.every((result) => (result.error as ApiProblem | null)?.status === 429)).toBe(
+      true,
+    );
+    stop();
+  });
+
+  it.each([
+    ["a 429", () => refusal(429)],
+    ["a 503", () => refusal(503)],
+    ["a 500", () => problem(500, "internal")],
+  ] as [string, () => Response][])(
+    "%s, then the answer: one batch read again, every row shown",
+    async (_, first) => {
+      const { observers, sizes, stop } = hundred(first);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sizes()).toEqual([100, 100]);
+      expect(observers.every((o) => o.getCurrentResult().status === "success")).toBe(true);
+      stop();
+    },
+  );
+
+  it("a failure of the network, then the answer: one batch read again", async () => {
+    let failed = false;
+    const { observers, sizes, stop } = hundred((ids) => {
+      if (failed) return answered(ids);
+      failed = true;
+      throw new TypeError("network");
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sizes()).toEqual([100, 100]);
+    expect(observers.every((o) => o.getCurrentResult().status === "success")).toBe(true);
+    stop();
+  });
+
+  it("a read given up while the batch waits its Retry-After: the batch again without it", async () => {
+    const { queryClient, options, sizes, stop } = hundred(() => refusal(429));
+    await vi.advanceTimersByTimeAsync(500);
+    await queryClient.cancelQueries({ queryKey: options[42]!.queryKey });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sizes()).toEqual([100, 99]);
+    stop();
+  });
+});
+
+describe("the batches in flight, bounded (task 021-11p10-c)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("thirty windows under a latency of 500 ms: four batches in flight at most, rows given up never asked", async () => {
+    let flying = 0;
+    let most = 0;
+    const abandoned = new Set<string>();
+    const askedAfterAbandon: string[] = [];
+    const server = fakeServer(async (request) => {
+      const ids = asked(request)!;
+      askedAfterAbandon.push(...ids.filter((one) => abandoned.has(one)));
+      most = Math.max(most, ++flying);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      flying--;
+      return answered(ids);
+    });
+    const batcher = createBatcher(createClient({ fetch: server.fetch }));
+    const alone = () => Promise.reject(new Error("never alone here"));
+    const frames: AbortController[][] = [];
+    const reads: Promise<unknown>[] = [];
+    for (let frame = 0; frame < 30; frame++) {
+      // A frame of a fast scroll: twenty rows come in view, those of two frames ago leave.
+      const controllers = Array.from({ length: 20 }, (_, i) => {
+        const controller = new AbortController();
+        const row = id(frame * 20 + i);
+        reads.push(
+          batcher
+            .load("/v1/prefixes", row, timeKey(null), controller.signal, alone)
+            .catch(() => {}),
+        );
+        controller.signal.addEventListener("abort", () => abandoned.add(row));
+        return controller;
+      });
+      frames.push(controllers);
+      for (const controller of frames[frame - 2] ?? []) controller.abort();
+      await vi.advanceTimersByTimeAsync(16);
+    }
+    await vi.advanceTimersByTimeAsync(10_000);
+    await Promise.all(reads);
+    expect(most).toBeLessThanOrEqual(BATCH_FLIGHTS);
+    expect(askedAfterAbandon).toEqual([]);
+    // The rows of the last frames, never given up, all read.
+    const sent = server.seen.flatMap((request) => asked(request)!);
+    expect(sent).toEqual(expect.arrayContaining(frames.at(-1)!.map((_, i) => id(29 * 20 + i))));
   });
 });
