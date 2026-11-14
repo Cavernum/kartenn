@@ -1810,6 +1810,77 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     propertyColumns.ts`, `views/edit/`), `crates/kartenn-rest/src/quota.rs` (`Rates`),
     `web/v2/e2e/kartenn.toml`
   - dépend de : 11p9
+- [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
+  le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
+  échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de
+  `core.vlan.vid_out_of_range`, `:194`), `tree.spec.ts:28` (rang 200 au plus, `:69`), et
+  `vlan.spec.ts:273`, `tree.spec.ts:88, 116, 182, 226` dont la connexion n'aboutit pas
+  (`loginIn`) — établir produit ou test pour chacun, preuves à l'appui (traces Playwright,
+  journal du serveur), corriger la cause, test rouge d'abord pour un défaut du produit ;
+  ni `retries`, ni délai allongé, ni plafond relevé — verify : `vlan.spec.ts` et
+  `tree.spec.ts` dix passages verts de suite sous Firefox ; `k-web2-e2e` complet vert sous
+  les deux navigateurs ; `k-web2-check --base main`
+  - où : `web/v2/e2e/serve.sh` (sortie du serveur gardée), `web/v2/e2e/journeys.config.ts`,
+    `e2e/fixtures/journeys.ts` (`loginIn`, `atRest`), `journeys/{vlan,tree}.spec.ts` ;
+    `crates/kartenn-rest/src/quota.rs` (`shed`, plafond des requêtes en vol, REQ-006-30) ;
+    suspects du jour : 22o-b (`fd7560b1`, `ui/src/components/DataGrid/internal/
+    cellReasons.ts`), 22e-c (`f9ec0616`, `TreeGrid` : `factsOf`, `stopIn`), 11p9
+    (`3259fc44`, `shell/src/prefetch/nextPage.ts`)
+  - dépend de : 11p9
+  - fait le 2026-11-14 — une cause du serveur pour les sept, aucune des suspectes du jour ;
+    une course de test vue en route :
+    - pool empoisonné (produit, `kartenn-store-pg`) : sqlx 0.9.0 oublie une transaction
+      dont le `BEGIN` est lâché pendant qu'il attend la base (la garde de
+      `PgTransactionManager::begin` ne prévoit le `ROLLBACK` qu'à une profondeur qu'elle
+      n'a pas encore montée) ; le ping de la remise au pool envoie le `BEGIN`, et le pool
+      prête une connexion dans une transaction. Une requête dont le client s'en va (hyper
+      lâche le futur de son gestionnaire) suffit. Preuves, passage complet relancé à
+      a1e2ca10 avec le journal du serveur gardé : à 11:08:21 `audit.write.failed` « cannot
+      execute INSERT in a read-only transaction » (une connexion restée dans la
+      transaction `REPEATABLE READ, READ ONLY` de `read::consistent`), puis 1 600 refus
+      « current transaction is aborted » (`http.store.failed`, `events.reader.failed`,
+      `job.*`, `authn.unavailable`) jusqu'à la fin ; `pg_stat_activity` : une session
+      `idle in transaction (aborted)` dont la dernière requête est `BEGIN` ; 52 échecs des
+      deux navigateurs à mi-course (connexions, lectures en 503). Le 1 (refus du VID rendu
+      en 503 au lieu de 422) et le 2 (page suivante refusée) en sont des suites : non revus
+      en 140 passages après le correctif. Correctif : `transaction::{begin, begin_with}`
+      (`kartenn-store-pg/src/transaction.rs`), le `BEGIN` dans une tâche à part qu'un
+      appelant lâché n'annule pas ; tous les `Pool::begin` du crate et celui de
+      `kartenn-kube/src/rest.rs` y passent. Test d'abord rouge
+      (`tests/it/transactions.rs`) : `read::consistent` et `Pool::begin` lâchés après trois
+      sondages laissent leur connexion dans la transaction (`now()` figé entre deux
+      requêtes).
+    - contraste lu en plein fondu (test, Firefox, 2 sur 70 de `vlan.spec.ts:102`, une fois
+      `machines.spec.ts:309`) : « Appliquer » du brouillon, désactivé tant que la simulation
+      n'est pas venue (demandée une demi-seconde après un chargement, après les plugins),
+      s'activait pendant qu'axe lisait ; contraste 1,2 et 1,34 lus à mi-chemin des 80 ms
+      du fondu (`.k-button`, `transition`). Instrumentation dans la page (fetch, attributs
+      du bouton, `transitionrun`) : la bascule et le fondu après la mise au repos de
+      `expectAccessible`. Correctif : `expectAccessible` coupe les transitions le temps
+      qu'axe lise (feuille construite, que la CSP admet, retirée après) ; un état qui
+      change alors prend ses couleurs d'un coup.
+    - `web/v2/e2e/serve.sh` garde la sortie du serveur des parcours
+      (`web/e2e/.state/kartenn-v2.log`, jusqu'au passage suivant).
+    Passages : `vlan.spec.ts` et `tree.spec.ts` dix fois de suite sous Firefox, 70 sur 70 ;
+    `k-web2-e2e` complet 285 verts (3 ignorés), journal du serveur sans un refus ;
+    `k-check` 1 420 ; `k-web2-check --base main` (tout, la fixture le demande).
+  - choix : le `BEGIN` dans une tâche plutôt qu'un correctif de sqlx (`[patch]`, une
+    dépendance) ou une vérification à chaque remise au pool (un aller-retour de plus) ;
+    `kartenn-bench` et `kartenn-testing` gardent `Pool::begin` (aucun futur lâché) ;
+    transitions coupées dans `expectAccessible` plutôt qu'une attente propre à chaque
+    parcours (toute bascule tardive y passait).
+  - reste :
+    - **arbitrage** : le plafond des requêtes en vol (REQ-006-30, 20 par défaut, deux fois
+      le pool) est franchi par un seul écran : la tournée de `accessibility.spec.ts:118`
+      envoie 66 `GET /v1/addresses/{id}` à la fois après la lecture d'un préfixe (trace,
+      `time` de chaque requête). Au départ à froid d'un passage complet, 65 refus en 3 s
+      (`http.request` 503) ; une fois, le rappel `/v1/auth/callback` d'une connexion
+      d'`admin.spec.ts:419` (Chromium) pris dedans, la connexion perdue. Même famille que
+      la 11p10 (une lecture par ligne) : lectures par lots, plafond de concurrence dans le
+      SDK, ou taille du plafond.
+    - rapporter le défaut de `TransactionManager::begin` à sqlx ; une règle
+      `clippy::disallowed_methods` sur `Pool::begin` attendrait que les tests aient leur
+      exception.
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
