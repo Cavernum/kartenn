@@ -1,14 +1,24 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
-import { apiCall, atRest, DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import {
+  apiCall,
+  atRest,
+  DATA,
+  expect,
+  expectAccessible,
+  ownedDomain,
+  test,
+} from "../fixtures/journeys.ts";
 
 // Accessibility end to end of the new shell (spec 021, task 21a; REQ-021-29), ported from
 // web/e2e/journeys/accessibility.spec.ts and the guards of web/e2e/journeys/smoke.spec.ts:
 // every journey runs axe (checked by the coverage test below), every screen of the shell
 // passes it, one journey goes through the tree, a table, an action menu and a dialog by the
 // keyboard alone; and the guards of the fixtures fail a journey, axe by its violation, the
-// CSP by an inline script.
+// CSP by an inline script. Task 21b adds the rest of REQ-021-29: an in-place edit, the
+// draft panel, the palette and the collapsed sidebar by the keyboard alone, and every
+// screen of consultation read at 320 px without scrolling sideways.
 
 const JOURNEYS = fileURLToPath(new URL(".", import.meta.url));
 const SPACES = fileURLToPath(new URL("../../shell/src/frame/spaces.ts", import.meta.url));
@@ -140,6 +150,76 @@ test("every screen of the shell passes axe", async ({ page, login, context, brow
   await expectAccessible(page);
 });
 
+/**
+ * What scrolls sideways in the page at its width (WCAG 1.4.10): the document, or a region
+ * that scrolls in its own box, the grids excepted (data tables, note 2 of 1.4.10; each is a
+ * named region that scrolls, design 020 « Adaptation à la largeur »). A region cut with
+ * `overflow: hidden` is not counted (an ellipsis says its text by its tooltip).
+ */
+async function sideways(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const root = document.documentElement;
+    if (root.scrollWidth > root.clientWidth + 1) {
+      out.push(`the page: ${root.scrollWidth} > ${root.clientWidth}`);
+    }
+    const grids = "[role='grid'], [role='treegrid']";
+    for (const element of document.querySelectorAll<HTMLElement>("body *")) {
+      if (element.closest(grids) || element.clientWidth === 0) continue;
+      if (!/auto|scroll/.test(getComputedStyle(element).overflowX)) continue;
+      if (element.scrollWidth <= element.clientWidth + 1) continue;
+      const name = [
+        element.tagName.toLowerCase(),
+        element.id ? `#${element.id}` : "",
+        ...[...element.classList].map((c) => `.${c}`),
+      ].join("");
+      out.push(`${name}: ${element.scrollWidth} > ${element.clientWidth}`);
+    }
+    return out;
+  });
+}
+
+// Reflow (REQ-021-29, WCAG 1.4.10): every screen of consultation reads at 320 px wide (the
+// compact class) without scrolling sideways, outside its grids.
+test("every screen of consultation reads at 320 px without scrolling sideways", async ({
+  page,
+  login,
+  context,
+  browserName,
+}) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 320, height: 900 });
+  // Alice reads every space, the administration included.
+  await login("alice");
+  const records = (
+    await Promise.all(RECORDS.map(([collection, route]) => firstRecord(page, collection, route)))
+  ).filter((record) => record !== null);
+  expect(records.length).toBeGreaterThanOrEqual(5);
+  const found: Record<string, string[]> = {};
+  for (const screen of [
+    ...entries(),
+    ...records,
+    "/x/example/overview",
+    "/help/shortcuts",
+    "/about",
+  ]) {
+    await test.step(screen, async () => {
+      await page.goto(screen);
+      await atRest(page);
+      await drawn(page);
+      const wide = await sideways(page);
+      if (wide.length > 0) found[screen] = wide;
+    });
+  }
+  // And the page that leads to them all, out of the session.
+  await context.clearCookies();
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
+  const login320 = await sideways(page);
+  if (login320.length > 0) found["/login"] = login320;
+  expect(found, `at 320 px under ${browserName}`).toEqual({});
+});
+
 /** Whether the focus is on `target` or inside it. */
 const holdsFocus = (target: Locator) =>
   target.evaluate((element) => element.contains(document.activeElement));
@@ -241,6 +321,128 @@ test("the tree, a table, an action menu and a dialog by the keyboard alone", asy
   await expect(page).toHaveURL(/\/addresses\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("heading", { level: 1, name: titled(address) })).toBeVisible();
   await expectAccessible(page);
+});
+
+/** The id of the draft active in the page's tab (the SDK keeps it), `null` if none. */
+const activeDraft = (page: Page) =>
+  page.evaluate(() => {
+    const key = "kartenn.draft.active";
+    return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+  });
+
+// The rest of REQ-021-29 at the keyboard alone (task 21b): an in-place edit, the draft
+// panel it fills, the palette and the collapsed sidebar, axe at each step. The edit goes to
+// the draft, removed from the panel then dropped: nothing is written; its domain is its own
+// (RFC 5737, TEST-NET-2), after `production` in the order of the slugs.
+test("an in-place edit, the draft panel, the palette and the collapsed sidebar by the keyboard alone", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  test.setTimeout(120_000);
+  await login("alice");
+  const { slug } = await ownedDomain(page, `zz-a11y-${browserName}-${Date.now().toString(36)}`);
+
+  // In place: the grid is one tab stop, on its first header; down to the row, Enter opens
+  // the editor of its value, Enter adds the new value to the draft.
+  await page.goto(`/prefixes?domain=${slug}`);
+  await atRest(page);
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  const value = grid.locator('[role="gridcell"][data-column="value"]').first();
+  await expect(value).toContainText("198.51.100.0/24");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Aller au contenu" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await tabTo(page, grid);
+  await expect(page.locator(":focus")).toHaveAttribute("role", "columnheader");
+  await page.keyboard.press("ArrowDown");
+  expect(await holdsFocus(value)).toBe(true);
+  await page.keyboard.press("Enter");
+  const editor = grid.getByRole("textbox", { name: /^Valeur — / });
+  await expect(editor).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("198.51.100.0/25");
+  await page.keyboard.press("Enter");
+  await expect(value).toHaveAttribute("data-state", "draft");
+  // The focus stays on the cell, back from its editor.
+  expect(await holdsFocus(value)).toBe(true);
+  const draft = await activeDraft(page);
+  expect(draft, "the draft the edit went to").not.toBeNull();
+
+  // The draft panel: back to its counter, Enter opens the panel on its tab; the operation's
+  // remove button reached by Tab, Enter removes it; Escape closes the panel, the focus back
+  // on the counter.
+  const counter = page.getByRole("button", { name: /^Brouillon\s*\d+\s*opérations?$/ });
+  await expect(counter).toHaveAccessibleName(/^Brouillon\s*1\s*opération$/);
+  await tabTo(page, counter, "Shift+Tab");
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("complementary", { name: "Panneau droit" });
+  await expect(panel.getByRole("tab", { name: /^Brouillon/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(counter).toHaveAttribute("aria-expanded", "true");
+  const remove = panel.getByRole("button", { name: /^Retirer l'opération 1 : / });
+  await tabTo(page, remove);
+  await expectAccessible(page);
+  await page.keyboard.press("Enter");
+  // Its button gone, the focus goes to the sentence that says the draft empty.
+  await expect(
+    panel.locator("p[tabindex='-1']", { hasText: "Le brouillon est vide" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(panel.getByRole("tab")).toHaveCount(0);
+  await expect(counter).toBeFocused();
+  await expect(counter).toHaveAccessibleName(/^Brouillon\s*0\s*opérations?$/);
+  await expect(value).not.toHaveAttribute("data-state", "draft");
+
+  // The palette: Ctrl+K puts the focus in its field, Escape gives it back; open again, a
+  // page by its name, the arrows move the choice, Enter follows it.
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+  const field = palette.getByRole("combobox");
+  await expect(field).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await expect(counter).toBeFocused();
+  await page.keyboard.press("Control+k");
+  await page.keyboard.type("adresses");
+  const option = palette.getByRole("option", { name: /Adresses/ }).first();
+  await expect(option).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await expect(option).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(palette).toBeHidden();
+  await expect(page).toHaveURL(/\/addresses$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Adresses" })).toBeVisible();
+
+  // The sidebar collapsed by its toggle, at the keyboard (`aria-expanded` says its state):
+  // its links keep their names, an icon each; one reached by Shift+Tab, Enter follows it;
+  // the toggle, reached by Tab, opens it again.
+  const navigation = page.getByRole("navigation", { name: "Navigation principale" });
+  const toggle = navigation.getByRole("button", { name: "Barre latérale" });
+  await tabTo(page, toggle, "Shift+Tab");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Enter");
+  await expect(navigation).toHaveAttribute("data-state", "collapsed");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+  const prefixes = navigation.getByRole("link", { name: "Préfixes" });
+  await expect(prefixes).toBeVisible();
+  await tabTo(page, prefixes, "Shift+Tab");
+  await expectAccessible(page);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/prefixes$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Préfixes" })).toBeVisible();
+  await expect(navigation).toHaveAttribute("data-state", "collapsed");
+  await tabTo(page, toggle);
+  await page.keyboard.press("Enter");
+  await expect(navigation).toHaveAttribute("data-state", "expanded");
+
+  if (draft) await dropDraft(page, draft);
 });
 
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
