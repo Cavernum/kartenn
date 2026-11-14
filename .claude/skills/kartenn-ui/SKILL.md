@@ -189,9 +189,11 @@ commande ou dialogue : `rankedRefusal` (`time/index.ts`) — la raison durable (
 objet livré, portée, rien où agir), puis l'état (déjà au brouillon, auteur seul, retenu par
 une politique, brouillon vide ou en erreur), puis la porte (`past` avant `narrow`) ; le rang
 ne change que la phrase, jamais ce qui est refusé. `allowed` et `why` d'une vue ne lisent que
-les deux premiers : la palette garde la commande que la porte seule retient. Un dialogue ou un formulaire ouvert quand la fenêtre passe sous
-1024 px reste ouvert, sa saisie gardée : sa confirmation est refusée avec le motif (bouton
-`reason`, et le refus redit si elle part quand même, par Entrée) ; élargie, elle repart.
+les deux premiers : la palette garde la commande que la porte seule retient ; relu au moment
+d'agir, le refus est celui que l'action dessine (son droit à elle). Un dialogue ou un
+formulaire ouvert quand la fenêtre passe sous 1024 px reste ouvert, sa saisie gardée : sa
+confirmation est refusée avec le motif (bouton `reason`, et le refus redit si elle part
+quand même, par Entrée) ; élargie, elle repart.
 
 ## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
 

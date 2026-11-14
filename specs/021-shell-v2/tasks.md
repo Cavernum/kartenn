@@ -7256,20 +7256,30 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     déclaration non lue, le réglage ou le retrait déjà au brouillon, puis la date et la
     largeur), `refusal` (`AnomalyGrid.vue`), `actions` et `begin` du panneau d'édition
     (`views/edit/action.ts` : le droit avant la largeur et la date) ; `addIn` et `gateOpen`
-    relisent au moment d'agir la raison classée (droit puis porte), sur le nœud que
-    l'appelant a jugé. Tests :
+    relisent au moment d'agir la raison classée (droit puis porte) que l'action dessine :
+    `addIn` sur le nœud que l'appelant a jugé, `gateOpen(refus)` avec le refus du bouton
+    qui l'appelle (« Modifier » `editBlocked`, « Changer de parent… » `moveRefusal`,
+    « Clore… » `closeRefusal`, « Créer un VLAN » `vlanBlocked` : `core.vlan.edit`, pas le
+    droit de modifier le groupe, correction de la revue) ; une raison vide ne compte pas
+    (`rankedRefusal`). Tests :
     `rank.test.ts` (chaque fonction contre son code de main à 5dffa02a recopié en oracle,
     pour toute combinaison de droit, période, largeur, auteur et politique : mêmes refus,
     seule la phrase change ; aucune décision de changeset offerte qui ne l'était pas),
     `record-gate.test.ts` (Topographie montée, quatre cas : « + », cellule, `c` et palette
-    disent la même raison), `moves.test.ts` (cycle et droit avant la largeur, nœud non
-    marqué), `action.test.ts` (panneau à l'étroit sans `approval.self` : « Appliquer » dit
+    disent la même raison ; la fiche montée : « Créer un VLAN » d'un groupe avec
+    `core.vlan.edit` seul s'ouvre, sans lui refusé par lui, rétréci au moment d'agir refusé
+    puis dit la largeur ; « Modifier », « Changer de parent… », « Clore… » d'une entité dans
+    les quatre cas, la relecture prouvée nécessaire : sans elle, les cas rétrécis au moment
+    d'agir ouvrent le panneau), `moves.test.ts` (cycle et droit avant la largeur, nœud non
+    marqué ; `canMove` contre l'oracle de main pour cinq couples, deux jeux de droits, deux
+    périodes, quatre largeurs), `rank.test.ts` (`editability` avec un motif `own`, une
+    raison vide), `action.test.ts` (panneau à l'étroit sans `approval.self` : « Appliquer » dit
     le droit, « Brouillon » la largeur) ; attentes changées : `refused-keys.test.ts` (`c`
     de la Topographie sans domaine sous `as_of` : « aucun domaine » ; `c` et `e` d'un
-    lecteur sous `as_of` : le droit, plus le passé), `shortcuts.test.ts` (`e` sans le droit sous `as_of` et
-    à l'étroit dit le droit), `edit.test.ts` (cellule sans le droit sous `as_of` et à
-    l'étroit : le droit), `moves.test.ts` (« Changer de parent… » sans le droit à l'étroit :
-    le droit), `changesets.test.ts` (« Retirer » d'un relecteur : `author` au passé et à
+    lecteur sous `as_of` : le droit, plus le passé), `shortcuts.test.ts` (`e` sans le
+    droit sous `as_of` et à l'étroit dit le droit), `edit.test.ts` (cellule sans le droit
+    sous `as_of` et à l'étroit : le droit), `moves.test.ts` (« Changer de parent… » sans
+    le droit à l'étroit : le droit), `changesets.test.ts` (« Retirer » d'un relecteur : `author` au passé et à
     l'étroit ; « Valider » de l'auteur retenu : `held` avant la largeur, le droit
     `approval.self` avant `held` ; « Annuler » sans `.edit` : le droit), parcours
     `changesets.spec.ts` à 420 px (« Retirer » dit l'auteur, plus la largeur ; « Valider »
