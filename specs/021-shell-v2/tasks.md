@@ -6953,7 +6953,15 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `shell/test/list-grid-work.test.ts` (la liste des adresses : un pas de flèche et un
       appui sur un lien, au plus deux lignes, quatre liens et 18 appels d'`editability`, au
       lieu de toute la grille, 100 liens et 552 appels). JS d'un pas dans la sonde : 3,3 ms en
-      médiane contre 15 à 20.
+      médiane contre 15 à 20. Passes réduites filtrées (`bench-web small -g …`, indicatives :
+      l'agent 11p9 tenait les deux créneaux et le verrou `pg` aux deux dernières, charge 3 à
+      6) : flèche bas dans une grille p75 28,6 ms, médiane 15,7, pire 41,2 (104,9 ; 65,1 ;
+      114,6 à la seconde passe de la session principale), créneaux libres au départ ;
+      navigation en cache p75 85,9 ms, médiane 79,4, pire 232,6, CLS 0,001 (115,5 ; 112,2 ;
+      364,1) ; page de 100 lignes p95 238,2 ms, médiane 96,7, pire 361,4 (257,2 ; 106,2 ;
+      401,8) : **budget toujours dépassé**, l'arrivée d'une page monte ses cent lignes et la
+      table des phrases cachées relit toutes les cellules (22f). Shell initial 297,0 Ko
+      (296,1 ; budget 300).
     - choix : composant de ligne plutôt que différer `active` après le `click` (la
       seconde option, qui profite aux flèches et aux pages) ; emplacements transmis par le
       gabarit plutôt que lus par le contexte (aucune ligne périmée quand l'hôte refait ses
