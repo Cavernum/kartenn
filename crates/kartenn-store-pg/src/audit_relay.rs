@@ -60,7 +60,7 @@ pub async fn relay_once<S: AuditSink>(
     sink: &S,
     batch: i64,
 ) -> Result<usize, RelayError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     match relay_in(&mut tx, sink, batch).await {
         Ok(relayed) => {
             tx.commit().await.map_err(store_err)?;

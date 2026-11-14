@@ -50,7 +50,7 @@ pub async fn create(
     instance: &Instance,
 ) -> Result<Uuid, StoreError> {
     let id = Uuid::now_v7();
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     sqlx::query("INSERT INTO person (id, display_name, kind) VALUES ($1, $2, 'breakglass')")
         .bind(id)
         .bind(account.name)

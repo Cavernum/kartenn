@@ -24,7 +24,9 @@ impl Overrides for PgStore {
         by: Option<Uuid>,
         events: &[AuditEvent],
     ) -> Result<(), StoreError> {
-        let mut tx = self.pool().begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(self.pool())
+            .await
+            .map_err(store_err)?;
         for event in events {
             crate::audit_journal::insert(&mut *tx, event, self.instance()).await?;
         }

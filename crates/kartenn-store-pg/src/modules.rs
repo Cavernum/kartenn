@@ -120,7 +120,7 @@ pub async fn migrate(pool: &PgPool, registry: &ModuleRegistry) -> Result<(), Mod
             }
             last = migration.version;
             let sum = checksum(migration);
-            let mut tx = pool.begin().await.map_err(failed)?;
+            let mut tx = crate::transaction::begin(pool).await.map_err(failed)?;
             // One job at a time per database, like the migrations of the core.
             sqlx::query("SELECT pg_advisory_xact_lock(hashtext('kartenn.module_migration'))")
                 .execute(&mut *tx)

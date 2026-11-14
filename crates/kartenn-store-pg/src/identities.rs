@@ -77,7 +77,9 @@ impl Identities for PgStore {
         subject: &str,
         name: &str,
     ) -> Result<(Uuid, bool), StoreError> {
-        let mut tx = self.pool().begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(self.pool())
+            .await
+            .map_err(store_err)?;
         // A requester a service account named for this subject is the same person: it
         // becomes one, and takes the issuer's name below (016, G10, INV-60).
         sqlx::query("SELECT public.kartenn_promote_requester($1, $2)")
@@ -189,7 +191,9 @@ impl Identities for PgStore {
         id: Uuid,
         attempt: BreakglassAttempt,
     ) -> Result<BreakglassRecorded, StoreError> {
-        let mut tx = self.pool().begin().await.map_err(store_err)?;
+        let mut tx = crate::transaction::begin(self.pool())
+            .await
+            .map_err(store_err)?;
         let recorded = match attempt {
             // Conditional: of two requests with the same code, one updates the row, the
             // other finds it already past that step.

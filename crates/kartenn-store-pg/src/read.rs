@@ -323,8 +323,7 @@ pub async fn versions(
 ///
 /// Database errors.
 pub async fn consistent(pool: &PgPool) -> sqlx::Result<sqlx::Transaction<'static, sqlx::Postgres>> {
-    pool.begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        .await
+    crate::transaction::begin_with(pool, "BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY").await
 }
 
 /// The time of the database (`now()`), against which the dates of a read are checked.

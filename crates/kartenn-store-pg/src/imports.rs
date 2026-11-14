@@ -16,7 +16,7 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 
 /// Records an import and its batches.
 pub(crate) async fn create(pool: &PgPool, record: &ImportRecord) -> Result<(), StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     sqlx::query(
         "INSERT INTO import (id, author_id, author_subject, source, state, report) \
          VALUES ($1, $2, $3, $4, $5, $6)",
@@ -305,7 +305,7 @@ pub async fn deposit(
     digest: &[u8],
     elements: &[ImportItem],
 ) -> Result<Deposit, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let state: Option<String> =
         sqlx::query_scalar("SELECT state FROM import WHERE id = $1 FOR SHARE")
             .bind(import)
@@ -357,7 +357,7 @@ pub async fn deposit(
 ///
 /// Database errors.
 pub async fn start(pool: &PgPool, import: Uuid, author: &Subject) -> Result<bool, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let started = sqlx::query(
         "UPDATE import SET state = 'sorting', error = NULL, author_subject = $2 \
          WHERE id = $1 AND state = 'uploading'",
@@ -412,7 +412,7 @@ pub async fn sorted(
     import: Uuid,
     batches: &[Vec<ImportItem>],
 ) -> Result<bool, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     for (index, items) in batches.iter().enumerate() {
         sqlx::query(
             "INSERT INTO import_batch (import_id, idx, operations, state)
@@ -451,7 +451,7 @@ pub async fn unsorted(
     import: Uuid,
     error: &serde_json::Value,
 ) -> Result<bool, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let back = sqlx::query(
         "UPDATE import SET state = 'uploading', error = $2 WHERE id = $1 AND state = 'sorting'",
     )
@@ -487,7 +487,7 @@ pub async fn transition(
     to: &str,
     run: Option<&Subject>,
 ) -> Result<bool, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let author = run
         .map(serde_json::to_value)
         .transpose()

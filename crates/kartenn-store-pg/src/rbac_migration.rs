@@ -133,7 +133,7 @@ struct Row {
 ///
 /// Database and audit failures.
 pub async fn report(pool: &PgPool, instance: &Instance) -> Result<Option<Report>, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let rows: Vec<Row> = sqlx::query_as(
         "SELECT r.changeset_id, r.kind, r.group_key, r.subject_kind, r.identity_id,
                 p.display_name AS name, r.issuer, r.group_name, r.bindings, r.binding_id,

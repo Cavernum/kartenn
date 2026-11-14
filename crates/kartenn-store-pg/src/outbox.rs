@@ -113,7 +113,7 @@ where
     F: FnMut(Event) -> Fut,
     Fut: Future<Output = Result<(), E>>,
 {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('outbox/' || $1, 0))")
         .bind(consumer)
         .execute(&mut *tx)

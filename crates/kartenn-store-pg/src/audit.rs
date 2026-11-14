@@ -113,7 +113,7 @@ pub async fn pseudonymise(
     delay_days: i32,
     instance: &Instance,
 ) -> sqlx::Result<u64> {
-    let mut tx = pool.begin().await?;
+    let mut tx = crate::transaction::begin(pool).await?;
     let people: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE person
          SET display_name = 'personne #' || left(id::text, 8), email = NULL, issuer = NULL, subject = NULL,
@@ -165,7 +165,7 @@ pub async fn pseudonymise_identity(
     motive: &str,
     instance: &Instance,
 ) -> Result<Pseudonymisation, StoreError> {
-    let mut tx = pool.begin().await.map_err(store_err)?;
+    let mut tx = crate::transaction::begin(pool).await.map_err(store_err)?;
     let found: Option<(String, bool)> = sqlx::query_as(
         "SELECT kind, pseudonymized_at IS NOT NULL FROM person WHERE id = $1 FOR UPDATE",
     )
