@@ -6830,7 +6830,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `present` et `asOf`, commentaires ôtés, chaque fichier rattaché à sa sous-tâche ;
     `offered` lit la période (sous `valid_at` seul et à l'étroit, une action non datée
     reste absente) ; un refus `narrow` du glisser ne marque pas le nœud ; 21g écrite
-- [ ] 21d. Édition réservée aux largeurs ≥ 1024 px, brouillon et changesets : le motif
+- [x] 21d. Édition réservée aux largeurs ≥ 1024 px, brouillon et changesets : le motif
   `narrow` de la 21c sur la soumission, les opérations, « Mes brouillons », les
   soumissions perdues et les décisions d'un changeset — REQ-021-29 — verify : Vitest de
   `changesets/model.ts` (motif `narrow` à côté de `past`) ; parcours `accessibility` à
@@ -6843,6 +6843,46 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `changesets/i18n/fr.json`, `en.json` (`drafts.why`, `changesets.why`) ; chaque fichier
     repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`, entrées `21d`)
   - dépend de : 21c
+  - fait le 2026-11-14 — le brouillon lit la porte : `useDraftQueries` (`state.ts`) prend
+    `useWrites()` et rend `refused` à côté de `writable`, `draftWhy` en dit la phrase
+    (`drafts.why.past`, `drafts.why.narrow`, fr et en) ; dite là où `past` l'est : le
+    bouton partagé du pied (« Appliquer », « Soumettre en revue », « Enregistrer le
+    brouillon »), le motif et les dates (`CommitForm` et `DateTimeField` en lecture seule
+    avec leur raison, saisie et focus gardés), « Réessayer » (pied et `LostSubmissions`),
+    « Retirer » et « Modifier » d'une opération (`DraftOperations`), « Nouveau brouillon »
+    (en-tête et état vide), « Renommer… » et « Supprimer » (`DraftsView`). Les décisions
+    d'un changeset : `reviewActions` prend `refused` (`past` | `narrow` | `null`) au lieu de
+    `present`, la porte avant `held`, `author` et le droit manquant ; `ChangesetView` le
+    calcule (`past` hors du présent, `valid_at` seul compris, sinon la porte), motif
+    `changesets.why.narrow`. Un dialogue ouvert quand la fenêtre rétrécit garde sa saisie :
+    sa confirmation porte la raison, Entrée la dit dans le dialogue (renommage, rejet, la
+    largeur avant le motif vide) ; la suppression et l'annulation, fermées par leur
+    confirmation, la disent par un toast. Les cinq entrées `21d` ont quitté `PERIOD_ONLY`.
+    Tests : `changesets.test.ts` (`reviewActions` sous `narrow` ; montés : le pied rétréci
+    puis élargi, motif gardé et envoyé ; « Mes brouillons » et son dialogue de renommage ;
+    le rejet d'un changeset, motif gardé) ; parcours `accessibility` à 768 px (« Appliquer »
+    refusé avec le motif, atteint et pressé au clavier, rien de soumis ; revenu à 1024 px) ;
+    parcours `changesets` (l'action repliée dans « … » à 420 px dit la largeur, plus
+    l'auteur)
+  - choix : le motif et les dates du pied passent en lecture seule sous 1024 px, comme
+    sous `as_of` (la saisie reste, le focus aussi ; élargie, elle redevient modifiable) ;
+    sous 1024 px l'action choisie du bouton partagé reste celle des droits (« Appliquer »
+    refusé, non « Enregistrer »), sous `as_of` rien ne change ; l'avis « Lecture seule » en
+    tête des opérations reste au seul `past` (pas d'avis permanent de la largeur) ;
+    `drafts.why.narrow` reprend mot pour mot `edit.why.narrow`, `changesets.why.narrow` dit
+    « Décision » comme `past` dit « rien ne se décide » ; une décision sous `valid_at` seul
+    reste refusée `past` (elle s'applique d'emblée), même à l'étroit ; l'action « Nouveau
+    brouillon » de l'état vide est montrée refusée au lieu d'être masquée (sous `as_of`
+    aussi)
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : le refus d'un dialogue ouvert dit
+    dans le dialogue (un toast reste sous la couche modale), la largeur avant le motif vide
+    du rejet ; l'action de l'état vide de « Mes brouillons » montrée refusée
+  - reste : aucune annonce au passage sous 1024 px quand on tape dans le motif du pied (le
+    champ passe en lecture seule, sa raison lue au focus suivant ; même question qu'à la
+    21c pour un éditeur ouvert) ; la suppression et l'annulation demandent leur
+    confirmation avant d'être refusées si la fenêtre rétrécit dialogue ouvert (toast après
+    fermeture) ; une entrée de menu désactivée avec sa raison (`Menu`, Reka) à écouter au
+    lecteur d'écran
 - [ ] 21e. Édition réservée aux largeurs ≥ 1024 px, administration : le motif `narrow`
   de la 21c sur chaque action d'écriture de l'administration — REQ-021-29 — verify :
   Vitest de `admin/access.ts` (`globalRefusal`) et `admin/model.ts` ; parcours
