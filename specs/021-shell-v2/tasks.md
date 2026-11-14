@@ -1810,6 +1810,41 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     propertyColumns.ts`, `views/edit/`), `crates/kartenn-rest/src/quota.rs` (`Rates`),
     `web/v2/e2e/kartenn.toml`
   - dépend de : 11p9
+  - diagnostic de fond du 2026-11-14 (demandé par l'utilisateur, lecture seule) : l'unité
+    de travail est partout la ligne ou la cellule quand l'unité naturelle est la fenêtre
+    (40 à 60 identifiants) ou la page. La page d'une liste ne porte pas ce que ses colonnes
+    montrent ; chaque cellule lit pour elle-même (`/properties` par ligne dans
+    `propertyColumns.ts` et `NetworkVlan.vue`, `GET /v1/<sorte>/{id}` par cellule dans
+    `ObjectName`, `GET /v1/interfaces?address=` par ligne dans le plugin machines), sous
+    deux plafonds de quatre indépendants, ou aucun pour `ObjectName`. Le contrat n'offre
+    rien de groupé (H13b, REQ-006-2 ; aucun filtre `id`) alors que le magasin l'a déjà
+    (`reads::resolved_many`, `Criteria.ids`). Le quota et le délestage ont raison : c'est
+    le modèle de lecture qui est à changer. La cause se lève par une lecture groupée et un
+    regroupeur dans le SDK (amendement de la 006, à valider par l'utilisateur : route de
+    propriétés résolues par lots, filtre `id` répété, clé naturelle dans tous les
+    résumés) ; les sous-tâches a et b ci-dessous ne sont que le filet, lançables sans
+    toucher au contrat. Voir aussi 22f-c, 22f-d et 22e-d.
+  - [ ] 11p10-a. Une seule porte pour les lectures par ligne du shell : `limited` sort de
+    `parts/vlan.ts` vers `shell/src/data/gate.ts` (un plafond pour tout le shell) ;
+    `ObjectName` y passe toujours et ne lit qu'en vue (la garde d'intersection de
+    `NetworkVlan` extraite en composable) — verify : Vitest monté, 66 `ObjectName`
+    d'objets distincts : au plus `COLUMN_READS` lectures en vol, aucune pour une cellule
+    hors vue (échoue sur main : 66 à la fois) ; `k-web2-e2e` complet, journal du serveur
+    sans un 503 « in flight »
+    - où : `shell/src/views/parts/vlan.ts` (`limited`, `COLUMN_READS`), `views/record/
+      ObjectName.vue`, `views/parts/NetworkVlan.vue` (observateur), `views/
+      propertyColumns.ts` (import), `anomalies/AnomalyGrid.vue`, `anomalies/GapList.vue`,
+      `record/PropertyValue.vue`
+    - dépend de : 11p11
+  - [ ] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
+    essais, cinq secondes au plus), au lieu de l'état d'erreur ; aucun autre 4xx relu —
+    verify : Vitest du cache du SDK, un 429 `Retry-After: 1` puis 200 : la donnée vient
+    sans erreur montrée, un 403 n'est pas relu (échoue sur main : aucun 4xx relu) ; un
+    parcours au `[http.rate]` par défaut : dix pages défilées sans avis ni erreur
+    - où : `web/v2/sdk/src/data/cache.ts` (`retry`, `retryDelay`, vers la ligne 236),
+      `sdk/src/api/problem.ts` (`Retry-After` porté par le problème), le test du cache du
+      SDK, `web/v2/e2e/kartenn.toml` et `serve.sh` (une instance au quota par défaut)
+    - dépend de : 11p9
 - [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
   le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
   échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de
@@ -6794,6 +6829,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       changerait l'ordre du DOM (structurant) ; ou l'arbitrage C (protocole à
       500 lignes/s, 18,47 % mesuré par la 22e-b avant ces corrections).
 
+  - [ ] 22e-d. Sonde sur la vraie vue de l'hypothèse B4 (diagnostic de fond du
+    2026-11-14) : une ligne recyclée change de rang, Vue la déplace par `insertBefore`, et
+    le moteur refait le style et la mise en page de tout son sous-arbre, SVG compris ; un
+    micro-banc synthétique donne 0,7 à 1,5 ms par pas de 17 lignes déplacées contre 0,4 ms
+    patchées en place en `position: absolute`. Au banc, une variante hors produit où les
+    lignes recyclées gardent leur place dans le DOM — verify : trames perdues des deux
+    variantes imprimées par une passe filtrée de `bench-web small` (deux passes au plus,
+    machine libre) ; aucun verdict : la décision va à l'arbitrage B1 à B4 de la 22e (icônes
+    en masque CSS, « + » sur la seule ligne active, survol suspendu au défilement,
+    emplacements fixes), qui touche le système de design et l'ordre du DOM
+    - où : `ui/src/components/internal/virtualRows.ts` (`rowSlots`, `keys`), le banc du
+      catalogue du `TreeGrid`, `e2e/budgets/budgets.spec.ts` (`K_BENCH_TREE_AB`)
+    - dépend de : 22e-c
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une
   page sous la fenêtre faute de compensation du défilement — verify : Vitest de
@@ -6924,6 +6972,30 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     parcours comptées par leur première ligne (une relecture, par l'invalidation d'un
     autre parcours, n'est pas une page lue).
 
+  - [ ] 22f-c. `DataGrid` : ce que l'hôte dit d'une cellule demandé une fois par ligne et
+    gardé (le `factsOf` de `TreeGrid`, un `computed` par objet de ligne) ; la ligne et la
+    table des raisons cachées lisent le même. Diagnostic de fond du 2026-11-14 :
+    `useCellReasons.reasons` parcourt lignes rendues × colonnes et `notesOf` rappelle
+    l'hôte cinq fois par cellule sans mémo, donc un état changé pour une cellule relit
+    toutes les cellules — verify : Vitest monté du `DataGrid`, un état de l'hôte changé
+    pour une cellule : `cellState`, `editable`, `readonlyReason` rappelés pour cette ligne
+    seule (échoue sur main : lignes rendues × colonnes) ; fraîcheur prouvée (porte fermée
+    puis rouverte, langue, brouillon) ; passe filtrée du banc de la page de 100 lignes
+    - où : `ui/src/components/DataGrid/DataGrid.vue` (`notesOf`, `notesKnown`, `cellsOf`),
+      `DataGrid/row.ts`, `DataGridRow.vue`, `internal/cellReasons.ts` ; modèle :
+      `TreeGrid.vue` (`factsOf`, tâche 22e-c) ; `ui/test/data-grid-rows-mounted.test.ts`
+    - dépend de : 22o-b
+  - [ ] 22f-d. Colonnes de propriété : une réponse ne recrée que sa ligne (`shownRows` par
+    ligne, objets gardés), les résultats de `useQueries` posés une fois par passe,
+    `drafted` hors du chemin d'une page. Diagnostic de fond du 2026-11-14 : chaque
+    réponse unitaire reconstruit `byId`, recrée un objet pour chaque ligne chargée et fait
+    recalculer `rowKeyList` et `indexOfKey` à la grille, soit O(réponses × lignes
+    chargées) là où O(lignes de la réponse) suffit — verify : Vitest, 1 000 lignes
+    chargées, une réponse de propriétés : un seul objet de ligne neuf, une seule passe de
+    rendu (échoue sur main : 1 000 objets neufs, une passe par notification)
+    - où : `shell/src/views/propertyColumns.ts` (`byId`, `shownRows`), `shell/src/data/
+      queries.ts` (`useQueries`), `views/edit/inline.ts` (`drafted`)
+    - dépend de : 22f
 - [x] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
   pourquoi le préchargement manque, puis exclure du p75 toute navigation non
