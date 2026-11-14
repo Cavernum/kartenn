@@ -822,6 +822,57 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
+  // A diagnosis, off by default (`K_BENCH_TREE_AB=1`, task 021-22e-c): the same scroll again
+  // under sheets that take one part of the rows away each, its dropped frames printed, to
+  // name what a row costs. Never a verdict: the sheets change what the rows show.
+  if (process.env.K_BENCH_TREE_AB) {
+    const fixed = await tree(page).evaluate(
+      (el) => getComputedStyle(el.querySelector("[role='row'][data-node]")!).gridTemplateColumns,
+    );
+    const B = ".k-tree-grid__body";
+    const variants: [string, string][] = [
+      ["base", ""],
+      ["no plus", `${B} .k-tree-grid__add{display:none!important}`],
+      ["no svg", `${B} svg{display:none!important}`],
+      ["no pointer", `${B}{pointer-events:none}`],
+      ["no svg, no pointer", `${B} svg{display:none!important}\n${B}{pointer-events:none}`],
+      ["no transition", `${B} .k-tree-grid__row{transition:none!important}`],
+      ["fixed tracks", `${B} .k-tree-grid__row{grid-template-columns:${fixed}!important}`],
+      ["block cells", `${B} .k-tree-grid__cell{display:block!important}`],
+      // The spread of two identical passes.
+      ["base again", ""],
+    ];
+    variants.push([
+      "all",
+      variants
+        .slice(1)
+        .map(([, css]) => css)
+        .join("\n"),
+    ]);
+    for (const [name, css] of variants) {
+      // A constructed sheet: the CSP refuses an injected `<style>` (REQ-020-14).
+      await tree(page).evaluate((_, text) => {
+        const w = window as unknown as { kAb?: CSSStyleSheet };
+        if (!w.kAb) {
+          w.kAb = new CSSStyleSheet();
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, w.kAb];
+        }
+        w.kAb.replaceSync(text);
+      }, css);
+      await settle(page);
+      const ab = await framed(page, async () => {
+        await scrollRows(page);
+        return [];
+      });
+      console.log(
+        `INFO AB ${name}: dropped ${(ab.dropped * 100).toFixed(2)} %, ${ab.longTasks} long tasks`,
+      );
+    }
+    await tree(page).evaluate(() =>
+      (window as unknown as { kAb: CSSStyleSheet }).kAb.replaceSync(""),
+    );
+    await settle(page);
+  }
   // The same scroll, another domain written all along (A40).
   await scrollWhileWritten(page);
   await settle(page);
