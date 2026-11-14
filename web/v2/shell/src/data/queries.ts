@@ -27,7 +27,19 @@ export function useQueries<O extends object>(
   const results = shallowRef<readonly QueryObserverResult<unknown, DefaultError>[]>(
     observer.getCurrentResult(),
   );
-  const unsubscribe = observer.subscribe((now) => (results.value = now));
+  // The notifications of a turn set the results once (task 021-22f-d): the queries a change
+  // of `options` adds each say they fetch, an invalidation each of those it reads again, one
+  // array made anew per notification. A change of `options` sets them at once, in order.
+  let pending = false;
+  let live = true;
+  const unsubscribe = observer.subscribe(() => {
+    if (pending) return;
+    pending = true;
+    queueMicrotask(() => {
+      pending = false;
+      if (live) results.value = observer.getCurrentResult();
+    });
+  });
   watch(
     defaulted,
     (next) => {
@@ -36,6 +48,9 @@ export function useQueries<O extends object>(
     },
     { flush: "sync" },
   );
-  onScopeDispose(unsubscribe);
+  onScopeDispose(() => {
+    live = false;
+    unsubscribe();
+  });
   return readonly(results) as Readonly<Ref<readonly QueryObserverResult<unknown, DefaultError>[]>>;
 }

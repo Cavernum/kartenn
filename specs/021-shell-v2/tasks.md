@@ -7023,6 +7023,37 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - où : `shell/src/views/propertyColumns.ts` (`byId`, `shownRows`), `shell/src/data/
       queries.ts` (`useQueries`), `views/edit/inline.ts` (`drafted`)
     - dépend de : 22f
+    - code et preuves faits le 2026-11-14, case laissée ouverte (avec 22f). Mesuré sur
+      main par la sonde (`shell/test/property-columns-work.test.ts`, liste de 1 000 préfixes,
+      colonne `custom.zone`) : une réponse, 1 000 objets de ligne neufs et une passe de la
+      grille ; quatre réponses du même tour, 1 000 objets neufs et une passe aussi. La
+      « passe par notification » n'est pas celle du rendu (happy-dom, Vue groupe les rendus
+      d'un tour) mais celle des résultats : trois notifications d'un tour, trois tableaux de
+      résultats posés (sonde de `useQueries` : `[1, 2, 3]` sur main, `[3]` corrigé).
+      Corrigé : `byId` est une table réactive par ligne (`shallowReactive`), posée par une
+      montre synchrone sur les résultats, une entrée changée seulement si son résultat l'est
+      ; chaque ligne montrée est un `computed` gardé par objet de ligne lu (`WeakMap`), qui
+      rend son objet précédent tant que ses textes ne changent pas ; `useQueries` pose les
+      notifications d'un tour une fois (`queueMicrotask`), un changement d'options les pose
+      à l'instant ; `drafted` de `inline.ts` lit les opérations de toutes les collections
+      plutôt que celles des lignes, celui de `properties.ts` ne filtre plus par objets
+      montrés : aucun des deux ne dépend plus des lignes. Sur la sonde : un objet neuf et
+      une passe pour une réponse, quatre pour quatre ; fraîcheur prouvée (une valeur relue
+      après invalidation, un brouillon actif puis lâché — une propriété d'une ligne non
+      lue et une nature —, une ligne relue par la liste, sa valeur de propriété gardée),
+      seule la ligne touchée neuve (échouent sur main : 1 000). Shell initial : 297 063 o
+      gzip contre 297 073 sur main (budget 300 000). `k-web2-check --base main` : 1 239
+      tests, ciblé : 0 captures sur 2 741 ; parcours `records` : 22 passés.
+    - choix : la table par ligne posée par une montre synchrone plutôt qu'un `computed` par
+      ligne sur une table refaite (1 000 relectures par réponse) ; l'égalité des textes de
+      la ligne (ce que la grille lit dans l'objet) pour garder l'objet, l'état de la cellule
+      (`cellOf`) restant lu par le rendu de la ligne ; le report à la microtâche plutôt
+      qu'à la trame (pas de trame de retard, rien de gelé dans un onglet caché) ; le
+      brouillon lu pour toutes les collections (une dizaine de filtres par opération)
+      plutôt que gardé par collection des lignes.
+    - reste : la grille recalcule toujours `rowKeyList` et `indexOfKey` à chaque passe (un
+      nouveau tableau de lignes ; `DataGrid`, hors périmètre) ; dans le navigateur, des
+      réponses de tâches distinctes restent une passe chacune ; `limited` inchangé (11p10-a).
 - [x] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
   pourquoi le préchargement manque, puis exclure du p75 toute navigation non
