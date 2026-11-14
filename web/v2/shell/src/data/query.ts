@@ -67,6 +67,27 @@ function tracked<R extends object>(initial: R): { refs: ToRefs<Readonly<R>>; set
   };
 }
 
+/**
+ * The options of an observer, watched: `read` (a read builds its key, the client defaults
+ * the options and hashes the key) runs once to start, its value the observer's first
+ * options, then again on each change of what it reads, its value given to `onChange`.
+ * Once rather than three times at the mount of a screen (task 021-22o).
+ */
+function watchedOptions<O>(read: () => O): {
+  initial: O;
+  onChange: (apply: (next: O) => void) => void;
+} {
+  let apply: (next: O) => void = () => {};
+  let last: O | undefined;
+  // The getter runs at once, synchronously: `last` holds the first options on return.
+  watch(
+    () => (last = read()),
+    (next) => apply(next),
+    { flush: "sync" },
+  );
+  return { initial: last as O, onChange: (f) => (apply = f) };
+}
+
 /** Methods of a result, rebound to the observer rather than exposed as refs. */
 type Methods = "refetch" | "fetchNextPage" | "fetchPreviousPage" | "promise";
 
@@ -88,21 +109,17 @@ export function useQuery<
   >,
   client: QueryClient = useQueryClient(),
 ): UseQueryResult<TData, TError> {
-  const defaulted = () => client.defaultQueryOptions(toValue(options));
+  const { initial, onChange } = watchedOptions(() => client.defaultQueryOptions(toValue(options)));
   const observer = new QueryObserver<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>(
     client,
-    defaulted(),
+    initial,
   );
-  const { refs, set } = tracked(observer.getOptimisticResult(defaulted()));
+  const { refs, set } = tracked(observer.getOptimisticResult(initial));
   const unsubscribe = observer.subscribe(set);
-  watch(
-    defaulted,
-    (next) => {
-      observer.setOptions(next);
-      set(observer.getOptimisticResult(next));
-    },
-    { flush: "sync" },
-  );
+  onChange((next) => {
+    observer.setOptions(next);
+    set(observer.getOptimisticResult(next));
+  });
   onScopeDispose(unsubscribe);
   return { ...refs, refetch: (opts) => observer.refetch(opts) } as UseQueryResult<TData, TError>;
 }
@@ -128,25 +145,23 @@ export function useInfiniteQuery<
   >,
   client: QueryClient = useQueryClient(),
 ): UseInfiniteQueryResult<TData, TError> {
-  const defaulted = () =>
-    client.defaultQueryOptions(toValue(options)) as DefaultedInfiniteQueryObserverOptions<
-      TQueryFnData,
-      TError,
-      TData,
-      TQueryKey,
-      TPageParam
-    >;
-  const observer = new InfiniteQueryObserver(client, defaulted());
-  const { refs, set } = tracked(observer.getOptimisticResult(defaulted()));
-  const unsubscribe = observer.subscribe(set);
-  watch(
-    defaulted,
-    (next) => {
-      observer.setOptions(next);
-      set(observer.getOptimisticResult(next));
-    },
-    { flush: "sync" },
+  const { initial, onChange } = watchedOptions(
+    () =>
+      client.defaultQueryOptions(toValue(options)) as DefaultedInfiniteQueryObserverOptions<
+        TQueryFnData,
+        TError,
+        TData,
+        TQueryKey,
+        TPageParam
+      >,
   );
+  const observer = new InfiniteQueryObserver(client, initial);
+  const { refs, set } = tracked(observer.getOptimisticResult(initial));
+  const unsubscribe = observer.subscribe(set);
+  onChange((next) => {
+    observer.setOptions(next);
+    set(observer.getOptimisticResult(next));
+  });
   onScopeDispose(unsubscribe);
   return {
     ...refs,

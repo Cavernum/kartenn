@@ -12,6 +12,7 @@ import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { shareOf, whole } from "../occupancy.ts";
 import ViewPanel from "../parts/ViewPanel.vue";
+import { usePainted } from "./painted.ts";
 
 type Occupancy = components["schemas"]["Occupancy"];
 type NextFree = components["schemas"]["NextFree"];
@@ -21,10 +22,16 @@ const { t, locale } = useI18n();
 const time = useTime();
 const dated = () => ({ validAt: time.value.validAt, asOf: time.value.asOf });
 
-const occupancy = useQuery(() =>
-  reads.sub<Occupancy>("prefix", props.id, "occupancy", null, dated()),
-);
-const free = useQuery(() => reads.sub<NextFree>("prefix", props.id, "next-free", null, dated()));
+// Read once the record is drawn (`usePainted`): no read of its route, a skeleton until then.
+const painted = usePainted();
+const occupancy = useQuery(() => ({
+  ...reads.sub<Occupancy>("prefix", props.id, "occupancy", null, dated()),
+  enabled: painted.value,
+}));
+const free = useQuery(() => ({
+  ...reads.sub<NextFree>("prefix", props.id, "next-free", null, dated()),
+  enabled: painted.value,
+}));
 
 const number = (value: string) => new Intl.NumberFormat(locale.value).format(whole(value));
 const share = computed(() => shareOf(occupancy.data.value?.data));

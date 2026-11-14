@@ -19,6 +19,7 @@ import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
 import { rowsOf, useDeclarationsOf, useKeyLabel } from "../data.ts";
 import { gapDetail as detailOf, noValue as empty, type Gap } from "../anomalies/gap.ts";
+import { usePainted } from "./painted.ts";
 import PropertyValue from "./PropertyValue.vue";
 
 const props = defineProps<{ id: string }>();
@@ -27,9 +28,11 @@ const time = useTime();
 const keyLabel = useKeyLabel();
 const { lines } = useProblems();
 
+// Read once the record is drawn (`usePainted`): no read of its route.
+const painted = usePainted();
 const list = useInfiniteQuery(() => ({
   ...reads.list("/v1/property-gaps", { object: props.id }, null),
-  enabled: time.value.present,
+  enabled: time.value.present && painted.value,
 }));
 const present = computed(() => time.value.present);
 const gaps = computed(() => (present.value ? (rowsOf(list.data.value) as Gap[]) : []));
