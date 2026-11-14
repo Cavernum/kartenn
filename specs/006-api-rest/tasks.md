@@ -639,7 +639,7 @@ routeur complet, sauf mention « vrai TCP ».
 
 ## Lectures par fenêtre (H23, amendement du 2026-11-14)
 
-- [ ] 31. Propriétés résolues par lots : `GET /v1/<collection>/properties` (`id` répété,
+- [x] 31. Propriétés résolues par lots : `GET /v1/<collection>/properties` (`id` répété,
   200 au plus ; `key` répété ; `valid_at`, `as_of`), servi par `reads::resolved_many` ;
   identifiant inconnu, d'une autre collection ou illisible omis ; un événement d'audit
   pour le lot ; poids au quota d'une unité par centaine d'identifiants entamée ; route
@@ -653,6 +653,38 @@ routeur complet, sauf mention « vrai TCP ».
     ligne 232), `crates/kartenn-rest/src/quota.rs` (poids d'une requête), contrat
     OpenAPI et `web/v2/sdk/src/api/schema.d.ts` ; `kartenn-bench` (`props.rs`, banc HTTP)
   - dépend de : —
+  fait : `crates/kartenn-rest/src/properties.rs` (`batch_route` dans `object_routes`, donc
+  pour toute collection du noyau et des modules ; `batch_query`, `resolved_batch`, `batch`,
+  `items_of`), `quota.rs` (`ids_weight`), `openapi.rs` (`Op::repeated`) ;
+  `kartenn-service/src/reads.rs` (`resolved_many` masque une propriété sensible qui
+  s'applique même en « sans valeur », comme `read_object`) ; contrat et types des deux
+  SDK régénérés (`schema.d.ts`, `dated.ts`, par `scripts/gen.mjs`) ; banc HTTP
+  `http.resolved-batch` (200 adresses × 6 clés, budget 150 ms d'une page filtrée,
+  cinq clés `custom.b1…b5` ajoutées à la préparation ; échelle réduite, 2026-11-14,
+  charge 6,7 au départ et ≈ 20 pendant : p95 96 ms par HTTP sous 150 ms, 47 ms par le
+  service, surcoût 49 ms au-delà de la cible de 10 ms, à remesurer en pleine échelle sur
+  une machine calme ; pistes si le surcoût tient : la seconde autorisation de
+  `reads::resolved_many` sur les objets déjà autorisés, `kind_names` à part, la
+  compression d'un corps de 200 éléments). Tests `rest/tests/it/objects.rs` :
+  `a_batch_reads_each_object_as_its_own_read` (deux appelants, trois dates, toutes les
+  clés et un sous-ensemble : chaque élément égal à la lecture unitaire sans ses liens ;
+  héritage d'un porteur invisible, sensible masqué, « sans valeur » sensible ; pas
+  d'ETag), `a_batch_leaves_out_alike_the_unknown_the_foreign_and_the_unreadable` (statut,
+  en-têtes hors `request-id` et octets identiques ; un `data.objects.read` par lot, mêmes
+  critères ; aucun refus journalisé), `a_batch_names_its_parameter_and_weighs_per_hundred`
+  (0 et 201 `id` → 400, 200 → 200 ; 100 `id` passent une rafale d'un, 101 non, 200 une
+  rafale de deux) ; `contract.rs` (route à la surface) ; `quota.rs` (poids).
+  choix : élément `{id, properties, sources, masked}` (H23), les `links` de la lecture
+  unitaire omis ; ordre des éléments celui des `id`, doublons d'`id` ou de `key` lus une
+  fois ; `key` inconnue ignorée comme une clé non déclarée ; paramètre inconnu → 400 qui
+  le nomme, comme les listes ; borne de 200 et poids comptés sur les `id` donnés,
+  doublons compris ; `Cache-Control` de la lecture unitaire, sans `ETag` ; opération
+  `<kind>_properties_batch` ; un seul `data.objects.read` (cible `object`, critères
+  `collection`, `keys`, `valid_at`, `as_of`, sans les `id` demandés) plus un
+  `data.sensitive.read` par valeur sensible montrée, comme la lecture unitaire ; un objet
+  illisible ne journalise pas de refus (005 : invisible égale absent) ; le chemin statique
+  `/<collection>/properties` passe avant `/<collection>/{id}` (matchit), vérifié par le
+  test.
 - [ ] 32. Filtre `id` répété sur toute collection, `address` répété sur la liste des
   interfaces ; déclarés au contrat — REQ-006-41 — verify : `k-check -p kartenn-rest`
   (deux identifiants dont un illisible : un seul rendu ; conjonction avec un autre
