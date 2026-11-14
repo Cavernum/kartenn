@@ -599,6 +599,46 @@ describe("the routes of the referential", () => {
     )!;
     expect(alert.textContent).toContain("urn:kartenn:problem:forbidden");
     expect(alert.textContent).toContain("Réessayer");
+    // A next page refused is not the list read again (task 021-11p9).
+    expect(root.textContent).not.toContain("La liste n'a pas pu être relue");
+  }, 10_000);
+
+  it("the list read again refused: its grid and rows kept, the refusal said above them", async () => {
+    // Read again when an event invalidates it; refused (a quota, 429), the rows read stay in
+    // the same grid, never swapped for an error state that would bring them back at the top,
+    // the pages read below the view out of sight (task 021-11p9).
+    let refused = false;
+    const { root, seen } = await mounted("/addresses", (url) => {
+      if (url.startsWith("/v1/addresses")) {
+        if (refused) return 429;
+        return page(
+          [{ id: ENTITY, value: "192.0.2.10", links: { self: `/v1/addresses/${ENTITY}` } }],
+          "/v1/addresses?cursor=c2",
+        );
+      }
+      return page([]);
+    });
+    await expect.poll(() => root.textContent).toContain("192.0.2.10");
+    const grid = root.querySelector("[role='grid']");
+    expect(grid).not.toBeNull();
+    refused = true;
+    const before = addresses(seen).length;
+    await queryClient.refetchQueries({ queryKey: ["v1", "/v1/addresses"] });
+    await nextTick();
+    // Refused, read once: a 429 is not retried by the cache (a problem the client caused).
+    expect(addresses(seen)).toHaveLength(before + 1);
+    expect(root.querySelector("[role='grid']")).toBe(grid);
+    expect(root.textContent).toContain("192.0.2.10");
+    const alertOf = () =>
+      [...root.querySelectorAll("[role='alert']")].find((el) =>
+        el.textContent?.includes("La liste n'a pas pu être relue"),
+      );
+    expect(alertOf()?.textContent ?? "").toContain("Réessayer");
+    // « Réessayer » reads the list again: once it passes, the alert goes, the grid the same.
+    refused = false;
+    alertOf()!.querySelector("button")!.click();
+    await expect.poll(() => alertOf()).toBeUndefined();
+    expect(root.querySelector("[role='grid']")).toBe(grid);
   }, 10_000);
 
   it("shows the type of a declared property in words, its key at hand (REQ-021-19)", async () => {

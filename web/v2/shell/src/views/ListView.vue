@@ -79,6 +79,7 @@ const {
   rows,
   failed,
   nextFailed,
+  refreshFailed,
   complete,
   blocked,
   declarationsError,
@@ -328,6 +329,12 @@ function clearFilters(): void {
       />
     </template>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <!-- A property filter of the URL that no declaration types: no list read without it. -->
     <ProblemState
       v-if="blocked?.reason === 'failed'"

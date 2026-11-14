@@ -21,10 +21,8 @@ const { t, locale } = useI18n();
 const router = useRouter();
 
 const title = computed(() => t("nav.imports"));
-const { list, rows, failed, nextFailed, complete, onWindow } = useFilteredList<ImportItem>(
-  () => "/v1/imports",
-  { dated: false },
-);
+const { list, rows, failed, nextFailed, refreshFailed, complete, onWindow } =
+  useFilteredList<ImportItem>(() => "/v1/imports", { dated: false });
 
 const number = computed(() => new Intl.NumberFormat(locale.value));
 const columns = computed<GridColumn[]>(() => [
@@ -64,6 +62,12 @@ const total = computed(() => (complete.value ? number.value.format(rows.value.le
   <h1 class="k-visually-hidden">{{ title }}</h1>
   <ViewPanel :title="title" :detail="total" main flush>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <ProblemState
       v-if="failed"
       :title="t('admin.imports.error')"

@@ -15,7 +15,7 @@ import { useFocusWhenEmptied, type Anomaly } from "./anomaly.ts";
 
 const { t } = useI18n();
 const settings = useSettings();
-const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
+const { model, filters, onFilters, list, rows, failed, nextFailed, refreshFailed, onWindow } =
   useFilteredList<Anomaly>(() => "/v1/anomalies");
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
 const emptied = useFocusWhenEmptied(() => rows.value, useTemplateRef<HTMLElement>("empty"));
@@ -36,6 +36,12 @@ useViewAction("filter", {
       @update:model-value="onFilters"
     />
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <ProblemState
       v-if="failed"
       :title="t('views.anomalies.error')"

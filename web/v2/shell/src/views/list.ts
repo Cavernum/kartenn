@@ -35,8 +35,10 @@ export interface FilteredList<T> {
   sent: ComputedRef<Filters>;
   list: UseInfiniteQueryResult<unknown>;
   rows: ComputedRef<T[]>;
-  /** The list failed (not its next page, which only stops the prefetch). */
+  /** The list failed before any row was read (not its next page, nor a read again). */
   failed: ComputedRef<boolean>;
+  /** The list read again refused: the rows read kept, the refusal said above them. */
+  refreshFailed: ComputedRef<boolean>;
   /** A next page refused but for its cursor: the rows kept, the refusal said above them. */
   nextFailed: ComputedRef<boolean>;
   /** Every page is read. */
@@ -209,7 +211,14 @@ export function useFilteredList<T>(
     sent,
     list: list as UseInfiniteQueryResult<unknown>,
     rows,
-    failed: computed(() => list.isError.value && !list.isFetchNextPageError.value),
+    // Swapped for the error state, the rows of a list read again and refused came back at
+    // the top once it passed, the pages read below the view out of sight (task 021-11p9).
+    failed: computed(
+      () => list.isError.value && !list.isFetchNextPageError.value && list.data.value === undefined,
+    ),
+    // Never a next page refused, nor a refused cursor: `InfiniteQueryObserver` leaves out
+    // of `isRefetchError` the errors of `fetchNextPage` and `fetchPreviousPage`.
+    refreshFailed: computed(() => list.isRefetchError.value),
     nextFailed: computed(
       () => list.isFetchNextPageError.value && problemSlug(list.error.value) !== "invalid-cursor",
     ),
