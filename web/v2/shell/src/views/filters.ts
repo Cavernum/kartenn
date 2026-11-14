@@ -126,8 +126,11 @@ export function instantOfDay(day: string, bound: "start" | "end"): string {
   const local = new Date(`${day}T${bound === "start" ? "00:00:00.000" : "23:59:59.999"}`);
   return Number.isNaN(local.getTime()) ? day : local.toISOString();
 }
-/** The parameters a list keeps out of its bar: `q` is the search of the palette. */
-const LEFT_OUT = new Set(["q"]);
+/**
+ * The parameters a list keeps out of its bar: `q` is the search of the palette, `id` the
+ * read of a window of known objects (REQ-006-41).
+ */
+const LEFT_OUT = new Set(["q", "id"]);
 /** The declared types whose values the model types (003, `TypeSpec::id`). */
 const DECLARED: Readonly<Record<string, FilterType>> = {
   int: "number",
