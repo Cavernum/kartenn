@@ -1,6 +1,6 @@
 import type { Entry, Page } from "@kartenn/sdk";
 import type { InfiniteData } from "@tanstack/query-core";
-import { toValue, watch, watchEffect, type MaybeRefOrGetter, type Ref } from "vue";
+import { shallowRef, toValue, watch, watchEffect, type MaybeRefOrGetter, type Ref } from "vue";
 
 // The next page of a list, read before it is needed (REQ-021-22; design « Préchargement »):
 // when the rendered window comes within two screens of the end of the loaded rows.
@@ -58,22 +58,44 @@ export function droppedRows(before: Pages, now: Pages): number {
  * `MAX_PAGES` lands with the first one dropped, before the grid gives its window among the
  * rows kept, and that window is moved up by the rows dropped meanwhile. Read as it stood,
  * at the end of the rows before, it would read a page more at once (task 021-22f), which
- * lands under the rows in view, the grid keeping them in their place.
+ * lands under the rows in view, the grid keeping them in their place. Pages that change
+ * without a move of their head (a page read at the end, the list read again) leave the
+ * window as it stands; and a host that gives no window after its head moved (rows not
+ * anchored, the same indexes in view) has the window it gave counted among the rows kept
+ * two frames later, so that nothing is held back at the end of the list.
  */
 export function useNextPage(list: PagedList, view: MaybeRefOrGetter<ListWindow>): void {
   /** The pages of the list when the window was last given. */
-  let given: Pages;
+  const given = shallowRef<Pages>();
   watch(
     () => toValue(view),
-    () => (given = list.data.value),
+    () => (given.value = list.data.value),
     { immediate: true, flush: "sync" },
+  );
+  watch(
+    () => list.data.value,
+    (data, before) => {
+      if (droppedRows(before, data) === 0) {
+        given.value = data;
+        return;
+      }
+      // The host's window comes in the frame after its render (`window` of `DataGrid`);
+      // none by the next one, the window it gave stands among the rows kept.
+      const stale = given.value;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (given.value === stale) given.value = list.data.value;
+        }),
+      );
+    },
+    { flush: "sync" },
   );
   watchEffect(() => {
     const at = toValue(view);
     if (!list.hasNextPage.value || list.isFetching.value) return;
     if (list.isFetchNextPageError.value) return;
     const data = list.data.value;
-    const end = at.end - droppedRows(given, data);
+    const end = at.end - droppedRows(given.value, data);
     if (nearEnd(loadedOf(data), { end, size: at.size })) void list.fetchNextPage();
   });
 }

@@ -8,7 +8,7 @@ import { createMemoryHistory, createRouter, type Router, type RouteRecordRaw } f
 import { useInfiniteQuery } from "../src/data/query.ts";
 import { installPrefetch, queriesOf } from "../src/prefetch/intent.ts";
 import KLink from "../src/prefetch/KLink.vue";
-import { nearEnd, useNextPage, type PagedList } from "../src/prefetch/nextPage.ts";
+import { droppedRows, nearEnd, useNextPage, type PagedList } from "../src/prefetch/nextPage.ts";
 import { childrenIntent } from "../src/prefetch/tree.ts";
 
 // Prefetch on intent, the shell's part (REQ-021-22; design « Préchargement »): the reads
@@ -367,6 +367,60 @@ describe("next page of a list", () => {
     await nextTick();
     expect(fetchNextPage).toHaveBeenCalledTimes(2);
     scope.stop();
+  });
+
+  it("reads the next page at the end when no window comes after the first page dropped", async () => {
+    // A host that does not anchor its rows (fewer moved than `ANCHORED_ROWS`, the grid at
+    // its top) gives no window again: the window it gave stands among the rows kept.
+    const page = () => ({ data: { items: Array.from({ length: 100 }), links: {} }, etag: null });
+    const params = (from: number) => Array.from({ length: 10 }, (_, i) => `c${from + i}`);
+    const fetchNextPage = vi.fn(async () => {});
+    const isFetching = ref(false);
+    const data = shallowRef({ pages: Array.from({ length: 10 }, page), pageParams: params(1) });
+    const list: PagedList = {
+      data,
+      hasNextPage: ref(true),
+      isFetching,
+      isFetchNextPageError: ref(false),
+      fetchNextPage,
+    };
+    const view = ref({ end: 1000, size: 17 });
+    const scope = effectScope();
+    scope.run(() => useNextPage(list, view));
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    isFetching.value = true;
+    await nextTick();
+    data.value = { pages: Array.from({ length: 10 }, page), pageParams: params(2) };
+    isFetching.value = false;
+    await nextTick();
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    // Two frames without a window: the end of the rows kept, the next page read.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchNextPage).toHaveBeenCalledTimes(2);
+    scope.stop();
+  });
+
+  it("counts the rows dropped at the head only", () => {
+    const page = (n: number) => ({
+      data: { items: Array.from({ length: n }), links: {} },
+      etag: null,
+    });
+    const pages = (params: (string | null)[]) => ({
+      pages: params.map(() => page(100)),
+      pageParams: params,
+    });
+    const before = pages([null, "c2", "c3"]);
+    // The first dropped, then the first two.
+    expect(droppedRows(before, pages(["c2", "c3", "c4"]))).toBe(100);
+    expect(droppedRows(before, pages(["c3", "c4"]))).toBe(200);
+    // Read again under new cursors (each `next` its own `as_of`): the same head.
+    expect(droppedRows(before, pages([null, "d2", "d3"]))).toBe(0);
+    // Another filter or sort, another list from its first page; a page dropped at the tail.
+    expect(droppedRows(before, pages([null]))).toBe(0);
+    expect(droppedRows(before, pages([null, "c2"]))).toBe(0);
+    // A head never read before (the list read anew elsewhere), or nothing before.
+    expect(droppedRows(before, pages(["x9", "c3"]))).toBe(0);
+    expect(droppedRows(undefined, pages(["c2"]))).toBe(0);
   });
 
   it("follows the link to the next page of a list of the cache", async () => {
