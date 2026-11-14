@@ -222,6 +222,17 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     compte) restent à ses règles
   - reste : rejouer la requête des orphelins sur une base peuplée (une copie de
     production ou le jeu du banc) avant la migration de la tâche 30
+  - correctif du 2026-11-14 (parcours `web/v2/e2e/journeys/changesets.spec.ts`, annulation
+    d'une proposition validée, rouge depuis la fusion) : une proposition sans période
+    propre, validée plus tard, écrit à l'instant de sa validation, mais `default_period`
+    gardait celui de sa soumission ; son inverse commençait donc avant l'objet qu'elle a
+    créé, et `core.reference.unknown` refusait la fermeture. À l'application d'un
+    changeset en attente, `write_journal` (`kartenn-store-pg/src/write.rs`) récrit
+    `default_period` (inchangé pour une période explicite) ; test
+    `undo::a_validated_proposal_is_undone` (`kartenn-service`), rouge d'abord. Choix : la
+    période du changeset appliqué dit l'instant où il a écrit (`valid_from` lu par REST
+    devient l'instant de validation, égal à `applied_at`), plutôt qu'un calcul de l'inverse
+    à partir d'`applied_at` ; le contrôle des références reste entier
 - [ ] 29b. Contrat de `ModuleHandler::plan` avec le type attendu — **arbitré le
   2026-11-14 : la résolution d'un module reçoit le type attendu** ; la tâche commence par
   écrire l'amendement de l'ADR 0026 (contrat du plan d'un module) — la fonction de
