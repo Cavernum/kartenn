@@ -8,7 +8,8 @@
 // comes), a row renders again only when its props change (its row of the model, its key,
 // its index) or what it read changed: the grid's shared state through its own key (the stop,
 // the editor, the open error, the selection in this row), the host's states of its cells.
-// Each state of the row and of its cells is asked of the host once per render (`cells`). The
+// What the host says of the row and its cells the grid asks once and keeps for the row
+// (`factsOf`, task 021-22f-c): a state changed elsewhere asks nothing of this row. The
 // host's slots come forwarded by the grid: a host whose slots are compiled leaves the rows
 // alone, one that renders its slots anew renders them again with the grid, as Vue does any
 // child. The styles are the grid's (`DataGrid.vue`).
@@ -59,16 +60,15 @@ const selected = computed(() =>
   props.c.selectable() ? props.c.isSelected(props.rowKey) : undefined,
 );
 const fresh = computed(() => props.c.isFresh(props.rowKey));
-/** The state of the row, asked once. */
-const state = computed(() => props.c.rowState(props.row));
+/** The state of the row, from what the grid keeps of it (task 021-22f-c). */
+const state = computed(() => props.c.factsOf(props.row).state);
 const mark = computed(() => (state.value ? props.c.markOf(state.value) : undefined));
 const cells = computed(() =>
-  props.c.cellsOf(
-    props.row,
-    props.index,
-    { stop: stop.value, editing: editing.value, error: error.value },
-    state.value,
-  ),
+  props.c.cellsOf(props.row, props.index, {
+    stop: stop.value,
+    editing: editing.value,
+    error: error.value,
+  }),
 );
 
 /** The element of the row, for the grid's virtualiser, and for the row itself. */
