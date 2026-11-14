@@ -508,6 +508,8 @@ Acceptation :
 - `?id=<a>&id=<b>` rend les objets `a` et `b` lisibles par l'appelant, dans l'ordre de
   la liste, combinés en conjonction avec les autres filtres.
 - Plus d'identifiants que la taille de page maximale → 400.
+- Une liste filtrée par `id` répond en une page, sans suite ; `cursor` ou `page_size`
+  avec `id` → 400.
 - Le paramètre figure aux `parameters` de chaque liste du contrat.
 
 #### REQ-006-42 — Résumé de toute référence rendue

@@ -2289,3 +2289,197 @@ async fn a_batch_names_its_parameter_and_weighs_per_hundred(pool: PgPool) {
         assert_eq!(response.status(), status, "burst {burst}, {n} identifiers");
     }
 }
+
+/// The list `uri` filtered by the identifiers `ids` (`id=…&id=…`).
+fn ids_uri(uri: &str, ids: &[Uuid]) -> String {
+    let mut uri = uri.to_owned();
+    for id in ids {
+        uri.push(if uri.contains('?') { '&' } else { '?' });
+        uri.push_str("id=");
+        uri.push_str(&id.to_string());
+    }
+    uri
+}
+
+/// The answer of `QUERY /v1/prefixes` filtered by the identifiers `ids`, in its body: a
+/// thousand of them do not fit in the 8 KiB of a URL (REQ-006-10).
+async fn query_ids(app: &Router, ids: &[Uuid]) -> Response {
+    let ids: Vec<String> = ids.iter().map(Uuid::to_string).collect();
+    let body = json!({ "filters": [{ "field": "id", "value": ids }] });
+    app.clone()
+        .oneshot(common::bearer(
+            Request::builder()
+                .method("QUERY")
+                .uri("/v1/prefixes")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        ))
+        .await
+        .unwrap()
+}
+
+#[kartenn_testing::pg_test]
+async fn the_id_filter_leaves_out_alike_the_unknown_the_foreign_and_the_unreadable(pool: PgPool) {
+    // REQ-006-41, 005: the page holds the objects among the identifiers that the caller may
+    // read; an unknown identifier, an object of another collection and one the caller may
+    // not read leave the same answer.
+    let lab = domain(&pool, "lab").await;
+    let far = domain(&pool, "far").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let gateway = address(&pool, lab, "10.1.2.1").await;
+    let hidden = prefix(&pool, far, "10.9.0.0/16").await;
+    let reader = app(
+        &pool,
+        person(
+            &pool,
+            &["core.prefix.read", "core.address.read"],
+            ("domain", Some(lab)),
+        )
+        .await,
+    );
+    let mut answers = Vec::new();
+    for other in [Uuid::now_v7(), gateway, hidden] {
+        let response = get(&reader, &ids_uri("/v1/prefixes", &[net, other])).await;
+        let status = response.status();
+        // All the headers, but the identifier of the request, its own.
+        let mut headers = response.headers().clone();
+        assert!(headers.remove("request-id").is_some());
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        answers.push((status, headers, bytes));
+    }
+    assert_eq!(answers[0].0, StatusCode::OK);
+    assert_eq!(answers[0], answers[1], "unknown and foreign");
+    assert_eq!(answers[0], answers[2], "unknown and unreadable");
+    let body: Value = serde_json::from_slice(&answers[0].2).unwrap();
+    assert_eq!(ids_of(&body), [net.to_string()], "{body}");
+    // The read event names the object read only.
+    let targets: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT target_ids FROM audit.event WHERE name = 'data.objects.read'
+          ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(targets, [net]);
+}
+
+#[kartenn_testing::pg_test]
+async fn the_id_filter_goes_in_conjunction_with_the_others(pool: PgPool) {
+    // REQ-006-41: in the order of the list, in conjunction with a natural key, a domain, a
+    // suggestion or properties.
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let a = prefix(&pool, lab, "10.1.0.0/24").await;
+    let b = prefix(&pool, lab, "10.2.0.0/24").await;
+    let c = prefix(&pool, lab, "10.3.0.0/24").await;
+    let elsewhere = prefix(&pool, dmz, "10.4.0.0/24").await;
+    for object in [a, b, c] {
+        assign(&pool, zone, object, "red", &[]).await;
+    }
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let strings = |ids: &[Uuid]| ids.iter().map(Uuid::to_string).collect::<Vec<_>>();
+    for (uri, ids, expected) in [
+        // In the order of the natural key, whatever the order of the identifiers.
+        // (Domain first: two domains would sort by their identifiers.)
+        ("/v1/prefixes", vec![c, b, a], vec![a, b, c]),
+        ("/v1/prefixes?domain=lab", vec![c, elsewhere, a], vec![a, c]),
+        ("/v1/prefixes?value=10.3.0.0/24", vec![a, c], vec![c]),
+        ("/v1/prefixes?q=10.1", vec![a, b], vec![a]),
+        // Filtered by properties, by identifier.
+        (
+            "/v1/prefixes?domain=lab&prop.policy.zone=red",
+            vec![c, elsewhere, a],
+            vec![a, c],
+        ),
+    ] {
+        let mut expected = expected;
+        if uri.contains("prop.") {
+            expected.sort();
+        }
+        let uri = ids_uri(uri, &ids);
+        let body = ok(&app, &uri).await;
+        assert_eq!(ids_of(&body), strings(&expected), "{uri}: {body}");
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn the_id_filter_answers_in_one_page_without_a_next(pool: PgPool) {
+    // REQ-006-41: a list filtered by `id` holds all the objects it keeps, past the default
+    // page, without a next page; filtered by properties, the candidates are the objects
+    // asked for. With `page_size` or a cursor → 400 naming the parameter.
+    let lab = domain(&pool, "lab").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let mut nets = Vec::new();
+    for n in 0..60 {
+        let net = prefix(&pool, lab, &format!("10.{n}.0.0/16")).await;
+        assign(&pool, zone, net, "red", &[]).await;
+        nets.push(net);
+    }
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    for uri in [
+        "/v1/prefixes",
+        "/v1/prefixes?domain=lab&prop.policy.zone=red",
+    ] {
+        let response = get(&app, &ids_uri(uri, &nets)).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert!(response.headers().get("link").is_none(), "{uri}");
+        let body = json_of(response).await;
+        assert_eq!(ids_of(&body).len(), 60, "{uri}");
+        assert!(body["links"]["next"].is_null(), "{uri}: {}", body["links"]);
+    }
+    let first = ok(&app, "/v1/prefixes?page_size=1").await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (
+            ids_uri("/v1/prefixes?page_size=10", &nets[..2]),
+            "page_size",
+        ),
+        (
+            ids_uri(
+                "/v1/prefixes?domain=lab&prop.policy.zone=red&page_size=10",
+                &nets[..2],
+            ),
+            "page_size",
+        ),
+        (ids_uri(&next, &nets[..2]), "id"),
+    ] {
+        let response = get(&app, &uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn the_id_filter_names_its_parameter_past_the_largest_page(pool: PgPool) {
+    // REQ-006-41: a thousand identifiers at most, the largest page; past it, or an
+    // identifier that is not a UUID → 400 naming `id`.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let mut ids: Vec<Uuid> = (0..999).map(|_| Uuid::now_v7()).collect();
+    ids.push(net);
+    let response = query_ids(&app, &ids).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(ids_of(&json_of(response).await), [net.to_string()]);
+    ids.push(Uuid::now_v7());
+    let response = query_ids(&app, &ids).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let detail = json_of(response).await["detail"].to_string();
+    assert!(
+        detail.contains("id is given more than 1000 times"),
+        "{detail}"
+    );
+    for uri in [
+        "/v1/prefixes?id=prefixes",
+        "/v1/ranges?id=",
+        "/v1/entities?id=1",
+    ] {
+        let response = get(&app, uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains("id"), "{uri}: {detail}");
+    }
+}

@@ -199,14 +199,15 @@ fn wanted_sql(heritable: bool, predicate: Option<&str>, absent: bool, s: &Slots)
 /// the `others`: `$2` domain, `$3` date, `$4` cursor, `$5` page size, `$10` read scope
 /// (005, REQ-005-24; null: everything), `$11` kind of the objects (null: any), `$12`
 /// values that place them in the tree (text of `inet`; empty: any); the rest in
-/// [`Slots`].
+/// [`Slots`], then the identifiers the objects are among (empty: any).
 fn filter_sql<'a>(first: &str, others: impl Iterator<Item = &'a str>) -> String {
-    let others: String = others.fold(String::new(), |mut sql, w| {
+    let (count, others) = others.fold((0, String::new()), |(count, mut sql), w| {
         sql.push_str("\n           AND id IN (");
         sql.push_str(w);
         sql.push(')');
-        sql
+        (count + 1, sql)
     });
+    let ids = format!("${}::uuid[]", 13 + 5 * count);
     let visible = crate::rbac::readable("v.id", "v.kind", "v.domain_id", "v.value", "$3");
     // The kind, the values and the scope in one scalar subquery, evaluated per object: as
     // an `EXISTS` beside the scope, the planner joined the whole view (bench-http,
@@ -215,6 +216,7 @@ fn filter_sql<'a>(first: &str, others: impl Iterator<Item = &'a str>) -> String 
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($10))
          SELECT DISTINCT id FROM ({first}) w
          WHERE ($4::uuid IS NULL OR id > $4){others}
+           AND (cardinality({ids}) = 0 OR id = ANY({ids}))
            AND (($10::jsonb IS NULL AND $11::text IS NULL AND cardinality($12::text[]) = 0)
                 OR coalesce((
                 SELECT $10::jsonb IS NULL OR {visible} FROM addressing_object v
@@ -278,6 +280,7 @@ pub async fn filter_in(
         &[(property, condition.clone())],
         None,
         &[],
+        &[],
         at,
         after,
         limit,
@@ -288,9 +291,10 @@ pub async fn filter_in(
 
 /// One page of the objects of `domain`, of `kind` when given (`prefix`, `range`,
 /// `address`), placed in the tree by one of `values` when given (text of `inet`: the
-/// prefix, the first address of the range, the address), whose resolved values meet all the `conditions` (a property and a
-/// condition on it, at least one) at `at`, sorted by identifier, after `after`, at most
-/// `limit`, within what `scope` lets read (spec 006, REQ-006-9).
+/// prefix, the first address of the range, the address), among `ids` when given, whose
+/// resolved values meet all the `conditions` (a property and a condition on it, at least
+/// one) at `at`, sorted by identifier, after `after`, at most `limit`, within what `scope`
+/// lets read (spec 006, REQ-006-9, 41).
 ///
 /// # Errors
 ///
@@ -307,6 +311,7 @@ pub async fn filter_all_in(
     conditions: &[(Uuid, Condition)],
     kind: Option<&str>,
     values: &[String],
+    ids: &[Uuid],
     at: OffsetDateTime,
     after: Option<Uuid>,
     limit: i64,
@@ -346,7 +351,7 @@ pub async fn filter_all_in(
             .bind(low)
             .bind(high);
     }
-    Ok(query.fetch_all(pool).await?)
+    Ok(query.bind(ids).fetch_all(pool).await?)
 }
 
 /// What a filter binds besides its fixed parameters, after the SQL of its objects.
@@ -437,6 +442,7 @@ pub async fn filter_plan(
         .bind(None::<serde_json::Value>)
         .bind(None::<String>)
         .bind(Vec::<String>::new())
+        .bind(Vec::<Uuid>::new())
         .fetch_all(&mut *tx)
         .await?;
     tx.rollback().await?;

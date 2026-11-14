@@ -204,6 +204,7 @@ fn declare_filters(mut list: crate::openapi::Op, kind: Kind) -> crate::openapi::
     let text = || String::schema();
     let named = |collection: &str| Some(json!({ "collection": collection }));
     let reference = |name: &str| RefOr::Ref(utoipa::openapi::Ref::from_schema_name(name));
+    list = list.ids();
     for field in filter_fields(kind) {
         list = match (*field, kind) {
             ("slug", _) => list.filter(field, "Slug equal to (repeated: one of).", text(), None),
@@ -822,6 +823,8 @@ fn slug(text: &str) -> Option<String> {
 /// The criteria of the filters of a list of `kind`.
 #[derive(Debug, Default)]
 struct Wanted {
+    /// The objects among these, sorted (REQ-006-41); empty: any.
+    ids: Vec<Uuid>,
     slugs: Vec<String>,
     links: Vec<String>,
     values: Vec<String>,
@@ -837,6 +840,7 @@ fn wanted(kind: Kind, params: &[(String, String)]) -> Result<Wanted, Problem> {
     let mut wanted = Wanted::default();
     let mut params = params.to_vec();
     wanted.prefix = filter::prefix(&mut params)?;
+    wanted.ids = filter::ids(&mut params)?;
     if wanted.prefix.is_some() && !suggested(kind) {
         return Err(bad("unknown parameter q"));
     }
@@ -941,12 +945,12 @@ fn typed(name: &str, value_type: &str, condition: &Condition) -> Result<(), Prob
 
 /// The identifiers of the page of the objects of `kind` whose properties meet those of
 /// `wanted`, sorted by identifier (design « Filtres de propriétés »): the filter engine
-/// of spec 003 filters within one domain at the current system time. Its moment, and
-/// the identifiers of the page plus one when there is a next page.
+/// of spec 003 filters within one domain at the current system time, among the
+/// identifiers of the filter `id` when given. Its moment, and `limit` identifiers at most.
 async fn filtered(
     api: &Api,
     kind: Kind,
-    page: &Page,
+    (page, limit): (&Page, i64),
     wanted: &Wanted,
     scope: &ReadScope,
     now: OffsetDateTime,
@@ -1010,9 +1014,10 @@ async fn filtered(
         &conditions,
         Some(kind.as_str()),
         &wanted.values,
+        &wanted.ids,
         moment.valid_at,
         after,
-        i64::from(page.size) + 1,
+        limit,
         scope,
     )
     .await
@@ -1048,7 +1053,8 @@ async fn list(
         .authorizer()
         .read_scope(&principal.subject(), now)
         .await?;
-    let size = usize::from(page.size);
+    // Filtered by `id`, one page holding them all, without a next one (REQ-006-41).
+    let (limit, size) = filter::window(&page, &wanted.ids)?;
     // The rows of the page and their versions are read in one snapshot (task 021-11c).
     let (moment, rows, next, versions) = if wanted.properties.is_empty() {
         let after = page
@@ -1066,7 +1072,7 @@ async fn list(
                 slugs: &wanted.slugs,
                 links: &wanted.links,
                 values: &wanted.values,
-                ids: &[],
+                ids: &wanted.ids,
                 within: &wanted.within,
                 usages: &wanted.usages,
                 prefix: wanted.prefix.as_deref(),
@@ -1076,7 +1082,7 @@ async fn list(
             // the next page holds the instant of this one (`Page::next`).
             moment.as_of,
             after.as_ref(),
-            i64::from(page.size) + 1,
+            limit,
             &scope,
         )
         .await
@@ -1096,7 +1102,7 @@ async fn list(
         crate::kit::release(snapshot);
         (moment, rows, next, versions)
     } else {
-        let (moment, mut ids) = filtered(&api, kind, &page, &wanted, &scope, now).await?;
+        let (moment, mut ids) = filtered(&api, kind, (&page, limit), &wanted, &scope, now).await?;
         let next = (ids.len() > size).then(|| {
             ids.truncate(size);
             page.next_current(&api.ring, name, &moment, json!(ids[size - 1]))
@@ -1117,7 +1123,7 @@ async fn list(
                 moment.valid_at,
                 None,
                 None,
-                i64::from(page.size),
+                limit,
                 &scope,
             )
             .await

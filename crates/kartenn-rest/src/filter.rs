@@ -21,7 +21,9 @@ use kartenn_store_pg::filter::Condition;
 use serde::Deserialize;
 use serde_json::Value;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
+use crate::cursor::{MAX_SIZE, Page};
 use crate::problem::{Problem, ProblemKind};
 
 /// The `Accept-Query` header (RFC 10008 §3).
@@ -134,6 +136,72 @@ pub fn prefix(params: &mut Vec<(String, String)>) -> Result<Option<String>, Prob
         false
     });
     error.map_or(Ok(found), Err)
+}
+
+/// The filter `id` (H23, REQ-006-41), taken out of `params` (those left by
+/// [`crate::cursor::Page`], which a cursor keeps): the objects among these identifiers,
+/// each once, given [`MAX_SIZE`] times at most (the largest page); empty: no such filter.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `id`: a value that is not a UUID, or the `id` past the bound,
+/// refused as soon as it is read.
+pub fn ids(params: &mut Vec<(String, String)>) -> Result<Vec<Uuid>, Problem> {
+    let mut ids = Vec::new();
+    let mut rest = Vec::with_capacity(params.len());
+    for (name, value) in params.drain(..) {
+        if name == "id" {
+            push_id(&mut ids, &value)?;
+        } else {
+            rest.push((name, value));
+        }
+    }
+    *params = rest;
+    ids.sort_unstable();
+    ids.dedup();
+    Ok(ids)
+}
+
+/// Adds the value `value` of a parameter `id` to `ids`, the identifiers read so far.
+///
+/// # Errors
+///
+/// As [`ids`].
+pub fn push_id(ids: &mut Vec<Uuid>, value: &str) -> Result<(), Problem> {
+    if ids.len() == usize::from(MAX_SIZE) {
+        return Err(bad(format!("id is given more than {MAX_SIZE} times")));
+    }
+    ids.push(
+        value
+            .parse::<Uuid>()
+            .map_err(|_| bad(format!("id: {value:?} is not a UUID")))?,
+    );
+    Ok(())
+}
+
+/// The rows a list of `page` filtered by the identifiers `ids` reads, and the size past
+/// which it offers a next page. Filtered by `id` (REQ-006-41), one page holds them all,
+/// without a next one, so that no cursor carries them: as many rows as identifiers, and
+/// no size; otherwise the page and one more row.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `page_size` or `cursor` beside `id`.
+pub fn window(page: &Page, ids: &[Uuid]) -> Result<(i64, usize), Problem> {
+    if ids.is_empty() {
+        return Ok((i64::from(page.size) + 1, usize::from(page.size)));
+    }
+    if page.after().is_some() {
+        return Err(bad(
+            "cursor does not go with id: a list filtered by id is one page",
+        ));
+    }
+    if page.sized() {
+        return Err(bad(
+            "page_size does not go with id: a list filtered by id is one page",
+        ));
+    }
+    Ok((i64::try_from(ids.len()).unwrap_or(i64::MAX), usize::MAX))
 }
 
 fn condition(name: &str, op: &str, values: &[&str]) -> Result<Condition, Problem> {

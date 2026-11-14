@@ -294,6 +294,122 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+/// The filter `id` of the groups and of the VLANs (REQ-006-41): the objects among the
+/// identifiers that the caller may read, in conjunction with the other filters; an
+/// unreadable one is absent as an unknown one.
+#[kartenn_testing::pg_test]
+async fn groups_and_vlans_filtered_by_identifier(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (owner, acme, other) = (
+        env.property("core.owner").await,
+        env.id("entity", "acme").await,
+        env.id("entity", "other").await,
+    );
+    let lab = env.id("addressing_domain", "lab").await;
+    env.applied(vec![
+        Operation::CreateDomain {
+            local: Some(1),
+            slug: "far".into(),
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(1),
+            kind: ObjectKind::Domain,
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(other.to_string())],
+        },
+    ])
+    .await;
+    let far = env.id("addressing_domain", "far").await;
+    let edge = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active"), (20, "reserved")],
+        )
+        .await;
+    let away = env
+        .seed_group(
+            "away",
+            json!({"domain": {"id": far}}),
+            (1, 4094),
+            &[(30, "active")],
+        )
+        .await;
+    let (ten, twenty, thirty) = (
+        env.vlan_of(edge, 10).await,
+        env.vlan_of(edge, 20).await,
+        env.vlan_of(away, 30).await,
+    );
+    let reader = env
+        .person(
+            &["core.vlan.read", "core.vlan_group.read"],
+            Some(("entity", acme)),
+        )
+        .await;
+    let app = env.app(reader);
+    let ids = |body: &Value| -> Vec<String> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let unknown = Uuid::now_v7();
+    for (uri, expected) in [
+        (format!("/v1/vlans?id={thirty}&id={ten}"), vec![ten]),
+        (format!("/v1/vlans?id={unknown}&id={ten}"), vec![ten]),
+        (format!("/v1/vlans?id={twenty}&id={ten}"), vec![ten, twenty]),
+        (
+            format!("/v1/vlans?id={twenty}&id={ten}&status=active"),
+            vec![ten],
+        ),
+        (format!("/v1/vlan-groups?id={away}&id={edge}"), vec![edge]),
+        (
+            format!("/v1/vlan-groups?id={unknown}&id={edge}"),
+            vec![edge],
+        ),
+        (format!("/v1/vlan-groups?id={edge}&slug=away"), vec![]),
+    ] {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        let expected: Vec<String> = expected.iter().map(Uuid::to_string).collect();
+        assert_eq!(ids(&body), expected, "{uri}");
+    }
+    // The unreadable VLAN and group leave the answer of an unknown identifier, headers but
+    // the identifier of the request included.
+    for (unreadable, known, collection) in [(thirty, ten, "vlans"), (away, edge, "vlan-groups")] {
+        let mut answers = Vec::new();
+        for other in [unknown, unreadable] {
+            let uri = format!("/v1/{collection}?id={other}&id={known}");
+            let (status, mut headers, body) = call(&app, "GET", &uri, None, &[]).await;
+            assert!(headers.remove("request-id").is_some());
+            answers.push((status, headers, body));
+        }
+        assert_eq!(
+            answers[0], answers[1],
+            "{collection}: unknown and unreadable"
+        );
+        // One page, without a next one, past the default size of a page included.
+        assert!(answers[0].1.get("link").is_none(), "{collection}");
+        assert!(answers[0].2["links"]["next"].is_null(), "{collection}");
+    }
+    for (uri, named) in [
+        ("/v1/vlans?id=10".to_owned(), "id"),
+        ("/v1/vlan-groups?id=edge".to_owned(), "id"),
+        (format!("/v1/vlans?id={ten}&page_size=5"), "page_size"),
+        (
+            format!("/v1/vlan-groups?id={edge}&page_size=5"),
+            "page_size",
+        ),
+    ] {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert!(body["detail"].to_string().contains(named), "{uri}: {body}");
+    }
+}
+
 /// The pages of groups and of VLANs (task 021-11c), and their reads by identifier (task
 /// 021-11d), read their rows and versions in one snapshot: a write validated between the
 /// two reads is seen by neither.

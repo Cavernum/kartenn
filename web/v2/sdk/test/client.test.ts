@@ -236,6 +236,7 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
     const { FILTERS: lists } = await import("../src/api/filters");
     const names = (path: string) => (lists[path] ?? []).map((f) => f.name);
     expect(names("/v1/prefixes")).toEqual([
+      "id",
       "domain",
       "value",
       "within",
@@ -252,7 +253,7 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
     const exists = lists["/v1/addresses"]?.find((f) => f.name === "prop.{key}:exists");
     expect(exists?.type).toBe("boolean");
     expect(exists?.template?.key.collection).toBe("/v1/property-declarations");
-    expect(names("/v1/entities")).toEqual(["slug", "parent", "q"]);
+    expect(names("/v1/entities")).toEqual(["id", "slug", "parent", "q"]);
   });
 
   it("a contract changed without regeneration fails the comparison", async () => {
