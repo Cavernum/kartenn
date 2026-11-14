@@ -35,8 +35,11 @@ kartenn)
   "$bin/kartenn-server" migrate "$database" >/dev/null
   "$bin/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
     >"$state/breakglass-v2.txt"
+  # Playwright drops the output of its servers (journeys.config.ts, `stdout: "ignore"`):
+  # the log of the instance, a refusal or a failure of a journey read after the run
+  # (task 021-11p11), kept until the next one.
   exec env SSL_CERT_FILE="$state/ca.pem" \
-    "$bin/kartenn-server" run "$database" web/v2/e2e/kartenn.toml
+    "$bin/kartenn-server" run "$database" web/v2/e2e/kartenn.toml >"$state/kartenn-v2.log" 2>&1
   ;;
 budgets)
   # The instance of the browser bench (REQ-021-30, `bench-web`): kartenn-server in release
