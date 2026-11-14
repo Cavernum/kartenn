@@ -6620,7 +6620,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     et `ExtensionElement` en cellule (11o2), catalogues `views/i18n/*.json`, `sharePages`
     du SDK (22f)
   - dépend de : 22h
-  - fait le 2026-11-14 : 306,3 Ko avant (main 17984cee), 295,5 Ko après. Mesure module
+  - fait le 2026-11-14 : 306,3 Ko avant (main 17984cee), 295,5 Ko après ; 295,9 Ko
+    rebasée sur main 032a8593 (21c et 21d, +0,4 Ko : `frame/width.ts` et la porte de
+    l'écriture, `edit.why.narrow` dans `shared/`). Mesure module
     par module entre la 22h (eab60b9c) et main (cartes de sources, octets gzip par
     source, approchés) : @kartenn/ui ≈ +5 Ko (cellules de la 11o2 et de la 21c :
     `CellSelect`, `cellReasons`, `extensionCell`, `TreeGrid`, `virtualRows`), catalogues
@@ -6631,14 +6633,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `views/words.ts` ; `entryScreen` et `recordScreen` de `views/routes.ts`) et de chaque
     panneau que le cadre ouvre lui-même (édition, clôture, brouillon : `ShellFrame.vue`) ;
     ceux que le cadre lit avant tout écran (`labels`, `problem`, `views.retry` et les
-    mots communs, noms et valeurs des champs, `edit.why.past`) passent dans
-    `views/i18n/shared/`. `useQueries` passe dans `data/queries.ts`, et ce que les routes
-    lisent de `views/data.ts` dans `views/carried.ts` (≈ 0,9 Ko). `test/build.test.ts`
-    vérifie que chaque phrase propre aux catalogues des écrans et de l'administration est
-    dans le build et absente du premier lot ; `test/setup.ts` lit les mots des écrans
-    avant chaque fichier de tests, qui monte un écran sans sa route. Vérification :
-    `k-web2-check --base main` (1108 tests, 2739 captures sur 2739 : tout, `data/query.ts`
-    étant tiré par l'entrée) ; parcours `draft` et `admin`.
+    mots communs, noms et valeurs des champs, `edit.why.past` et `edit.why.narrow`)
+    passent dans `views/i18n/shared/`. `useQueries` passe dans `data/queries.ts`, et ce que
+    les routes lisent de `views/data.ts` dans `views/carried.ts` (≈ 0,9 Ko).
+    `test/build.test.ts`, sur un build sous `NODE_ENV` `production` (comme `vite build`) :
+    chaque phrase propre aux catalogues des écrans et de l'administration est dans le
+    build et absente du premier lot ; aucune chaîne du premier lot ne nomme une clé que
+    seuls ces catalogues portent, entière ou tête d'une clé construite (`a.b.${…}`) ; le
+    premier lot tient son budget (échec au-delà de 300 Ko, avertissement au-delà de
+    296 Ko). `refusalWords` (`time/index.ts`) nomme chaque clé de la porte entière, pour
+    que l'analyse la voie. `test/setup.ts` lit les mots des écrans avant chaque fichier de
+    tests, qui monte un écran sans sa route. Vérification : `k-web2-check --base main`
+    (1142 tests, 2739 captures sur 2739 : tout, `data/query.ts` étant tiré par l'entrée) ;
+    parcours `draft`, `admin` et `accessibility`.
   - choix : la porte par écran (`worded` au retour de `entryScreen`/`recordScreen`) plutôt
     qu'une garde du routeur, qu'un routeur de test contournerait et qui retarderait la
     page de connexion ; `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead`
@@ -6646,8 +6653,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     pour trois chunks de plus au premier chargement.
   - reste : le premier poste de la hausse, @kartenn/ui (≈ 131 Ko gzip, partagé entier par
     la carte d'import, un seul chunk pour l'ordre de sa feuille), ne se découpe pas sans
-    arbitrage ; aucune vérification ne voit le dépassement avant le banc (garde-fou
-    proposé à la session principale).
+    arbitrage ; l'analyse des clés ne voit pas une clé tenue dans une variable venue
+    d'ailleurs que d'une chaîne du premier lot (une donnée du serveur), ni une clé lue dans
+    un catalogue de plugin ; l'avertissement des 296 Ko s'imprime dans la sortie de
+    Vitest, que le verdict d'une ligne de `k-web2-check` ne reprend pas.
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
