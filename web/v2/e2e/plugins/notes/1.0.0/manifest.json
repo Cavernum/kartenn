@@ -40,7 +40,7 @@
       "point": "column",
       "id": "flag",
       "element": "notes-flag",
-      "object_types": ["address"],
+      "object_types": ["address", "prefix"],
       "label": "column.flag"
     },
     {
