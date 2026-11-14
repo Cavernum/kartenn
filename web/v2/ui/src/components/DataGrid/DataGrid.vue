@@ -1362,7 +1362,7 @@ onBeforeUnmount(() => observer?.disconnect());
     </div>
     <div class="k-visually-hidden" role="alert">{{ announcement }}</div>
     <div v-if="reasons.length" hidden>
-      <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
+      <span v-for="text in reasons" :id="reasonId(text)" :key="text">{{ text }}</span>
     </div>
     <Tooltip v-if="hasReasons" :control="reasonTip" decorative>{{ tipText }}</Tooltip>
   </div>

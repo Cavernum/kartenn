@@ -613,6 +613,28 @@ describe("TreeGrid: why a cell has no editor, why it is in its state (task 021-1
 // element shows the row it was created for, created again when its row element comes to
 // show another row — an element that reads its row once, when connected (as the test
 // plugin `notes` does), shows the right one.
+/**
+ * The tree scrolls in a box of 600 px, its rows 28 px high (the document lays nothing out):
+ * a window of rows, for the tests of the `describe` that calls it.
+ */
+function windowOfRows(): void {
+  const sizes = { clientHeight: "k-tree-grid", offsetHeight: "k-tree-grid__row" } as const;
+  const heights = { clientHeight: 600, offsetHeight: 28 } as const;
+  beforeEach(() => {
+    for (const name of ["clientHeight", "offsetHeight"] as const)
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        get(this: HTMLElement) {
+          return this.classList.contains(sizes[name]) ? heights[name] : 0;
+        },
+      });
+  });
+  afterEach(() => {
+    for (const name of ["clientHeight", "offsetHeight"] as const)
+      delete (HTMLElement.prototype as Partial<Record<typeof name, number>>)[name];
+  });
+}
+
 describe("TreeGrid: an extension column over recycled rows (task 021-11o)", () => {
   const TAG = "k-test-row-cell";
   if (!customElements.get(TAG))
@@ -632,23 +654,7 @@ describe("TreeGrid: an extension column over recycled rows (task 021-11o)", () =
       element: row.querySelector(`[data-column="ext"] ${TAG}`),
     }));
 
-  // The tree scrolls in a box of 600 px, its rows 28 px high (the document lays nothing
-  // out): a window of rows.
-  const sizes = { clientHeight: "k-tree-grid", offsetHeight: "k-tree-grid__row" } as const;
-  const heights = { clientHeight: 600, offsetHeight: 28 } as const;
-  beforeEach(() => {
-    for (const name of ["clientHeight", "offsetHeight"] as const)
-      Object.defineProperty(HTMLElement.prototype, name, {
-        configurable: true,
-        get(this: HTMLElement) {
-          return this.classList.contains(sizes[name]) ? heights[name] : 0;
-        },
-      });
-  });
-  afterEach(() => {
-    for (const name of ["clientHeight", "offsetHeight"] as const)
-      delete (HTMLElement.prototype as Partial<Record<typeof name, number>>)[name];
-  });
+  windowOfRows();
 
   it("gives each row its own element, created again when a recycled row shows another node", async () => {
     const { props, root } = mount(TreeGrid as Component, {
@@ -723,4 +729,72 @@ describe("TreeGrid: an extension column over recycled rows (task 021-11o)", () =
     ).toBe(true);
     for (const { node, content } of after) expect(content, node).toBe(node);
   });
+});
+
+describe("TreeGrid: a row renders again only when its own row changes (task 021-22e-b)", () => {
+  windowOfRows();
+  const COLUMNS: GridColumn[] = [{ id: "n", label: "Rang" }];
+
+  /** A tree of 1 100 rows (virtualised), its host's states counted by node. */
+  function counted(slot: boolean) {
+    const asked = new Map<string, number>();
+    const cells = new Map<string, number>();
+    const count = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
+    const props = shallowReactive({ label: "Cent mille", expanded: ["v1"] });
+    // The same functions at each render, as a host's (a new one is a new prop).
+    const nodeState = (node: TreeNode) => void count(asked, node.id);
+    const cellState = (node: TreeNode) => void count(cells, node.id);
+    const nodes = virtualTree();
+    const root = document.createElement("div");
+    document.body.append(root);
+    const app = createApp({
+      render: () =>
+        h(
+          TreeGrid as Component,
+          {
+            label: props.label,
+            treeLabel: "Nœud",
+            nodes,
+            expanded: props.expanded,
+            columns: COLUMNS,
+            nodeState,
+            cellState,
+          },
+          // The host's slot, but no column of an extension: never rendered.
+          slot ? { extension: () => h("output") } : {},
+        ),
+    });
+    app.config.errorHandler = (error) => {
+      throw error;
+    };
+    apps.push(app);
+    app.mount(root);
+    const rendered = () => root.querySelectorAll("[role='row'][data-node]").length;
+    return { props, asked, cells, rendered };
+  }
+
+  it.each([false, true])(
+    "asks each state once per row and cell, and none again when the tree alone renders (slot %s)",
+    async (slot) => {
+      const tree = counted(slot);
+      await nextTick();
+      const rows = tree.rendered();
+      expect(rows).toBeGreaterThan(2);
+      expect(rows).toBeLessThan(300);
+      // The row's state, for the row and for its words; the cells' states, for the error
+      // of the node cell, the state and the error of the other one (before: six and seven).
+      for (const [node, n] of tree.asked) expect(n, node).toBeLessThanOrEqual(2);
+      for (const [node, n] of tree.cells) expect(n, node).toBeLessThanOrEqual(3);
+      tree.asked.clear();
+      tree.cells.clear();
+      // The tree renders again (its name), no row changes: none asks again.
+      tree.props.label = "Cent mille nœuds";
+      await nextTick();
+      expect(document.querySelector("[role='treegrid']")?.getAttribute("aria-label")).toBe(
+        "Cent mille nœuds",
+      );
+      expect(tree.asked.size).toBe(0);
+      expect(tree.cells.size).toBe(0);
+    },
+  );
 });

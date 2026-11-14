@@ -65,8 +65,6 @@ import {
   watch,
 } from "vue";
 import { t } from "../../i18n.ts";
-import CodeBadge from "../CodeBadge/CodeBadge.vue";
-import CellError from "../DataGrid/CellError.vue";
 import {
   columnTemplates,
   priorityOf,
@@ -78,22 +76,14 @@ import {
   type GridCommit,
 } from "../DataGrid/grid.ts";
 import Icon from "../Icon/Icon.vue";
-import IconButton from "../IconButton/IconButton.vue";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
-import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
-import {
-  CELL_WIDGETS,
-  ExtensionCell,
-  tameControl,
-  useExtensionControls,
-} from "../internal/extensionCell.ts";
+import { CELL_WIDGETS, tameControl, useExtensionControls } from "../internal/extensionCell.ts";
 import type { ListOption } from "../Select/select.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import MoveDialog from "../internal/MoveDialog.vue";
-import NoValue from "../NoValue/NoValue.vue";
 import { useTreeStates } from "../internal/treeStates.ts";
 import { rowsInView, useVirtualRows } from "../internal/virtualRows.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
@@ -112,6 +102,8 @@ import {
   type TreeNodeState,
   type TreeRow,
 } from "./tree.ts";
+import type { TreeGridRowContext } from "./row.ts";
+import TreeGridRow from "./TreeGridRow.vue";
 
 defineOptions({ inheritAttrs: false });
 
@@ -486,8 +478,8 @@ function stateOf(node: TreeNode, column: GridColumn): string | undefined {
   return state === undefined ? undefined : typeof state === "string" ? state : "error";
 }
 const CELL_WORDS = { pending: "pending", draft: "inDraft", review: "inReview" } as const;
-function stateWord(node: TreeNode, column: GridColumn): string | undefined {
-  const state = stateOf(node, column);
+/** The words of a cell's state (`stateOf`), asked once by its row. */
+function stateWord(state: string | undefined): string | undefined {
   return state && state in CELL_WORDS ? t(CELL_WORDS[state as keyof typeof CELL_WORDS]) : undefined;
 }
 /** The error a cell shows: its editor's (the host's check), else the host's. */
@@ -571,9 +563,6 @@ const tipPlace = (cell: HTMLElement) =>
   cell.dataset.column === ""
     ? (cell.querySelector<HTMLElement>(".k-tree-grid__label") ?? cell)
     : cell;
-/** The description of a cell: its error, else its reasons. */
-const describedBy = (node: TreeNode, column: GridColumn, index: number) =>
-  messageOf(node, column) ? errorId(index, column.id) : reasonOf(node, column);
 function onCellEnter(node: TreeNode, column: GridColumn, event: PointerEvent): void {
   errors.enter(cellKey(node.id, column.id), event);
   cellReasons.enter(node, column, event);
@@ -761,6 +750,65 @@ function onDblclick(event: MouseEvent): void {
     void startEditing({ row: node.id, column: column.id });
 }
 
+// ——— Rows ———
+
+/**
+ * What every row of a node reads of the tree (`TreeGridRow`): one object for all of them,
+ * so that a row whose row and index stay renders no more when the tree renders (a scroll).
+ */
+const rowContext: TreeGridRowContext = {
+  treeColumn,
+  shown,
+  priority,
+  colIndex,
+  selected,
+  editable: () => !!props.editable,
+  isExpanded,
+  isStop,
+  isEditing,
+  canEdit,
+  nodeState: (node) => props.nodeState?.(node),
+  stateOf,
+  stateWord,
+  messageOf,
+  // The description of a cell without an error: its reasons.
+  reasonOf,
+  errorId,
+  errorAnchor,
+  cellOf,
+  extraOf,
+  addLabel: (node) => props.addLabel?.(node),
+  addBlocked: (node) => props.addBlocked?.(node),
+  moveOf,
+  refusal,
+  dropOf,
+  rowWords: (node) => rowWords(node),
+  moves,
+  editorOptions: editor.options,
+  draft,
+  setDraft: (value) => (draft.value = value),
+  choose: editor.choose,
+  editorLabel,
+  onRowClick,
+  onCellEnter,
+  onCellLeave,
+  onCellOver: (event) => cellReasons.over(event),
+  add: (key) => emit("add", key),
+  errorLeave: () => (errors.hovered.value = null),
+  errorDismiss: () => errors.dismiss(),
+  errorBack: (cell) => cellElement(cell)?.focus(),
+  errorBlur: () => (errors.focused.value = null),
+  extension: () => slots.extension,
+  tame: (row) => tameIn(row),
+};
+/**
+ * The host's slot `extension` is read by the rows that render it: with a column of an
+ * extension, each render of the tree renders them again, as before they were components
+ * (a slot the host changes); without one, the slot is never rendered and costs nothing.
+ */
+let renders = 0;
+const renderTick = () => ++renders;
+
 // ——— Measures ———
 
 /** The header sticks: its height into the virtualiser's offset and the scroll padding. */
@@ -779,13 +827,16 @@ let observer: ResizeObserver | undefined;
 const widgetsOf = (cell: HTMLElement) => [
   ...cell.querySelectorAll<HTMLElement>(cell.dataset.element ? CELL_WIDGETS : "button"),
 ];
-function tame(): void {
-  for (const button of grid.value?.querySelectorAll<HTMLElement>(".k-tree-grid__cell button") ?? [])
-    button.tabIndex = -1;
+/** The widgets under `root` (the tree, or a row rendered alone) out of the tab order. */
+function tameIn(root: ParentNode | null | undefined): void {
+  // Written only where it differs: each render of a scroll comes here.
+  for (const button of root?.querySelectorAll<HTMLElement>(".k-tree-grid__cell button") ?? [])
+    if (button.tabIndex !== -1) button.tabIndex = -1;
   if (!extended.value) return;
-  for (const el of grid.value?.querySelectorAll(`${ELEMENT_CELL} :is(${CELL_WIDGETS})`) ?? [])
+  for (const el of root?.querySelectorAll(`${ELEMENT_CELL} :is(${CELL_WIDGETS})`) ?? [])
     tameOne(el);
 }
+const tame = () => tameIn(grid.value);
 onMounted(tame);
 onUpdated(tame);
 // The element of an extension (or what the host puts in the slot `extension`) renders when
@@ -956,291 +1007,22 @@ onBeforeUnmount(() => observer?.disconnect());
               <span class="k-tree-grid__more-label">{{ part.row.node.label }}</span>
             </div>
           </div>
-          <div
+          <!-- A node: its own component, rendered again only when its row changes. -->
+          <TreeGridRow
             v-else
             :ref="virtual.measure"
-            role="row"
-            class="k-tree-grid__row"
-            :data-index="part.index"
-            :data-node="part.row.key"
-            :aria-level="part.row.level"
-            :aria-setsize="part.row.setSize"
-            :aria-posinset="part.row.posInSet"
-            :aria-rowindex="part.index + 2"
-            :aria-expanded="hasChildren(part.row.node) ? isExpanded(part.row.key) : undefined"
-            :aria-selected="selected === undefined ? undefined : part.row.key === selected"
-            :aria-busy="
-              moveOf(part.row.node) === 'pending' ||
-              props.nodeState?.(part.row.node) === 'loading-children'
-                ? 'true'
-                : undefined
-            "
-            :data-state="props.nodeState?.(part.row.node)"
-            :data-move="moveOf(part.row.node)"
-            :data-drop="dropOf(part.row.node)"
-            :draggable="moves.movable(part.row.key) ? 'true' : undefined"
-            @click="onRowClick(part.row, $event)"
-            @dragstart="moves.onDragStart(part.row.key, $event)"
-            @dragover="moves.onDragOver(part.row.key, $event)"
-            @dragenter="moves.onDragOver(part.row.key, $event)"
-            @drop="moves.onDrop(part.row.key, $event)"
-            @dragend="moves.onDragEnd()"
-          >
-            <div
-              role="gridcell"
-              class="k-tree-grid__cell k-tree-grid__node"
-              :data-row="part.row.key"
-              data-column=""
-              aria-colindex="1"
-              :data-editing="isEditing(part.row.key, '') ? 'true' : undefined"
-              :aria-readonly="
-                props.editable && !canEdit(part.row.node, treeColumn) ? 'true' : undefined
-              "
-              :aria-invalid="messageOf(part.row.node, treeColumn) ? 'true' : undefined"
-              :aria-describedby="describedBy(part.row.node, treeColumn, part.index)"
-              :tabindex="
-                isEditing(part.row.key, '') ? undefined : isStop(part.row.key, '') ? 0 : -1
-              "
-              :style="depth(part.row)"
-              @pointerenter="onCellEnter(part.row.node, treeColumn, $event)"
-              @pointerover="cellReasons.over($event)"
-              @pointerleave="onCellLeave(part.index, '', $event)"
-            >
-              <span class="k-tree-grid__twisty" aria-hidden="true">
-                <Icon
-                  v-if="hasChildren(part.row.node)"
-                  name="chevron-right"
-                  class="k-chevron"
-                  :data-open="isExpanded(part.row.key) ? 'true' : undefined"
-                />
-              </span>
-              <Icon
-                v-if="part.row.node.icon"
-                :name="part.row.node.icon"
-                class="k-tree-grid__icon"
-              />
-              <div
-                v-if="isEditing(part.row.key, '')"
-                class="k-field-frame k-tree-grid__editor"
-                data-size="md"
-                :data-invalid="messageOf(part.row.node, treeColumn) ? 'true' : undefined"
-              >
-                <CellSelect
-                  v-if="editor.options.value"
-                  :options="editor.options.value"
-                  :value="draft"
-                  :label="editorLabel(part.row.node, treeColumn)"
-                  :invalid="!!messageOf(part.row.node, treeColumn)"
-                  :described-by="
-                    messageOf(part.row.node, treeColumn) ? errorId(part.index, '') : undefined
-                  "
-                  @update="(value: string) => (draft = value)"
-                  @done="editor.choose"
-                />
-                <input
-                  v-else
-                  v-model="draft"
-                  class="k-field-frame__input"
-                  type="text"
-                  spellcheck="false"
-                  :aria-label="editorLabel(part.row.node, treeColumn)"
-                  :aria-invalid="messageOf(part.row.node, treeColumn) ? 'true' : undefined"
-                  :aria-describedby="
-                    messageOf(part.row.node, treeColumn) ? errorId(part.index, '') : undefined
-                  "
-                />
-              </div>
-              <template v-else>
-                <span class="k-tree-grid__label">{{ part.row.node.label }}</span>
-                <code v-if="part.row.node.objectKey" class="k-tree-grid__key">{{
-                  part.row.node.objectKey
-                }}</code>
-              </template>
-              <Icon
-                v-if="moveOf(part.row.node) === 'pending'"
-                name="loader-circle"
-                class="k-spinner k-tree-grid__mark"
-              />
-              <Icon
-                v-else-if="refusal(part.row.node)"
-                name="circle-x"
-                class="k-tree-grid__mark k-tree-grid__mark--ko"
-              />
-              <Icon
-                v-else-if="moveOf(part.row.node) === 'cut'"
-                name="scissors"
-                class="k-tree-grid__mark"
-              />
-              <Icon
-                v-if="props.nodeState?.(part.row.node) === 'draft'"
-                name="draft"
-                class="k-tree-grid__mark"
-              />
-              <Icon
-                v-else-if="props.nodeState?.(part.row.node) === 'moved'"
-                name="move"
-                class="k-tree-grid__mark"
-              />
-              <Icon
-                v-else-if="props.nodeState?.(part.row.node) === 'preview'"
-                name="circle-dashed"
-                class="k-tree-grid__mark"
-              />
-              <span v-if="rowWords(part.row.node)" class="k-visually-hidden"
-                >({{ rowWords(part.row.node) }})</span
-              >
-              <span v-if="refusal(part.row.node)" class="k-tree-grid__refusal">
-                <span>{{ refusal(part.row.node)!.reason }}</span>
-                <CodeBadge
-                  v-if="refusal(part.row.node)!.code"
-                  :code="refusal(part.row.node)!.code!"
-                />
-              </span>
-              <IconButton
-                v-if="props.addLabel?.(part.row.node)"
-                icon="plus"
-                size="sm"
-                tabindex="-1"
-                class="k-tree-grid__add"
-                :label="props.addLabel(part.row.node)!"
-                v-bind="props.addBlocked?.(part.row.node) ?? {}"
-                @click.stop="emit('add', part.row.key)"
-              />
-              <CellError
-                v-if="messageOf(part.row.node, treeColumn)"
-                :id="errorId(part.index, '')"
-                :error="messageOf(part.row.node, treeColumn)!.error"
-                :code="messageOf(part.row.node, treeColumn)!.code"
-                :anchor="errorAnchor(part.row.node, treeColumn)"
-                @leave="errors.hovered.value = null"
-                @dismiss="errors.dismiss()"
-                @back="cellElement({ row: part.row.key, column: '' })?.focus()"
-                @blur="errors.focused.value = null"
-              />
-            </div>
-            <div
-              v-for="column in shown"
-              :key="column.id"
-              role="gridcell"
-              class="k-tree-grid__cell"
-              :class="{ 'k-mono': column.mono }"
-              :data-row="part.row.key"
-              :data-column="column.id"
-              :data-align="column.align"
-              :data-priority="priority(column)"
-              :data-width="column.width ?? 'md'"
-              :data-element="column.element ? 'true' : undefined"
-              :data-state="stateOf(part.row.node, column)"
-              :data-editing="isEditing(part.row.key, column.id) ? 'true' : undefined"
-              :aria-colindex="colIndex(column)"
-              :aria-readonly="
-                props.editable && !canEdit(part.row.node, column) ? 'true' : undefined
-              "
-              :aria-busy="stateOf(part.row.node, column) === 'pending' ? 'true' : undefined"
-              :aria-invalid="messageOf(part.row.node, column) ? 'true' : undefined"
-              :aria-describedby="describedBy(part.row.node, column, part.index)"
-              :tabindex="
-                isEditing(part.row.key, column.id)
-                  ? undefined
-                  : isStop(part.row.key, column.id)
-                    ? 0
-                    : -1
-              "
-              @pointerenter="onCellEnter(part.row.node, column, $event)"
-              @pointerleave="onCellLeave(part.index, column.id, $event)"
-            >
-              <div
-                v-if="isEditing(part.row.key, column.id)"
-                class="k-field-frame k-tree-grid__editor"
-                data-size="md"
-                :data-invalid="messageOf(part.row.node, column) ? 'true' : undefined"
-              >
-                <CellSelect
-                  v-if="editor.options.value"
-                  :options="editor.options.value"
-                  :value="draft"
-                  :label="editorLabel(part.row.node, column)"
-                  :mono="column.mono"
-                  :invalid="!!messageOf(part.row.node, column)"
-                  :described-by="
-                    messageOf(part.row.node, column) ? errorId(part.index, column.id) : undefined
-                  "
-                  @update="(value: string) => (draft = value)"
-                  @done="editor.choose"
-                />
-                <input
-                  v-else
-                  v-model="draft"
-                  class="k-field-frame__input"
-                  :class="{ 'k-mono': column.mono }"
-                  type="text"
-                  spellcheck="false"
-                  :aria-label="editorLabel(part.row.node, column)"
-                  :aria-invalid="messageOf(part.row.node, column) ? 'true' : undefined"
-                  :aria-describedby="
-                    messageOf(part.row.node, column) ? errorId(part.index, column.id) : undefined
-                  "
-                />
-              </div>
-              <template v-else>
-                <span class="k-tree-grid__value"
-                  ><ExtensionCell
-                    v-if="column.element"
-                    :key="part.row.key"
-                    :tag="column.element"
-                    :row="part.row.node"
-                    :column="column"
-                    :extra="extraOf(part.row.node, column)"
-                    ><template v-if="slots.extension" #default="given"
-                      ><slot name="extension" v-bind="given" /></template></ExtensionCell
-                  ><NoValue v-else-if="cellOf(part.row.node, column) === null" /><template v-else>{{
-                    cellOf(part.row.node, column)
-                  }}</template></span
-                >
-                <Icon
-                  v-if="stateOf(part.row.node, column) === 'pending'"
-                  name="loader-circle"
-                  class="k-spinner k-tree-grid__mark"
-                />
-                <Icon
-                  v-else-if="stateOf(part.row.node, column) === 'error'"
-                  name="circle-x"
-                  class="k-tree-grid__mark k-tree-grid__mark--ko"
-                />
-                <Icon
-                  v-else-if="stateOf(part.row.node, column) === 'review'"
-                  name="eye"
-                  class="k-tree-grid__mark"
-                />
-                <Icon
-                  v-else-if="stateOf(part.row.node, column) === 'draft'"
-                  name="draft"
-                  class="k-tree-grid__mark"
-                />
-                <span v-if="stateWord(part.row.node, column)" class="k-visually-hidden"
-                  >({{ stateWord(part.row.node, column) }})</span
-                >
-              </template>
-              <CellError
-                v-if="messageOf(part.row.node, column)"
-                :id="errorId(part.index, column.id)"
-                :error="messageOf(part.row.node, column)!.error"
-                :code="messageOf(part.row.node, column)!.code"
-                :anchor="errorAnchor(part.row.node, column)"
-                @leave="errors.hovered.value = null"
-                @dismiss="errors.dismiss()"
-                @back="cellElement({ row: part.row.key, column: column.id })?.focus()"
-                @blur="errors.focused.value = null"
-              />
-            </div>
-          </div>
+            :row="part.row"
+            :index="part.index"
+            :c="rowContext"
+            :tick="extended && slots.extension ? renderTick() : undefined"
+          />
         </template>
       </div>
     </div>
     <div class="k-visually-hidden" role="status">{{ status.text.value }}</div>
     <div class="k-visually-hidden" role="alert">{{ alerts.text.value }}</div>
     <div v-if="reasons.length" hidden>
-      <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
+      <span v-for="text in reasons" :id="reasonId(text)" :key="text">{{ text }}</span>
     </div>
     <Tooltip v-if="hasReasons" :control="cellReasons.tip" :place-at="tipPlace" decorative>{{
       cellReasons.text.value
