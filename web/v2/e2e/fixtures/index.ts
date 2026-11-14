@@ -84,20 +84,27 @@ export async function expectAccessible(page: Page, disabled: string[] = []): Pro
         .map((a) => a.finished.catch(() => undefined)),
     );
   });
-  const results = await new AxeBuilder({ page })
-    .options({ preload: false })
-    .disableRules(disabled)
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze()
-    .finally(() =>
-      page.evaluate(() => {
-        const w = window as unknown as { __kartennStill?: CSSStyleSheet };
-        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
-          (s) => s !== w.__kartennStill,
-        );
-        delete w.__kartennStill;
-      }),
-    );
+  const restore = () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __kartennStill?: CSSStyleSheet };
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+        (s) => s !== w.__kartennStill,
+      );
+      delete w.__kartennStill;
+    });
+  let results: Awaited<ReturnType<AxeBuilder["analyze"]>>;
+  try {
+    results = await new AxeBuilder({ page })
+      .options({ preload: false })
+      .disableRules(disabled)
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+  } catch (error) {
+    // The failure of axe is the one said, not that of the restoring after it.
+    await restore().catch(() => undefined);
+    throw error;
+  }
+  await restore();
   expect(
     results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
     "axe-core violations",
