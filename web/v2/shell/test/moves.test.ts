@@ -5,6 +5,7 @@ import type { TreeNode } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { timeOf, writesOf } from "../src/time/index.ts";
@@ -179,6 +180,27 @@ describe("moves in a tree whose parent is declared", () => {
     expect(outcome.kind).toBe("refused");
     expect(moves().moveState(node(2))).toMatchObject({ refused: { ok: false } });
     expect(writes(seen)).toEqual([]);
+  });
+
+  it("refuses every move under 1024 px, the node left unmarked once wide (task 021-21c)", async () => {
+    const { moves, seen } = await mounted(EDIT, () => ({ status: 200, body: {} }));
+    setFrameWidth("narrow");
+    try {
+      const narrow = {
+        ok: false,
+        reason: "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.",
+      };
+      expect(moves().canMove(node(2), node(3))).toEqual(narrow);
+      const outcome = await moves().move({ node: node(2), target: node(3) });
+      expect(outcome).toEqual({ kind: "refused", check: narrow });
+      expect(moves().moveState(node(2))).toBeUndefined();
+      expect(writes(seen)).toEqual([]);
+      setFrameWidth("standard");
+      expect(moves().canMove(node(2), node(3))).toEqual({ ok: true });
+      expect(moves().moveState(node(2))).toBeUndefined();
+    } finally {
+      setFrameWidth("wide");
+    }
   });
 
   it("a move to the draft: its operation at the version read, marked once simulated", async () => {
@@ -444,27 +466,38 @@ describe("moves in a tree whose parent is declared", () => {
 });
 
 describe("« Changer de parent… » of a record by the date read (task 021-12c)", () => {
-  const dated = createShellI18n("fr").global.t("edit.move.dated");
+  const { t } = createShellI18n("fr").global;
+  const dated = t("edit.move.dated");
+  const words = { dated, narrow: t("edit.why.narrow") };
 
   it("is refused under a validity date alone with edit.move.dated, the record's refusal kept otherwise", () => {
     expect(dated).toBe("Lecture datée : revenez au présent pour changer de parent.");
     const at = (query: Record<string, string>) => writesOf(timeOf(query));
     // Under `valid_at` alone the record's other writes open (to the dated draft), not the move.
-    expect(moveEntryRefusal({}, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+    expect(moveEntryRefusal({}, at({ valid_at: "2026-01-01T00:00:00Z" }), words)).toEqual({
       disabled: true,
       reason: dated,
     });
     // At the present, the record's own (nothing, or its permission).
-    expect(moveEntryRefusal({}, at({}), dated)).toEqual({});
+    expect(moveEntryRefusal({}, at({}), words)).toEqual({});
     const forbidden = { forbidden: "core.entity.edit" };
-    expect(moveEntryRefusal(forbidden, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toBe(
+    expect(moveEntryRefusal(forbidden, at({ valid_at: "2026-01-01T00:00:00Z" }), words)).toBe(
       forbidden,
     );
     // Under `as_of`, refused too, by the date.
-    expect(moveEntryRefusal({}, at({ as_of: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+    expect(moveEntryRefusal({}, at({ as_of: "2026-01-01T00:00:00Z" }), words)).toEqual({
       disabled: true,
       reason: dated,
     });
+  });
+
+  it("is refused in a frame under 1024 px by the width, before a permission (task 021-21c)", () => {
+    const narrow = writesOf(timeOf({}), "narrow");
+    const refused = { disabled: true, reason: t("edit.why.narrow") };
+    expect(moveEntryRefusal({}, narrow, words)).toEqual(refused);
+    expect(moveEntryRefusal({ forbidden: "core.entity.edit" }, narrow, words)).toEqual(refused);
+    // At 1024 px, the record's own again.
+    expect(moveEntryRefusal({}, writesOf(timeOf({}), "standard"), words)).toEqual({});
   });
 });
 

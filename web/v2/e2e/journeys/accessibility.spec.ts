@@ -508,6 +508,95 @@ test("an in-place edit, the draft panel, the palette and the collapsed sidebar b
   }
 });
 
+const NARROW = "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.";
+
+// Editing from 1024 px wide (task 21c; REQ-021-29, Q-021-12): under it, at 768 px (narrow)
+// and 390 px (compact), a cell of the list says why it has no editor, `e` and the palette's
+// « Modifier » say it by the status of the list, no edit panel opens; at 1024 px editing
+// comes back; an editor opened there and the window narrowed keeps its text and the focus,
+// its text refused by the width until the window is wide again. The edit goes to a draft,
+// dropped at the end; its domain is its own (RFC 5737, TEST-NET-2).
+test("under 1024 px a cell, `e` and the palette say the width; at 1024 px editing comes back", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  test.setTimeout(120_000);
+  await login("alice");
+  const { slug } = await ownedDomain(page, `zz-narrow-${browserName}-${Date.now().toString(36)}`);
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  const value = grid.locator('[role="gridcell"][data-column="value"]').first();
+  const status = page.getByRole("main").getByRole("status").filter({ hasText: NARROW });
+  const editPanel = page.getByRole("complementary", { name: "Panneau droit" });
+  /** The list at `width`, the focus on the value of its first row by the keyboard. */
+  async function onValue(width: number): Promise<void> {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/prefixes?domain=${slug}`);
+    await atRest(page);
+    await expect(value).toContainText("198.51.100.0/24");
+    // Its first header (narrower, Firefox stops first on the grid's own scrolling box).
+    await tabTo(page, grid.getByRole("columnheader").first());
+    await page.keyboard.press("ArrowDown");
+    expect(await holdsFocus(value)).toBe(true);
+  }
+
+  for (const width of [768, 390]) {
+    await onValue(width);
+    // The cell: read only, the width as its description, and at the foot of the list.
+    await expect(value).toHaveAttribute("aria-readonly", "true");
+    await expect(value).toHaveAccessibleDescription(NARROW);
+    await expect(page.locator(".k-keyboard-hint").filter({ hasText: NARROW })).toBeVisible();
+    // Enter opens no editor.
+    await page.keyboard.press("Enter");
+    await expect(grid.getByRole("textbox")).toHaveCount(0);
+    // `e` says the width by the status of the list; no edit panel opens.
+    await page.keyboard.press("e");
+    await expect(status).toHaveText(NARROW);
+    await expect(editPanel).toHaveCount(0);
+    expect(await holdsFocus(value)).toBe(true);
+    await expectAccessible(page);
+    // The palette keeps « Modifier la ligne : Préfixe »; run, it says the width the same way.
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    await page.keyboard.type("Modifier la ligne");
+    const command = palette.getByRole("option", { name: /^Modifier la ligne : Préfixe/ });
+    await expect(command).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
+    await expect(status).toHaveText(NARROW);
+    await expect(editPanel).toHaveCount(0);
+  }
+
+  // At 1024 px: the cell edits again; the window narrowed with its editor open keeps it.
+  await onValue(1024);
+  await expect(value).not.toHaveAttribute("aria-readonly", "true");
+  await page.keyboard.press("Enter");
+  const editor = grid.getByRole("textbox", { name: /^Valeur — / });
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("198.51.100.0/25");
+  await page.setViewportSize({ width: 768, height: 900 });
+  await expect(page.locator("[data-width='narrow']")).toHaveCount(1);
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue("198.51.100.0/25");
+  // Enter: refused by the width, said in the alert of the grid; the editor stays.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("main").getByRole("alert").filter({ hasText: NARROW })).toContainText(
+    "Échap annule la saisie.",
+  );
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue("198.51.100.0/25");
+  await expect(value).not.toHaveAttribute("data-state", "draft");
+  // Wide again, Enter adds it to the draft.
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(page.locator("[data-width='standard']")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(value).toHaveAttribute("data-state", "draft");
+  const draft = (await activeDraft(page))!;
+  expect(draft, "the draft the edit went to").not.toBeNull();
+  await dropDraft(page, draft);
+});
+
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
 // a journey fail.
 test.describe("guards of every journey", () => {

@@ -71,9 +71,11 @@ async function chooseOption(label: string, ctrlKey = false): Promise<void> {
   await nextTick();
 }
 /** What may be written at the present, under `valid_at` alone, under `as_of` (`writesOf`). */
-const NOW = { quickEdit: true, draft: true };
-const DATED = { quickEdit: false, draft: true };
-const AS_OF = { quickEdit: false, draft: false };
+const NOW = { quickEdit: true, draft: true, refused: null };
+const DATED = { quickEdit: false, draft: true, refused: null };
+const AS_OF = { quickEdit: false, draft: false, refused: "past" } as const;
+/** In a frame under 1024 px (`writesOf(time, "narrow")`), at any period but `as_of`. */
+const NARROW = { quickEdit: false, draft: false, refused: "narrow" } as const;
 const P1 = "0b5e3c1a-0000-4000-8000-0000000000a1";
 const V1 = "0b5e3c1a-0000-4000-8000-0000000000c1";
 const V2 = "0b5e3c1a-0000-4000-8000-0000000000c2";
@@ -118,6 +120,21 @@ describe("the fields of an edit", () => {
       why: { kind: "fixed", reason: "computed" },
     });
     expect(editability(author, NOW, PREFIXES, "id")).toMatchObject({ why: { kind: "none" } });
+  });
+
+  it("offer no editor in a frame under 1024 px, the width said before a permission (task 021-21c)", () => {
+    expect(editability(author, NARROW, PREFIXES, "value")).toEqual({
+      editable: false,
+      why: { kind: "narrow" },
+    });
+    expect(editability(reader, NARROW, PREFIXES, "prop.core.owner")).toEqual({
+      editable: false,
+      why: { kind: "narrow" },
+    });
+    // A field that never changes says so, at any width.
+    expect(editability(author, NARROW, PREFIXES, "domain")).toMatchObject({
+      why: { kind: "fixed", reason: "immutable" },
+    });
   });
 
   it("ask `prop.<key>.edit` for a property, apart from the right to modify the object", () => {

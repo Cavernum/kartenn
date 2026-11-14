@@ -6752,7 +6752,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : `aria-activedescendant` de la palette et le focus après Entrée (à
     vérifier) ; le nom du repère « Panneau droit » ; `.k-cat__switches` du catalogue
     déborde à 320 px
-- [ ] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
+- [x] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
   porte d'écriture qui lit la largeur du cadre (classe `narrow` ou `compact`, sous
   1024 px) à côté de la période, et un motif `narrow` (« Modification à partir de 1024 px
   de large : élargissez la fenêtre pour modifier. ») dit là où le motif `past` l'est
@@ -6768,6 +6768,68 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `ClosePanel.vue`, `EditHint.vue`, `EditPanel.vue` (vers la ligne 492) ; catalogue
     `views/i18n/fr.json` (`edit.why`) ; modèle : le motif `past`
   - dépend de : 21b ; 11o est fusionnée (`TopologyView.vue` lit `inline.ts`)
+  - fait le 2026-11-14 — la porte : `writesOf(time, width)` (`time/index.ts`) rend
+    `refused: "past" | "narrow" | null` à côté de `quickEdit` et `draft`, `useWrites()` la
+    lit à la période de la route et à la classe de largeur que publie le cadre
+    (`frame/width.ts` : `frameWidth`, `followWindow` appelé par `ShellFrame.vue`, qui y
+    perd ses propres requêtes ; `wide` sans cadre), `refusalWords` en dit la phrase
+    (`edit.why.narrow`, fr et en). Dite là où `past` l'est : `editability` (`narrow` dans
+    `NotEditable`), donc cellules de `inline.ts` et `properties.ts` (`aria-readonly`,
+    description, infobulle, `whyWords`, pied `EditHint.vue`) et celles de l'arbre et du
+    contenu qui les lisent ; `c`, `e` (`play`, `runnable` prennent la porte) ; la palette
+    (`offered` : la commande gardée sous la largeur seule, son lancement dit le motif par
+    le statut de la vue) ; panneaux d'édition, de clôture et de changement de parent
+    (`action.ts` : les deux actions refusées avec le motif, Ctrl+Entrée le dit dans le
+    statut du panneau) ; « Changer de parent… » (`moveEntryRefusal`, mots `dated` et
+    `narrow`) et le glisser de l'arbre (`canMove`). Un éditeur ouvert quand la fenêtre
+    passe sous 1024 px reste ouvert, sa saisie et le focus gardés : Entrée y est refusée
+    par `validate` (la bulle et l'`alert` de la grille), et range au brouillon une fois la
+    fenêtre élargie ; la ligne du motif (Ctrl+Entrée) reste aussi, `confirm` dit le motif ;
+    un panneau ouvert reste ouvert, ses champs gardés. Tests : `test/writes.test.ts`
+    (largeur × période, phrase, `followWindow` sur des requêtes simulées, `useWrites`),
+    `edit.test.ts` (`editability`), `shortcuts.test.ts` (`play`, `offered`),
+    `moves.test.ts`, `close.test.ts` (panneau ouvert puis rétréci, puis élargi) ; parcours
+    `accessibility` à 768 et 390 px (cellule, pied, Entrée, `e`, la palette, aucun panneau)
+    puis à 1024 px (l'édition revient, l'éditeur ouvert garde saisie et focus à 768 px)
+  - choix : le passé avant la largeur (élargir n'ouvre pas une date passée), la largeur
+    avant le droit manquant (comme le passé) ; sans largeur, `writesOf` lit la période
+    seule (la simulation d'une clôture, une lecture) ; la palette garde « Créer… » et
+    « Modifier… » quand la largeur seule les retient (`offered` lit la période sans la
+    largeur : absents hors du présent et sans le droit, à toute largeur, comme avant) ; un
+    déplacement refusé par la largeur ne marque pas le nœud « refusé » ; pas de garde dans `openEdit` : un panneau ouvert par une surface des 21d à 21f
+    sous 1024 px montre ses actions refusées, sans perte
+  - pour 21d à 21f : remplacer `computed(() => writesOf(time.value))` par `useWrites()`
+    et `t("…why.past")` par `refusalWords(writes, t)` (ou le motif `narrow` de leur
+    catalogue) au point d'action ; modèle de test : `test/writes.test.ts`, `setFrameWidth`
+    pour un test monté ; `RecordView.vue` passe déjà les mots `narrow` à
+    `moveEntryRefusal`, sa porte reste la période seule jusqu'à la 21f. La garde
+    `PERIOD_ONLY` de `test/writes.test.ts` compte, dans `src/` hors `_ui/` et hors
+    `time/index.ts`, commentaires ôtés, tout fichier qui n'appelle pas `useWrites()` et
+    décide sur la période : `writesOf` sans largeur, un `present` (`x.present`,
+    `present:` passé à un modèle) ou un test d'`asOf` (`!x.asOf`, `x.asOf === null`,
+    `x.asOf ?`) ; une date passée à une lecture (`asOf: time.value.asOf`) ne compte pas.
+    Elle échoue sur un fichier hors de sa liste fermée, ou sur un fichier listé qui ne
+    décide plus ainsi : chaque fichier y est rattaché à sa sous-tâche (21d, 21e, 21f) et
+    la quitte quand elle le reprend ; `kept` pour la simulation d'une clôture et
+    `offered`. Elle ne voit pas une décision prise sur un `present` reçu nu (paramètre
+    d'une fonction pure) : l'appelant qui le passe est compté
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : la liste `PERIOD_ONLY` (un
+    `writesOf` sans largeur ne compile pas moins, il se compte) ; le statut poli d'une vue
+    (`useStatus`, `say.ts`) se vide quand la porte change (« élargissez la fenêtre » n'y
+    reste pas une fois la fenêtre large)
+  - reste : la fiche (« Modifier », « Actions », `blockedBy` de `RecordView.vue`) et le
+    « + » de l'arbre (`TopologyView.vue`, `addRefusal`) disent encore `past` et s'ouvrent
+    sous 1024 px (21f), le brouillon de même (21d) ; un éditeur ouvert ne dit pas le
+    rétrécissement de la fenêtre avant Entrée (une annonce au passage sous 1024 px, à
+    peser) ; l'annonce du statut après une commande de la palette, et le motif d'une
+    cible refusée au glisser ou par « Déplacer vers… », à écouter au lecteur d'écran ; la
+    course de `properties.ts` (`onCommit`, vers les lignes 668-673) : la fenêtre rétrécie
+    pendant `await explain()`, la saisie est perdue, rien n'est écrit (dire le motif et
+    garder la valeur dans la cellule)
+  - passe de corrections (revue) : la garde `PERIOD_ONLY` élargie aux décisions par
+    `present` et `asOf`, commentaires ôtés, chaque fichier rattaché à sa sous-tâche ;
+    `offered` lit la période (sous `valid_at` seul et à l'étroit, une action non datée
+    reste absente) ; un refus `narrow` du glisser ne marque pas le nœud ; 21g écrite
 - [ ] 21d. Édition réservée aux largeurs ≥ 1024 px, brouillon et changesets : le motif
   `narrow` de la 21c sur la soumission, les opérations, « Mes brouillons », les
   soumissions perdues et les décisions d'un changeset — REQ-021-29 — verify : Vitest de
@@ -6777,8 +6839,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `drafts.why.past` vers la ligne 181), `draft/DraftSubmit.vue`,
     `draft/DraftOperations.vue`, `draft/DraftsView.vue`, `draft/LostSubmissions.vue` ;
     `changesets/model.ts` (motif `past`, vers la ligne 135),
-    `changesets/ChangesetView.vue` ; catalogue `changesets/i18n/fr.json`, `en.json`
-    (`drafts.why`, `changesets.why`)
+    `changesets/ChangesetView.vue` (vers la ligne 121) ; catalogue
+    `changesets/i18n/fr.json`, `en.json` (`drafts.why`, `changesets.why`) ; chaque fichier
+    repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`, entrées `21d`)
   - dépend de : 21c
 - [ ] 21e. Édition réservée aux largeurs ≥ 1024 px, administration : le motif `narrow`
   de la 21c sur chaque action d'écriture de l'administration — REQ-021-29 — verify :
@@ -6788,18 +6851,41 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `admin/model.ts` (vers les lignes 337, 351, 389 et 398), `admin/AccountsView.vue`,
     `AccountDetail.vue`, `GroupsView.vue`, `GroupDetail.vue`, `RolesView.vue`,
     `RoleDetail.vue`, `IssuersView.vue`, `IdentityDetail.vue`, `ImportDetail.vue` (chacun
-    passe `edit.why.past` à l'un des deux)
+    passe `edit.why.past` à l'un des deux ; `RolesView.vue` vers la ligne 110,
+    `GroupsView.vue` 79, `GroupDetail.vue` 116, `AccountDetail.vue` 61, `ImportDetail.vue`
+    89) ; chaque fichier repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`,
+    entrées `21e`)
   - dépend de : 21c
 - [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
   motif `narrow` de la 21c sur les actions de la fiche (« Modifier », « Actions »), son
   onglet VLAN et son avis des trous, les anomalies et l'arbre de la topographie —
   REQ-021-29 — verify : parcours `accessibility` à 768 px : « Modifier » d'une fiche et une
   cellule de l'arbre disent le motif
-  - où : `web/v2/shell/src/views/RecordView.vue` (vers la ligne 178),
-    `views/record/NetworkVlanTab.vue`, `views/record/GapsNotice.vue`,
-    `views/anomalies/AnomalyGrid.vue`, `views/TopologyView.vue`
+  - où : `web/v2/shell/src/views/RecordView.vue` (`writes` vers la ligne 82, `blockedBy`
+    vers la ligne 178), `views/record/NetworkVlanTab.vue` (vers la ligne 116),
+    `views/record/GapsNotice.vue`, `views/anomalies/AnomalyGrid.vue` (vers la ligne 36),
+    `views/TopologyView.vue` (vers les lignes 407, 473 et 594, `addRefusal`) ; chaque
+    fichier repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`, entrées `21f`)
   - dépend de : 21c (11o et 11p5, qui touchaient la topographie et l'historique, sont
     fusionnées)
+- [ ] 21g. Édition réservée aux largeurs ≥ 1024 px, plugins : la largeur du cadre transmise
+  aux plugins avec la période (le contexte du SDK, `setContext` de `time/index.ts`, vers la
+  ligne 90, ne porte que `time`), et leurs écritures et leurs commandes de palette
+  (`commands.register`, `pluginEntries` de `shortcuts/palette.ts`) passant par la porte de
+  la 21c : refusées sous 1024 px avec le motif `narrow`, comme `c` et `e` ; REQ-021-29 vaut
+  pour eux aussi (l'arbre d'hébergement du plugin `machines` aujourd'hui, les plugins de
+  la 017 demain) — REQ-021-29, Q-021-12 — verify : Vitest du contexte (la largeur publiée
+  au plugin, changée au redimensionnement) et de `pluginEntries` (une commande d'écriture
+  refusée sous 1024 px, son motif dit) ; parcours `accessibility` à 768 px : une écriture
+  du plugin `machines` (son arbre d'hébergement) refusée avec le motif
+  - où : `web/v2/shell/src/time/index.ts` (`installTime`, `setContext`),
+    `web/v2/sdk/src/context.ts` (`setContext`, le contexte publié et son type ;
+    `sdk/src/host.ts` l'exporte au shell), `shell/src/frame/width.ts`
+    (`frameWidth`), `shell/src/shortcuts/palette.ts` (`pluginEntries`),
+    `frame/ShellFrame.vue` (les commandes des plugins), `web/v2/plugins/machines/` ;
+    modèle : `test/writes.test.ts`
+  - touche le contrat du SDK des plugins (contexte) : à arbitrer avant code, avec la 24f
+  - dépend de : 21c
 - [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —

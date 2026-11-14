@@ -465,6 +465,7 @@
     "why": {
       "forbidden": "Read only: it takes",
       "past": "Read only off the present: go back to the present to change it.",
+      "narrow": "Changes from 1024 px wide: widen the window to change it.",
       "dated": "Dated read: nothing is applied at once, the change goes to the dated draft.",
       "inPlaceDated": "Dated read: nothing changes in place, “Change” leads to the dated draft.",
       "inPlaceDatedOf": "Dated read: nothing changes in place; “Change” opens the dated draft of {of}, not of this row.",

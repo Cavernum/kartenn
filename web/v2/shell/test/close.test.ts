@@ -4,6 +4,7 @@ import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import ClosePanel from "../src/views/edit/ClosePanel.vue";
@@ -306,6 +307,48 @@ describe("the close panel of a record", () => {
     expect(root.querySelector("[role='status']:last-of-type")?.textContent).toContain(
       "il faut core.address.edit",
     );
+  });
+
+  it("refuses both actions in a frame under 1024 px, the panel and its input kept (task 021-21c)", async () => {
+    const narrow =
+      "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.";
+    const { seen, root } = await mounted("prefixes", P1, ["core.prefix.edit"], (call) => {
+      if (call.url === `/v1/prefixes/${P1}`) return object(P1, "198.51.100.0/24");
+      if (call.url.startsWith("/v1/changesets?simulate=true")) return { body: simulated() };
+      if (call.method === "POST" && call.url === "/v1/drafts") {
+        return { status: 201, body: { id: D1, version: 1, operations: [] }, etag: '"1"' };
+      }
+      return undefined;
+    });
+    const cascade = () => root.querySelector<HTMLInputElement>(".k-close-panel__cascade input");
+    try {
+      await expect.poll(() => main(root)?.getAttribute("aria-disabled")).not.toBe("true");
+      await expect.poll(cascade).not.toBeNull();
+      cascade()!.click();
+      await nextTick();
+      // The window narrows with the panel open: refused, the width said, nothing lost.
+      setFrameWidth("narrow");
+      await nextTick();
+      const button = main(root)!;
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toBe(
+        narrow,
+      );
+      ctrlEnter(root);
+      await nextTick();
+      expect(writes(seen)).toEqual([]);
+      expect(root.querySelector("[role='status']:last-of-type")?.textContent).toBe(narrow);
+      expect(editRequest().value?.mode).toBe("close");
+      expect(cascade()!.checked).toBe(true);
+      // Wide again: the closure goes to the draft.
+      setFrameWidth("standard");
+      await nextTick();
+      expect(main(root)!.getAttribute("aria-disabled")).not.toBe("true");
+      ctrlEnter(root);
+      await expect.poll(() => writes(seen).length).toBe(1);
+    } finally {
+      setFrameWidth("wide");
+    }
   });
 
   it("with `.edit` and without `.approval.self`: « Appliquer » names it, the draft stays", async () => {

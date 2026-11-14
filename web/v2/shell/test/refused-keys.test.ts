@@ -8,7 +8,7 @@ import { frameRoutes } from "../src/frame/routes.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { play, runnable } from "../src/shortcuts/view.ts";
-import { timeOf } from "../src/time/index.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 import { closeEdit, editRequest } from "../src/views/edit/panel.ts";
 
 // `c` and `e` refused say why by the polite status of the view (task 021-12k, REQ-021-37;
@@ -87,7 +87,7 @@ async function mounted(
 }
 
 /** The period of the route now. */
-const timeIn = (router: Router) => timeOf(router.currentRoute.value.query);
+const timeIn = (router: Router) => writesOf(timeOf(router.currentRoute.value.query), "wide");
 /** What the polite statuses of the view say now. */
 const statuses = (root: HTMLElement) =>
   [...root.querySelectorAll('[role="status"]')].map((s) => s.textContent?.trim()).join(" | ");

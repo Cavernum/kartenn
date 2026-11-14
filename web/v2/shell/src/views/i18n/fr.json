@@ -465,6 +465,7 @@
     "why": {
       "forbidden": "Lecture seule : il faut",
       "past": "Lecture seule hors du présent : revenez au présent pour modifier.",
+      "narrow": "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.",
       "dated": "Lecture datée : rien ne s'applique tout de suite, la modification va au brouillon daté.",
       "inPlaceDated": "Lecture datée : rien ne se modifie en place, « Modifier » mène au brouillon daté.",
       "inPlaceDatedOf": "Lecture datée : rien ne se modifie en place ; « Modifier » ouvre le brouillon daté de {of}, non de cette ligne.",

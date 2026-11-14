@@ -8,7 +8,7 @@ import { frameRoutes } from "../src/frame/routes.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { runnable } from "../src/shortcuts/view.ts";
-import { timeOf } from "../src/time/index.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 import { closeEdit, editRequest } from "../src/views/edit/panel.ts";
 
 // Creating under a validity date alone (task 021-12d; REQ-021-5, X5): « Créer » (`c`) of a
@@ -78,7 +78,7 @@ async function mounted(
 }
 
 /** The period of the route now. */
-const timeIn = (router: Router) => timeOf(router.currentRoute.value.query);
+const timeIn = (router: Router) => writesOf(timeOf(router.currentRoute.value.query), "wide");
 
 describe("creating under a validity date alone (task 021-12d)", () => {
   it("a list: `c` and `e` open the edit panel under `valid_at` alone, never under `as_of`", async () => {

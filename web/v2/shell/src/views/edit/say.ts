@@ -4,7 +4,7 @@ import { nextTick, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { useTime, useWrites } from "../../time/index.ts";
 import type { InlineSay } from "./inline.ts";
 
 // The outcome of a write that went through, said by a toast of the frame (REQ-021-16): 200
@@ -41,19 +41,26 @@ export interface StatusLine {
 
 /**
  * The status of a view, emptied once what it said may no longer hold: another period
- * (a refusal « revenez au présent » is not left at the present), other rights; the view
+ * (a refusal « revenez au présent » is not left at the present), other rights, the frame
+ * crossing 1024 px (nor « élargissez la fenêtre » once wide); the view
  * clears it for another object (`clear`). A sentence still to come is dropped too.
  */
 export function useStatus(): StatusLine {
   const said = ref("");
   const time = useTime();
   const session = useSession();
+  // The gate's refusal too: « élargissez la fenêtre » is not left once it is wide.
+  const writes = useWrites();
   let turn = 0;
   const clear = () => {
     turn += 1;
     said.value = "";
   };
-  watch(() => [time.value.validAt, time.value.asOf, session.value.rights] as const, clear);
+  watch(
+    () =>
+      [time.value.validAt, time.value.asOf, session.value.rights, writes.value.refused] as const,
+    clear,
+  );
   return {
     said,
     status(text) {

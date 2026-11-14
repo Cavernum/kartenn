@@ -24,7 +24,7 @@ import {
 import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
-import { useTime, writesOf } from "../../time/index.ts";
+import { useTime, useWrites } from "../../time/index.ts";
 import { nameOf, type Collection, type Item } from "../collections.ts";
 import {
   applyRight,
@@ -173,7 +173,7 @@ export function whyWords(
 ): string | undefined {
   if (!why || why.kind === "none") return undefined;
   if (why.kind === "forbidden") return `${t("edit.why.forbidden")} ${why.permission}`;
-  if (why.kind === "past") return t("edit.why.past");
+  if (why.kind === "past" || why.kind === "narrow") return t(`edit.why.${why.kind}`);
   if (why.kind === "dated") return dated ?? t("edit.why.inPlaceDated");
   return t(`edit.why.${why.reason}`);
 }
@@ -271,6 +271,8 @@ export function useInlineEdit({
   const session = useSession();
   const time = useTime();
   const present = computed(() => time.value.present);
+  /** The gate: the period and the width of the frame (REQ-021-29). */
+  const writes = useWrites();
   const rights = computed(() => session.value.rights);
 
   // The active draft of the tab: what it changes shows in the cells, « en brouillon ».
@@ -395,7 +397,7 @@ export function useInlineEdit({
   /** Why the field `name` of an object of `of` offers no editor, or `null` when it does. */
   function whyField(of: Collection, name: string | undefined): NotEditable | null {
     if (name === undefined) return { kind: "none" };
-    const editable = editability(rights.value, writesOf(time.value), of, name);
+    const editable = editability(rights.value, writes.value, of, name);
     if (!editable.editable) return editable.why;
     // A column this list cannot write yet (a property): no editor rather than a lost input.
     return modificationField(of.id, name) ? null : { kind: "none" };
@@ -430,9 +432,18 @@ export function useInlineEdit({
     });
   }
 
+  /**
+   * The text of an editor open when the frame became narrower than 1024 px (it opened
+   * wider): refused by the width, its editor kept open with its text and the focus, the
+   * sentence in its bubble; Enter commits it once the window is wide again.
+   */
+  const narrowed = () => (writes.value.refused === "narrow" ? t("edit.why.narrow") : undefined);
+
   function validate(row: Item, column: GridColumn, value: string): string | undefined {
     const field = fieldOf(row, column.id);
     if (!field) return undefined;
+    const width = narrowed();
+    if (width) return width;
     const refused = checkValue(field, valueOf(field, parse(field, value)));
     return refused ? t(refused, { values: choicesOf(field), field: column.label }) : undefined;
   }
@@ -545,6 +556,12 @@ export function useInlineEdit({
     const ask = asking.value;
     if (!ask || ask.busy) return false;
     const of = ask.collection;
+    // The frame narrowed meanwhile: the line and its motive kept, the width said.
+    const width = narrowed();
+    if (width) {
+      say.status(width);
+      return false;
+    }
     // Checked again when it is written: still at the present, still with the rights.
     if (whyField(of, ask.field.name) !== null || !rights.value.has(applyRight(of.type))) {
       cancel();
