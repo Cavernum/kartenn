@@ -6428,12 +6428,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     palette) et `/prefixes/new` (la création, un panneau), retirés par 021/A30
 - [x] 21b. Accessibilité étendue, parcours clavier et reflow : parcours clavier complet
   (palette, barre repliée, panneau du brouillon, édition en place) ; reflow à 320 px des
-  écrans de consultation (le message d'édition sous 1024 px : 21c, 21d) — REQ-021-29 —
+  écrans de consultation (le message d'édition sous 1024 px : 21c à 21f) — REQ-021-29 —
   verify : `k-web2-e2e` (parcours `accessibility`) ; revue `a11y-auditor` avec lecteur
   d'écran en mode navigation
   - où : `web/v2/e2e/journeys/accessibility.spec.ts` (de la 21a), `web/v2/shell/src/frame/`
   - dépend de : 21a
-  - découpée le 2026-11-14 : le message d'édition sous 1024 px passe en 21c et 21d (il
+  - découpée le 2026-11-14 : le message d'édition sous 1024 px passe en 21c à 21f (il
     ferme chaque surface d'écriture, une vingtaine de fichiers, `TopologyView.vue` compris)
   - fait le 2026-11-14 — `web/v2/e2e/journeys/accessibility.spec.ts` : au clavier seul,
     une modification en place (la grille des préfixes d'un domaine propre, un arrêt de
@@ -6450,12 +6450,27 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     trouvé, la liste d'onglets des fiches, qui défilait : `Tabs` va à la ligne
     (`ui/src/components/Tabs/Tabs.vue`, `flex-wrap`), lignes d'inventaire de la 020 et de
     la skill. Sous les deux navigateurs
-  - choix : la région qui coupe (`overflow: hidden`, ellipse avec infobulle) n'est pas
-    comptée comme défilement ; les onglets vont à la ligne plutôt que de défiler (1.4.10
-    ne tolère le défilement en deux dimensions que pour les tableaux de données) ; Alice
-    pour le reflow (elle lit chaque espace, l'administration comprise)
+  - choix : une boîte qui coupe (`overflow: hidden` ou `clip`, celle du cadre comprise)
+    ne compte pas comme défilement, mais tout contrôle focalisable montré qui dépasse la
+    fenêtre ou une boîte qui coupe est compté comme contenu perdu ; seul un texte coupé
+    par une ellipse dans sa propre boîte (infobulle) est admis ; les onglets vont à la
+    ligne plutôt que de défiler (1.4.10 ne tolère le défilement en deux dimensions que
+    pour les tableaux de données), un libellé plus large que la liste y va à la ligne lui
+    aussi ; Alice pour le reflow (elle lit chaque espace, l'administration comprise)
   - passe de relecture (`ui-reviewer`) : les rangées d'onglets se touchent (`gap: 0
     var(--k-space-1)`), le soulignement de l'onglet choisi reste sur son libellé
+  - passe de corrections (revue et audit) : `sideways` compte aussi les contrôles
+    focalisables coupés par une boîte `hidden`/`clip` ou hors de la fenêtre, et se prouve
+    lui-même (un bouton coupé, un autre hors de la fenêtre, nommés) ; à 320 px aucun écran
+    n'en montre, la barre d'état (`.k-frame__bar-end`) comprise ; `Tabs` : onglet borné à
+    la liste (`max-inline-size: 100%`), son libellé va à la ligne, état de catalogue
+    `narrow` et son script clavier (`e2e/components/tabs.spec.ts` : plusieurs rangées,
+    chaque onglet dans la liste, les flèches passent d'une rangée à l'autre) ; le
+    brouillon du parcours clavier supprimé en `finally` ; la région `status` de la liste
+    (« Ajouté au brouillon : … ») et celle de la palette (son compte) vérifiées
+  - reste : `aria-activedescendant` de la palette et le focus après Entrée (à
+    vérifier) ; le nom du repère « Panneau droit » ; `.k-cat__switches` du catalogue
+    déborde à 320 px
 - [ ] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
   porte d'écriture qui lit la largeur du cadre (classe `narrow` ou `compact`, sous
   1024 px) à côté de la période, et un motif `narrow` (« Modification à partir de 1024 px
@@ -6471,22 +6486,39 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     motif `past` vers la ligne 176), `views/edit/properties.ts`, `action.ts`, `moves.ts`,
     `ClosePanel.vue`, `EditHint.vue`, `EditPanel.vue` (vers la ligne 492) ; catalogue
     `views/i18n/fr.json` (`edit.why`) ; modèle : le motif `past`
-  - dépend de : 21b ; 11o fusionnée (`TopologyView.vue` lit `inline.ts`)
-- [ ] 21d. Édition réservée aux largeurs ≥ 1024 px, le reste des surfaces : le motif
-  `narrow` de la 21c sur le brouillon (soumission, opérations, « Mes brouillons »,
-  soumissions perdues), les décisions des changesets, l'administration, les onglets et
-  avis de fiche, les anomalies et la topographie — REQ-021-29 — verify : Vitest des
-  modèles (`changesets/model.ts`, `admin/model.ts`, `admin/access.ts`) ; parcours
-  `accessibility` à 768 px : « Appliquer » du brouillon et « Créer » d'un écran
-  d'administration refusés avec le motif
-  - où : `web/v2/shell/src/draft/state.ts` (`writable`), `DraftSubmit.vue`,
-    `DraftOperations.vue`, `DraftsView.vue`, `LostSubmissions.vue` ;
-    `changesets/model.ts` (motif `past`, vers la ligne 135) ; `admin/access.ts`
-    (`globalRefusal`), `admin/model.ts` (vers les lignes 351 et 398) et les vues qui leur
-    passent `past` ; `views/RecordView.vue` (vers la ligne 178),
-    `views/record/NetworkVlanTab.vue`, `GapsNotice.vue`, `views/anomalies/AnomalyGrid.vue`,
-    `views/TopologyView.vue`
-  - dépend de : 21c ; 11o et 11p5 fusionnées
+  - dépend de : 21b ; 11o est fusionnée (`TopologyView.vue` lit `inline.ts`)
+- [ ] 21d. Édition réservée aux largeurs ≥ 1024 px, brouillon et changesets : le motif
+  `narrow` de la 21c sur la soumission, les opérations, « Mes brouillons », les
+  soumissions perdues et les décisions d'un changeset — REQ-021-29 — verify : Vitest de
+  `changesets/model.ts` (motif `narrow` à côté de `past`) ; parcours `accessibility` à
+  768 px : « Appliquer » du brouillon refusé avec le motif
+  - où : `web/v2/shell/src/draft/state.ts` (`writable`, vers la ligne 125 ; motif
+    `drafts.why.past` vers la ligne 181), `draft/DraftSubmit.vue`,
+    `draft/DraftOperations.vue`, `draft/DraftsView.vue`, `draft/LostSubmissions.vue` ;
+    `changesets/model.ts` (motif `past`, vers la ligne 135),
+    `changesets/ChangesetView.vue` ; catalogue `changesets/i18n/fr.json`, `en.json`
+    (`drafts.why`, `changesets.why`)
+  - dépend de : 21c
+- [ ] 21e. Édition réservée aux largeurs ≥ 1024 px, administration : le motif `narrow`
+  de la 21c sur chaque action d'écriture de l'administration — REQ-021-29 — verify :
+  Vitest de `admin/access.ts` (`globalRefusal`) et `admin/model.ts` ; parcours
+  `accessibility` à 768 px : « Créer » d'un écran d'administration refusé avec le motif
+  - où : `web/v2/shell/src/admin/access.ts` (`globalRefusal`, vers la ligne 54),
+    `admin/model.ts` (vers les lignes 337, 351, 389 et 398), `admin/AccountsView.vue`,
+    `AccountDetail.vue`, `GroupsView.vue`, `GroupDetail.vue`, `RolesView.vue`,
+    `RoleDetail.vue`, `IssuersView.vue`, `IdentityDetail.vue`, `ImportDetail.vue` (chacun
+    passe `edit.why.past` à l'un des deux)
+  - dépend de : 21c
+- [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
+  motif `narrow` de la 21c sur les actions de la fiche (« Modifier », « Actions »), son
+  onglet VLAN et son avis des trous, les anomalies et l'arbre de la topographie —
+  REQ-021-29 — verify : parcours `accessibility` à 768 px : « Modifier » d'une fiche et une
+  cellule de l'arbre disent le motif
+  - où : `web/v2/shell/src/views/RecordView.vue` (vers la ligne 178),
+    `views/record/NetworkVlanTab.vue`, `views/record/GapsNotice.vue`,
+    `views/anomalies/AnomalyGrid.vue`, `views/TopologyView.vue`
+  - dépend de : 21c (11o et 11p5, qui touchaient la topographie et l'historique, sont
+    fusionnées)
 - [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
