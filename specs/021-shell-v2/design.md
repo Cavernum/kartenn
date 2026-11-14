@@ -574,13 +574,15 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 - Chaque entrée garde `{ data, etag }` ; la fonction de requête envoie `If-None-Match` et,
   sur 304, rend la donnée gardée.
 - **Pages lâchées** (021-22f) : le partage structurel d'une liste compare chaque page à
-  celle lue avant sous le même curseur (`sharePages`), jamais à celle de sa place ; passé
+  celle lue avant sous le même curseur (`sharePages`), jamais à celle de sa place, et une
+  page sous un curseur neuf (la liste relue) garde ses lignes inchangées par leur `id` ; passé
   le plafond, la première page lâchée, les pages gardées restent les mêmes objets, leurs
   lignes avec elles (sans quoi chaque ligne d'une grille se rend à nouveau et chaque
   élément d'une colonne d'extension est recréé). La grille virtualisée (`DataGrid`) garde
-  alors les lignes en vue à leur place : des lignes parties ou venues en tête seulement
-  (`headShift`), le virtualiseur ancre la ligne du haut de la fenêtre ; un tri ou un
-  filtre garde le décalage du défilement.
+  alors les lignes en vue à leur place : une page au moins (`ANCHORED_ROWS`) partie ou venue
+  en tête seulement (`headShift`), la grille défilée, le virtualiseur ancre la ligne du haut
+  de la fenêtre ; un tri, un filtre, une ligne créée ou retirée gardent le décalage du
+  défilement.
 - **Dépendants** : à chaque réponse, le SDK relève les références `{type, id}` que le
   corps montre (résumés de liés, éléments embarqués) et tient un index
   `id → clés` ; un événement qui nomme un objet invalide aussi les clés qui le montrent.

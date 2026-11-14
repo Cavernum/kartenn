@@ -6495,12 +6495,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (une trame aux mauvaises lignes, deux rendus) ; ancré sur la ligne du haut de la
     fenêtre, non sur celle du pointeur (le même décalage pour toutes les lignes en vue) ;
     `anchor` réservé à `DataGrid` (les arbres inchangés).
+  - corrections de la revue (2026-11-14) : (1) relue sous des curseurs neufs (chaque
+    `next` fige son `as_of`), une liste perdait tous ses objets ; une page sous un curseur
+    inconnu, ou changée sous le sien, garde ses lignes une à une (`shareRows` : par leur
+    `id` où qu'elles fussent, à défaut à leur place), une ligne changée toujours neuve.
+    (2) `headShift` rend le nombre de lignes déplacées ; l'ancrage seulement pour un
+    déplacement d'au moins `ANCHORED_ROWS` (50, la moitié d'une page du serveur) et la
+    grille défilée : une ligne créée ou retirée en tête d'une liste triée se voit à sa
+    place, à 0 comme plus bas. (3) `anchorTo` rendu à `"start"` une fois les lignes
+    rendues. Commentaire du banc (`budgets.spec.ts`) mis à jour.
+  - choix (revue) : seuil fixe plutôt qu'un signal du cache (un prop de plus à `DataGrid`) ;
+    `anchorTo` remis à `"start"` sur l'instance du virtualiseur (`options`), sans nouveau
+    passage d'options, donc sans rendu de plus.
   - reste : la passe réduite doit montrer un p95 proche de la médiane des pages 2 à 10 ; s'il
     reste au-dessus de 100 ms, le poste suivant est le rendu de toutes les lignes de la
     fenêtre à chaque page (lignes en composants, comme la 22e-b pour `TreeGrid`) et le
-    montage d'une application `machines` par cellule des dix lignes de débord ; le
-    commentaire du banc (`budgets.spec.ts` vers la ligne 357, de la 22g) dit encore que les
-    lignes montent d'une page sous la fenêtre ; les arbres (`TreeGrid`, `Tree`) n'ancrent
+    montage d'une application `machines` par cellule des dix lignes de débord ; (revue)
+    `drafted` (`inline.ts` vers la ligne 284) parcourt toutes les lignes à chaque page, y
+    compris dans le raccourci de `shownRows`, en O(n) ; les arbres (`TreeGrid`, `Tree`) n'ancrent
     pas une tête de liste lâchée (`roots` passé `CHILDREN_PAGES`) ; aucun relecteur
     d'interface lancé (rien de visible ne change) ; l'ancrage n'est vu que dans happy-dom,
     pas dans un navigateur.
