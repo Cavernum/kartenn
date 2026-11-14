@@ -3,8 +3,8 @@ import type { State } from "@kartenn/ui";
 
 // The VLAN of a network (spec 026, REQ-026-6; 008 REQ-008-17): the property `core.vlan` of a
 // prefix of nature `network`, a reference to a VLAN. Its column in the list of prefixes reads
-// the properties of each row shown, a few at a time; its tab on the record of the network
-// sets it and removes it by one operation on the property.
+// the properties of each row shown, through the gate of the shell (`data/gate.ts`); its tab
+// on the record of the network sets it and removes it by one operation on the property.
 
 export type Resolved = components["schemas"]["Resolved"];
 
@@ -122,29 +122,4 @@ export function freeLocal(operations: readonly unknown[]): number {
   };
   visit(operations);
   return most + 1;
-}
-
-/**
- * At most this many reads of the column at once: a list shows dozens of rows, and one read
- * per row all at once overflows the shedding limit of the server (REQ-006-30) and the
- * reader's quota, refusing the other reads of the page with them.
- */
-export const COLUMN_READS = 4;
-let reading = 0;
-const waiting: (() => void)[] = [];
-
-/** Runs `read` within the limit; a read whose row left the page meanwhile is not sent. */
-export async function limited<T>(
-  signal: AbortSignal | undefined,
-  read: () => Promise<T>,
-): Promise<T> {
-  while (reading >= COLUMN_READS) await new Promise<void>((resolve) => waiting.push(resolve));
-  reading++;
-  try {
-    signal?.throwIfAborted();
-    return await read();
-  } finally {
-    reading--;
-    waiting.shift()?.();
-  }
 }

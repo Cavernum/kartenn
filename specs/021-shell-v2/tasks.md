@@ -1824,7 +1824,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     propriétés résolues par lots, filtre `id` répété, clé naturelle dans tous les
     résumés) ; les sous-tâches a et b ci-dessous ne sont que le filet, lançables sans
     toucher au contrat. Voir aussi 22f-c, 22f-d et 22e-d.
-  - [ ] 11p10-a. Une seule porte pour les lectures par ligne du shell : `limited` sort de
+  - [x] 11p10-a. Une seule porte pour les lectures par ligne du shell : `limited` sort de
     `parts/vlan.ts` vers `shell/src/data/gate.ts` (un plafond pour tout le shell) ;
     `ObjectName` y passe toujours et ne lit qu'en vue (la garde d'intersection de
     `NetworkVlan` extraite en composable) — verify : Vitest monté, 66 `ObjectName`
@@ -1836,6 +1836,44 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       propertyColumns.ts` (import), `anomalies/AnomalyGrid.vue`, `anomalies/GapList.vue`,
       `record/PropertyValue.vue`
     - dépend de : 11p11
+    - fait le 2026-11-14 : `shell/src/data/gate.ts` (`limited`, `COLUMN_READS` = 4, sortis
+      de `parts/vlan.ts`) : un plafond pour tout le shell, la file en ordre d'arrivée, le
+      tour d'une lecture finie donné à la plus ancienne en attente (plus de lecture doublée
+      par une nouvelle venue), une lecture abandonnée pendant qu'elle attend sortie de la
+      file à l'instant ; une lecture refusée par charge attend son `Retry-After` hors de la
+      porte (11p10-b) et reprend son tour ensuite ; `giveUpUnseen` n'abandonne une lecture
+      en cours que si aucun observateur actif ne la veut plus (le même VLAN sur deux lignes,
+      les propriétés d'une ligne lues aussi par une colonne : avant, la cellule qui sortait
+      de la vue annulait la lecture des autres). `shell/src/data/inView.ts` (`useInView`,
+      la garde d'intersection de `NetworkVlan` extraite) ; `ObjectName` lit toujours par la
+      porte et seulement en vue (la prop `capped` retirée), sa lecture abandonnée quand il
+      sort de la vue ; `NetworkVlan` et `propertyColumns` importent la porte. Tests :
+      `shell/test/gate.test.ts` (la porte, déplacée de `views.test.ts`, plus l'abandon en
+      attente ; le tour libéré pendant l'attente d'un `Retry-After` ; 66 `ObjectName`
+      montés, 6 hors vue : au plus 4 en vol, 60 lectures, aucune hors vue ; un nom sorti de
+      la vue avant son tour jamais lu, un autre que montre encore une cellule lu, les noms
+      revenus en vue lus alors) ; `shell/test/setup.ts` : l'`IntersectionObserver` de
+      happy-dom, qui ne rappelle jamais, retiré (tout est en vue dans les tests).
+      Vérification : `k-web2-check --base main` (1 265 tests, 2 741 captures sur 2 741 :
+      tout, `parts/vlan.ts` étant tiré par l'entrée du shell) ; `k-web2-e2e` complet : vert
+      sauf `changesets.spec.ts:91` sous les deux navigateurs (le statut « Annulation de « … »
+      » absent après l'annulation, `:166`, rouge encore relancé seul, et rouge de même sur
+      main 40f06863 sous Chromium : antérieur, sans doute la 002-29a fusionnée juste avant)
+      et `accessibility.spec.ts:214` sous Firefox une fois, vert relancé seul ; journal du
+      serveur sans « in flight » (il ne garde que les avertissements).
+    - choix : la porte reste dans le shell (`shell/src/data/`, comme le dit la tâche) et non
+      dans le SDK : une exportation de plus du SDK serait une API des plugins ; plafond
+      gardé à 4 (sous les 20 du serveur, avec les 4 du plugin machines et les lectures de
+      l'écran) ; aucune marge d'intersection (`rootMargin`), comme la colonne VLAN.
+    - reste : le plugin machines garde sa propre porte de 4 (`plugins/machines/src/
+      reads.ts`, `limited`), hors de celle du shell (11p10-d).
+    - reste : `changesets.spec.ts:91` rouge sur main 40f06863 (l'annulation d'un changeset
+      appliqué, `:166`), hors de cette tâche.
+    - reste, mineurs des relectures : un nom hors de la vue (défilement lent, capture
+      pleine page, mode lecture d'un lecteur d'écran) se montre en identifiant jusqu'à
+      son entrée en vue ; un `rootMargin` (100 à 200 px) et la vue tenue pour vraie au
+      `focusin` l'avanceraient (sans effet dans la grille, dont le défilement coupe la
+      marge de la racine).
   - [x] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
     essais, cinq secondes au plus), au lieu de l'état d'erreur ; aucun autre 4xx relu —
     verify : Vitest du cache du SDK, un 429 `Retry-After: 1` puis 200 : la donnée vient

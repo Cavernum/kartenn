@@ -2,15 +2,18 @@
 // The name of an object an answer only references (`{kind, id, href}`: a node of an
 // explanation, the value of a reference): its kind in words and its name, read from its
 // record through the cache at the dates of the page, a link to that record. Until it is
-// read, its identifier in fixed pitch.
+// read, its identifier in fixed pitch. A cell of a list mounts one per row: it reads only
+// while it is in view, through the gate of the shell (`data/gate.ts`, task 021-11p10-a),
+// its read under way given up when it leaves the view and nothing else in view wants it.
 import { reads } from "@kartenn/sdk";
-import { computed } from "vue";
+import { computed, useTemplateRef } from "vue";
+import { giveUpUnseen, limited } from "../../data/gate.ts";
+import { useInView } from "../../data/inView.ts";
 import { useQuery } from "../../data/query.ts";
 import KLink from "../../prefetch/KLink.vue";
 import { useTime } from "../../time/index.ts";
 import { collectionById, collectionOfKind, nameOf, pageOfHref, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
-import { limited } from "../parts/vlan.ts";
 
 const props = defineProps<{
   id: string;
@@ -18,8 +21,6 @@ const props = defineProps<{
   href?: string | null | undefined;
   /** The kind in words before the name (« Préfixe 192.0.2.0/24 »). */
   withKind?: boolean;
-  /** Read within the cap of a column read row by row (`parts/vlan.ts`, `limited`). */
-  capped?: boolean;
 }>();
 const time = useTime();
 const keyLabel = useKeyLabel();
@@ -29,20 +30,21 @@ const collection = computed(
   () =>
     collectionOfKind(props.kind) ?? collectionById(/\/v1\/([a-z-]+)\//.exec(props.href ?? "")?.[1]),
 );
-const record = useQuery(() => {
-  const read = reads.object(collection.value?.kind ?? "prefix", props.id, {
+const options = () =>
+  reads.object(collection.value?.kind ?? "prefix", props.id, {
     validAt: time.value.validAt,
     asOf: time.value.asOf,
   });
+const inView = useInView(useTemplateRef<HTMLElement>("root"), () =>
+  giveUpUnseen(options().queryKey),
+);
+const record = useQuery(() => {
+  const read = options();
   return {
     ...read,
-    ...(props.capped
-      ? {
-          queryFn: (context: Parameters<typeof read.queryFn>[0]) =>
-            limited(context.signal, () => read.queryFn(context)),
-        }
-      : {}),
-    enabled: collection.value !== undefined,
+    queryFn: (context: Parameters<typeof read.queryFn>[0]) =>
+      limited(context.signal, () => read.queryFn(context)),
+    enabled: collection.value !== undefined && inView.value,
   };
 });
 const name = computed(() => {
@@ -58,7 +60,7 @@ const kindWords = computed(() =>
 </script>
 
 <template>
-  <span class="k-object-name">
+  <span ref="root" class="k-object-name">
     <!-- The space in the expression: the compiler trims one left at the end of a template. -->
     <template v-if="props.withKind && kindWords">{{ `${kindWords} ` }}</template>
     <KLink v-if="to" :to="to" :class="{ 'k-mono': name === null }">{{ name ?? props.id }}</KLink>
