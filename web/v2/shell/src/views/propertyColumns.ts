@@ -1,6 +1,6 @@
 import { keys, qualify, queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, GridWindow, RowState } from "@kartenn/ui";
-import { computed, shallowRef, type ComputedRef } from "vue";
+import { computed, shallowReactive, shallowRef, watch, type ComputedRef } from "vue";
 import { useQueries } from "../data/queries.ts";
 import { useTime } from "../time/index.ts";
 import { nameOf, type Collection, type Item } from "./collections.ts";
@@ -159,16 +159,24 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
       };
     }),
   );
-  const byId = computed(() => {
-    const out = new Map<string, (typeof results.value)[number]>();
-    ids.value.forEach((id, i) => {
-      const result = results.value[i];
-      if (result) out.set(id, result);
-    });
-    return out;
-  });
+  // The result of each row read, by row: a response sets its row's alone, and only what
+  // reads that row (its cells, its row as the grid shows it) is computed again (task
+  // 021-22f-d). A single map made anew at each response made every row loaded anew.
+  const byId = shallowReactive(new Map<string, (typeof results.value)[number]>());
+  watch(
+    results,
+    (now) => {
+      const read = new Set(ids.value);
+      ids.value.forEach((id, i) => {
+        const result = now[i];
+        if (result && byId.get(id) !== result) byId.set(id, result);
+      });
+      for (const id of [...byId.keys()]) if (!read.has(id)) byId.delete(id);
+    },
+    { flush: "sync", immediate: true },
+  );
   const resolvedOf = (id: string) =>
-    (byId.value.get(id)?.data as Entry<Resolved> | undefined)?.data ??
+    (byId.get(id)?.data as Entry<Resolved> | undefined)?.data ??
     (queryClient.getQueryData(optionsOf(id).queryKey) as Entry<Resolved> | undefined)?.data;
 
   /** The property `key` of the row `id` as read, `undefined` while it is not. */
@@ -195,7 +203,7 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
     collection: deps.collection,
     objects: () => objects.value,
     property: readOf,
-    unreadable: (id) => byId.value.get(id)?.isError === true,
+    unreadable: (id) => byId.get(id)?.isError === true,
     declaration: declarationOf,
     declarationById: (id) =>
       (deps.declarations() as unknown as Declared[]).find((d) => d.id === id),
@@ -216,7 +224,7 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
     const id = String(row.id);
     const shown = edit.shownValue(id, key);
     if (shown) return shown.masked ? { kind: "masked" } : { kind: "value", value: shown.read };
-    const result = byId.value.get(id);
+    const result = byId.get(id);
     return result?.isError ? { kind: "failed", error: result.error } : { kind: "reading" };
   }
 
@@ -224,17 +232,36 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
   const { inline } = deps;
   const property = (column: GridColumn | string) =>
     propertyOfColumn(typeof column === "string" ? column : column.id);
+  // Each row as the grid shows it, computed apart and kept while its texts do not change:
+  // a response, a draft or an edit of a row makes that row anew, never the others (task
+  // 021-22f-d), and the grid renders that row alone. Weak: a row no longer read goes.
+  const rowsShown = new WeakMap<Item, ComputedRef<Item>>();
+  function shownOf(row: Item): Item {
+    let one = rowsShown.get(row);
+    if (!one) {
+      let keys: readonly string[] = [];
+      one = computed<Item>((previous) => {
+        const id = String(row.id);
+        const texts = chosen.value.map((key) => edit.shownValue(id, key)?.value ?? "");
+        if (
+          previous &&
+          keys === chosen.value &&
+          texts.every((text, i) => previous[`prop.${keys[i]}`] === text)
+        ) {
+          return previous;
+        }
+        keys = chosen.value;
+        const out: Item = { ...row };
+        keys.forEach((key, i) => (out[`prop.${key}`] = texts[i]));
+        return out;
+      });
+      rowsShown.set(row, one);
+    }
+    return one.value;
+  }
   /** The rows as the grid shows them: a column of a property holds the text of its editor. */
   const shownRows = computed<Item[]>(() =>
-    chosen.value.length === 0
-      ? inline.shownRows.value
-      : inline.shownRows.value.map((row) => {
-          const out: Item = { ...row };
-          for (const key of chosen.value) {
-            out[`prop.${key}`] = edit.shownValue(String(row.id), key)?.value ?? "";
-          }
-          return out;
-        }),
+    chosen.value.length === 0 ? inline.shownRows.value : inline.shownRows.value.map(shownOf),
   );
   /** Why the cell of `column` of the row `row` offers no editor, `null` when it does. */
   const why = (column: string, row: string): NotEditable | null => {

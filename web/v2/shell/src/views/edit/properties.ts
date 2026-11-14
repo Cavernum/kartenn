@@ -410,14 +410,15 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     ...drafts.get(active.value ?? "-"),
     enabled: active.value !== null,
   }));
-  // By object: what the draft changes in the properties of each object edited.
+  // By object: what the draft changes in the properties of each object edited, shown or not:
+  // a page read does not compute it again, nor each row that reads it (task 021-22f-d).
   const drafted = computed(() => {
     const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
     const touched = new Set<string>();
     for (const operation of operations ?? []) {
       const id = ((operation as Record<string, unknown>).object as { id?: unknown } | undefined)
         ?.id;
-      if (typeof id === "string" && objectById.value.has(id)) touched.add(id);
+      if (typeof id === "string") touched.add(id);
     }
     const out = new Map<string, Map<string, Raw | null>>();
     for (const id of touched) {

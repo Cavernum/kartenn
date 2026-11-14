@@ -25,7 +25,7 @@ import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime, useWrites } from "../../time/index.ts";
-import { nameOf, type Collection, type Item } from "../collections.ts";
+import { nameOf, type Collection, type CollectionId, type Item } from "../collections.ts";
 import {
   applyRight,
   checkValue,
@@ -282,13 +282,13 @@ export function useInlineEdit({
     ...drafts.get(active.value ?? "-"),
     enabled: active.value !== null,
   }));
-  // Of every collection the rows are of (identifiers are unique across them).
+  // Of every collection (identifiers are unique across them), whatever the rows: a page read
+  // does not compute it again, nor what reads it in each row (task 021-22f-d).
   const drafted = computed(() => {
     const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
-    const ids = new Set(rows().map((row) => collection(row).id));
-    if (ids.size === 0) ids.add(collection().id);
     const out = new Map<string, Values>();
-    for (const id of ids) {
+    if (!operations?.length) return out;
+    for (const id of Object.keys(EDITS) as CollectionId[]) {
       for (const [row, values] of draftedValues(operations, id)) out.set(row, values);
     }
     return out;
