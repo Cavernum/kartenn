@@ -80,11 +80,12 @@ watch(active, (value) => shown.add(value), { immediate: true });
   }
 
   /* The tabs go to the line rather than scroll sideways: a record's tabs read at 320 px
-   * (WCAG 1.4.10, REQ-021-29). */
+   * (WCAG 1.4.10, REQ-021-29); the rows touch, so that a tab's underline stays on its
+   * label and the rows read as one list. */
   .k-tabs__list {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--k-space-1);
+    gap: 0 var(--k-space-1);
     border-block-end: var(--k-border-width) solid var(--k-border-strong);
   }
 

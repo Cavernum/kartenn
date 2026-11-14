@@ -6454,6 +6454,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     comptée comme défilement ; les onglets vont à la ligne plutôt que de défiler (1.4.10
     ne tolère le défilement en deux dimensions que pour les tableaux de données) ; Alice
     pour le reflow (elle lit chaque espace, l'administration comprise)
+  - passe de relecture (`ui-reviewer`) : les rangées d'onglets se touchent (`gap: 0
+    var(--k-space-1)`), le soulignement de l'onglet choisi reste sur son libellé
 - [ ] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
   porte d'écriture qui lit la largeur du cadre (classe `narrow` ou `compact`, sous
   1024 px) à côté de la période, et un motif `narrow` (« Modification à partir de 1024 px
