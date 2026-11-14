@@ -1766,16 +1766,22 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     Passages : les deux tests 80 sur 80 (20 × 2 tests × 2 navigateurs), le fichier entier
     66 sur 66 (3 passages × 11 tests × 2 navigateurs), `k-heavy` tenant `pg` et tous les
     créneaux pendant chaque série.
+    Corrections après revue (même jour), chacune d'abord rouge : les lignes ne restent que
+    sur un refus passager (429, 5xx, réseau : `passing`, `list.ts`) ; refusée pour de bon
+    (401, 403, 404…), la relecture les retire pour l'état d'erreur, comme avant (test monté
+    au 403) ; tant que la relecture est refusée, `useNextPage` ne lit aucune page suivante
+    (`isRefetchError`, `prefetch/nextPage.ts`), qui effacerait l'erreur et l'alerte alors
+    que les premières pages n'ont pas été relues (test de `prefetch.test.ts`).
   - choix : quota de lecture relevé dans la configuration des parcours plutôt qu'une
     identité par worker (tous les fichiers lisent sous Alice) ; `NextPageAlert` réutilisé
     avec un titre plutôt qu'un composant de plus ; le correctif de `failed` porté aux sept
     vues de `useFilteredList`, qui partageaient le défaut.
   - reste :
-    - à arbitrer : un utilisateur seul qui fait défiler vite une longue liste lit environ
-      50 fois par seconde (une lecture de propriétés par ligne montrée), le quota de
-      lecture par défaut : une lecture groupée des propriétés, ou un 429 relu après
-      `Retry-After` par le cache du SDK (`sdk/src/data/cache.ts:236`, aujourd'hui aucun 4xx
-      relu), éviteraient l'état d'erreur.
+    - le défaut que le quota relevé cache : la 11p10.
+    - mineurs de la revue : un curseur refusé sur une relecture (`invalid-cursor` hors de
+      `fetchNextPage`) n'est pas traité comme celui d'une page suivante ; les deux avis
+      (page suivante, relecture) ne se montrent jamais ensemble, le second masqué par le
+      `v-else-if` ; le nom de `NextPageAlert`.
     - vu une fois sous `--repeat-each 3` (avant le correctif du quota) : toutes les
       connexions Firefox refusées pendant quatre minutes, `GET /v1/me` en 503 « too many
       requests in flight » (plafond de 20, `quota.rs:483`) ; non reproduit ensuite, journaux
@@ -1789,6 +1795,21 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       sur `body` (WCAG 2.4.3) ; pendant la relecture, ni `aria-busy` ni bouton désactivé,
       et un second refus n'est pas réannoncé (4.1.3). Le nom `NextPageAlert` couvre mal la
       relecture (renommer si d'autres usages viennent).
+- [ ] 11p10. Un seul utilisateur qui défile atteint le quota de lecture par défaut
+  (REQ-006-29, 50/s, 200 d'un coup) — **arbitrage de l'utilisateur** : une longue liste
+  défilée vite lit environ 50 fois par seconde, une lecture de propriétés par ligne montrée
+  (relevé de la 11p9) ; au quota, l'écran montre « Trop de requêtes » (première lecture) ou
+  l'avis de la page suivante. Les parcours ne le voient plus : la 11p9 a relevé le quota de
+  lecture de leur instance (`web/v2/e2e/kartenn.toml`, `[http.rate] read`). Options : lecture
+  des propriétés par lots (un paramètre au contrat, donc un arbitrage) ; réessai d'un 429
+  après `Retry-After` dans le cache du SDK (`sdk/src/data/cache.ts:236`, aujourd'hui aucun
+  4xx relu) — verify : un parcours au quota par défaut (une instance à `[http.rate]` par
+  défaut, une liste de dix pages défilée jusqu'au bout sans état d'erreur ni avis)
+  - où : `web/v2/sdk/src/data/cache.ts` (`retry`), les lectures
+    `/v1/<sorte>/{id}/properties` par ligne d'une liste (`web/v2/shell/src/views/
+    propertyColumns.ts`, `views/edit/`), `crates/kartenn-rest/src/quota.rs` (`Rates`),
+    `web/v2/e2e/kartenn.toml`
+  - dépend de : 11p9
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
@@ -6905,6 +6926,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     entre les deux commits. La passe réduite de référence après la 22o-b tranche. Borné
     par la 22o-b : un pas rend deux lignes (`shell/test/list-grid-work.test.ts`, qui échoue
     sur l'ancien code : 100 liens rendus au lieu de 4).
+  - note (2026-11-14, 11p9) : `web/v2/e2e/kartenn.toml`, que `serve.sh budgets` sert aussi,
+    relève depuis la 11p9 le quota de lecture (`[http.rate] read`, 1 000/s, 4 000 d'un
+    coup) ; les passes de banc d'avant ce commit, ces deux-ci comprises, tournaient au quota
+    par défaut (50/s, 200, REQ-006-29) et ne sont pas strictement comparables aux suivantes.
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
