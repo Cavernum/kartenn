@@ -6347,6 +6347,41 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`,
     `web/v2/e2e/serve.sh` (branche `budgets`)
   - dépend de : 22c
+  - scénario écrit le 2026-11-14, mesure à la session principale (case non cochée) :
+    `global-setup.ts` crée le domaine vide `bench-a40` (`OTHER_DOMAIN`) ; dans le test du
+    conteneur de 10⁵, après la fenêtre de défilement d'une instance calme (inchangée,
+    `scrollRows` et `readsWhile` en sont tirés), `scrollWhileWritten` refait le même
+    défilement de 10⁴ lignes en 10 s pendant que `backgroundWriter` applique un changeset
+    toutes les 500 ms sur `bench-a40` (un réseau /64 de 2001:db8::/32 chacun, par
+    `page.request` sous la session d'Alice, hors de la page : le shell ne l'apprend que par
+    son flux), après avoir vu au flux un premier `changes` nommant ce domaine (30 s au plus) ;
+    l'écrivain s'arrête par `stop` dans un `finally`, ou de lui-même sur un refus ou un
+    contexte fermé (échec, délai). La sonde garde les `domains` de chaque `changes`.
+    Lignes imprimées : `INFO background writer on bench-a40: …`, `INFO reads while
+    scrolling, bench-a40 written: …`, `INFO event stream while scrolling, bench-a40
+    written: …`, `INFO while scrolling, bench-a40 written: N changes naming the domain of
+    the container; dropped frames …`, `PASS|FAIL changes naming bench-a40 at the stream
+    while scrolling: N (at least 1, M written, no write refused)` et `PASS|FAIL reads of
+    the container's children while bench-a40 is written: N (limit 0)`. `benchDomain`
+    écarte `bench-a40`. Passe à lancer : `bench-web small -g "container of"`. Prouvé hors
+    banc (essai non versionné, sous `k-heavy --pg --all`, sur l'instance des parcours avec
+    le vrai `budgets/global-setup.ts` et une copie des aides du banc) : sur un conteneur de
+    300 enfants, 18 changesets écrits pendant la fenêtre, 18 `changes` nommant `bench-a40`
+    vus au flux, 0 lecture `/children`, 0 changement nommant le domaine du conteneur ;
+    l'écrivain arrêté sur un refus (400) et sur un contexte fermé. `k-web2-check --base
+    main` : 1 096 Vitest ; tout, 2 739 captures sur 2 739 (`budgets.spec.ts` compté parmi
+    les fichiers du projet des captures).
+  - choix : une seconde fenêtre plutôt que l'écrivain dans la première, pour garder les
+    budgets d'images et de tâches longues mesurés sur une instance calme (les images de la
+    seconde en `INFO`) ; tâches périodiques laissées éteintes, l'écrivain du banc les
+    remplaçant (régulier et borné, quand la vérification des drapeaux publics écrit 10³
+    adresses par changeset des minutes durant) ; les écritures comptées par le flux
+    (`domains` du `changes`), non par l'identifiant du changeset ; preuve « au moins 1 »
+    changement vu pendant la fenêtre, le nombre écrit imprimé à côté ; `bench-a40` possédé
+    par une entité de même slug (`core.owner` est exigé d'un domaine).
+  - reste : la passe réduite (session principale, avec 22e, 22f et 22g). Relevé par
+    l'essai, hors périmètre : un `create_prefix` sur un identifiant de domaine inconnu est
+    appliqué (201, `applied`), sans violation ; à examiner côté service.
 
 - [x] 22k. Arbre d'hébergement des machines contre les lectures d'une invalidation
   (relevé par la 22d) : `HostingTree.vue` (`onLoad` → `next()` de `data.ts`) perd sans
