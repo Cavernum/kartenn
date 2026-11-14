@@ -6421,6 +6421,37 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `KLink` et `meta.queries` (tâche 7), `web/v2/e2e/budgets/budgets.spec.ts`
     (vers la ligne 647)
   - dépend de : 22a
+  - code et preuves hors banc faits le 2026-11-14, case laissée ouverte : la passe réduite
+    est à la session principale (avec 22e, 22f et 22m). Cause, trouvée par une sonde du
+    protocole du banc sur les données des parcours (CPU ×4) : le préchargement ne manque
+    pas, c'est la mesure qui le manquait. La colonne VLAN de la liste des préfixes
+    (`views/parts/NetworkVlan.vue`, tâche 17, REQ-026-6) lit `/properties` de chaque
+    réseau en vue, sous la clé même de la route de la fiche ; au survol, les propriétés
+    sont fraîches (30 s) et `prefetchQuery` ne lit que la fiche. Le banc attendait une
+    réponse `/properties` au survol : les réseaux (6 et 10 en passe réduite, 6, 7 et 9 en
+    pleine échelle) passaient pour non préchargés, les conteneurs (sans VLAN, sans lecture)
+    non. `budgets.spec.ts` suit désormais les lectures de la page par chemin
+    (`freshReads`, depuis le premier écran de la liste) : une navigation est en cache si
+    la fiche et ses propriétés ont répondu dans les 25 s, sans lecture en cours, quel que
+    soit l'écran qui les a lues ; le p75 ne compte que celles-là (« p75 of N
+    prefetched ») et les autres s'impriment à part (`INFO navigations not prefetched`),
+    le `FAIL` par fiche gardé. Preuve : parcours `records` « a network of the list hovered
+    reads its record alone… » (Chromium et Firefox) : avant tout survol, les propriétés du
+    réseau 192.0.2.0/24 sont lues par sa ligne et aucune du conteneur 2001:db8:3::/48 ; le
+    survol du conteneur lit la fiche et ses propriétés, celui du réseau la fiche seule ;
+    ouvert, le réseau ne relit ni l'une ni les autres.
+  - choix : correction dans la mesure, pas dans le code (le partage de la clé entre la
+    cellule VLAN et la route est voulu : la fiche s'ouvre en cache) ; fraîcheur jugée à
+    25 s, sous les 30 s de `FRESHNESS.object`, par chemin sans les dates (les navigations
+    mesurées sont au présent) ; preuve en parcours plutôt qu'en Vitest (la cause tient à
+    deux écrans et au réseau).
+  - reste (banc) : la passe réduite doit montrer dix navigations préchargées
+    (`p75 of 10 prefetched`, « not prefetched … none ») ; si le p75 reste au-dessus de
+    100 ms, ce n'est plus le préchargement : la médiane était déjà à 117-125 ms avec des
+    navigations en cache, le coût est celui du rendu de la fiche sous CPU ×4.
+  - reste : la fiche d'un préfixe ouverte en cache montre encore des parties occupées
+    sous Chromium (occupation, résumés des plugins), lectures hors `meta.queries` de sa
+    route ; à mesurer avant de les y ajouter.
 
 - [x] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
   (import statique devenu lourd, module à charger à la demande) — verify :
