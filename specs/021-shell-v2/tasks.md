@@ -6624,7 +6624,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     inconnue : 0) ; `given` suit les pages changées sans décalage de tête, et un hôte qui
     ne redonne pas de fenêtre après une tête lâchée voit la sienne comptée parmi les lignes
     gardées deux trames plus tard (`prefetch.test.ts` « reads the next page at the end
-    when no window comes… », échoue sans).
+    when no window comes… », échoue sans). Passe réduite filtrée après les corrections
+    (machine chargée) : 20 pages dessinées sur 20, aucune non dessinée ; p95 339,3 ms,
+    médiane 109,3 ms, pire 393,9 ms (indicatif).
   - choix (revue) : `nextTick` depuis `measure` plutôt que `onUpdated` d'un composant (le
     patch fini, quel que soit le rendu) ; le repli à deux trames (la fenêtre de
     `DataGrid` part dans la trame qui suit son rendu) plutôt qu'une fenêtre forcée à
