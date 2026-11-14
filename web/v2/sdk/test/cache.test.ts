@@ -11,6 +11,7 @@ import {
   IMMUTABLE,
   MAX_PAGES,
   fallback,
+  sharePages,
   type Entry,
 } from "../src/data/cache.ts";
 import { isImmutable, keys, normalize, timeKey } from "../src/data/keys.ts";
@@ -210,6 +211,105 @@ describe("reads (REQ-021-21, ADR 0037)", () => {
     expect(data.pages).toHaveLength(MAX_PAGES + 1);
     expect(data.pages[0]!.data.items).toEqual([{ id: "c0" }]);
     expect(seen.at(-1)!.url).toBe(`/v1/prefixes/${P1}/children?cursor=10`);
+  });
+
+  it("keep the objects of the pages kept once the first is dropped, matched by cursor (task 021-22f)", async () => {
+    const { queryClient, reads } = fakeCache((request) => {
+      const n = Number(new URL(request.url, "http://x").searchParams.get("cursor") ?? 0);
+      return json(
+        {
+          items: [{ id: `i${n}`, links: { self: `/v1/prefixes/i${n}` } }],
+          links: { next: `/v1/prefixes?cursor=${n + 1}` },
+        },
+        { etag: `W/"p${n}"` },
+      );
+    });
+    const observer = new InfiniteQueryObserver(queryClient, reads.list("/v1/prefixes", null, null));
+    const stop = observer.subscribe(() => undefined);
+    await observer.refetch();
+    for (let page = 1; page < MAX_PAGES; page++) await observer.fetchNextPage();
+    const before = observer.getCurrentResult().data!;
+    expect(before.pages).toHaveLength(MAX_PAGES);
+    // The eleventh page: the first dropped, each other one a place up, the same object.
+    await observer.fetchNextPage();
+    const after = observer.getCurrentResult().data!;
+    expect(after.pages).toHaveLength(MAX_PAGES);
+    expect(after.pages[0]!.data.items[0]!.id).toBe("i1");
+    after.pages.slice(0, -1).forEach((page, i) => {
+      expect(page).toBe(before.pages[i + 1]);
+      expect(page.data.items[0]).toBe(before.pages[i + 1]!.data.items[0]);
+    });
+    // Read again unchanged: the same data, page by page.
+    await observer.refetch();
+    stop();
+    const again = observer.getCurrentResult().data!;
+    expect(again.pages[3]!.data.items[0]).toBe(after.pages[3]!.data.items[0]);
+  });
+
+  it("keep the unchanged rows of a list read again under new cursors, never a changed one (task 021-22f)", async () => {
+    // Each read of the first page gives cursors of its own (`as_of` frozen at the read):
+    // the list read again comes back page by page under cursors the cache never saw.
+    let reading = 0;
+    let renamed = false;
+    const { queryClient, reads } = fakeCache((request) => {
+      const cursor = new URL(request.url, "http://x").searchParams.get("cursor");
+      if (cursor === null) reading++;
+      const n = Number((cursor ?? "0.0").split(".")[0]);
+      const items = [0, 1].map((j) => ({
+        id: `i${n}-${j}`,
+        name: renamed && (n === 0 || n === 3) && j === 1 ? "renommée" : `ligne ${n}-${j}`,
+        links: { self: `/v1/prefixes/i${n}-${j}` },
+      }));
+      return json({ items, links: { next: `/v1/prefixes?cursor=${n + 1}.${reading}` } });
+    });
+    const observer = new InfiniteQueryObserver(queryClient, reads.list("/v1/prefixes", null, null));
+    const stop = observer.subscribe(() => undefined);
+    await observer.refetch();
+    for (let page = 1; page < MAX_PAGES; page++) await observer.fetchNextPage();
+    const before = observer.getCurrentResult().data!;
+    renamed = true;
+    await observer.refetch();
+    stop();
+    const after = observer.getCurrentResult().data!;
+    expect(after.pageParams[1]).not.toBe(before.pageParams[1]);
+    // The first page changed, its renamed row a new object, its other row kept.
+    expect(after.pages[0]).not.toBe(before.pages[0]);
+    expect(after.pages[0]!.data.items[0]).toBe(before.pages[0]!.data.items[0]);
+    expect(after.pages[0]!.data.items[1]).not.toBe(before.pages[0]!.data.items[1]);
+    expect(after.pages[0]!.data.items[1]).toMatchObject({ name: "renommée" });
+    // Every unchanged row of the other pages kept, whatever their new cursors; the renamed
+    // one of the fourth page new, though its id is the same.
+    for (let i = 1; i < MAX_PAGES; i++)
+      after.pages[i]!.data.items.forEach((item, j) => {
+        if (i === 3 && j === 1) expect(item).not.toBe(before.pages[i]!.data.items[j]);
+        else expect(item, `${i}-${j}`).toBe(before.pages[i]!.data.items[j]);
+      });
+    expect(after.pages[3]!.data.items[1]).toMatchObject({ name: "renommée" });
+  });
+
+  it("share the pages by cursor: an unchanged page kept, another one new, plain data by value", () => {
+    const page = (id: string) => ({ data: { items: [{ id }] }, etag: null });
+    const before = { pages: [page("a"), page("b")], pageParams: [null, "c1"] };
+    expect(sharePages(before, structuredClone(before))).toBe(before);
+    const moved = sharePages(before, {
+      pages: [page("b"), page("c")],
+      pageParams: ["c1", "c2"],
+    }) as typeof before;
+    expect(moved.pages[0]).toBe(before.pages[1]);
+    expect(moved.pages[1]!.data.items[0]!.id).toBe("c");
+    // Changed under its cursor: its unchanged items kept, the changed one new.
+    const two = {
+      pages: [{ data: { items: [{ id: "a" }, { id: "b" }] }, etag: "1" }],
+      pageParams: [null],
+    };
+    const changed = sharePages(two, {
+      pages: [{ data: { items: [{ id: "a" }, { id: "b2" }] }, etag: "2" }],
+      pageParams: [null],
+    }) as typeof two;
+    expect(changed.pages[0]!.data.items[0]).toBe(two.pages[0]!.data.items[0]);
+    expect(changed.pages[0]!.data.items[1]!.id).toBe("b2");
+    const plain = { id: "x", n: 1 };
+    expect(sharePages(plain, { id: "x", n: 1 })).toBe(plain);
   });
 
   it("read again without If-None-Match the queries marked unconditional", async () => {

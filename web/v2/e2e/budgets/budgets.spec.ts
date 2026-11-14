@@ -616,9 +616,10 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
   });
   // One page at a time: the end of the grid in the window, the read it sets off, then the
   // first frame where a row of that page is in the document, from the end of its own
-  // response (its resource timing, by its URL). A row of the page, not its first: past the
-  // tenth page the cache drops the first (`MAX_PAGES`), the rows move up a page under the
-  // window, and the first row of the new page stands above it, never drawn (021-22a).
+  // response (its resource timing, by its URL). A row of the page, whichever comes first:
+  // past the tenth page the cache drops the first (`MAX_PAGES`), and the grid keeps the
+  // rows in view in their place (021-22f), the new page under them, its first rows drawn
+  // ahead of the window (021-22a).
   // The rows of each page the grid reads, by the URL of its read (cursor included).
   const pageRows = new Map<string, string[]>();
   page.on("response", (r) => {

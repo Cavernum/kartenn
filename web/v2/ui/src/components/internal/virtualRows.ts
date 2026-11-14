@@ -141,6 +141,8 @@ export const VIRTUAL_ROWS = 200;
 export interface VirtualRowsHost {
   count(): number;
   keyAt(index: number): string;
+  /** The keys of every row in order, when the host keeps them: read once per change. */
+  keys?(): readonly string[];
   indexOf(key: string): number | undefined;
   scroller: Ref<HTMLElement | null>;
   /** The keys of the rows kept mounted whatever the scroll (the focus, an editor). */
@@ -149,7 +151,42 @@ export interface VirtualRowsHost {
   top?(): number;
   /** Not virtualised now (the list is loading). */
   off?(): boolean;
+  /**
+   * The rows in view kept in their place when rows go or come at the head of the list
+   * (`headShift`: a paged list whose cache drops its first page, task 021-22f).
+   */
+  anchor?: boolean;
 }
+
+/**
+ * The rows `after` is `before` moved by at its head: dropped from it (positive), or added
+ * before it (negative), the rows they share in the same order, whatever comes or goes at
+ * the tail; 0 for any other change (a sort, a filter, rows that come or go at the tail
+ * alone). A paged list whose cache drops its first page as it reads the next one
+ * (`MAX_PAGES` of the SDK) moves by a page.
+ */
+export function headShift(before: readonly string[], after: readonly string[]): number {
+  // `to` is `from` less its first `at` rows, some rows after them (none of those gone).
+  const dropped = (from: readonly string[], to: readonly string[]) => {
+    const at = from.indexOf(to[0]!);
+    if (at <= 0) return 0;
+    const shared = Math.min(from.length - at, to.length);
+    for (let i = 0; i < shared; i++) if (from[at + i] !== to[i]) return 0;
+    const gone = new Set(from.slice(0, at));
+    for (let i = shared; i < to.length; i++) if (gone.has(to[i]!)) return 0;
+    return at;
+  };
+  if (before.length === 0 || after.length === 0) return 0;
+  const added = dropped(after, before);
+  return dropped(before, after) || (added > 0 ? -added : 0);
+}
+
+/**
+ * The rows at least a move of the head must count for the rows in view to stay in their
+ * place (`anchor`): a page of a paged list (100 rows from the server), never the few rows
+ * a write creates or removes at the head of a sorted list, which are seen where they come.
+ */
+export const ANCHORED_ROWS = 50;
 
 /**
  * The virtualisation of a list of rows (`TreeGrid`, `Tree`): beyond `VIRTUAL_ROWS`, the
@@ -162,15 +199,39 @@ export function useVirtualRows(host: VirtualRowsHost) {
   /** The height of a row before it is measured: the row height of the density. */
   const estimate = ref(28);
   const top = () => host.top?.() ?? 0;
+  /** The keys of the rows at the last options (`anchor`). */
+  let lastKeys: readonly string[] = [];
+  /** The last options anchor the rows in view (`anchorTo: "end"`), until their render. */
+  let anchoring = false;
   const virtualizer = useVirtualizer<HTMLElement, HTMLElement>(
-    computed(() => ({
-      count: virtual.value ? host.count() : 0,
-      getScrollElement: () => host.scroller.value,
-      estimateSize: () => estimate.value,
-      getItemKey: (index: number) => host.keyAt(index),
-      overscan: 10,
-      scrollMargin: top(),
-    })),
+    computed(() => {
+      const count = virtual.value ? host.count() : 0;
+      const all = count > 0 ? (host.keys?.() ?? null) : null;
+      // A page gone or come at the head, the grid scrolled: the virtualiser keeps the row
+      // at the top of the scroller where it stands (`anchorTo: "end"`, its anchoring when
+      // the keys at its edges change), so the rows in view, the focus and an editor do not
+      // move. Only then: a sort, a filter, a row created or removed keep the scroll offset,
+      // and at the top of the list the rows that come are seen.
+      const keys = !host.anchor
+        ? []
+        : (all ?? Array.from({ length: count }, (_, i) => host.keyAt(i)));
+      const shifted =
+        Math.abs(headShift(lastKeys, keys)) >= ANCHORED_ROWS &&
+        (host.scroller.value?.scrollTop ?? 0) > 0;
+      lastKeys = keys;
+      anchoring = shifted;
+      return {
+        count,
+        getScrollElement: () => host.scroller.value,
+        estimateSize: () => estimate.value,
+        getItemKey: all
+          ? (index: number) => all[index] ?? host.keyAt(index)
+          : (index: number) => host.keyAt(index),
+        overscan: 10,
+        scrollMargin: top(),
+        anchorTo: shifted ? ("end" as const) : ("start" as const),
+      };
+    }),
   );
   /** The key each element was last measured under: a recycled row changes it. */
   const measuredAs = new WeakMap<HTMLElement, string>();
@@ -216,6 +277,12 @@ export function useVirtualRows(host: VirtualRowsHost) {
   let computedLast: typeof rendered | undefined;
   const commit = () => {
     if (computedLast) rendered = computedLast;
+    // The anchoring done once the rows are rendered: kept, `anchorTo: "end"` would also pin
+    // the view to the end of the list while a row there changes size.
+    if (anchoring) {
+      anchoring = false;
+      virtualizer.value.options.anchorTo = "start";
+    }
   };
   onMounted(commit);
   onUpdated(commit);

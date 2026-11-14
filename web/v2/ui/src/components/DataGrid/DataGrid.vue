@@ -264,8 +264,17 @@ const headerOf = (id: string) =>
     `[role="columnheader"][data-column="${CSS.escape(id)}"]`,
   ) ?? null;
 const keyOf = (row: R) => String(row[props.rowKey]);
+/**
+ * The key of each row, in order, read once per change of the rows: the virtualiser, the
+ * window, the marks of the rows read them by index (task 021-22f: a page of a paged list
+ * read them a thousand times each, through the props).
+ */
+const rowKeyList = computed(() => {
+  const field = props.rowKey;
+  return props.rows.map((row) => String(row[field]));
+});
 /** Where each key stands among the rows. */
-const indexOfKey = computed(() => new Map(props.rows.map((row, i) => [keyOf(row), i])));
+const indexOfKey = computed(() => new Map(rowKeyList.value.map((key, i) => [key, i])));
 const rowOf = (key: string) => {
   const i = indexOfKey.value.get(key);
   return i === undefined ? undefined : props.rows[i];
@@ -297,14 +306,17 @@ const widthStyle = (column: GridColumn) =>
     : undefined;
 
 /** The keys of the rows the focus moves over: the header (""), then the body. */
-const rowKeys = computed(() => ["", ...(props.loading ? [] : props.rows.map(keyOf))]);
+const rowKeys = computed(() => ["", ...(props.loading ? [] : rowKeyList.value)]);
 const current = computed<CellRef>(
   () => active.value ?? { row: "", column: props.columns[0]?.id ?? "" },
 );
 const tabindex = (row: string, column: string) =>
   current.value.row === row && current.value.column === column ? 0 : -1;
-const isEditing = (row: R, column: GridColumn) =>
-  editing.value?.row === keyOf(row) && editing.value.column === column.id;
+/** Called several times by cell: the key of its row read only for the column edited. */
+const isEditing = (row: R, column: GridColumn) => {
+  const cell = editing.value;
+  return cell !== undefined && cell.column === column.id && cell.row === keyOf(row);
+};
 const canEdit = (row: R, column: GridColumn) => !column.element && !!props.editable?.(row, column);
 
 function stateOf(row: R, column: GridColumn): string | undefined {
@@ -330,12 +342,15 @@ const headHeight = ref(30);
 // window, and the rows of the focus and of the editor kept mounted.
 const rowsWindow = useVirtualRows({
   count: () => props.rows.length,
-  keyAt: (index) => (props.rows[index] ? keyOf(props.rows[index]) : String(index)),
+  keyAt: (index) => rowKeyList.value[index] ?? String(index),
+  keys: () => rowKeyList.value,
   indexOf: (key) => indexOfKey.value.get(key),
   scroller: grid,
   kept: () => [current.value.row, editing.value?.row],
   top: () => headHeight.value,
   off: () => !!props.loading,
+  // A paged list past `MAX_PAGES` (SDK): its first page dropped, the rows in view stay put.
+  anchor: true,
 });
 const virtual = rowsWindow.virtual;
 const estimate = rowsWindow.estimate;
@@ -347,7 +362,7 @@ const parts = computed<Part[]>(() =>
   rowsWindow.parts.value.map((part: BodyPart): Part => {
     if (!("index" in part)) return part;
     const row = props.rows.at(part.index)!;
-    return { index: part.index, row, key: keyOf(row) };
+    return { index: part.index, row, key: rowKeyList.value[part.index] ?? keyOf(row) };
   }),
 );
 /** The rows in view now, by their boxes (virtualised or not; the page may scroll too). */
@@ -580,7 +595,9 @@ const known = new Map<string, RowState | undefined>();
 let firstRender = true;
 watch(
   () =>
-    props.rowState ? props.rows.map((row) => [keyOf(row), props.rowState!(row)] as const) : [],
+    props.rowState
+      ? props.rows.map((row, i) => [rowKeyList.value[i]!, props.rowState!(row)] as const)
+      : [],
   (entries) => {
     const next = new Set<string>();
     for (const [key, state] of entries) {
@@ -639,9 +656,11 @@ function widgetsOf(cell: HTMLElement): HTMLElement[] {
 }
 /** A widget of a cell (never the cell itself, nor an editor) leaves the tab order. */
 const tame = (el: Element) => tameControl(el, "[data-column]", ".k-data-grid__editor");
+/** The widgets `tame` may take out of the tab order: never a cell (each has a `tabindex`). */
+const TAMED = `:is(${WIDGETS}):not([data-column])`;
 /** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
 function tameWidgets(): void {
-  for (const el of grid.value?.querySelectorAll(WIDGETS) ?? []) tame(el);
+  for (const el of grid.value?.querySelectorAll(TAMED) ?? []) tame(el);
 }
 onMounted(tameWidgets);
 onUpdated(tameWidgets);
@@ -1395,9 +1414,11 @@ onBeforeUnmount(() => observer?.disconnect());
   }
 
   /* Virtualised: the rows scroll in the grid, a list's height at most (a host's bound on
-   * the root holds it lower). */
+   * the root holds it lower). The scroll is the virtualiser's to keep when rows go or come
+   * at the head (a page dropped, `anchor`): no anchoring of the browser on top. */
   .k-data-grid[data-virtual] {
     max-block-size: var(--k-size-list-max);
+    overflow-anchor: none;
   }
 
   .k-data-grid__head,

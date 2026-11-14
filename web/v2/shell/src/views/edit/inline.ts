@@ -347,8 +347,13 @@ export function useInlineEdit({
     }
     return fromDraft || mine ? { ...row, ...fromDraft, ...mine } : row;
   }
-  /** The rows as the grid shows them (`shownRow`). */
-  const shownRows = computed<Item[]>(() => rows().map(shownRow));
+  /**
+   * The rows as the grid shows them (`shownRow`); nothing written nor drafted, the rows as
+   * read, each page of a list not looked at row by row (task 021-22f).
+   */
+  const shownRows = computed<Item[]>(() =>
+    shown.size === 0 && drafted.value.size === 0 ? [...rows()] : rows().map(shownRow),
+  );
 
   function cellState(row: Item, column: GridColumn): CellState | undefined {
     const name = fieldName(row, column.id);
