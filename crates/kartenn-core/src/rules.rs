@@ -228,6 +228,8 @@ rules! {
     CHANGESET_RULES;
     CHANGESET_NO_VERSION = "changeset.operation.no_version", Error, ["REQ-004-14", "REQ-004-15"], "004/design",
         "Une opération ne vise un objet que sur une période où il existe.";
+    REFERENCE_UNKNOWN = "core.reference.unknown", Error, ["REQ-002-12", "REQ-004-4"], "002/amendement du 2026-11-14",
+        "Une référence par identifiant désigne un objet du type attendu, en vigueur au début de la période de l'opération ; une référence locale, un objet créé plus tôt dans le même changeset.";
     CHANGESET_CONFLICT = "changeset.operation.conflict", Error, ["REQ-004-11"], "004/design",
         "Une opération qui précise la version attendue d'un objet échoue si la version courante diffère.";
     CHANGESET_NOT_PENDING = "changeset.state.not_pending", Error, ["REQ-004-19", "REQ-004-24"], "004/design",

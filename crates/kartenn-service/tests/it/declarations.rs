@@ -794,10 +794,10 @@ async fn incompatible_obligation_refused(pool: PgPool) {
         f.refused(vec![obligation(env, lab, false)]).await,
         vec!["prop.declaration.incompatible"]
     );
-    // A scope that is not a domain over the period.
+    // A scope that is not a domain (REQ-002-12, amendment of 2026-11-14).
     assert_eq!(
         f.refused(vec![obligation(env, Uuid::now_v7(), true)]).await,
-        vec!["prop.declaration.invalid"]
+        vec!["core.reference.unknown"]
     );
 }
 

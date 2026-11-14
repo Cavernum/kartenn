@@ -362,24 +362,56 @@ impl Planned {
     }
 }
 
-/// Objects an operation designates, with the kind each must have (REQ-004-4).
-pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
+/// An object an operation designates (REQ-004-4; REQ-002-12, amendment of 2026-11-14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Reference {
+    /// The field of the operation that designates it, as the request names it.
+    pub(crate) field: &'static str,
+    /// The object.
+    pub(crate) to: Ref,
+    /// The kind it must have.
+    pub(crate) kind: ObjectKind,
+}
+
+const fn reference(field: &'static str, to: Ref, kind: ObjectKind) -> Reference {
+    Reference { field, to, kind }
+}
+
+/// The reference of a scope of binding or of policy, none for the global scope.
+fn scope_reference(
+    field: &'static str,
+    scope: crate::operations::BindingScope,
+) -> Option<Reference> {
+    use crate::operations::BindingScope;
+    match scope {
+        BindingScope::Global => None,
+        BindingScope::Entity { id } => Some(reference(field, id, ObjectKind::Entity)),
+        BindingScope::Site { id } => Some(reference(field, id, ObjectKind::Site)),
+        BindingScope::Domain { id } => Some(reference(field, id, ObjectKind::Domain)),
+        BindingScope::Prefix { id } => Some(reference(field, id, ObjectKind::Prefix)),
+    }
+}
+
+/// Objects an operation designates, with the kind each must have (REQ-004-4); for the
+/// core only, a module resolving its own references when it plans (task 002-29b).
+#[allow(clippy::too_many_lines)] // one arm per kind of operation
+pub(crate) fn references(op: &Operation) -> Vec<Reference> {
     match op {
         Operation::CreatePrefix { domain, .. }
         | Operation::CreateRange { domain, .. }
         | Operation::CreateAddress { domain, .. } => {
-            vec![(*domain, ObjectKind::Domain)]
+            vec![reference("domain", *domain, ObjectKind::Domain)]
         }
-        Operation::BindExternal { object, kind, .. } => vec![(*object, *kind)],
+        Operation::BindExternal { object, kind, .. } => vec![reference("object", *object, *kind)],
         Operation::Close { kind, id, .. }
         | Operation::Expect { kind, id, .. }
         | Operation::Restore { kind, id, .. } => {
-            vec![(*id, *kind)]
+            vec![reference("id", *id, *kind)]
         }
-        Operation::UpdatePrefix { id, .. } => vec![(*id, ObjectKind::Prefix)],
-        Operation::UpdateAddress { id, .. } => vec![(*id, ObjectKind::Address)],
-        Operation::UpdateRange { id, .. } => vec![(*id, ObjectKind::Range)],
-        Operation::UpdateProperty { id, .. } => vec![(*id, ObjectKind::Property)],
+        Operation::UpdatePrefix { id, .. } => vec![reference("id", *id, ObjectKind::Prefix)],
+        Operation::UpdateAddress { id, .. } => vec![reference("id", *id, ObjectKind::Address)],
+        Operation::UpdateRange { id, .. } => vec![reference("id", *id, ObjectKind::Range)],
+        Operation::UpdateProperty { id, .. } => vec![reference("id", *id, ObjectKind::Property)],
         Operation::AssignProperty {
             object,
             kind,
@@ -395,42 +427,62 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
             object,
             kind,
             property,
-        } => vec![(*object, *kind), (*property, ObjectKind::Property)],
+        } => vec![
+            reference("object", *object, *kind),
+            reference("property", *property, ObjectKind::Property),
+        ],
         Operation::AddEnumValue { property, .. }
         | Operation::UpdateEnumValue { property, .. }
         | Operation::SetSensitivity { property, .. }
-        | Operation::AddObligation { property, .. }
         | Operation::RemoveObligation { property, .. } => {
-            vec![(*property, ObjectKind::Property)]
+            vec![reference("property", *property, ObjectKind::Property)]
         }
-        Operation::CreateEntity { parent, .. } => {
-            parent.iter().map(|p| (*p, ObjectKind::Entity)).collect()
+        Operation::AddObligation { property, scope } => {
+            let mut found = vec![reference("property", *property, ObjectKind::Property)];
+            match scope {
+                crate::operations::ObligationInput::Domain { id } => {
+                    found.push(reference("id", Ref::Id(*id), ObjectKind::Domain));
+                }
+                crate::operations::ObligationInput::Entity { id } => {
+                    found.push(reference("id", Ref::Id(*id), ObjectKind::Entity));
+                }
+                crate::operations::ObligationInput::ObjectType { .. } => {}
+            }
+            found
         }
-        Operation::CreateSite { parent, .. } => {
-            parent.iter().map(|p| (*p, ObjectKind::Site)).collect()
-        }
-        Operation::MoveEntity { id, parent, .. } => std::iter::once(id)
-            .chain(parent)
-            .map(|r| (*r, ObjectKind::Entity))
+        Operation::CreateEntity { parent, .. } => parent
+            .iter()
+            .map(|p| reference("parent", *p, ObjectKind::Entity))
             .collect(),
-        Operation::MoveSite { id, parent, .. } => std::iter::once(id)
-            .chain(parent)
-            .map(|r| (*r, ObjectKind::Site))
+        Operation::CreateSite { parent, .. } => parent
+            .iter()
+            .map(|p| reference("parent", *p, ObjectKind::Site))
             .collect(),
-        Operation::Rename { kind, id, .. } => vec![(*id, kind.kind())],
-        Operation::Bind { scope, .. } => match scope {
-            crate::operations::BindingScope::Global => vec![],
-            crate::operations::BindingScope::Entity { id } => vec![(*id, ObjectKind::Entity)],
-            crate::operations::BindingScope::Site { id } => vec![(*id, ObjectKind::Site)],
-            crate::operations::BindingScope::Domain { id } => vec![(*id, ObjectKind::Domain)],
-            crate::operations::BindingScope::Prefix { id } => vec![(*id, ObjectKind::Prefix)],
-        },
-        Operation::AttachIssuer { entity, .. } | Operation::DetachIssuer { entity, .. } => {
-            entity.iter().map(|r| (*r, ObjectKind::Entity)).collect()
+        Operation::MoveEntity { id, parent, .. } => {
+            std::iter::once(reference("id", *id, ObjectKind::Entity))
+                .chain(parent.map(|p| reference("parent", p, ObjectKind::Entity)))
+                .collect()
         }
+        Operation::MoveSite { id, parent, .. } => {
+            std::iter::once(reference("id", *id, ObjectKind::Site))
+                .chain(parent.map(|p| reference("parent", p, ObjectKind::Site)))
+                .collect()
+        }
+        Operation::Rename { kind, id, .. } => vec![reference("id", *id, kind.kind())],
+        Operation::Bind { scope, .. } => scope_reference("scope", *scope).into_iter().collect(),
+        Operation::AttachIssuer { entity, .. } | Operation::DetachIssuer { entity, .. } => entity
+            .iter()
+            .map(|r| reference("entity", *r, ObjectKind::Entity))
+            .collect(),
+        Operation::SetApprovalPolicy {
+            domains, scopes, ..
+        } => domains
+            .iter()
+            .map(|d| reference("domains", Ref::Id(*d), ObjectKind::Domain))
+            .chain(scopes.iter().filter_map(|s| scope_reference("scopes", *s)))
+            .collect(),
         Operation::CreateDomain { .. }
         | Operation::DeclareProperty { .. }
-        | Operation::SetApprovalPolicy { .. }
         | Operation::SetRole { .. }
         | Operation::CloseRole { .. }
         | Operation::SetGroup { .. }
@@ -471,9 +523,11 @@ fn check_request(
     for (i, op) in req.operations.iter().enumerate() {
         to_period(op.own_period())?;
         let op = op.inner();
-        let uses = references(op);
-        for (r, expected) in uses {
-            if let Ref::Local(local) = r {
+        for Reference {
+            to, kind: expected, ..
+        } in references(op)
+        {
+            if let Ref::Local(local) = to {
                 match defined.get(&local) {
                     None => {
                         return Err(RequestError::UnknownReference {
@@ -1057,12 +1111,89 @@ fn module_provenance_of(by: &Planned, index: usize) -> Result<Option<String>, Vi
     }
 }
 
+/// A reference by identifier of a core operation, as [`plan`] resolves it (REQ-002-12,
+/// amendment of 2026-11-14).
+#[derive(Debug, Clone, Copy)]
+struct Designation {
+    /// The operation of the request it comes from.
+    operation: usize,
+    /// The own period of a core operation a module operation adds, as in `plan`.
+    own: Option<PeriodSpec>,
+    /// The field that designates the object.
+    field: &'static str,
+    /// The object.
+    id: Uuid,
+    /// The kind it must have.
+    kind: ObjectKind,
+}
+
+/// REQ-002-12 (amendment of 2026-11-14): each object designated by identifier exists, of
+/// the kind expected, at the start of the period of its operation (transaction time when it
+/// has none), read under the locks of the changeset, one read per date. Whether it covers
+/// the whole period is left to the write itself (`changeset.operation.no_version`) and to
+/// the temporal foreign keys (task 002-30). `periods` are those of the operations of the
+/// request.
+async fn check_designations<T: WriteTx>(
+    tx: &mut T,
+    designated: &[Designation],
+    periods: &[Option<Period>],
+) -> Result<Vec<Violation>, RequestError> {
+    let mut dates: Vec<Option<Instant>> = Vec::with_capacity(designated.len());
+    let mut by_date: Vec<(Option<Instant>, Vec<Uuid>)> = Vec::new();
+    for d in designated {
+        let period = match d.own {
+            Some(spec) => to_period(Some(spec))?.or(periods[d.operation]),
+            None => periods[d.operation],
+        };
+        let at = period.map(Period::start);
+        dates.push(at);
+        match by_date.iter_mut().find(|(date, _)| *date == at) {
+            Some((_, ids)) => ids.push(d.id),
+            None => by_date.push((at, vec![d.id])),
+        }
+    }
+    let mut found: HashMap<(Option<Instant>, Uuid), ObjectKind> = HashMap::new();
+    for (at, mut ids) in by_date {
+        ids.sort_unstable();
+        ids.dedup();
+        for (id, kind) in tx.kinds_in_force(&ids, at).await? {
+            found.insert((at, id), kind);
+        }
+    }
+    Ok(designated
+        .iter()
+        .zip(dates)
+        .filter(|(d, at)| found.get(&(*at, d.id)) != Some(&d.kind))
+        .map(|(d, _)| {
+            let mut violation = Violation::new(
+                &rules::REFERENCE_UNKNOWN,
+                format!(
+                    "operation {}, `{}`: no {} {} in force at the start of its period",
+                    d.operation,
+                    d.field,
+                    d.kind.name(),
+                    d.id
+                ),
+            )
+            .with_subjects([d.id])
+            .with_detail(serde_json::json!({
+                "field": d.field,
+                "expected": d.kind.name(),
+            }));
+            violation.operation = Some(d.operation);
+            violation
+        })
+        .collect())
+}
+
 /// Parses every operation and runs the local rules (no database): the planned writes, the
 /// index of the operation each comes from, the own period of a core operation a module
 /// operation adds (its `Within`, `None` otherwise), and the violations found, each ascribed
-/// to its operation.
+/// to its operation; last, the references by identifier of the core operations, requested
+/// or added by a module, which [`check_designations`] reads (REQ-002-12, amendment of
+/// 2026-11-14).
 #[allow(clippy::too_many_lines)] // one arm per kind of operation
-#[allow(clippy::type_complexity)] // the four results of the planning, read side by side
+#[allow(clippy::type_complexity)] // the five results of the planning, read side by side
 fn plan(
     req: &ChangesetRequest,
     modules: &ModuleRegistry,
@@ -1072,7 +1203,13 @@ fn plan(
     Vec<usize>,
     Vec<Option<PeriodSpec>>,
     Vec<Violation>,
+    Vec<Designation>,
 ) {
+    let mut designated: Vec<Designation> = Vec::new();
+    // The objects the changeset creates, by the identifiers drawn here, and those a module
+    // plan writes: the operations of the core a plan adds designate them by identifier,
+    // not by local name.
+    let mut created: HashMap<Uuid, ObjectKind> = HashMap::new();
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
     // The local names of the objects created so far, which a value may designate.
     let mut objects: HashSet<u32> = HashSet::new();
@@ -1130,6 +1267,9 @@ fn plan(
             if let Some(by) = by {
                 adding[by].1.push(id);
             }
+            if let Some(kind) = owned.created_kind() {
+                created.insert(id, kind);
+            }
             if let Some(local) = owned.defines() {
                 ids.insert(local, id);
                 if creates_object(&owned, modules) {
@@ -1137,6 +1277,21 @@ fn plan(
                 }
             }
             let op = owned.inner();
+            // REQ-002-12 (amendment of 2026-11-14): every reference by identifier, read
+            // once the locks are held. A restoration gives back what was asserted before, an
+            // object closed since included: its own write judges its target.
+            if !matches!(op, Operation::Restore { .. }) {
+                designated.extend(references(op).into_iter().filter_map(|r| match r.to {
+                    Ref::Id(id) => Some(Designation {
+                        operation: index,
+                        own,
+                        field: r.field,
+                        id,
+                        kind: r.kind,
+                    }),
+                    Ref::Local(_) => None,
+                }));
+            }
             // REQ-016-7: a policy names the measures of the modules of the build only.
             if let Operation::SetApprovalPolicy {
                 name,
@@ -1168,6 +1323,12 @@ fn plan(
                     });
                     match found {
                         Ok(module_plan) => {
+                            // Created or changed (its period extended, say): the operations
+                            // of the core its plan adds name it as the changeset writes it.
+                            created.insert(
+                                module_plan.object,
+                                ObjectKind::from_qualified(module_plan.kind),
+                            );
                             if !module_plan.core.is_empty() {
                                 let by = adding.len();
                                 adding.push((planned.len(), Vec::new()));
@@ -1330,7 +1491,10 @@ fn plan(
         origins.resize(planned.len(), index);
         ascribe(&mut violations[found..], index);
     }
-    (planned, origins, derived, violations)
+    // REQ-002-12 (amendment of 2026-11-14): an object the changeset writes is in force for
+    // it.
+    designated.retain(|d| created.get(&d.id) != Some(&d.kind));
+    (planned, origins, derived, violations, designated)
 }
 
 /// Ascribes `violations` to operation `index`, those not ascribed already.
@@ -2450,7 +2614,8 @@ async fn stages<S: Store, A: Authorizer>(
         };
         let req: &ChangesetRequest = &prepared;
         let core = tx.core_handler();
-        let (planned, origins, derived, mut violations) = plan(req, modules, core.as_ref());
+        let (planned, origins, derived, mut violations, designated) =
+            plan(req, modules, core.as_ref());
         crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
         if has_errors(&violations) {
             tx.rollback().await?;
@@ -2459,14 +2624,14 @@ async fn stages<S: Store, A: Authorizer>(
         // REQ-004-26: closures in cascade, expanded before the locks.
         // REQ-004-2: each operation on its own period, or the changeset's; the property stage
         // covers them all.
-        let periods: Vec<Option<Period>> = or_roll_back!(
+        let requested: Vec<Option<Period>> = or_roll_back!(
             tx,
             req.operations
                 .iter()
                 .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
                 .collect::<Result<_, _>>()
         );
-        let window = window(period, &periods);
+        let window = window(period, &requested);
         // One period per planned operation: that of the operation it comes from, unless a core
         // operation added by a module carries its own.
         let periods: Vec<Option<Period>> = or_roll_back!(
@@ -2475,8 +2640,8 @@ async fn stages<S: Store, A: Authorizer>(
                 .iter()
                 .zip(&derived)
                 .map(|(&o, own)| match own {
-                    Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
-                    None => Ok(periods[o]),
+                    Some(spec) => to_period(Some(*spec)).map(|p| p.or(requested[o])),
+                    None => Ok(requested[o]),
                 })
                 .collect::<Result<_, _>>()
         );
@@ -2487,6 +2652,16 @@ async fn stages<S: Store, A: Authorizer>(
         let (domains, public, keys) = or_roll_back!(tx, lock_targets(&mut tx, &planned).await);
         or_roll_back!(tx, tx.lock(&domains, public).await);
         or_roll_back!(tx, tx.lock_keys(&keys).await);
+        // REQ-002-12 (amendment of 2026-11-14): under the locks, which a closure of the
+        // objects designated takes too.
+        let unknown = or_roll_back!(
+            tx,
+            check_designations(&mut tx, &designated, &requested).await
+        );
+        if !unknown.is_empty() {
+            tx.rollback().await?;
+            return refuse(store, req, changeset, unknown, mode, context).await;
+        }
         let moved = or_roll_back!(
             tx,
             moved(
@@ -3301,7 +3476,7 @@ mod tests {
 
     /// The planning of a build without modules.
     fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
-        let (planned, origins, _, violations) = super::plan(req, ModuleRegistry::empty(), None);
+        let (planned, origins, _, violations, _) = super::plan(req, ModuleRegistry::empty(), None);
         (planned, origins, violations)
     }
 
@@ -3529,7 +3704,7 @@ mod tests {
         let modules = ModuleRegistry::new(vec![Arc::new(Racks)]).unwrap();
         let domain = Uuid::now_v7();
         let rack = serde_json::json!({"op": "shelf.create_rack", "local": 1, "domain": domain});
-        let (planned, origins, _, violations) = super::plan(
+        let (planned, origins, _, violations, _) = super::plan(
             &req(vec![serde_json::from_value(rack).unwrap()]),
             &modules,
             None,
@@ -3644,7 +3819,7 @@ mod tests {
         };
         // Two shareable creations of one value, written differently: one address, cited by
         // both plans; a third value is created apart.
-        let (planned, origins, _, violations) = super::plan(
+        let (planned, origins, _, violations, _) = super::plan(
             &req(vec![
                 hold("2001:db8::a", true),
                 hold("2001:db8:0::a", true),
@@ -3664,7 +3839,7 @@ mod tests {
         assert_eq!(cited(second), serde_json::json!([address.object()]));
         assert_eq!(cited(third), serde_json::json!([other.object()]));
         // Without the mark, each plan creates its own: the duplicate is the core's to refuse.
-        let (planned, _, _, _) = super::plan(
+        let (planned, _, _, _, _) = super::plan(
             &req(vec![hold("192.0.2.10", true), hold("192.0.2.10", false)]),
             &modules,
             None,
@@ -3683,7 +3858,7 @@ mod tests {
             }))
             .unwrap()
         };
-        let (planned, _, _, _) = super::plan(
+        let (planned, _, _, _, _) = super::plan(
             &req(vec![scoped(Uuid::now_v7()), scoped(Uuid::now_v7())]),
             &modules,
             None,

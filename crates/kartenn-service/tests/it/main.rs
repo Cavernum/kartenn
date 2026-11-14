@@ -43,6 +43,7 @@ mod portion;
 mod ranges;
 mod rbac;
 mod read;
+mod reference_integrity;
 mod references;
 mod rename;
 mod resolution;

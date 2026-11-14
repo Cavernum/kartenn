@@ -151,7 +151,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     interface, machine), que chaque module résout par la fonction sans type que le
     pipeline passe à `ModuleHandler::plan` (`pipeline.rs` vers 1165) ; y donner le type
     attendu change le contrat des modules (ADR 0026) dans six crates.
-- [ ] 29a. Références des opérations du noyau : chaque `Ref::Id` que rend `references()`
+- [x] 29a. Références des opérations du noyau : chaque `Ref::Id` que rend `references()`
   (`pipeline.rs` vers 366) pour une opération du noyau, demandée ou ajoutée par le plan
   d'un module, est relevée là où `plan()` la résout, puis lue en un seul lot par date de
   validité après les verrous ; absente, d'un autre type ou close au début de la période de
@@ -168,6 +168,38 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `object_kind_covering`, vers 2612), `crates/kartenn-core/src/rules.rs`,
   `code_labels.rs`, `docs/spec/regles-noyau.md` ; tests voisins `tests/it/pipeline.rs`,
   `anchors.rs`
+  - fait le 2026-11-14 : `references()` rend le champ de chaque référence (`Reference`),
+    et aussi les portées et domaines d'une politique d'approbation et la portée d'une
+    obligation ajoutée ; `plan()` relève chaque `Ref::Id` (`Designation`), y compris celles
+    des opérations du noyau qu'ajoute le plan d'un module, hors celles d'un objet que le
+    changeset crée (identifiant tiré par `plan`) ou que le plan d'un module écrit (ainsi
+    l'affectation d'un flux dont le même changeset prolonge la période) ;
+    `check_designations` les lit
+    après `lock_targets` par `WriteTx::kinds_in_force` (une requête par date de début, sur
+    `addressing_object`, entités, sites, groupes de VLAN, VLAN, déclarations, valeurs de
+    liste fermée, objets de modules) ; règle `core.reference.unknown` (catalogue,
+    `code_labels.rs`, `regles-noyau.md`), violation qui nomme l'opération, le champ
+    (`detail.field`) et l'objet. Tests `tests/it/reference_integrity.rs` (domaine inconnu,
+    d'un autre type, clos ; référence locale ; écritures datées dans le passé et le futur ;
+    catalogue : chaque étiquette d'opération a un exemple ou figure dans `NO_REFERENCE`,
+    chaque `Ref::Id` du JSON d'un exemple est refusé) et
+    `rbac::no_right_reaches_through_an_unknown_domain`. Règle attendue changée dans six
+    tests (une cible ou une référence qui ne désigne rien du type attendu au début de la
+    période, jusqu'ici refusée en aval par `changeset.operation.no_version` ou
+    `prop.declaration.invalid`) : `pipeline.rs`, `module_pipeline.rs`, `anchors.rs`,
+    `resolution.rs`, `declarations.rs` ; jeux de données corrigés là où une référence était
+    fausse : `audit.rs` et `portion.rs` (préfixe daté avant son domaine), `import.rs`
+    (liaison externe d'un objet inexistant), `kartenn-rest` `placements.rs` (préfixe daté
+    d'une heure dans un domaine créé à l'instant). Requête des orphelins (préfixes, plages,
+    adresses et objets de modules sans domaine, entités et sites sans parent) sur la base
+    de dev : 0 partout, la base étant vide (0 ligne dans chacune de ces tables)
+  - choix : « en vigueur » = au début de la période de l'opération (maintenant si elle
+    n'en a pas), la couverture de toute la période restant à la tâche 30 ; `Restore` hors
+    du contrôle ; cible absente au début = `core.reference.unknown`, absente sur une partie
+    de la période = `changeset.operation.no_version` comme avant ; contrôle sous les
+    verrous, avant les droits ; les obligations d'une déclaration et le retrait d'une
+    obligation hors du contrôle (une obligation peut viser un domaine clos depuis) ; les
+    identifiants nus du RBAC (appartenance, liaison, identité, compte) restent à ses règles
 - [ ] 29b. Contrat de `ModuleHandler::plan` avec le type attendu — **arbitrage de
   l'utilisateur : amendement de l'ADR 0026** — la fonction de résolution qu'un module
   reçoit prend le type attendu (`Fn(Ref, ObjectKind) -> Option<Uuid>`) et chaque

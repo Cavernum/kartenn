@@ -853,6 +853,62 @@ async fn a_right_to_edit_alone_makes_a_proposal(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
 }
 
+/// REQ-002-12 (amendment of 2026-11-14), REQ-002-37: a right held on one domain reaches no
+/// object through a domain that does not exist, and no binding names one.
+#[kartenn_testing::pg_test]
+async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let editor = t
+        .role(
+            "editor",
+            &[
+                "core.prefix.edit",
+                "core.prefix.approval.self",
+                "prop.*.edit",
+            ],
+        )
+        .await;
+    let who = t.identity().await;
+    t.bind(Binding::Identity(who.id), editor, "lab", None).await;
+    let create = |domain: Uuid| Operation::CreatePrefix {
+        local: None,
+        domain: Ref::Id(domain),
+        prefix: "10.9.0.0/24".into(),
+        nature: Nature::Network,
+        point_to_point: false,
+        anycast: false,
+    };
+    // In its domain, applied; on an identifier nothing bears, or that of an entity, refused.
+    let outcome = t.submit_as(&who, vec![create(t.ids["lab"])]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    for domain in [Uuid::now_v7(), t.ids["group"]] {
+        let outcome = t.submit_as(&who, vec![create(domain)]).await;
+        assert_eq!(rules_of(&outcome), ["core.reference.unknown"]);
+    }
+    // Not even an administrator of everything binds a role on a domain that does not exist.
+    let root = t.identity().await;
+    let admin = t.role("root", &["*"]).await;
+    t.bind(Binding::Identity(root.id), admin, "global", None)
+        .await;
+    let user = t.identity().await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                t.bind_op(
+                    user.id,
+                    "editor",
+                    BindingScope::Domain {
+                        id: Ref::Id(Uuid::now_v7()),
+                    },
+                )
+                .await,
+            ],
+        )
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.reference.unknown"]);
+}
+
 impl Tree {
     /// A binding of `role` on `scope` to a new group whose member is `subject`.
     async fn bind_op(&self, subject: Uuid, role: &str, scope: BindingScope) -> Operation {

@@ -185,10 +185,21 @@ fn sorted(mut rows: Vec<Value>) -> Vec<Value> {
 /// A domain `lab` with a container `10.0.0.0/16` holding two networks, a range and an
 /// address.
 async fn lab(pool: &PgPool, app: &Router) -> (Uuid, [Uuid; 5]) {
+    // The domain from yesterday: a test dates a creation an hour ago, which names a domain
+    // in force then (REQ-002-12, amendment of 2026-11-14).
+    let yesterday = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros(),
+    )
+    .unwrap()
+        - 86_400_000_000;
     apply(
         app,
         json!([
-            {"op": "create_domain", "local": 1, "slug": "lab"},
+            {"op": "within", "period": {"start": yesterday, "end": null},
+             "operation": {"op": "create_domain", "local": 1, "slug": "lab"}},
             {"op": "create_prefix", "local": null, "domain": {"local": 1},
              "prefix": "10.0.0.0/16", "nature": "container"},
             {"op": "create_prefix", "local": null, "domain": {"local": 1},
