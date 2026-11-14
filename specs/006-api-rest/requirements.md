@@ -492,7 +492,9 @@ Acceptation :
   la réponse reste 200 et ne distingue pas ces trois cas.
 - Plus de 200 identifiants, ou aucun → 400 qui nomme le paramètre.
 - Une valeur sensible n'est rendue que sous le droit de la lecture unitaire ; le lot
-  produit un seul événement d'audit, qui nomme les objets lus.
+  produit un seul événement de lecture (`data.objects.read`), qui nomme les objets lus,
+  et, comme la lecture unitaire, un événement `data.sensitive.read` par valeur sensible
+  montrée (REQ-012-18).
 - Le lot compte au quota de lecture pour une unité par centaine d'identifiants entamée
   (REQ-006-29).
 - 200 objets × 6 clés : p95 sous le budget de la lecture d'une page (REQ-006-39),
