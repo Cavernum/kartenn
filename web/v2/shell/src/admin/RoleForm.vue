@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // A role created, changed or duplicated (`set_role`, 005, REQ-005-17, 25; spec 018, R20):
 // its key (fixed once created), its label in the language of the interface (the others
-// kept), its permissions by their served name; to the draft.
-import { Button, Dialog, Stack, TextField } from "@kartenn/ui";
+// kept), its permissions by their served name; to the draft. Left open as the window
+// narrows under 1024 px (the gate of writes), it keeps its input and sends nothing.
+import { Button, Dialog, InlineAlert, Stack, TextField } from "@kartenn/ui";
 import { computed, ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
@@ -50,7 +51,12 @@ const title = computed(() =>
       }),
 );
 
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
+
 async function submit(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (keyError.value) return;
   const roleKey = props.mode === "edit" ? props.role!.key : key.value.trim();
@@ -96,6 +102,7 @@ async function submit(): Promise<void> {
           mono
           autocomplete="off"
         />
+        <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
         <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
       </Stack>
     </form>
@@ -107,6 +114,7 @@ async function submit(): Promise<void> {
         type="submit"
         :form="formId"
         :loading="draft.busy.value"
+        v-bind="held ? { reason: held } : {}"
         >{{ t("admin.toDraft") }}</Button
       >
     </template>

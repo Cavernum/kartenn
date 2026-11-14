@@ -2,10 +2,12 @@
 // « Ajouter un membre » (spec 025, REQ-025-2, 7; maquette E7): an identity, chosen among
 // those the server lists (name, kind, issuer), or a group of an IdP, `émetteur / groupe`,
 // as its tokens name it; never another group of kartenn (G2). To the draft (`add_member`).
+// Left open as the window narrows under 1024 px, it keeps its input and sends nothing.
 import {
   Button,
   Combobox,
   Dialog,
+  InlineAlert,
   Select,
   Stack,
   TextField,
@@ -97,7 +99,12 @@ const errors = computed(() => {
   return out;
 });
 
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
+
 async function submit(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (Object.keys(errors.value).length > 0) return;
   const member =
@@ -148,6 +155,7 @@ async function submit(): Promise<void> {
             autocomplete="off"
           />
         </template>
+        <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
         <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
       </Stack>
     </form>
@@ -159,6 +167,7 @@ async function submit(): Promise<void> {
         type="submit"
         :form="formId"
         :loading="draft.busy.value"
+        v-bind="held ? { reason: held } : {}"
         >{{ t("admin.toDraft") }}</Button
       >
     </template>

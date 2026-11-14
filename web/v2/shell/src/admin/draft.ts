@@ -5,12 +5,14 @@ import { computed, onScopeDispose, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../data/query.ts";
 import type { Refusal } from "../views/edit/inline.ts";
+import { useAdminGate } from "./gate.ts";
 
 // The active draft as the administration reads and writes it (design 021 « Administration » :
 // « chaque action va au brouillon »): its operations, which mark the rows of the lists; an
 // action adds its operations at the end (a draft created when the tab has none), said by a
 // toast; the action of a marked row takes its operation out (`PATCH`, under `If-Match`).
-// A refusal of the server is kept for the panel to say it (`RefusalAlert`).
+// A refusal of the server is kept for the panel to say it (`RefusalAlert`). Nothing goes in
+// when the gate of writes refuses at the moment of sending (`useAdminGate`).
 
 export function useAdminDraft() {
   const { t } = useI18n();
@@ -27,10 +29,22 @@ export function useAdminDraft() {
   const operations = computed<readonly Operation[]>(() => draft.value?.operations ?? []);
   const refusal = shallowRef<Refusal | null>(null);
   const busy = ref(false);
+  const gate = useAdminGate();
+
+  /**
+   * Whether the gate of writes refuses now, read when sending (the window may have narrowed
+   * since the action was offered): said by a toast, nothing sent. A dialog says it in itself
+   * before calling (a toast lies under a modal layer).
+   */
+  function gated(): boolean {
+    const why = gate.why.value;
+    if (why) toasts?.show({ tone: "warn", title: why });
+    return why !== undefined;
+  }
 
   /** Adds `ops` to the draft; `what` names them in the toast. Whether they went in. */
   async function add(ops: readonly Operation[], what: string): Promise<boolean> {
-    if (busy.value) return false;
+    if (busy.value || gated()) return false;
     busy.value = true;
     refusal.value = null;
     const outcome = await addToActiveDraft([...ops]);
@@ -46,7 +60,7 @@ export function useAdminDraft() {
   /** Takes the operation of index `index` out of the active draft. */
   async function drop(index: number, what: string): Promise<boolean> {
     const id = active.value;
-    if (busy.value || id === null) return false;
+    if (busy.value || id === null || gated()) return false;
     busy.value = true;
     refusal.value = null;
     const kept = operations.value.filter((_, i) => i !== index);
@@ -67,7 +81,7 @@ export function useAdminDraft() {
    */
   async function replace(index: number, op: Operation, what: string): Promise<boolean> {
     const id = active.value;
-    if (busy.value || id === null) return false;
+    if (busy.value || id === null || gated()) return false;
     busy.value = true;
     refusal.value = null;
     const next = operations.value.map((o, i) => (i === index ? op : o));
@@ -107,5 +121,5 @@ export function useAdminDraft() {
     return same ? drop(index, what) : replace(index, op, what);
   }
 
-  return { operations, refusal, busy, add, drop, replace, writeRole };
+  return { operations, refusal, busy, gate, add, drop, replace, writeRole };
 }

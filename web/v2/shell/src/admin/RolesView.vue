@@ -22,10 +22,11 @@ import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
+import { useAdminGate } from "./gate.ts";
 import { ROLE_ADMIN, touchesRole, type RoleItem } from "./model.ts";
 import { useList } from "./reads.ts";
 import RoleForm from "./RoleForm.vue";
@@ -34,9 +35,11 @@ const props = defineProps<{ selected?: string | undefined }>();
 const { t, locale } = useI18n();
 const router = useRouter();
 const session = useSession();
-const time = useTime();
+const gate = useAdminGate();
 const keyLabel = useKeyLabel();
 const draft = useAdminDraft();
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.roles"));
 const { query, rows } = useList("/v1/roles");
@@ -104,11 +107,12 @@ function onSelected(keys: string[]): void {
 const onActivate = (cell: CellRef) => open(cell.row);
 
 const creating = ref(false);
+// « Créer »: the right, then the gate of writes (the present, 1024 px wide).
 const createRefusal = computed(() =>
   !session.value.rights.has(ROLE_ADMIN)
     ? { forbidden: ROLE_ADMIN }
-    : !time.value.present
-      ? { reason: t("edit.why.past") }
+    : gate.why.value
+      ? { reason: gate.why.value }
       : {},
 );
 const actions = computed<ToolbarAction[]>(() => [
@@ -125,6 +129,7 @@ useViewAction("create", {
   label: () => t("admin.roles.createAction"),
   run: () => (creating.value = true),
   allowed: () => session.value.rights.has(ROLE_ADMIN),
+  say: status,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -187,5 +192,6 @@ const total = computed(() =>
       </template>
     </DataGrid>
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <RoleForm v-model:open="creating" mode="create" :taken="rows.map((r) => r.key)" />
 </template>

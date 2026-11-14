@@ -65,6 +65,7 @@ const group = (extra: Partial<GroupItem> = {}): GroupItem => ({
 });
 const words = {
   past: "passé",
+  narrow: "étroit",
   wider: (code: string) => `plus large (${code})`,
   builtin: "livré",
   builtinMembers: "livré, membres",
@@ -142,17 +143,59 @@ describe("refusals of a group", () => {
       bindings: two,
       rights: admin,
       globalAdmin: false,
-      present: true,
+      refused: null,
       violations: { group: [], bindings: [] },
       words,
       ...extra,
     });
 
-  it("refuses every write by the permission lacking, then by the past", () => {
+  it("refuses every write by the permission lacking, then by the gate of writes", () => {
     const lacking = refuse({ rights: new Rights(["core.rbac.read"]) });
     expect(lacking.members).toEqual({ forbidden: "core.rbac.admin" });
     expect(lacking.bindings.get("b2")).toEqual({ forbidden: "core.rbac.admin" });
-    expect(refuse({ present: false }).close).toEqual({ reason: "passé" });
+    expect(refuse({ refused: "past" }).close).toEqual({ reason: "passé" });
+    const narrow = refuse({ refused: "narrow" });
+    expect(narrow.close).toEqual({ reason: "étroit" });
+    expect(narrow.addBinding).toEqual({ reason: "étroit" });
+    expect(narrow.bindings.get("b1")).toEqual({ reason: "étroit" });
+    // The permission lacking is said first, at any width.
+    expect(refuse({ rights: new Rights([]), refused: "narrow" }).edit).toEqual({
+      forbidden: "core.rbac.admin",
+    });
+  });
+
+  it("never offers under the gate what the rights or the scope refuse (task 021-21e)", () => {
+    const violation = (rule: string): Violation =>
+      ({ operation: null, rule, severity: "error", detail: "", subjects: [] }) as Violation;
+    const cases: Partial<Parameters<typeof groupRefusals>[0]>[] = [
+      {},
+      { globalAdmin: true, violations: null },
+      { rights: new Rights(["core.rbac.read"]) },
+      { group: group({ key: "secours", builtin: true }) },
+      { group: group({ key: "secours", builtin: true }), globalAdmin: true },
+      {
+        violations: {
+          group: [violation("core.group.escalation")],
+          bindings: [[violation("core.rbac.forbidden")], [violation("core.binding.escalation")]],
+        },
+      },
+    ];
+    const ACTIONS = ["members", "edit", "close", "addBinding"] as const;
+    for (const extra of cases) {
+      const open = refuse(extra);
+      for (const refused of ["narrow", "past"] as const) {
+        const held = refuse({ ...extra, refused });
+        // Every action refused, the bindings each: nothing the open gate refuses is offered.
+        for (const action of ACTIONS) expect(held[action]).toBeDefined();
+        for (const b of two) expect(held.bindings.get(b.id)).toBeDefined();
+        // A permission lacking stays the reason said.
+        for (const action of ACTIONS) {
+          if (open[action] && "forbidden" in open[action]) {
+            expect(held[action]).toEqual(open[action]);
+          }
+        }
+      }
+    }
   });
 
   it("allows all to a global administrator, and asks the server nothing for them", () => {
@@ -241,12 +284,36 @@ describe("roles", () => {
       roleRefusals({
         role: role(),
         rights: new Rights(["core.role.admin"]),
-        present: true,
+        refused: null,
         bound: 0,
-        words: { past: "passé", builtin: "intégré", bound: (n) => `lié à ${n}` },
+        words: {
+          past: "passé",
+          narrow: "étroit",
+          builtin: "intégré",
+          bound: (n) => `lié à ${n}`,
+        },
         ...extra,
       });
     expect(refusal({})).toEqual({});
+    // The gate of writes after the permission: every action refused with its reason.
+    const narrow = { reason: "étroit" };
+    expect(refusal({ refused: "narrow" })).toEqual({
+      edit: narrow,
+      copy: narrow,
+      remove: narrow,
+      create: narrow,
+    });
+    expect(refusal({ refused: "past" }).create).toEqual({ reason: "passé" });
+    expect(refusal({ rights: new Rights([]), refused: "narrow" }).edit).toEqual({
+      forbidden: "core.role.admin",
+    });
+    // Never an action the open gate refuses offered under it.
+    for (const extra of [{ bound: 4 }, { role: role({ builtin: true }) }]) {
+      const held = refusal({ ...extra, refused: "narrow" });
+      for (const action of ["edit", "copy", "remove", "create"] as const) {
+        expect(held[action]).toBeDefined();
+      }
+    }
     expect(refusal({ bound: 4 }).remove).toEqual({ reason: "lié à 4" });
     expect(refusal({ role: role({ builtin: true }) })).toEqual({
       edit: { reason: "intégré" },

@@ -20,10 +20,11 @@ import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
+import { useAdminGate } from "./gate.ts";
 import GroupForm from "./GroupForm.vue";
 import { RBAC_ADMIN, touchesGroup, type GroupItem } from "./model.ts";
 import { useList } from "./reads.ts";
@@ -32,9 +33,11 @@ const props = defineProps<{ selected?: string | undefined }>();
 const { t, locale } = useI18n();
 const router = useRouter();
 const session = useSession();
-const time = useTime();
+const gate = useAdminGate();
 const keyLabel = useKeyLabel();
 const draft = useAdminDraft();
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.groups"));
 const { query, rows } = useList("/v1/groups");
@@ -71,13 +74,13 @@ function onSelected(keys: string[]): void {
 }
 const onActivate = (cell: CellRef) => open(cell.row);
 
-// « Créer »: the right and the present (nothing is written in the past).
+// « Créer »: the right, then the gate of writes (the present, 1024 px wide).
 const creating = ref(false);
 const createRefusal = computed(() =>
   !session.value.rights.has(RBAC_ADMIN)
     ? { forbidden: RBAC_ADMIN }
-    : !time.value.present
-      ? { reason: t("edit.why.past") }
+    : gate.why.value
+      ? { reason: gate.why.value }
       : {},
 );
 const actions = computed<ToolbarAction[]>(() => [
@@ -94,6 +97,7 @@ useViewAction("create", {
   label: () => t("admin.groups.createAction"),
   run: () => (creating.value = true),
   allowed: () => session.value.rights.has(RBAC_ADMIN),
+  say: status,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -156,5 +160,6 @@ const total = computed(() =>
       </template>
     </DataGrid>
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <GroupForm v-model:open="creating" :taken="rows.map((g) => g.key)" />
 </template>

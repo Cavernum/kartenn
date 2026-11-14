@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The creation of a group, or the change of its label (`set_group`, spec 025, REQ-025-1):
 // its key (fixed once created) and its label in the language of the interface, the others
-// kept; to the draft, like every write of the administration.
-import { Button, Dialog, Stack, TextField } from "@kartenn/ui";
+// kept; to the draft, like every write of the administration. Left open as the window
+// narrows under 1024 px (the gate of writes), it keeps its input and sends nothing.
+import { Button, Dialog, InlineAlert, Stack, TextField } from "@kartenn/ui";
 import { computed, ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
@@ -40,7 +41,12 @@ const keyError = computed(() => {
   return props.taken?.includes(text) ? t("admin.keyTaken") : undefined;
 });
 
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
+
 async function submit(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (keyError.value) return;
   const groupKey = props.group?.key ?? key.value.trim();
@@ -79,6 +85,7 @@ async function submit(): Promise<void> {
           :label="t('admin.field.label', { lang: locale })"
           autocomplete="off"
         />
+        <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
         <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
       </Stack>
     </form>
@@ -90,6 +97,7 @@ async function submit(): Promise<void> {
         type="submit"
         :form="formId"
         :loading="draft.busy.value"
+        v-bind="held ? { reason: held } : {}"
         >{{ t("admin.toDraft") }}</Button
       >
     </template>
