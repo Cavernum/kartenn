@@ -184,7 +184,12 @@ moins 1024 px ; refusés, ils disent pourquoi par le statut poli de la vue (`why
 jamais une touche muette). Toute écriture passe par la porte `useWrites()` (`time/index.ts` :
 période et largeur du cadre publiée par `frame/width.ts`, jamais `window.innerWidth`) et dit
 son refus (`refused` : `past`, `narrow` ; `refusalWords`) au point d'action, comme le motif
-`past`, sans avis permanent. Un dialogue ou un formulaire ouvert quand la fenêtre passe sous
+`past`, sans avis permanent. Un seul rang pour toute raison de refus, bouton, cellule, touche,
+commande ou dialogue : `rankedRefusal` (`time/index.ts`) — la raison durable (droit manquant,
+objet livré, portée, rien où agir), puis l'état (déjà au brouillon, auteur seul, retenu par
+une politique, brouillon vide ou en erreur), puis la porte (`past` avant `narrow`) ; le rang
+ne change que la phrase, jamais ce qui est refusé. `allowed` et `why` d'une vue ne lisent que
+les deux premiers : la palette garde la commande que la porte seule retient. Un dialogue ou un formulaire ouvert quand la fenêtre passe sous
 1024 px reste ouvert, sa saisie gardée : sa confirmation est refusée avec le motif (bouton
 `reason`, et le refus redit si elle part quand même, par Entrée) ; élargie, elle repart.
 

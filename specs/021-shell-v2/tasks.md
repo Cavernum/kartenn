@@ -7219,7 +7219,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     modèle : `test/writes.test.ts`
   - touche le contrat du SDK des plugins (contexte) : à arbitrer avant code, avec la 24f
   - dépend de : 21c
-- [ ] 21h. Même rang partout : la raison durable (droit manquant, objet livré, portée plus
+- [x] 21h. Même rang partout : la raison durable (droit manquant, objet livré, portée plus
   large, auteur d'un changeset) avant la porte d'écriture (`past`, `narrow`) dans les vues
   et les changesets aussi, comme l'administration (21e, arbitrage de la session
   principale) — REQ-021-29, REQ-021-37 — verify : Vitest, sur un même écran, le bouton, la
@@ -7237,6 +7237,57 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - amende les choix des 21c (« la largeur avant le droit manquant, comme le passé ») et
     21d (« la porte avant `held`, `author` et le droit manquant ») ; à faire après la 21f
   - dépend de : 21e, 21f
+  - fait le 2026-11-14 — une règle, écrite une fois : `rankedRefusal` (`time/index.ts`,
+    `RankedReasons` : `lasting`, `state`, `gate`), la raison durable (droit manquant, objet
+    livré, champ sans éditeur, valeur non lue ou calculée, opération sans panneau) puis
+    l'état (auteur seul, retenu par une politique, brouillon vide, simulation à venir ou en
+    erreur, période figée d'une soumission en attente) puis la porte (`past` avant
+    `narrow`) ; le rang ne change que la phrase. La suivent : `play` (`shortcuts/view.ts` :
+    le `why` de la vue avant la porte pour toutes ; `ViewAction.lasting` retiré, les six
+    écrans de l'administration n'en ont plus besoin), `editability` (`fields.ts`, un motif
+    durable de l'appelant `own` après le droit, pris par `inline.ts` et `properties.ts`),
+    `moveEntryRefusal` et `canMove` (`moves.ts` : cycle, type, droit avant la largeur, la
+    largeur avant la date), `reviewActions` (`changesets/model.ts` : droit, puis `held` et
+    `author`, puis la porte), `draftActions` (`draft/state.ts`, sortie de
+    `useDraftQueries` pour être testée), `periodWhy` et `motiveWhy` (`DraftSubmit.vue`),
+    `modifyReason` (`DraftOperations.vue`), `globalRefusal` et `createRefusal`
+    (administration), `addRefusal` et `addIn` (`TopologyView.vue`), `blockedBy` et
+    `gateOpen` (`RecordView.vue`), `writeBlocked` (`NetworkVlanTab.vue` : droit, puis la
+    déclaration non lue, le réglage ou le retrait déjà au brouillon, puis la date et la
+    largeur), `refusal` (`AnomalyGrid.vue`), `actions` et `begin` du panneau d'édition
+    (`views/edit/action.ts` : le droit avant la largeur et la date) ; `addIn` et `gateOpen`
+    relisent au moment d'agir la raison classée (droit puis porte), sur le nœud que
+    l'appelant a jugé. Tests :
+    `rank.test.ts` (chaque fonction contre son code de main à 5dffa02a recopié en oracle,
+    pour toute combinaison de droit, période, largeur, auteur et politique : mêmes refus,
+    seule la phrase change ; aucune décision de changeset offerte qui ne l'était pas),
+    `record-gate.test.ts` (Topographie montée, quatre cas : « + », cellule, `c` et palette
+    disent la même raison), `moves.test.ts` (cycle et droit avant la largeur, nœud non
+    marqué), `action.test.ts` (panneau à l'étroit sans `approval.self` : « Appliquer » dit
+    le droit, « Brouillon » la largeur) ; attentes changées : `refused-keys.test.ts` (`c`
+    de la Topographie sans domaine sous `as_of` : « aucun domaine » ; `c` et `e` d'un
+    lecteur sous `as_of` : le droit, plus le passé), `shortcuts.test.ts` (`e` sans le droit sous `as_of` et
+    à l'étroit dit le droit), `edit.test.ts` (cellule sans le droit sous `as_of` et à
+    l'étroit : le droit), `moves.test.ts` (« Changer de parent… » sans le droit à l'étroit :
+    le droit), `changesets.test.ts` (« Retirer » d'un relecteur : `author` au passé et à
+    l'étroit ; « Valider » de l'auteur retenu : `held` avant la largeur, le droit
+    `approval.self` avant `held` ; « Annuler » sans `.edit` : le droit), parcours
+    `changesets.spec.ts` à 420 px (« Retirer » dit l'auteur, plus la largeur ; « Valider »
+    dit la largeur) ; skill `kartenn-ui` § 5
+  - choix : palette inchangée hors du présent (absente sous `as_of`, comme avant) : « la
+    porte seule » retient la commande à l'étroit seulement ; la simulation à venir compte
+    parmi les raisons d'état, avant la porte, comme le brouillon vide ; un champ figé, sans
+    éditeur, non lu ou calculé reste avant le droit dans `editability` (le champ d'abord),
+    le motif de l'appelant (`own`) après le droit ; sous `as_of`, « Changer de parent… »
+    dit encore `edit.move.dated` (inchangé) ; `canMove` garde la largeur avant la date
+    servie par le SDK (`dated`), sans changer l'ordre du SDK
+  - reste : `decide` et `reject` de `ChangesetView.vue` relisent au moment d'envoyer la
+    porte seule (un dialogue ne s'ouvre qu'action offerte : seul la porte a pu changer
+    depuis) ; `DraftsView.vue` n'a que la porte (« Reprendre » n'écrit pas) ;
+    `refusalSentence` (`admin/gate.ts`) ne fait que dire un refus déjà classé ; `validate`
+    d'un éditeur en place resté ouvert à l'étroit dit la largeur avant une valeur fautive
+    (saisie, pas raison de refus de l'action) ; `NetworkVlanTab.vue` touché dans
+    `writeBlocked` seul, à rapprocher du travail de la 22o sur `views/record/*`
 - [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
