@@ -7,7 +7,9 @@
 // so with its codes, never a blank page. « Modifier » (`e`) opens the edit panel of the
 // kind (task 12); « Changer de parent… », in the menu of an entity or a site, the same panel
 // on the parent alone (task 24, REQ-021-32); « Clore… », last in the menu of every kind, its
-// closure in the same place (`ClosePanel`, task 11g, 021/A31).
+// closure in the same place (`ClosePanel`, task 11g, 021/A31). Under `as_of` and under
+// 1024 px wide (the gate of writes, REQ-021-29), the record is read: its writes stay
+// visible, refused with their reason, the permission missing said first.
 import { reads } from "@kartenn/sdk";
 import {
   AttributeList,
@@ -42,7 +44,7 @@ import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime, writesOf } from "../time/index.ts";
+import { refusalWords, useTime, useWrites } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
 import { whyWords } from "./edit/inline.ts";
 import { moveEntryRefusal } from "./edit/moves.ts";
@@ -78,8 +80,13 @@ const { t, te } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
-/** What may be written at the date read (`time/`): the draft, at once (the present). */
-const writes = computed(() => writesOf(time.value));
+/**
+ * What may be written at the date read and the width of the frame (the gate of writes,
+ * REQ-021-29): the draft, at once (the present); nothing under `as_of` nor under 1024 px.
+ */
+const writes = useWrites();
+/** Why the gate writes nothing now, in its words (`past`, `narrow`), if so. */
+const gateWhy = computed(() => refusalWords(writes.value, t));
 const keyLabel = useKeyLabel();
 const settings = useSettings();
 
@@ -175,19 +182,29 @@ const actions = computed<MenuItem[]>(() => {
 const session = useSession();
 const editPermission = computed(() => editRight(props.collection.type));
 const mayEdit = computed(() => session.value.rights.has(editPermission.value));
-// Off the present before a permission missing, as the cells and the keys say it (task 12k).
+// The durable reason first, the permission missing, then the gate (`as_of`, under 1024 px):
+// widening the window or coming back to the present would not give the right.
 const blockedBy = (permission: string) =>
-  !writes.value.draft
-    ? { reason: t("edit.why.past") }
-    : !session.value.rights.has(permission)
-      ? { forbidden: permission }
+  !session.value.rights.has(permission)
+    ? { forbidden: permission }
+    : gateWhy.value
+      ? { reason: gateWhy.value }
       : {};
 const editBlocked = computed(() => blockedBy(editPermission.value));
+/**
+ * The gate read again as it acts, not only as the button was drawn: refused, its reason
+ * said by the status of the record, no panel opened.
+ */
+function gateOpen(): boolean {
+  if (gateWhy.value) status(gateWhy.value);
+  return gateWhy.value === null;
+}
 function modify(): void {
+  if (!gateOpen()) return;
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
 // Refused, `e` says why by the status of the record, as « Modifier » says it on its button
-// (`blockedBy`: off the present first, `view.ts`).
+// (`view.ts` says the gate before the permission, `blockedBy` the reverse: task 21h).
 const { said, status, clear: clearSaid } = useStatus();
 // Another object shown by the same view: what was said of the last one no longer holds.
 watch(() => props.id, clearSaid);
@@ -206,6 +223,7 @@ const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
   if (id === MOVE || id === CLOSE) {
+    if (!gateOpen()) return;
     // Once the menu has closed and given the focus back to its button: the panel then takes
     // it to its first field, and gives it back to that button when it closes.
     const mode = id === MOVE ? "move" : "close";
@@ -227,6 +245,7 @@ const vlanTab = computed(
 );
 const vlanBlocked = computed(() => blockedBy(editRight("core.vlan")));
 function createVlan(): void {
+  if (!gateOpen()) return;
   openEdit({ mode: "create", collection: "vlans", preset: { group: props.id } });
 }
 

@@ -30,12 +30,12 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { refusalWords, useTime, useWrites } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
 import { useDeclarationsOf } from "../data.ts";
 import { editRight } from "../edit/fields.ts";
 import { NETWORK_VLAN_EDITS } from "../edit/vlan.ts";
-import type { Refusal } from "../edit/inline.ts";
+import { whyWords, type Refusal } from "../edit/inline.ts";
 import { openEdit } from "../edit/panel.ts";
 import RefusalAlert from "../edit/RefusalAlert.vue";
 import { cacheSuggest } from "../filters.ts";
@@ -106,14 +106,23 @@ const settingDrafted = computed(() =>
   draftOperations.value.some((op) => isNetworkVlanAssignment(op, props.id, property.value)),
 );
 
+const writes = useWrites();
+/**
+ * Why the date or the gate of writes refuses a write of the property now, if they do: off
+ * the present (`valid_at` alone included: its operation goes to the draft undated, it would
+ * apply at once), then under 1024 px wide (REQ-021-29).
+ */
+const gateWhy = computed(() =>
+  time.value.present ? refusalWords(writes.value, t) : t("edit.why.past"),
+);
 /**
  * Why a write of the property is refused, if it is: the rights (`extra`, those of the VLAN
- * created too), the date, the declaration unread (the server stays the judge).
+ * created too), the date and the width, the declaration unread (the server stays the judge).
  */
 function writeBlocked(extra: readonly string[] = []): { forbidden?: string; reason?: string } {
   const missing = [...extra, ...NETWORK_VLAN_EDITS].find((p) => !session.value.rights.has(p));
   if (missing) return { forbidden: missing };
-  if (!time.value.present) return { reason: t("edit.why.past") };
+  if (gateWhy.value) return { reason: gateWhy.value };
   if (!property.value) {
     return {
       reason: declared.failed.value
@@ -174,8 +183,28 @@ async function suggestVlans(query: string, signal?: AbortSignal): Promise<ListOp
     return { value: String(item.id), label, mono: true };
   });
 }
+/** Why « Poser le VLAN » is refused now, in words (the permission missing first), if so. */
+const poseWhy = computed(() => {
+  const blocked = poseBlocked.value;
+  if (blocked.forbidden) return whyWords({ kind: "forbidden", permission: blocked.forbidden }, t);
+  return blocked.reason ?? null;
+});
+/**
+ * The refusal said in the form when Enter sends it anyway (the window narrowed since «
+ * Poser le VLAN » was drawn, say): the VLAN typed kept. The reason of now is shown, gone
+ * once open; each Enter refused counts a turn, the alert inserted anew and read again.
+ */
+const refusedTurn = ref(0);
+watch(poseWhy, (why) => {
+  if (!why) refusedTurn.value = 0;
+});
 async function pose(): Promise<void> {
-  if (busy.value || !property.value || Object.keys(poseBlocked.value).length > 0) return;
+  if (busy.value) return;
+  // The gate read again as it sends, not only as the button was drawn.
+  if (poseWhy.value || !property.value) {
+    if (poseWhy.value) refusedTurn.value += 1;
+    return;
+  }
   refusal.value = null;
   // A text typed and no VLAN taken from the list: nothing is guessed.
   if (setValue.value === undefined) {
@@ -283,10 +312,23 @@ async function remove(): Promise<void> {
           mono
         />
         <Cluster gap="2">
-          <Button icon="vlan" type="submit" v-bind="poseBlocked" :loading="busy">{{
-            t("views.vlan.set")
-          }}</Button>
+          <!-- Refused, it is no longer the form's submit button: Enter in the field then
+               sends the form, which says the refusal instead of nothing. -->
+          <Button
+            icon="vlan"
+            :type="Object.keys(poseBlocked).length > 0 ? 'button' : 'submit'"
+            v-bind="poseBlocked"
+            :loading="busy"
+            >{{ t("views.vlan.set") }}</Button
+          >
         </Cluster>
+        <InlineAlert
+          v-if="refusedTurn > 0 && poseWhy"
+          :key="refusedTurn"
+          tone="warn"
+          icon="lock"
+          :title="poseWhy"
+        />
         <RefusalAlert v-if="refusal" :refusal="refusal" />
       </Stack>
     </form>

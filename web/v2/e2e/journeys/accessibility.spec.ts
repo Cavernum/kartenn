@@ -715,6 +715,65 @@ test("under 1024 px « Créer » of the service accounts says the width; at 1024
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+// The record and the tree under 1024 px (task 21f; REQ-021-29): at 768 px « Modifier » of a
+// record says the width, reached and pressed at the keyboard it opens no panel; in the
+// Topography a cell of the tree and the « + » of its node say it too; at 1024 px «
+// Modifier » and the « + » come back. Nothing is written; the domain is its own (RFC 5737).
+test("under 1024 px « Modifier » of a record and a cell of the tree say the width", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { slug, prefixes } = await ownedDomain(
+    page,
+    `zz-narrow-record-${browserName}-${Date.now().toString(36)}`,
+  );
+  const editPanel = page.getByRole("complementary", { name: "Panneau droit" });
+  const modify = page.getByRole("main").getByRole("button", { name: /^Modifier/ });
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto(`/prefixes/${prefixes[0]!}`);
+  await atRest(page);
+  await expect(modify).toHaveAttribute("aria-disabled", "true");
+  await expect(modify).toHaveAccessibleDescription(NARROW);
+  await tabTo(page, modify);
+  await page.keyboard.press("Enter");
+  await expect(modify).toBeFocused();
+  await expect(editPanel).toHaveCount(0);
+  await expectAccessible(page);
+
+  // The tree of the domain, its column « Nature » shown by the chooser if the width hid it.
+  const domains = (await apiCall(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  await page.goto(`/topology?domain=${domains.items[0]!.id}`);
+  await atRest(page);
+  const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
+  await expect(tree.getByText("198.51.100.0/24", { exact: true })).toBeVisible();
+  const chooser = page.getByRole("button", { name: "Colonnes" });
+  if (await chooser.isVisible()) {
+    await chooser.click();
+    const nature = page.getByRole("menuitemcheckbox", { name: "Nature" });
+    if ((await nature.getAttribute("aria-checked")) !== "true") await nature.click();
+    await page.keyboard.press("Escape");
+  }
+  const detail = tree.locator('[role="gridcell"][data-column="detail"]').first();
+  await expect(detail).toHaveAttribute("aria-readonly", "true");
+  await expect(detail).toHaveAccessibleDescription(NARROW);
+  const plus = tree.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" });
+  await expect(plus).toHaveAttribute("aria-disabled", "true");
+  await expect(plus).toHaveAccessibleDescription(NARROW);
+  await expectAccessible(page);
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(page.locator("[data-width='standard']")).toHaveCount(1);
+  await expect(plus).not.toHaveAttribute("aria-disabled", "true");
+  await expect(detail).not.toHaveAttribute("aria-readonly", "true");
+  await page.goto(`/prefixes/${prefixes[0]!}`);
+  await atRest(page);
+  await expect(modify).not.toHaveAttribute("aria-disabled", "true");
+});
+
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
 // a journey fail.
 test.describe("guards of every journey", () => {
