@@ -6714,7 +6714,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : `aria-activedescendant` de la palette et le focus après Entrée (à
     vérifier) ; le nom du repère « Panneau droit » ; `.k-cat__switches` du catalogue
     déborde à 320 px
-- [ ] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
+- [x] 21c. Édition réservée aux largeurs ≥ 1024 px, la porte et son message : une seule
   porte d'écriture qui lit la largeur du cadre (classe `narrow` ou `compact`, sous
   1024 px) à côté de la période, et un motif `narrow` (« Modification à partir de 1024 px
   de large : élargissez la fenêtre pour modifier. ») dit là où le motif `past` l'est
@@ -6730,6 +6730,52 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `ClosePanel.vue`, `EditHint.vue`, `EditPanel.vue` (vers la ligne 492) ; catalogue
     `views/i18n/fr.json` (`edit.why`) ; modèle : le motif `past`
   - dépend de : 21b ; 11o est fusionnée (`TopologyView.vue` lit `inline.ts`)
+  - fait le 2026-11-14 — la porte : `writesOf(time, width)` (`time/index.ts`) rend
+    `refused: "past" | "narrow" | null` à côté de `quickEdit` et `draft`, `useWrites()` la
+    lit à la période de la route et à la classe de largeur que publie le cadre
+    (`frame/width.ts` : `frameWidth`, `followWindow` appelé par `ShellFrame.vue`, qui y
+    perd ses propres requêtes ; `wide` sans cadre), `refusalWords` en dit la phrase
+    (`edit.why.narrow`, fr et en). Dite là où `past` l'est : `editability` (`narrow` dans
+    `NotEditable`), donc cellules de `inline.ts` et `properties.ts` (`aria-readonly`,
+    description, infobulle, `whyWords`, pied `EditHint.vue`) et celles de l'arbre et du
+    contenu qui les lisent ; `c`, `e` (`play`, `runnable` prennent la porte) ; la palette
+    (`offered` : la commande gardée sous la largeur seule, son lancement dit le motif par
+    le statut de la vue) ; panneaux d'édition, de clôture et de changement de parent
+    (`action.ts` : les deux actions refusées avec le motif, Ctrl+Entrée le dit dans le
+    statut du panneau) ; « Changer de parent… » (`moveEntryRefusal`, mots `dated` et
+    `narrow`) et le glisser de l'arbre (`canMove`). Un éditeur ouvert quand la fenêtre
+    passe sous 1024 px reste ouvert, sa saisie et le focus gardés : Entrée y est refusée
+    par `validate` (la bulle et l'`alert` de la grille), et range au brouillon une fois la
+    fenêtre élargie ; la ligne du motif (Ctrl+Entrée) reste aussi, `confirm` dit le motif ;
+    un panneau ouvert reste ouvert, ses champs gardés. Tests : `test/writes.test.ts`
+    (largeur × période, phrase, `followWindow` sur des requêtes simulées, `useWrites`),
+    `edit.test.ts` (`editability`), `shortcuts.test.ts` (`play`, `offered`),
+    `moves.test.ts`, `close.test.ts` (panneau ouvert puis rétréci, puis élargi) ; parcours
+    `accessibility` à 768 et 390 px (cellule, pied, Entrée, `e`, la palette, aucun panneau)
+    puis à 1024 px (l'édition revient, l'éditeur ouvert garde saisie et focus à 768 px)
+  - choix : le passé avant la largeur (élargir n'ouvre pas une date passée), la largeur
+    avant le droit manquant (comme le passé) ; sans largeur, `writesOf` lit la période
+    seule (la simulation d'une clôture, une lecture) ; la palette garde « Créer… » et
+    « Modifier… » sous la largeur seule (absents hors du présent et sans le droit, comme
+    avant) ; pas de garde dans `openEdit` : un panneau ouvert par une surface des 21d à 21f
+    sous 1024 px montre ses actions refusées, sans perte
+  - pour 21d à 21f : remplacer `computed(() => writesOf(time.value))` par `useWrites()`
+    et `t("…why.past")` par `refusalWords(writes, t)` (ou le motif `narrow` de leur
+    catalogue) au point d'action ; modèle de test : `test/writes.test.ts`, `setFrameWidth`
+    pour un test monté ; `RecordView.vue` passe déjà les mots `narrow` à
+    `moveEntryRefusal`, sa porte reste la période seule jusqu'à la 21f ; chaque surface
+    reprise quitte la liste `PERIOD_ONLY` de `test/writes.test.ts` (les lecteurs de la
+    période seule, comptés dans `src/` : un oubli de la largeur y échoue)
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : la liste `PERIOD_ONLY` (un
+    `writesOf` sans largeur ne compile pas moins, il se compte) ; le statut poli d'une vue
+    (`useStatus`, `say.ts`) se vide quand la porte change (« élargissez la fenêtre » n'y
+    reste pas une fois la fenêtre large)
+  - reste : la fiche (« Modifier », « Actions », `blockedBy` de `RecordView.vue`) et le
+    « + » de l'arbre (`TopologyView.vue`, `addRefusal`) disent encore `past` et s'ouvrent
+    sous 1024 px (21f), le brouillon de même (21d) ; un éditeur ouvert ne dit pas le
+    rétrécissement de la fenêtre avant Entrée (une annonce au passage sous 1024 px, à
+    peser) ; l'annonce du statut après une commande de la palette, et le motif d'une
+    cible refusée au glisser ou par « Déplacer vers… », à écouter au lecteur d'écran
 - [ ] 21d. Édition réservée aux largeurs ≥ 1024 px, brouillon et changesets : le motif
   `narrow` de la 21c sur la soumission, les opérations, « Mes brouillons », les
   soumissions perdues et les décisions d'un changeset — REQ-021-29 — verify : Vitest de

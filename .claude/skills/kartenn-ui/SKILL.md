@@ -179,8 +179,12 @@ séquence) : réglage coupé, ni la palette, ni le menu du compte, ni `SidebarNa
 (`singleKeys`), ni `SidePanel` (`shortcut`) ne les montrent ; l'aide les garde, chacun
 marqué « (désactivé) » dans son action, et le dit en tête. Une vue du shell donne `/`, `c`,
 `e` par `useViewAction` (`filter`, `create`, `edit` ; `allowed` : le droit) ; `c` et `e`
-n'agissent qu'au présent (sous `valid_at` seul aussi, marqués `dated`) ; refusés, ils disent
-pourquoi par le statut poli de la vue (`why`, `say` : jamais une touche muette).
+n'agissent qu'au présent (sous `valid_at` seul aussi, marqués `dated`) et dans un cadre d'au
+moins 1024 px ; refusés, ils disent pourquoi par le statut poli de la vue (`why`, `say` :
+jamais une touche muette). Toute écriture passe par la porte `useWrites()` (`time/index.ts` :
+période et largeur du cadre publiée par `frame/width.ts`, jamais `window.innerWidth`) et dit
+son refus (`refused` : `past`, `narrow` ; `refusalWords`) au point d'action, comme le motif
+`past`, sans avis permanent.
 
 ## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
 
