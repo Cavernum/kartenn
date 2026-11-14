@@ -641,6 +641,28 @@ describe("the routes of the referential", () => {
     expect(root.querySelector("[role='grid']")).toBe(grid);
   }, 10_000);
 
+  it("the list read again forbidden (403): its rows no longer shown, the refusal in their place", async () => {
+    // Only a passing refusal (429, 5xx, the network) keeps the rows: rows of a right
+    // withdrawn do not stay on the screen (design « Erreurs », task 021-11p9).
+    let refused = false;
+    const { root } = await mounted("/addresses", (url) => {
+      if (url.startsWith("/v1/addresses")) {
+        if (refused) return 403;
+        return page(
+          [{ id: ENTITY, value: "192.0.2.10", links: { self: `/v1/addresses/${ENTITY}` } }],
+          "/v1/addresses?cursor=c2",
+        );
+      }
+      return page([]);
+    });
+    await expect.poll(() => root.textContent).toContain("192.0.2.10");
+    refused = true;
+    await queryClient.refetchQueries({ queryKey: ["v1", "/v1/addresses"] });
+    await expect.poll(() => root.textContent).not.toContain("192.0.2.10");
+    expect(root.textContent).toContain("Vous n'avez pas le droit de faire cela.");
+    expect(root.textContent).not.toContain("La liste n'a pas pu être relue");
+  }, 10_000);
+
   it("shows the type of a declared property in words, its key at hand (REQ-021-19)", async () => {
     const { root } = await mounted("/property-declarations", (url) =>
       url.startsWith("/v1/property-declarations")

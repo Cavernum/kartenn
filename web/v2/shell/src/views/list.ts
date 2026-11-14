@@ -1,4 +1,12 @@
-import { filterModel, queryClient, reads, type Filters, type ListPath } from "@kartenn/sdk";
+import {
+  ApiProblem,
+  filterModel,
+  NetworkError,
+  queryClient,
+  reads,
+  type Filters,
+  type ListPath,
+} from "@kartenn/sdk";
 import { checkFilter, type Filter, type FilterModel, type GridWindow } from "@kartenn/ui";
 import { computed, ref, shallowRef, watch, type ComputedRef, type Ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -57,6 +65,12 @@ export interface Blocked {
   reason: "failed" | "unknown";
   /** The parameters of the URL concerned (`prop.dns.ttl:between`). */
   names: string[];
+}
+
+/** Whether a refusal may pass by itself: a quota (429), the server (5xx), the network. */
+function passing(error: unknown): boolean {
+  if (error instanceof NetworkError) return true;
+  return error instanceof ApiProblem && (error.status === 429 || error.status >= 500);
 }
 
 /** Whether a list takes property filters (`prop.<key>` in its contract). */
@@ -211,14 +225,15 @@ export function useFilteredList<T>(
     sent,
     list: list as UseInfiniteQueryResult<unknown>,
     rows,
-    // Swapped for the error state, the rows of a list read again and refused came back at
-    // the top once it passed, the pages read below the view out of sight (task 021-11p9).
+    // A list read again and refused in passing keeps its rows: swapped for the error state,
+    // they came back at the top once it passed, the pages read below the view out of
+    // sight. Refused for good (401, 403, 404…), its rows go (task 021-11p9).
     failed: computed(
-      () => list.isError.value && !list.isFetchNextPageError.value && list.data.value === undefined,
+      () => list.isLoadingError.value || (list.isRefetchError.value && !passing(list.error.value)),
     ),
     // Never a next page refused, nor a refused cursor: `InfiniteQueryObserver` leaves out
     // of `isRefetchError` the errors of `fetchNextPage` and `fetchPreviousPage`.
-    refreshFailed: computed(() => list.isRefetchError.value),
+    refreshFailed: computed(() => list.isRefetchError.value && passing(list.error.value)),
     nextFailed: computed(
       () => list.isFetchNextPageError.value && problemSlug(list.error.value) !== "invalid-cursor",
     ),

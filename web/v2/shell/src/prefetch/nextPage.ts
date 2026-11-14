@@ -26,6 +26,11 @@ export interface PagedList {
   isFetching: Readonly<Ref<boolean>>;
   /** The last read of the next page failed: no prefetch until a read succeeds again. */
   isFetchNextPageError: Readonly<Ref<boolean>>;
+  /**
+   * The list read again was refused: no next page until a read again passes, which would
+   * clear the error and the alert that the rows shown were not read again (task 021-11p9).
+   */
+  isRefetchError?: Readonly<Ref<boolean>>;
   fetchNextPage: () => Promise<unknown>;
 }
 
@@ -93,7 +98,7 @@ export function useNextPage(list: PagedList, view: MaybeRefOrGetter<ListWindow>)
   watchEffect(() => {
     const at = toValue(view);
     if (!list.hasNextPage.value || list.isFetching.value) return;
-    if (list.isFetchNextPageError.value) return;
+    if (list.isFetchNextPageError.value || list.isRefetchError?.value) return;
     const data = list.data.value;
     const end = at.end - droppedRows(given.value, data);
     if (nearEnd(loadedOf(data), { end, size: at.size })) void list.fetchNextPage();
