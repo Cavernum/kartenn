@@ -250,10 +250,15 @@ function retry(failures: number, error: unknown): boolean {
 
 /**
  * The wait before trying again: the `Retry-After` of a refusal by load (`retry` let only
- * those of five seconds at most through), else 1 s, then 2 s. Only an `ApiProblem` has one.
+ * those of five seconds at most through), plus a jitter of up to a half of it, never less:
+ * the reads refused together (the server rounds its wait up to the second) do not come back
+ * in the same millisecond. Else 1 s, then 2 s, as before. Only an `ApiProblem` has one;
+ * `random`, for the tests.
  */
-const retryDelay = (failures: number, error: unknown): number =>
-  ((error as Partial<ApiProblem> | undefined)?.retryAfter ?? 2 ** failures) * SECOND;
+export function retryDelay(failures: number, error: unknown, random = Math.random): number {
+  const wait = (error as Partial<ApiProblem> | undefined)?.retryAfter;
+  return wait == null ? 2 ** failures * SECOND : wait * SECOND * (1 + random() / 2);
+}
 
 /** A new `QueryClient` with the defaults of the SDK. */
 export function createQueryClient(): QueryClient {

@@ -30,8 +30,9 @@ export class ApiProblem extends Error {
   readonly violations: readonly Violation[];
   readonly requestId: string | null;
   /**
-   * The seconds the answer asks to wait before trying again (`Retry-After`), if any; `NaN`
-   * for a form other than delay-seconds.
+   * The seconds the answer asks to wait before trying again (`Retry-After`), `null` without
+   * it; `NaN` for any form other than delay-seconds (`1*DIGIT`, RFC 9110 §10.2.3), a wait
+   * the cache cannot read and never waits out.
    */
   readonly retryAfter: number | null;
 
@@ -84,9 +85,9 @@ export class ApiProblem extends Error {
       detail: text("detail"),
       violations: Array.isArray(body?.["violations"]) ? (body["violations"] as Violation[]) : [],
       requestId: requestId ?? text("instance"),
-      // Its delay-seconds (RFC 9110 §10.2.3), the only form kartenn sends; an HTTP-date
-      // is not read (`NaN`, a wait unknown).
-      retryAfter: wait === null ? null : +wait,
+      // Its delay-seconds alone, `1*DIGIT` (RFC 9110 §10.2.3), the only form kartenn
+      // sends; any other (an HTTP-date, a sign, a fraction…) is no wait read (`NaN`).
+      retryAfter: wait === null ? null : /^\d+$/.test(wait) ? Number(wait) : NaN,
     });
   }
 }

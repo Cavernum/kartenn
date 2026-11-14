@@ -469,8 +469,8 @@ describe("the routes of the referential", () => {
     expect(router.currentRoute.value.fullPath).toBe(link);
   });
 
-  /** The shell mounted at `link`, the API answered by `answer` (a body, or a status). */
-  async function mounted(link: string, answer: (url: string) => object | number) {
+  /** The shell mounted at `link`, the API answered by `answer` (a body, a status, an answer). */
+  async function mounted(link: string, answer: (url: string) => object | number | Response) {
     const seen: string[] = [];
     setFetch((async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -478,6 +478,7 @@ describe("the routes of the referential", () => {
       const body = url.startsWith("/v1/labels")
         ? { lang: "fr", default_lang: "fr", revision: "1", spaces: {} }
         : answer(url);
+      if (body instanceof Response) return body;
       if (typeof body === "number") {
         return new Response(
           JSON.stringify({ type: "urn:kartenn:problem:forbidden", title: "", status: body }),
@@ -625,7 +626,8 @@ describe("the routes of the referential", () => {
     const before = addresses(seen).length;
     await queryClient.refetchQueries({ queryKey: ["v1", "/v1/addresses"] });
     await nextTick();
-    // Refused, read once: a 429 is not retried by the cache (a problem the client caused).
+    // Refused, read once: a 429 without `Retry-After` is not retried by the cache (no wait
+    // to keep; with one, the next test).
     expect(addresses(seen)).toHaveLength(before + 1);
     expect(root.querySelector("[role='grid']")).toBe(grid);
     expect(root.textContent).toContain("192.0.2.10");
@@ -639,6 +641,59 @@ describe("the routes of the referential", () => {
     alertOf()!.querySelector("button")!.click();
     await expect.poll(() => alertOf()).toBeUndefined();
     expect(root.querySelector("[role='grid']")).toBe(grid);
+  }, 10_000);
+
+  it("the list read again refused with a Retry-After: tried three times, the rows kept meanwhile, then the refusal said", async () => {
+    // The quota's 429 carries `Retry-After: 1`: the cache waits it out (with a jitter of at
+    // most a half) twice, the grid and its rows on the screen without an alert meanwhile;
+    // refused a third time, the alert of today (task 021-11p10-b).
+    let refused = false;
+    const { root, seen } = await mounted("/addresses", (url) => {
+      if (url.startsWith("/v1/addresses")) {
+        if (refused)
+          return new Response(
+            JSON.stringify({ type: "urn:kartenn:problem:rate", title: "", status: 429 }),
+            {
+              status: 429,
+              headers: { "Content-Type": "application/problem+json", "Retry-After": "1" },
+            },
+          );
+        return page(
+          [{ id: ENTITY, value: "192.0.2.10", links: { self: `/v1/addresses/${ENTITY}` } }],
+          "/v1/addresses?cursor=c2",
+        );
+      }
+      return page([]);
+    });
+    await expect.poll(() => root.textContent).toContain("192.0.2.10");
+    const grid = root.querySelector("[role='grid']");
+    const alertOf = () =>
+      [...root.querySelectorAll("[role='alert']")].find((el) =>
+        el.textContent?.includes("La liste n'a pas pu être relue"),
+      );
+    vi.useFakeTimers();
+    try {
+      refused = true;
+      const before = addresses(seen).length;
+      void queryClient.refetchQueries({ queryKey: ["v1", "/v1/addresses"] });
+      await vi.advanceTimersByTimeAsync(0);
+      for (const tries of [1, 2]) {
+        expect(addresses(seen)).toHaveLength(before + tries);
+        expect(alertOf()).toBeUndefined();
+        expect(root.querySelector("[role='grid']")).toBe(grid);
+        expect(root.textContent).toContain("192.0.2.10");
+        await vi.advanceTimersByTimeAsync(1500);
+      }
+      expect(addresses(seen)).toHaveLength(before + 3);
+      await nextTick();
+      expect(alertOf()?.textContent ?? "").toContain("Réessayer");
+      expect(root.querySelector("[role='grid']")).toBe(grid);
+      expect(root.textContent).toContain("192.0.2.10");
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(addresses(seen)).toHaveLength(before + 3);
+    } finally {
+      vi.useRealTimers();
+    }
   }, 10_000);
 
   it("the list read again forbidden (403): its rows no longer shown, the refusal in their place", async () => {

@@ -12,6 +12,7 @@ import {
   IMMUTABLE,
   MAX_PAGES,
   fallback,
+  retryDelay,
   sharePages,
   type Entry,
 } from "../src/data/cache.ts";
@@ -360,7 +361,8 @@ describe("refusals by load (task 021-11p10-b)", () => {
         fetchStatus: "fetching",
         error: null,
       });
-      await vi.advanceTimersByTimeAsync(1);
+      // The wait of `Retry-After`, and its jitter of at most a half.
+      await vi.advanceTimersByTimeAsync(501);
       expect(seen).toHaveLength(2);
       expect(observer.getCurrentResult()).toMatchObject({ status: "success", error: null });
       expect(observer.getCurrentResult().data?.data).toEqual(prefix("10.0.0.0/24"));
@@ -378,6 +380,12 @@ describe("refusals by load (task 021-11p10-b)", () => {
     ["a 429 asking more than five seconds", refused(429, "6")],
     ["a 503 asking more than five seconds", refused(503, "6")],
     ["a 429 whose Retry-After is an HTTP-date", refused(429, "Sun, 15 Nov 2026 08:00:00 GMT")],
+    // Only delay-seconds, `1*DIGIT` (RFC 9110 §10.2.3), is a wait read.
+    ["a 429 whose Retry-After is empty", refused(429, "")],
+    ["a 429 whose Retry-After is negative", refused(429, "-3")],
+    ["a 429 whose Retry-After is a fraction", refused(429, "1.5")],
+    ["a 429 whose Retry-After is hexadecimal", refused(429, "0x5")],
+    ["a 429 whose Retry-After is an exponent", refused(429, "1e0")],
   ])("never read again after %s", async (_, answer) => {
     const { observer, seen, stop } = answering(answer);
     await vi.advanceTimersByTimeAsync(30_000);
@@ -399,6 +407,18 @@ describe("refusals by load (task 021-11p10-b)", () => {
     expect(error).toBeInstanceOf(ApiProblem);
     expect((error as ApiProblem).status).toBe(429);
     stop();
+  });
+
+  it("wait the Retry-After and a jitter of at most a half, never less", () => {
+    const of = (retryAfter: number | null) =>
+      new ApiProblem({ status: 429, type: "x", title: "x", retryAfter });
+    // Refusals of a same second set apart: none before its wait, none past a half more.
+    expect(retryDelay(0, of(1), () => 0)).toBe(1000);
+    expect(retryDelay(0, of(1), () => 0.5)).toBe(1250);
+    expect(retryDelay(1, of(3), () => 0.999)).toBeCloseTo(4498.5);
+    // Without Retry-After, 1 s then 2 s, as before.
+    expect(retryDelay(0, new Error("network"), () => 0.5)).toBe(1000);
+    expect(retryDelay(1, of(null), () => 0.5)).toBe(2000);
   });
 
   it("never read again a read given up while it waits", async () => {
