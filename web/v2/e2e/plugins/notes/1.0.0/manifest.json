@@ -31,7 +31,7 @@
       "point": "tab",
       "id": "notes",
       "element": "notes-tab",
-      "object_types": ["prefix", "vlan"],
+      "object_types": ["prefix", "vlan", "vlan_group"],
       "label": "tab.notes",
       "permission": "core.prefix.read"
     },
@@ -40,7 +40,7 @@
       "point": "column",
       "id": "flag",
       "element": "notes-flag",
-      "object_types": ["address", "prefix"],
+      "object_types": ["address", "prefix", "vlan", "vlan_group"],
       "label": "column.flag"
     },
     {

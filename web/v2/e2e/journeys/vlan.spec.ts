@@ -5,7 +5,8 @@ import { DATA, expect, expectAccessible, ownedDomain, test } from "../fixtures/j
 // REQ-026-6; REQ-008-12 to 21), rewritten from web/e2e/journeys/vlan.spec.ts (the plugin of
 // the old shell): a group created from its list under « Réseau » by the edit panel, its
 // record with its occupancy and its next free VID; a VLAN created from the group, its VID
-// proposed as the next free one; set on a network from the VLAN tab of the network (an
+// proposed as the next free one, a VID taken or out of the range refused on its field with its
+// code; set on a network from the VLAN tab of the network (an
 // existing VLAN, to the draft, applied), then seen there (its removal to the draft, once),
 // in the column of the list of prefixes and in the networks of its record; the list of the
 // VLAN filtered by the URL. « Créer un VLAN pour ce réseau » (021/A13): the creation and the
@@ -165,6 +166,42 @@ test("a group, then a VLAN created and set on a network, seen in its tab, the pr
   await create.getByRole("textbox", { name: "Nom" }).press("Control+Enter");
   await expect(toast(page, new RegExp(`Appliqué : VLAN 100 · ${vlan}`))).toBeVisible();
   await expect(create).toHaveCount(0);
+  // The same « Créer un VLAN », now in the bar above the VLAN of the group, has the focus back.
+  const again = page.getByRole("button", { name: "Créer un VLAN" });
+  await expect(again).toBeFocused();
+  await expect(
+    page.getByRole("grid", { name: `VLAN du groupe ${group}` }).getByRole("link", { name: "100" }),
+  ).toBeVisible();
+
+  // The refusals of the server on the field of the VID, with their code (design § « VLAN,
+  // écrans du cœur »), sent from the field of the name: a VID taken in the group, then one
+  // outside its range, each said in place of the other, the focus on the VID; abandoned,
+  // nothing written.
+  await again.click();
+  await expect(vid).toHaveValue("101");
+  const named = create.getByRole("textbox", { name: "Nom" });
+  await named.fill(`refus-${run}`);
+  await create.getByRole("button", { name: "Choisir l'action" }).click();
+  await page.getByRole("menuitem", { name: "Appliquer" }).click();
+  await vid.fill("100");
+  await named.press("Control+Enter");
+  await expect(vid).toHaveAccessibleDescription(/core\.vlan\.vid_duplicate/);
+  await expect(vid).toHaveAttribute("aria-invalid", "true");
+  await expect(vid).toBeFocused();
+  await expectAccessible(page);
+  await vid.fill("200");
+  await named.press("Control+Enter");
+  await expect(vid).toHaveAccessibleDescription(/core\.vlan\.vid_out_of_range/);
+  await expect(vid).not.toHaveAccessibleDescription(/core\.vlan\.vid_duplicate/);
+  await expect(vid).toBeFocused();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("alertdialog", { name: "Abandonner les modifications ?" })
+    .getByRole("button", { name: "Abandonner" })
+    .click();
+  await expect(create).toHaveCount(0);
+  const ofGroup = (await call(page, "GET", `/v1/vlans?name=refus-${run}`)) as { items: unknown[] };
+  expect(ofGroup.items).toEqual([]);
 
   // The network: its VLAN tab says it carries none; « Poser un VLAN existant » takes the VLAN
   // among the suggestions, its setting to the draft, once; the draft applied, it says the VLAN.
@@ -210,7 +247,10 @@ test("a group, then a VLAN created and set on a network, seen in its tab, the pr
 
   // The record of the VLAN: its group, the network that carries it.
   await expect(page.getByRole("heading", { level: 1, name: `VLAN 100 · ${vlan}` })).toBeVisible();
-  await expect(page.getByRole("link", { name: group, exact: true })).toBeVisible();
+  // In its attributes (the tab « Propriétés » names the group too, in its grid).
+  await expect(
+    page.getByRole("definition").getByRole("link", { name: group, exact: true }),
+  ).toBeVisible();
   await tabs.getByRole("tab", { name: "Réseaux" }).click();
   await expect(
     page

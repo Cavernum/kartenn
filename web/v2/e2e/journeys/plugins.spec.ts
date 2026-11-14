@@ -187,12 +187,13 @@ test("the screens of the referential place the tile, the tab, the panel and the 
   await expect(page.locator("notes-tab")).toHaveText(`Notes de prefix ${id}`);
   await expectAccessible(page);
 
-  // A type of the core since spec 026: the tab of the record of a VLAN, given its object.
+  // Types of the core since spec 026 (task 17): the column of the lists of the VLAN and of
+  // their groups, the tab of the record of each, given its object.
   await page.goto("/vlans");
-  await page
-    .getByRole("grid", { name: "VLAN" })
-    .getByRole("link", { name: String(DATA.vlan.vid), exact: true })
-    .click();
+  const vlans = page.getByRole("grid", { name: "VLAN" });
+  await expect(vlans.getByRole("columnheader", { name: /Repère/ })).toBeAttached();
+  await expect(vlans.locator("notes-flag").first()).toHaveText("•");
+  await vlans.getByRole("link", { name: String(DATA.vlan.vid), exact: true }).click();
   await expect(page).toHaveURL(/\/vlans\/[0-9a-f-]+$/);
   const vlan = page.url().split("/").pop()!;
   await page
@@ -200,6 +201,21 @@ test("the screens of the referential place the tile, the tab, the panel and the 
     .getByRole("tab", { name: "Notes" })
     .click();
   await expect(page.locator("notes-tab")).toHaveText(`Notes de vlan ${vlan}`);
+  await expectAccessible(page);
+
+  await page.goto(`/vlan-groups?slug=${DATA.vlan.group}`);
+  const groups = page.getByRole("grid", { name: "Groupes de VLAN" });
+  await expect(groups.getByRole("columnheader", { name: /Repère/ })).toBeAttached();
+  await expect(groups.locator("notes-flag").first()).toHaveText("•");
+  await expectAccessible(page);
+  await groups.getByRole("link", { name: DATA.vlan.group, exact: true }).click();
+  await expect(page).toHaveURL(/\/vlan-groups\/[0-9a-f-]+$/);
+  const group = page.url().split("/").pop()!;
+  await page
+    .getByRole("tablist", { name: "Sections de la fiche" })
+    .getByRole("tab", { name: "Notes" })
+    .click();
+  await expect(page.locator("notes-tab")).toHaveText(`Notes de vlan_group ${group}`);
   await expectAccessible(page);
 });
 
