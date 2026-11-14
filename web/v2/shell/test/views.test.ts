@@ -17,11 +17,9 @@ import {
   referenceOf,
 } from "../src/views/collections.ts";
 import {
-  COLUMN_READS,
   freeLocal,
   isNetworkVlanAssignment,
   isNetworkVlanRemoval,
-  limited,
   networkVlanOperation,
   vlanOfProperties,
 } from "../src/views/parts/vlan.ts";
@@ -334,40 +332,6 @@ describe("the collections", () => {
     ).toBe(6);
     // A member `local` that is not a number names nothing.
     expect(freeLocal([{ op: "x", local: "7" }])).toBe(0);
-  });
-
-  it("read the VLAN of the rows a few at a time, never a row gone meanwhile", async () => {
-    let running = 0;
-    let most = 0;
-    const releases: (() => void)[] = [];
-    const read = () =>
-      new Promise<string>((resolve) => {
-        running++;
-        most = Math.max(most, running);
-        releases.push(() => {
-          running--;
-          resolve("read");
-        });
-      });
-    const gone = new AbortController();
-    const outcome = (signal?: AbortSignal) =>
-      limited(signal, read).then(
-        () => "read",
-        () => "dropped",
-      );
-    const reads = [
-      ...Array.from({ length: COLUMN_READS + 2 }, () => outcome()),
-      outcome(gone.signal),
-    ];
-    gone.abort();
-    for (let i = 0; i < 20 && releases.length > 0; i++) {
-      releases.shift()!();
-      await new Promise((resolve) => setTimeout(resolve));
-    }
-    const settled = await Promise.all(reads);
-    expect(most).toBe(COLUMN_READS);
-    expect(settled.filter((s) => s === "read")).toHaveLength(COLUMN_READS + 2);
-    expect(settled.at(-1)).toBe("dropped");
   });
 
   it("open the record a URL of the API names, of a collection of the shell only", () => {

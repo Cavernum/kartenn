@@ -1,6 +1,7 @@
 import { keys, qualify, queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, GridWindow, RowState } from "@kartenn/ui";
 import { computed, shallowReactive, shallowRef, watch, type ComputedRef } from "vue";
+import { limited } from "../data/gate.ts";
 import { useQueries } from "../data/queries.ts";
 import { useTime } from "../time/index.ts";
 import { nameOf, type Collection, type Item } from "./collections.ts";
@@ -13,15 +14,14 @@ import {
   type PropertyRead,
 } from "./edit/properties.ts";
 import type { DeclarationOfModel } from "./filters.ts";
-import { limited } from "./parts/vlan.ts";
 import { useViewColumns, type ColumnVisibility } from "./viewSettings.ts";
 
 // The columns of properties of a list (task 12i, Q-021-18): none shown by default; the
 // chooser « Colonnes » of the grid offers every property declared for the kind of the list,
 // and the choice is kept by view and by user (`viewSettings.ts`). A column chosen reads the
 // resolved properties of its rows (`/v1/<kind>/{id}/properties`, the cache the record's tab
-// and the VLAN column share) for the rows in view and a screen around them, a few at a time
-// (`limited`). Its cells are edited in place by the rules of the tab (`usePropertyEdit`,
+// and the VLAN column share) for the rows in view and a screen around them, through the
+// gate of the shell (`data/gate.ts`, `limited`). Its cells are edited in place by the rules of the tab (`usePropertyEdit`,
 // task 12h): `prop.<key>.edit` alone, the draft guarded by an `expect` (Q-021-21), Ctrl+Enter
 // with `prop.<key>.approval.self`, a value inherited overridden and said so (Q-021-19).
 
