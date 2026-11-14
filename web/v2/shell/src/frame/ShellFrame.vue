@@ -64,7 +64,6 @@ import {
 } from "@kartenn/ui";
 import {
   computed,
-  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -111,7 +110,7 @@ import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { offered, play } from "../shortcuts/view.ts";
 import { dropMotive, typedMotive } from "../draft/motive.ts";
 import { closeEditWithPage, editRequest, guardEdit, lineToReturn } from "../views/edit/panel.ts";
-import { worded } from "../views/words.ts";
+import { ClosePanel, DraftOperations, DraftSubmit, EditPanel } from "./panels.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { detailRequests } from "./detail.ts";
 import { editModified, panelModified, reportModified } from "./modified.ts";
@@ -251,11 +250,8 @@ const panelWidth = ref<number>(kept.width ?? 420);
 watch([panelOpen, panelTab, panelWidth], ([open, tab, w]) => keepPanel({ open, tab, width: w }));
 
 // The edit panel of a kind (task 12, REQ-021-36): asked by a view, shown in the Détail tab,
-// the panel opened on it; its code in its own chunk, read when first asked for, with the
-// words of the screens (task 22n): the panel of a draft opens it on any page.
-const EditPanel = defineAsyncComponent(worded(() => import("../views/edit/EditPanel.vue")));
-// « Clore… » of a record (021/A31, task 11g): the closure in the same place, its own panel.
-const ClosePanel = defineAsyncComponent(worded(() => import("../views/edit/ClosePanel.vue")));
+// the panel opened on it; « Clore… » of a record (021/A31, task 11g) in the same place, its
+// own panel (`panels.ts`, each read when first asked for, with the words of the screens).
 const editing = editRequest();
 watch(editing, (request) => {
   if (!request) return;
@@ -361,11 +357,10 @@ function toggleDraft(): void {
 }
 
 // The draft tab (task 14, REQ-021-6, 11): its operations and its foot, each read when the
-// tab first shows them; the title of a draft the edits create, in the language of the
-// shell; a draft that left the tab (deleted, submitted, taken over elsewhere) said once.
-// The draft on its page (`/drafts/:id`) is not shown a second time in the panel.
-const DraftOperations = defineAsyncComponent(worded(() => import("../draft/DraftOperations.vue")));
-const DraftSubmit = defineAsyncComponent(worded(() => import("../draft/DraftSubmit.vue")));
+// tab first shows them (`panels.ts`); the title of a draft the edits create, in the
+// language of the shell; a draft that left the tab (deleted, submitted, taken over
+// elsewhere) said once. The draft on its page (`/drafts/:id`) is not shown a second time
+// in the panel.
 const draftOnPage = computed(
   () =>
     activeDraft.value !== null && route.path === `/drafts/${encodeURIComponent(activeDraft.value)}`,

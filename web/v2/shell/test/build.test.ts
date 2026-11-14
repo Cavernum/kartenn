@@ -59,7 +59,9 @@ async function built(mode: string) {
       build: { outDir, emptyOutDir: true },
     });
   } finally {
-    process.env.NODE_ENV = nodeEnv;
+    // Absent before, absent after: never the string "undefined".
+    if (nodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = nodeEnv;
   }
   const manifest = JSON.parse(
     readFileSync(join(outDir, ".vite/manifest.json"), "utf8"),
