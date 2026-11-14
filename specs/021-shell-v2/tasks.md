@@ -1923,7 +1923,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       (une entrée `webServer`), `e2e/fixtures/journeys.ts` (`loginIn` paramétré par
       l'origine), un jeu de dix pages écrit avant le parcours, `web/v2/e2e/journeys/`
     - dépend de : 11p10-b
-  - [ ] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
+  - [x] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
     l'utilisateur le 2026-11-14) : les lectures de propriétés résolues demandées dans une
     même fenêtre de quelques millisecondes, pour une même collection et les mêmes dates,
     partent en une requête par lots (006-31, 200 identifiants au plus par requête) ; la
@@ -1941,6 +1941,51 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       `shell/src/views/propertyColumns.ts` (`useQueries`, `limited`),
       `views/parts/NetworkVlan.vue`, `views/parts/vlan.ts` ; ADR 0037
     - dépend de : 006-31, 22f-d, 11p10-a
+    - fait le 2026-11-14 : `sdk/src/data/batch.ts` (`createBatcher`, `BATCH_WINDOW` = 10 ms,
+      `BATCH_MAX` = 200) : une fenêtre par collection et par dates, fermée à son délai ou à
+      200 identifiants ; chaque lecture garde sa promesse, une lecture abandonnée sort de sa
+      fenêtre ou de son lot, dont la requête n'est annulée qu'une fois toutes ses lectures
+      parties ; un identifiant omis rend un `ApiProblem` 404 `not-found` (jamais relu, l'état
+      « illisible » de la lecture unitaire) ; un refus du lot (429, 503, réseau) rendu à
+      chacune, que la relecture du cache (11p10-b) renvoie ensemble dans une fenêtre neuve.
+      `reads.sub(…, "properties")` (`cache.ts`), signature gardée : sans `key`, sa fonction de
+      requête passe par le regroupeur, l'élément rangé sous sa clé unitaire, liens refaits,
+      `etag: null` ; une réponse égale à l'entrée gardée la rend telle quelle (comme un 304 :
+      la 22f-d tenue, seules les lignes dont la valeur change refaites). `propertyColumns.ts`
+      et `NetworkVlan.vue` sans `limited` ; une colonne de propriétés ne lit qu'une fois la
+      première fenêtre donnée par la grille (avant : les 20 premières lignes, puis les autres
+      une image plus tard, deux lots). Tests : `sdk/test/batch.test.ts` (40 lectures : une
+      requête ; deux dates, deux collections : deux ; 201 : deux, 200 dans la première ; une
+      seule : la lecture unitaire avec son ETag, son 304 ; avec `key` : non regroupée ;
+      identifiant omis ; une lecture annulée seule n'annule pas le lot, toutes l'annulent ;
+      réponse égale gardée, changée refaite) ; `shell/test/property-batch.test.ts` (page de
+      100 lignes, 60 en vue par une mise en page simulée, colonne de propriété : **une**
+      requête de 100 identifiants ; le même test sur main 04ba76bb en compte **100**) ;
+      `property-columns-work.test.ts` (le faux serveur répond aux lots ; un lot relu où une
+      seule valeur change : une ligne refaite, une passe de la grille) ; `events.test.ts`
+      (le lot servi). Parcours : `e2e/fixtures/env.ts` (`readsOf` : un lot lit chacun de ses
+      objets), suivi par `records.spec.ts` (colonne VLAN ; les propriétés du conteneur
+      survolé attendues par `expect.poll`, elles partent 10 ms après la fiche) et
+      `budgets.spec.ts` (`freshReads`). Design 021 « Clés et fraîcheur ». Vérification :
+      `k-web2-check --base main` (1 277 tests, 2 741 captures sur 2 741 : tout,
+      `budgets.spec.ts` étant du projet des captures) ; `k-web2-e2e` complet : vert sauf
+      `records.spec.ts:528` sous Firefox (la fiche répondue avant le départ du lot), corrigé
+      puis `records.spec.ts` vert sous les deux navigateurs (22).
+    - choix : fenêtre de 10 ms (minuterie, pas une microtâche : les cellules d'une colonne
+      VLAN entrent en vue par des rappels d'intersection distincts) ; seules les lectures sans
+      `key` regroupées (aucun appelant n'en passe ; avec `key`, la lecture unitaire comme
+      avant) ; une lecture seule dans sa fenêtre part par la lecture unitaire, pour garder
+      `If-None-Match` et le 304 (la fiche, une ligne relue après une édition) ; le lot ne
+      passe pas par la porte du shell (`gate.ts`) : une requête par fenêtre, la porte reste
+      aux noms (`ObjectName`, 11p10-d) ; l'identifiant omis rend un 404 construit côté client
+      plutôt qu'un état « sans propriété » (la tâche demande l'état de la lecture unitaire).
+    - reste : le parcours au quota par défaut (11p10-b2) n'existe pas encore ; la 11p10 se
+      clôt dessus.
+    - reste : un lot n'a pas d'ETag (H23) : relu sans changement, il revient en entier (200,
+      jamais 304) ; seul le partage côté client évite de refaire ses lignes.
+    - reste : la mesure en navigateur (banc, parcours au quota par défaut) revient à la
+      session principale ; aucune relecture d'interface (`ui-reviewer`, `a11y-auditor`) : rien
+      de visible ne change.
   - [ ] 11p10-d. Noms des objets référencés lus par fenêtre : `ObjectName` et les noms du
     plugin machines passent par le regroupeur, sur le filtre `id` (006-32), une requête
     par collection et par fenêtre ; puis, là où le corps porte désormais le résumé
