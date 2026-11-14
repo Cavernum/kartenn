@@ -22,11 +22,13 @@ import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
-import { ROLE_ADMIN, touchesRole, type RoleItem } from "./model.ts";
+import { refusalSentence, useAdminGate } from "./gate.ts";
+import { createRefusal, ROLE_ADMIN, touchesRole, type RoleItem } from "./model.ts";
 import { useList } from "./reads.ts";
 import RoleForm from "./RoleForm.vue";
 
@@ -34,9 +36,12 @@ const props = defineProps<{ selected?: string | undefined }>();
 const { t, locale } = useI18n();
 const router = useRouter();
 const session = useSession();
-const time = useTime();
+const gate = useAdminGate();
 const keyLabel = useKeyLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status below.
+const draft = useAdminDraft({ say: (text) => status(text) });
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.roles"));
 const { query, rows } = useList("/v1/roles");
@@ -104,13 +109,16 @@ function onSelected(keys: string[]): void {
 const onActivate = (cell: CellRef) => open(cell.row);
 
 const creating = ref(false);
-const createRefusal = computed(() =>
-  !session.value.rights.has(ROLE_ADMIN)
-    ? { forbidden: ROLE_ADMIN }
-    : !time.value.present
-      ? { reason: t("edit.why.past") }
-      : {},
-);
+// « Créer »: the right, then the gate of writes (the present, 1024 px wide); `c` says the
+// same reason as its button (`lasting`), and the palette keeps it when the gate alone holds
+// it (`allowed`: the right only).
+const refusal = (refused: WriteRefusal | null) =>
+  createRefusal({
+    rights: session.value.rights,
+    permission: ROLE_ADMIN,
+    refused,
+    words: gate.words.value,
+  });
 const actions = computed<ToolbarAction[]>(() => [
   {
     id: "create",
@@ -118,13 +126,16 @@ const actions = computed<ToolbarAction[]>(() => [
     icon: "plus",
     variant: "primary",
     shortcut: ["c"],
-    ...createRefusal.value,
+    ...refusal(gate.refused.value),
   },
 ]);
 useViewAction("create", {
   label: () => t("admin.roles.createAction"),
   run: () => (creating.value = true),
-  allowed: () => session.value.rights.has(ROLE_ADMIN),
+  allowed: () => !refusal(null),
+  why: () => refusalSentence(refusal(null), t),
+  say: status,
+  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -187,5 +198,6 @@ const total = computed(() =>
       </template>
     </DataGrid>
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <RoleForm v-model:open="creating" mode="create" :taken="rows.map((r) => r.key)" />
 </template>

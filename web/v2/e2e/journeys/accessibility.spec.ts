@@ -644,6 +644,41 @@ test("under 1024 px « Appliquer » of the draft says the width; at 1024 px it c
   }
 });
 
+// The administration under 1024 px (task 21e; REQ-021-29): at 768 px the groups are read,
+// « Créer » refused with the width, reached and pressed at the keyboard without opening
+// anything, `c` says the width; at 1024 px it opens its dialog again. Nothing is written.
+test("under 1024 px « Créer » of the groups says the width; at 1024 px it comes back", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/admin/groups");
+  await atRest(page);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("grid", { name: "Groupes" })).toBeVisible();
+  const create = main.getByRole("button", { name: /^Créer/ });
+  await expect(create).toHaveAttribute("aria-disabled", "true");
+  await expect(create).toHaveAccessibleDescription(NARROW);
+  await expectAccessible(page);
+  // At the keyboard: reached, pressed, no dialog; `c` says the width politely.
+  await tabTo(page, create);
+  await page.keyboard.press("Enter");
+  await expect(create).toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("c");
+  await expect(page.getByRole("status").filter({ hasText: NARROW })).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(page.locator("[data-width='standard']")).toHaveCount(1);
+  await expect(create).not.toHaveAttribute("aria-disabled", "true");
+  await create.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Créer un groupe" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
 // a journey fail.
 test.describe("guards of every journey", () => {

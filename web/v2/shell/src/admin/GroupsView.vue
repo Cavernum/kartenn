@@ -20,21 +20,26 @@ import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
+import { useStatus } from "../views/edit/say.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
+import { refusalSentence, useAdminGate } from "./gate.ts";
 import GroupForm from "./GroupForm.vue";
-import { RBAC_ADMIN, touchesGroup, type GroupItem } from "./model.ts";
+import { createRefusal, RBAC_ADMIN, touchesGroup, type GroupItem } from "./model.ts";
 import { useList } from "./reads.ts";
 
 const props = defineProps<{ selected?: string | undefined }>();
 const { t, locale } = useI18n();
 const router = useRouter();
 const session = useSession();
-const time = useTime();
+const gate = useAdminGate();
 const keyLabel = useKeyLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status below.
+const draft = useAdminDraft({ say: (text) => status(text) });
+/** Why `c` is refused, said politely (the key has no button to carry it). */
+const { said, status } = useStatus();
 
 const title = computed(() => t("nav.groups"));
 const { query, rows } = useList("/v1/groups");
@@ -71,15 +76,17 @@ function onSelected(keys: string[]): void {
 }
 const onActivate = (cell: CellRef) => open(cell.row);
 
-// « Créer »: the right and the present (nothing is written in the past).
+// « Créer »: the right, then the gate of writes (the present, 1024 px wide); `c` says the
+// same reason as its button (`lasting`), and the palette keeps it when the gate alone holds
+// it (`allowed`: the right only).
 const creating = ref(false);
-const createRefusal = computed(() =>
-  !session.value.rights.has(RBAC_ADMIN)
-    ? { forbidden: RBAC_ADMIN }
-    : !time.value.present
-      ? { reason: t("edit.why.past") }
-      : {},
-);
+const refusal = (refused: WriteRefusal | null) =>
+  createRefusal({
+    rights: session.value.rights,
+    permission: RBAC_ADMIN,
+    refused,
+    words: gate.words.value,
+  });
 const actions = computed<ToolbarAction[]>(() => [
   {
     id: "create",
@@ -87,13 +94,16 @@ const actions = computed<ToolbarAction[]>(() => [
     icon: "plus",
     variant: "primary",
     shortcut: ["c"],
-    ...createRefusal.value,
+    ...refusal(gate.refused.value),
   },
 ]);
 useViewAction("create", {
   label: () => t("admin.groups.createAction"),
   run: () => (creating.value = true),
-  allowed: () => session.value.rights.has(RBAC_ADMIN),
+  allowed: () => !refusal(null),
+  why: () => refusalSentence(refusal(null), t),
+  say: status,
+  lasting: true,
 });
 const total = computed(() =>
   query.isSuccess.value ? new Intl.NumberFormat(locale.value).format(rows.value.length) : undefined,
@@ -156,5 +166,6 @@ const total = computed(() =>
       </template>
     </DataGrid>
   </ViewPanel>
+  <span class="k-visually-hidden" role="status">{{ said }}</span>
   <GroupForm v-model:open="creating" :taken="rows.map((g) => g.key)" />
 </template>

@@ -29,6 +29,7 @@
     "changes": "(draft: −{removed}, +{added})",
     "until": "until {date}",
     "why": {
+      "forbidden": "Requires {permission}",
       "wider": "Scope wider than yours ({code}).",
       "builtin": "Delivered group: its roles follow the synchronisation (core.group.builtin).",
       "builtinMembers": "Delivered group: its members are managed by a global administrator (core.group.builtin).",

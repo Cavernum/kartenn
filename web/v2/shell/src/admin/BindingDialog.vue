@@ -2,12 +2,15 @@
 // « Ajouter un rôle » and « Modifier » on a role of a group (005, REQ-005-25, 26; spec 025,
 // REQ-025-4; maquette E7): a role, by its label and key, on a scope — the whole
 // organisation, or an entity, a site, a domain or a prefix chosen by its name among the
-// first of its list. To the draft: `bind`, after `unbind` of the binding changed.
+// first of its list. To the draft: `bind`, after `unbind` of the binding changed. Left open
+// as the window narrows under 1024 px (the gate of writes), it keeps its input and sends
+// nothing.
 import { reads } from "@kartenn/sdk";
 import {
   Button,
   Combobox,
   Dialog,
+  InlineAlert,
   Select,
   Stack,
   filterOptions,
@@ -108,7 +111,12 @@ const errors = computed(() => {
   return taken ? { role: t("admin.bindings.already") } : {};
 });
 
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
+
 async function submit(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (Object.keys(errors.value).length > 0 || !role.value) return;
   const scope = scopeOf(kind.value as ScopeKind, object.value ?? "");
@@ -158,6 +166,7 @@ async function submit(): Promise<void> {
           mono
           required
         />
+        <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
         <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
       </Stack>
     </form>
@@ -169,6 +178,7 @@ async function submit(): Promise<void> {
         type="submit"
         :form="formId"
         :loading="draft.busy.value"
+        v-bind="held ? { reason: held } : {}"
         >{{ t("admin.toDraft") }}</Button
       >
     </template>

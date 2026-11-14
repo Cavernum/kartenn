@@ -7,7 +7,9 @@
 // list. Every action goes to the draft, its row marked there: a removal stays, struck, its
 // action « Annuler le retrait »; an addition comes at the end, its action takes it out.
 // An action refused stays visible with its permission or its reason; a group whose writes
-// are all refused for one reason says it at its top, with the code of the rule.
+// are all refused for one reason says it at its top, with the code of the rule. Off the
+// present and under 1024 px wide (the gate of writes, `useAdminGate`), every write is
+// refused with that reason, after the permission; the group read.
 import { changesets, reads, type Operation, type Violation } from "@kartenn/sdk";
 import {
   AlertDialog,
@@ -29,13 +31,15 @@ import { useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { covers, useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
+import { useStatus } from "../views/edit/say.ts";
 import { keepRecordName } from "../views/names.ts";
 import AdminLines from "./AdminLines.vue";
 import BindingDialog from "./BindingDialog.vue";
 import { useAdminDraft } from "./draft.ts";
+import { refusalSentence } from "./gate.ts";
 import GroupForm from "./GroupForm.vue";
 import MemberDialog from "./MemberDialog.vue";
 import {
@@ -59,9 +63,9 @@ import { useList, useScopeNames } from "./reads.ts";
 const props = defineProps<{ id: string }>();
 const { t, locale } = useI18n();
 const session = useSession();
-const time = useTime();
 const keyLabel = useKeyLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status of the panel.
+const draft = useAdminDraft({ say: (text) => status(text) });
 
 const read = useQuery(() => reads.read("/v1/groups/{id}", { params: { id: props.id } }));
 const group = computed(() => read.data.value?.data as GroupItem | undefined);
@@ -113,7 +117,8 @@ const probing = computed(
     bindings.query.isSuccess.value &&
     session.value.rights.has(RBAC_ADMIN) &&
     !globalAdmin.value &&
-    time.value.present,
+    // A read: asked under 1024 px too, ready once the window is wide again.
+    draft.gate.refused.value !== "past",
 );
 const PROBE_KEPT = 5 * 60_000;
 const probe = useQuery(() => ({
@@ -138,17 +143,18 @@ const probe = useQuery(() => ({
   refetchOnReconnect: false,
   retry: false,
 }));
-const refusals = computed(() =>
+/** The refusals of the group under the gate `refused` (`null`: the lasting ones only). */
+const refusalsAt = (refused: WriteRefusal | null) =>
   group.value
     ? groupRefusals({
         group: group.value,
         bindings: bindings.rows.value,
         rights: session.value.rights,
         globalAdmin: globalAdmin.value,
-        present: time.value.present,
+        refused,
         violations: probing.value ? (probe.data.value ?? null) : null,
         words: {
-          past: t("edit.why.past"),
+          ...draft.gate.words.value,
           wider: (code) => t("admin.why.wider", { code }),
           builtin: t("admin.why.builtin"),
           builtinMembers: t("admin.why.builtinMembers"),
@@ -156,10 +162,21 @@ const refusals = computed(() =>
           builtinTitle: t("admin.why.builtinTitle"),
         },
       })
-    : { bindings: new Map<string, Refusal>() },
-);
+    : { bindings: new Map<string, Refusal>() };
+const refusals = computed(() => refusalsAt(draft.gate.refused.value));
+/** The lasting refusals (the right, a group delivered, a scope wider): what `e` says first. */
+const lasting = computed(() => refusalsAt(null));
 const drafted = computed(() => ({ reason: t("admin.why.drafted") }));
 const refusalOf = (refusal: Refusal | undefined) => refusal ?? {};
+/**
+ * The gate alone, for the action of a row the draft marks (taking its operation out of the
+ * draft): no right nor scope refuses it, the gate does (the draft is written).
+ */
+const gateRefusal = computed(() => (draft.gate.why.value ? { reason: draft.gate.why.value } : {}));
+/** Why `e` is refused, said by the polite status of the panel. */
+const { said, status, clear: clearSaid } = useStatus();
+// Another group shown by the same panel: what was said of the last one no longer holds.
+watch(() => props.id, clearSaid);
 
 // The names of the objects of the scopes, read once each: the words of a binding.
 const scopeName = useScopeNames(() => bindingList.value.map((b) => b.scope));
@@ -209,7 +226,12 @@ function onAction(id: string): void {
 useViewAction("edit", {
   label: () => t("admin.groups.editTitle", { group: key.value }),
   run: () => (editing.value = true),
-  allowed: () => !!group.value && !refusals.value.edit,
+  // The lasting reason only: held by the gate alone, it stays in the palette and says the
+  // gate when run (`play`); refused for a lasting reason, `e` says it, as the button does.
+  allowed: () => !!group.value && !lasting.value.edit,
+  why: () => refusalSentence(lasting.value.edit, t),
+  say: status,
+  lasting: true,
 });
 async function close(): Promise<void> {
   await draft.add(
@@ -294,6 +316,7 @@ const until = (date: string) => t("admin.until", { date: date.slice(0, 10) });
   />
   <Skeleton v-else-if="!group" variant="rows" :rows="6" />
   <Stack v-else gap="4" class="k-admin-detail">
+    <span class="k-visually-hidden" role="status">{{ said }}</span>
     <Stack gap="2">
       <h2 class="k-admin-heading">
         <template v-if="label">{{ `${label} ` }}</template>
@@ -370,7 +393,7 @@ const until = (date: string) => t("admin.until", { date: date.slice(0, 10) });
                 size="sm"
                 :label="memberAction(row).label"
                 :loading="draft.busy.value"
-                v-bind="row.pending ? {} : refusalOf(refusals.members)"
+                v-bind="row.pending ? gateRefusal : refusalOf(refusals.members)"
                 @click="onMember(row)"
               />
             </span>
@@ -443,7 +466,7 @@ const until = (date: string) => t("admin.until", { date: date.slice(0, 10) });
                 size="sm"
                 :label="bindingAction(row).label"
                 :loading="draft.busy.value"
-                v-bind="row.pending ? {} : refusalOf(refusals.bindings.get(row.key))"
+                v-bind="row.pending ? gateRefusal : refusalOf(refusals.bindings.get(row.key))"
                 @click="onBinding(row)"
               />
             </span>

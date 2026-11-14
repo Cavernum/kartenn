@@ -6,6 +6,8 @@
 // dictionary has one, each with « Retirer », « Ajouter une permission » under the list;
 // then the groups bound to it, read only. As the draft would leave it: a definition of the
 // role waiting there marks its permissions (a removal struck, an addition at the end).
+// Off the present and under 1024 px wide (the gate of writes, `useAdminGate`), every write
+// is refused with that reason, after the permission; a dialog left open keeps its input.
 import { labelDictionary, type Dictionary, type Entry } from "@kartenn/sdk";
 import {
   AlertDialog,
@@ -32,11 +34,13 @@ import { useLabel, useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
+import { useStatus } from "../views/edit/say.ts";
 import AdminLines from "./AdminLines.vue";
 import { useAdminDraft } from "./draft.ts";
+import { refusalSentence } from "./gate.ts";
 import {
   draftedRole,
   entryRows,
@@ -51,10 +55,10 @@ import RoleForm from "./RoleForm.vue";
 const props = defineProps<{ id: string }>();
 const { t, locale } = useI18n();
 const session = useSession();
-const time = useTime();
 const keyLabel = useKeyLabel();
 const label = useLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status of the panel.
+const draft = useAdminDraft({ say: (text) => status(text) });
 /** The form of « Ajouter une permission », which the button of its actions submits. */
 const formId = useId();
 
@@ -93,22 +97,34 @@ const entryLabel = (entry: string) => {
   return found === entry ? null : found;
 };
 
-const refusals = computed(() =>
+/** The refusals of the role under the gate `refused` (`null`: the lasting ones only). */
+const refusalsAt = (refused: WriteRefusal | null) =>
   role.value
     ? roleRefusals({
         role: role.value,
         rights: session.value.rights,
-        present: time.value.present,
+        refused,
         bound: boundGroups.value,
         words: {
-          past: t("edit.why.past"),
+          ...draft.gate.words.value,
           builtin: t("admin.why.roleBuiltin"),
           bound: (n) => t("admin.why.bound", { n }, n),
         },
       })
-    : {},
-);
+    : {};
+const refusals = computed(() => refusalsAt(draft.gate.refused.value));
+/** The lasting refusals (the right, a role delivered): what `e` says first. */
+const lasting = computed(() => refusalsAt(null));
 const refusalOf = (refusal: Refusal | undefined) => refusal ?? {};
+/**
+ * The gate alone, for the action of a row the draft marks (its permission put back or taken
+ * out of the definition waiting there): no right refuses it, the gate does.
+ */
+const gateRefusal = computed(() => (draft.gate.why.value ? { reason: draft.gate.why.value } : {}));
+/** Why `e` is refused, said by the polite status of the panel. */
+const { said, status, clear: clearSaid } = useStatus();
+// Another role shown by the same panel: what was said of the last one no longer holds.
+watch(() => props.id, clearSaid);
 const closing = computed(() => drafted.value?.closed === true);
 
 const mode = ref<"edit" | "copy">("edit");
@@ -150,7 +166,12 @@ function onAction(id: string): void {
 useViewAction("edit", {
   label: () => t("admin.roles.editTitle", { role: props.id }),
   run: () => onAction("edit"),
-  allowed: () => !!role.value && !refusals.value.edit,
+  // The lasting reason only: held by the gate alone, it stays in the palette and says the
+  // gate when run (`play`); refused for a lasting reason, `e` says it, as the button does.
+  allowed: () => !!role.value && !lasting.value.edit,
+  why: () => refusalSentence(lasting.value.edit, t),
+  say: status,
+  lasting: true,
 });
 async function remove(): Promise<void> {
   await draft.add(
@@ -159,10 +180,10 @@ async function remove(): Promise<void> {
   );
 }
 
-/** The entries of the role as the draft would leave it, changed by `next`. */
-async function setEntries(next: readonly string[]): Promise<void> {
-  if (!role.value) return;
-  await draft.writeRole(
+/** The entries of the role as the draft would leave it, changed by `next`; whether written. */
+async function setEntries(next: readonly string[]): Promise<boolean> {
+  if (!role.value) return false;
+  return draft.writeRole(
     role.value,
     props.id,
     role.value.labels,
@@ -176,9 +197,11 @@ const restoreEntry = (entry: string) => setEntries([...current(), entry]);
 // A permission added taken back: its row gone, the focus to « Ajouter une permission ».
 const entriesAdd = ref<HTMLElement | null>(null);
 async function onEntry(row: EntryRow): Promise<void> {
-  if (row.pending === "removed") return restoreEntry(row.entry);
-  await removeEntry(row.entry);
-  if (row.pending === "added" && !draft.refusal.value) {
+  if (row.pending === "removed") {
+    await restoreEntry(row.entry);
+    return;
+  }
+  if ((await removeEntry(row.entry)) && row.pending === "added") {
     entriesAdd.value?.querySelector<HTMLElement>("button")?.focus();
   }
 }
@@ -216,11 +239,14 @@ const addError = computed(() =>
         ? t("admin.keyTaken")
         : undefined,
 );
+/** Why nothing is sent now: the window narrowed (or the period moved) since it opened. */
+const held = computed(() => draft.gate.why.value);
 async function addEntry(): Promise<void> {
+  // Refused by the gate, read when sending: said in the dialog, the input kept.
+  if (held.value) return;
   tried.value = true;
   if (addError.value) return;
-  await setEntries([...current(), wanted.value]);
-  if (!draft.refusal.value) adding.value = false;
+  if (await setEntries([...current(), wanted.value])) adding.value = false;
 }
 const read = computed(() => roles.query);
 const entryRefusal = computed(() => refusals.value.edit);
@@ -241,6 +267,7 @@ const labelOfRole = computed(() =>
     {{ t("admin.roles.unknownText") }}
   </EmptyState>
   <Stack v-else gap="4" class="k-admin-detail">
+    <span class="k-visually-hidden" role="status">{{ said }}</span>
     <Stack gap="2">
       <h2 class="k-admin-heading">
         <template v-if="labelOfRole">{{ `${labelOfRole} ` }}</template>
@@ -299,7 +326,7 @@ const labelOfRole = computed(() =>
                   )
                 "
                 :loading="draft.busy.value"
-                v-bind="row.pending ? {} : refusalOf(entryRefusal)"
+                v-bind="row.pending ? gateRefusal : refusalOf(entryRefusal)"
                 @click="onEntry(row)"
               />
             </span>
@@ -370,6 +397,7 @@ const labelOfRole = computed(() =>
             mono
             required
           />
+          <InlineAlert v-if="held" tone="warn" icon="lock" :title="held" />
           <RefusalAlert v-if="draft.refusal.value" :refusal="draft.refusal.value" :note="null" />
         </Stack>
       </form>
@@ -381,6 +409,7 @@ const labelOfRole = computed(() =>
           type="submit"
           :form="formId"
           :loading="draft.busy.value"
+          v-bind="held ? { reason: held } : {}"
           >{{ t("admin.toDraft") }}</Button
         >
       </template>

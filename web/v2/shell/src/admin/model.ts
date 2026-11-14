@@ -1,13 +1,15 @@
 import type { components, Operation, Violation } from "@kartenn/sdk";
 import type { Rights } from "../rights/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 
 // The administration of the rights by groups (spec 025, REQ-025-12; REQ-021-12; design 021
 // « Administration »; maquette E7): the rows of a group and of a role as the active draft
 // marks them — a removal stays in place, an addition comes at the end, each with the index
 // of its operation, which its action takes out of the draft —, the operations each action
-// adds, and why an action is refused: the permission lacking, the past, a group delivered,
-// a scope wider than the user's as the simulation of the server says it (the server stays
-// the judge; the client never guesses a scope).
+// adds, and why an action is refused: the permission lacking, the gate of writes (the past,
+// a frame under 1024 px: `useAdminGate`), a group delivered, a scope wider than the user's
+// as the simulation of the server says it (the server stays the judge; the client never
+// guesses a scope). The gate only adds refusals: open, the actions are those of the rights.
 
 export type GroupItem = components["schemas"]["GroupItem"];
 export type MemberItem = components["schemas"]["MemberItem"];
@@ -289,8 +291,10 @@ export interface GroupRefusals {
   readOnly?: { title: string; code: string };
 }
 
-export interface RefusalWords {
-  past: string;
+/** The sentences of the refusals of the gate of writes, by refusal. */
+export type GateWords = Record<WriteRefusal, string>;
+
+export interface RefusalWords extends GateWords {
   wider: (code: string) => string;
   builtin: string;
   builtinMembers: string;
@@ -334,7 +338,8 @@ export function groupRefusals(input: {
   rights: Rights;
   /** `core.rbac.admin` on the whole organisation (a global binding). */
   globalAdmin: boolean;
-  present: boolean;
+  /** Why the gate of writes refuses every write (`useAdminGate`); `null` when open. */
+  refused: WriteRefusal | null;
   /** The violations of `escalationProbe`, `null` when not asked or not come yet. */
   violations: ProbeViolations | null;
   words: RefusalWords;
@@ -348,7 +353,8 @@ export function groupRefusals(input: {
     bindings: new Map(bindings.map((b) => [b.id, refusal])),
   });
   if (!input.rights.has(RBAC_ADMIN)) return all({ forbidden: RBAC_ADMIN });
-  if (!input.present) return all({ reason: words.past });
+  // The gate after the permission, as the past always was here: its refusal only.
+  if (input.refused) return all({ reason: words[input.refused] });
   if (group.builtin) {
     const builtin: GroupRefusals = {
       ...all({ reason: words.builtin }),
@@ -382,21 +388,37 @@ export function groupRefusals(input: {
   return refusals;
 }
 
+/**
+ * The refusal of « Créer » of a list of the administration: the permission it takes, then
+ * the gate of writes (the lasting reason first, as every refusal of the administration).
+ */
+export function createRefusal(input: {
+  rights: Rights;
+  permission: string;
+  /** Why the gate of writes refuses every write; `null` when open. */
+  refused: WriteRefusal | null;
+  words: GateWords;
+}): Refusal | undefined {
+  if (!input.rights.has(input.permission)) return { forbidden: input.permission };
+  return input.refused ? { reason: input.words[input.refused] } : undefined;
+}
+
 /** The refusals of the actions of a role. */
 export function roleRefusals(input: {
   role: RoleItem;
   rights: Rights;
-  present: boolean;
+  /** Why the gate of writes refuses every write (`useAdminGate`); `null` when open. */
+  refused: WriteRefusal | null;
   /** The groups the role is bound to now. */
   bound: number;
-  words: { past: string; builtin: string; bound: (n: number) => string };
+  words: GateWords & { builtin: string; bound: (n: number) => string };
 }): { edit?: Refusal; copy?: Refusal; remove?: Refusal; create?: Refusal } {
   if (!input.rights.has(ROLE_ADMIN)) {
     const refusal = { forbidden: ROLE_ADMIN };
     return { edit: refusal, copy: refusal, remove: refusal, create: refusal };
   }
-  if (!input.present) {
-    const refusal = { reason: input.words.past };
+  if (input.refused) {
+    const refusal = { reason: input.words[input.refused] };
     return { edit: refusal, copy: refusal, remove: refusal, create: refusal };
   }
   if (input.role.builtin) {
