@@ -1221,9 +1221,14 @@ struct VersionDto {
     object: ObjectDto,
 }
 
-/// A version as served, its author named for whoever reads the object (Q-021-29).
-fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
-    let at = |t: OffsetDateTime| rfc3339(instant(t));
+/// The motive and the author of the changeset of `version`, as a history serves them for
+/// whoever reads the object (Q-021-29, 30), the author named as the identities read now
+/// (REQ-004-33).
+///
+/// # Errors
+///
+/// 500, logged, for a version whose changeset the journal does not hold.
+pub(crate) fn journaled(version: &Version) -> Result<(String, IdentityRef), Problem> {
     let (Some(motive), Some(author)) = (&version.motive, &version.author) else {
         tracing::error!(
             name: "http.history.unjournaled",
@@ -1232,14 +1237,21 @@ fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
         );
         return Err(Problem::new(ProblemKind::Internal));
     };
+    Ok((motive.clone(), identity_ref(author.id, author.name.clone())))
+}
+
+/// A version as served, its author named for whoever reads the object (Q-021-29).
+fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
+    let at = |t: OffsetDateTime| rfc3339(instant(t));
+    let (motive, author) = journaled(version)?;
     Ok(VersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
         asserted_from: at(version.asserted_from),
         asserted_to: version.asserted_to.map(at),
         changeset: crate::changesets::summary(version.changeset),
-        motive: motive.clone(),
-        author: identity_ref(author.id, author.name.clone()),
+        motive,
+        author,
         object: represent(kind, &version.fields, version.link.as_deref())?,
     })
 }

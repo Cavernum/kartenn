@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{HeaderValue, Request, Response, StatusCode};
 use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::period::{Instant, Period};
@@ -30,7 +30,7 @@ use kartenn_service::operations::{ModuleOperation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use utoipa_axum::router::OpenApiRouter;
@@ -146,11 +146,16 @@ async fn status() -> &'static str {
 }
 
 fn app(pool: &PgPool, identity: Uuid, kit: Kit) -> Router {
+    app_bounded(pool, identity, kit, Duration::from_secs(60))
+}
+
+/// [`app`], its longest write transaction `bound`.
+fn app_bounded(pool: &PgPool, identity: Uuid, kit: Kit, bound: Duration) -> Router {
     let modules = ModuleRegistry::new(vec![Arc::new(KitModule(Arc::new(kit)))]).unwrap();
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
-        bound: Duration::from_secs(60),
+        bound,
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
         sources: kartenn_service::expected::Sources::none(),
@@ -228,18 +233,43 @@ async fn entity(pool: &PgPool, slug: &str, parent: Option<Uuid>) -> Uuid {
     id
 }
 
-async fn thing(pool: &PgPool) -> Uuid {
+/// The system author, who journals the changesets of the fixtures.
+const SYSTEM: Uuid = Uuid::from_u128(0x0000_0000_0000_7000_8000_0000_0000_0001);
+
+/// A changeset of `author` for `motive`, in the journal: a version is served with the
+/// motive and the author of its changeset.
+async fn changeset(pool: &PgPool, author: Uuid, motive: &str) -> Uuid {
+    sqlx::query_scalar(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES (gen_random_uuid(), $1, $2, 'applied', 'direct',
+                 tstzrange(now() - interval '1 day', NULL))
+         RETURNING id",
+    )
+    .bind(author)
+    .bind(motive)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// A thing written by `changeset`.
+async fn thing_by(pool: &PgPool, changeset: Uuid) -> Uuid {
     let id = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO module_object (id, module, kind, valid_period, changeset_id)
-         VALUES ($1, 'kit', 'kit.thing', tstzrange(now() - interval '1 day', NULL),
-                 gen_random_uuid())",
+         VALUES ($1, 'kit', 'kit.thing', tstzrange(now() - interval '1 day', NULL), $2)",
     )
     .bind(id)
+    .bind(changeset)
     .execute(pool)
     .await
     .unwrap();
     id
+}
+
+async fn thing(pool: &PgPool) -> Uuid {
+    let changeset = changeset(pool, SYSTEM, "fixture").await;
+    thing_by(pool, changeset).await
 }
 
 /// Declares the text property `kit.label` on things and gives `value` to `thing`.
@@ -362,6 +392,115 @@ async fn transversal_routes_for_module_types(pool: PgPool) {
         let (status, _) = read(&denied, &path).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
     }
+}
+
+/// The history of an object of a module names the motive and the author of each changeset
+/// as that of the core (task 021-11p8, Q-021-24): the author read from the identities at
+/// each read, never frozen, pseudonymised once the person is (REQ-004-33), for a reader of
+/// the object without `core.rbac.read` (Q-021-29, 30).
+#[kartenn_testing::pg_test]
+async fn history_of_a_module_object_names_the_motive_and_the_author(pool: PgPool) {
+    let author: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name, email)
+         VALUES (gen_random_uuid(), 'Camille Martin', 'camille.martin@example.org')
+         RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let written = changeset(&pool, author, "Inventaire de la baie 3").await;
+    let id = thing_by(&pool, written).await;
+    let asserted: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let uri = format!("/v1/things/{id}/history");
+    let past = format!(
+        "{uri}?as_of={}",
+        asserted
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+            .replace('+', "%2B")
+    );
+    // No bound on the writes: a second past `asserted`, a read at it is in the frozen
+    // past, and would be `immutable` were its authors not read now.
+    let reader = app_bounded(
+        &pool,
+        person_on(&pool, &["kit.thing.read"], None).await,
+        Kit::default(),
+        Duration::ZERO,
+    );
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let before = get(&reader, &past, None).await;
+    assert_eq!(before.status(), StatusCode::OK);
+    assert_eq!(before.headers()["cache-control"], "private, no-cache");
+    let tag = before.headers()["etag"].clone();
+
+    let (status, body) = read(&reader, &uri).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let version = &body["items"][0];
+    assert_eq!(version["changeset"]["id"], written.to_string(), "{body}");
+    assert_eq!(version["motive"], "Inventaire de la baie 3");
+    assert_eq!(
+        version["author"],
+        json!({
+            "id": author,
+            "href": format!("/v1/identities/{author}"),
+            "name": "Camille Martin",
+        })
+    );
+
+    let officer = app(
+        &pool,
+        person_on(&pool, &["core.identity.pseudonymise"], None).await,
+        Kit::default(),
+    );
+    pseudonymise(&officer, author).await;
+
+    let (_, body) = read(&reader, &uri).await;
+    let text = body.to_string();
+    assert!(
+        !text.contains("Camille") && !text.contains("Martin"),
+        "{body}"
+    );
+    assert!(!text.contains("camille.martin@example.org"), "{body}");
+    let pseudonym = format!("personne #{}", &author.to_string()[..8]);
+    assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
+    assert_eq!(body["items"][0]["motive"], "Inventaire de la baie 3");
+    // At the same past `as_of` too: a new body, a new tag, no 304.
+    let after = get(&reader, &past, Some(tag.clone())).await;
+    assert_eq!(after.status(), StatusCode::OK);
+    assert_eq!(after.headers()["cache-control"], "private, no-cache");
+    assert_ne!(after.headers()["etag"], tag);
+    let bytes = after.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["items"][0]["author"]["name"], pseudonym.as_str());
+}
+
+/// The answer of `GET path`, with `If-None-Match` when `tag` is given.
+async fn get(app: &Router, path: &str, tag: Option<HeaderValue>) -> Response<Body> {
+    let mut request = Request::get(path);
+    if let Some(tag) = tag {
+        request = request.header("if-none-match", tag);
+    }
+    let request = request.body(Body::empty()).unwrap();
+    app.clone().oneshot(common::bearer(request)).await.unwrap()
+}
+
+/// Pseudonymises the person `identity` (REQ-004-33), as the caller of `officer`.
+async fn pseudonymise(officer: &Router, identity: Uuid) {
+    let request = Request::post(format!("/v1/identities/{identity}/pseudonymisation"))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({ "motive": "droit à l'effacement" }).to_string(),
+        ))
+        .unwrap();
+    let response = officer
+        .clone()
+        .oneshot(common::bearer(request))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[kartenn_testing::pg_test]

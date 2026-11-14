@@ -34,9 +34,10 @@ use uuid::Uuid;
 use crate::changesets::ChangesetRef;
 use crate::cursor::{Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, DatesParams, ETag, respond};
-use crate::objects::{Api, Target, audited, gate_target, instant, store, version_key};
+use crate::objects::{Api, Target, audited, gate_target, instant, journaled, store, version_key};
 use crate::openapi::{documented, listing_of, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
+use crate::rights::IdentityRef;
 
 /// The transversal routes of every type of object of the modules of `modules`, and of the
 /// VLANs of the core, served the same way (spec 026).
@@ -91,12 +92,20 @@ struct ModuleVersionDto {
     asserted_to: Option<String>,
     /// The changeset that wrote it.
     changeset: ChangesetRef,
+    /// The motive of that changeset, served with the object (Q-021-30).
+    motive: String,
+    /// The author of that changeset, as the identities name it at the read (pseudonymised
+    /// once the person is, REQ-004-33), for whoever reads the object (Q-021-29).
+    author: IdentityRef,
     /// The object, as it was.
     object: ModuleObjectDto,
 }
 
-fn module_version_of(target: Target, version: &Version) -> ModuleVersionDto {
+/// A version as served, its author named for whoever reads the object (Q-021-29), as
+/// [`crate::objects`] serves those of the core.
+fn module_version_of(target: Target, version: &Version) -> Result<ModuleVersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
+    let (motive, author) = journaled(version)?;
     let uuid = |name: &str| {
         version
             .fields
@@ -105,12 +114,14 @@ fn module_version_of(target: Target, version: &Version) -> ModuleVersionDto {
             .and_then(|text| text.parse().ok())
     };
     let id = uuid("id").unwrap_or_default();
-    ModuleVersionDto {
+    Ok(ModuleVersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
         asserted_from: at(version.asserted_from),
         asserted_to: version.asserted_to.map(at),
         changeset: crate::changesets::summary(version.changeset),
+        motive,
+        author,
         object: ModuleObjectDto {
             id,
             kind: target.as_str().to_owned(),
@@ -124,7 +135,7 @@ fn module_version_of(target: Target, version: &Version) -> ModuleVersionDto {
             }),
             href: target.href(id),
         },
-    }
+    })
 }
 
 fn history_route(router: OpenApiRouter<Api>, target: Target) -> OpenApiRouter<Api> {
@@ -219,10 +230,10 @@ async fn history(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let items: Vec<ModuleVersionDto> = versions
+    let items = versions
         .iter()
         .map(|v| module_version_of(target, v))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =
         objects_read(&context, target.as_str(), &[id], criteria, api.audit).map_err(audited)?;
@@ -230,7 +241,14 @@ async fn history(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    Ok(respond_page(&headers, &moment, &items, next.as_deref()))
+    // The authors are named as the identities read now: never frozen, even at a past
+    // `as_of`, so that a pseudonymisation reaches the caches (REQ-004-33).
+    Ok(respond_page(
+        &headers,
+        &moment.live(),
+        &items,
+        next.as_deref(),
+    ))
 }
 
 // ---------------------------------------------------------------- graph
