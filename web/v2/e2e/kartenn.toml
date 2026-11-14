@@ -14,6 +14,17 @@ public_origin = "https://127.0.0.1:9443"
 cert_file = "web/e2e/.state/cert.pem"
 key_file = "web/e2e/.state/key.pem"
 
+# The quota of reads by identity (REQ-006-29) out of the journeys' way (task 021-11p9): the
+# two workers of Playwright read as the same users, Alice above all, and share her quota
+# (50 a second, 200 at once by default), which a list scrolled to its end page after page
+# spends alone in a few seconds (one read of properties per row shown). A journey beside it
+# then met 429 on its first read and showed « Trop de requêtes » instead of its rows. No
+# journey is about the read quota (kartenn-rest tests/it/quota.rs is); the writes keep
+# theirs, which the journeys of moves wait out (`Retry-After`). `serve.sh budgets` serves
+# this file too: a bench of the browser that met the read quota measured its refusals.
+[http.rate]
+read = { per_second = 1000, burst = 4000 }
+
 [web]
 # `vite build` of web/v2/shell (production mode, without the catalogue).
 root = "web/v2/dist/shell"
