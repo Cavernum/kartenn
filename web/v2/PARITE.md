@@ -148,8 +148,9 @@ L'ancien shell n'en a pas : `web/plugins/` ne tient que `example`, `machines` et
 Rien n'est donc à porter pour la bascule. Le design 021 § « Migration » (phase 6) les
 place dans `web/v2/plugins` « avant ou après la bascule », selon la 017 amendée (tâche 20)
 : la bascule (tâche 27) ne les attend pas. Ce qui, dans le shell, les nomme (« Instruire
-dans Flux » à la place de « Valider », « Effet sur la politique » d'un changeset : reste
-de la tâche 14) vient avec eux et n'est pas une ligne de parité.
+dans Flux » à la place de « Valider », « Effet sur la politique » d'un changeset : actions
+`review-in-flow` et `effect` sur le type `changeset`, tâches 3, 19 et 2, 10 de la 017) vient
+avec eux et n'est pas une ligne de parité.
 
 ## Parcours de bout en bout
 
