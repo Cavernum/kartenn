@@ -257,6 +257,10 @@ describe("events applied to the cache (022, amended by the 021)", () => {
       [`/v1/prefixes/${P1}`]: { id: P1, domain: { id: D1, href: "d" } },
       [`/v1/prefixes/${P2}`]: { id: P2, version: "c2" },
       [`/v1/domains/${D1}`]: { id: D1 },
+      // The properties read together, batched (task 021-11p10-c).
+      "/v1/prefixes/properties": {
+        items: [P1, P2].map((id) => ({ id, properties: {}, sources: {}, masked: [] })),
+      },
       "/v1/proposals": { items: [], links: {} },
       "/v1/stats": { objects: {}, computed_at: "2026-10-24T00:00:00Z" },
     };

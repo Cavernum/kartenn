@@ -1,7 +1,6 @@
 import { keys, qualify, queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, GridWindow, RowState } from "@kartenn/ui";
 import { computed, shallowReactive, shallowRef, watch, type ComputedRef } from "vue";
-import { limited } from "../data/gate.ts";
 import { useQueries } from "../data/queries.ts";
 import { useTime } from "../time/index.ts";
 import { nameOf, type Collection, type Item } from "./collections.ts";
@@ -20,9 +19,9 @@ import { useViewColumns, type ColumnVisibility } from "./viewSettings.ts";
 // chooser « Colonnes » of the grid offers every property declared for the kind of the list,
 // and the choice is kept by view and by user (`viewSettings.ts`). A column chosen reads the
 // resolved properties of its rows (`/v1/<kind>/{id}/properties`, the cache the record's tab
-// and the VLAN column share) for the rows in view and a screen around them, through the
-// gate of the shell (`data/gate.ts`, `limited`). Its cells are edited in place by the rules of the tab (`usePropertyEdit`,
-// task 12h): `prop.<key>.edit` alone, the draft guarded by an `expect` (Q-021-21), Ctrl+Enter
+// and the VLAN column share) for the rows in view and a screen around them, in one request
+// per window (the SDK batches them, task 021-11p10-c). Its cells are edited in place by the
+// rules of the tab (`usePropertyEdit`, task 12h): `prop.<key>.edit` alone, the draft guarded by an `expect` (Q-021-21), Ctrl+Enter
 // with `prop.<key>.approval.self`, a value inherited overridden and said so (Q-021-19).
 
 type Resolved = components["schemas"]["Resolved"];
@@ -75,7 +74,7 @@ export function withPropertiesHidden(
   return out;
 }
 
-/** How many rows are read before the grid says what it shows. */
+/** How many rows are read while the grid says none in view (nothing laid out yet). */
 export const FIRST_READ = 20;
 
 /** The rows whose properties are read: those in view and a screen around, the focus's too. */
@@ -135,8 +134,10 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
 
   // The resolved properties of the rows in view, while a column of a property shows.
   const view = shallowRef<GridWindow | null>(null);
+  // Nothing read before the grid gives its first window (a frame after its rows): the first
+  // screen goes as one batch, not its first rows then the others (task 021-11p10-c).
   const ids = computed(() =>
-    chosen.value.length === 0
+    chosen.value.length === 0 || view.value === null
       ? []
       : rowsToRead(
           deps.rows().map((row) => String(row.id)),
@@ -149,16 +150,8 @@ export function usePropertyColumns(deps: PropertyColumnsDeps) {
       validAt: time.value.validAt,
       asOf: time.value.asOf,
     });
-  const results = useQueries(() =>
-    ids.value.map((id) => {
-      const read = optionsOf(id);
-      return {
-        ...read,
-        queryFn: (context: Parameters<typeof read.queryFn>[0]) =>
-          limited(context.signal, () => read.queryFn(context)),
-      };
-    }),
-  );
+  // The reads of a window go as one request, the SDK batching them (task 021-11p10-c).
+  const results = useQueries(() => ids.value.map(optionsOf));
   // The result of each row read, by row: a response sets its row's alone, and only what
   // reads that row (its cells, its row as the grid shows it) is computed again (task
   // 021-22f-d). A single map made anew at each response made every row loaded anew.

@@ -573,6 +573,20 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 
 - Chaque entrée garde `{ data, etag }` ; la fonction de requête envoie `If-None-Match` et,
   sur 304, rend la donnée gardée.
+- **Propriétés par fenêtre** (021-11p10-c, 006/H23) : les lectures
+  `reads.sub(type, id, "properties")` sans `key`, demandées dans une même fenêtre de 10 ms
+  pour une même collection et les mêmes dates, partent en une requête
+  `GET /v1/<collection>/properties?id=…` (200 identifiants au plus, `sdk/src/data/batch.ts`) ;
+  chaque élément est rangé sous la clé de sa lecture unitaire, ses liens refaits, sans ETag
+  (le lot n'en porte pas), et une réponse égale à l'entrée gardée la rend telle quelle,
+  comme un 304. Une lecture seule dans sa fenêtre part par la lecture unitaire, avec son
+  `If-None-Match`. Un identifiant omis par le serveur rend le 404 `not-found` de la lecture
+  unitaire, jamais relu ; une lecture abandonnée quitte son lot, que seul l'abandon de
+  toutes les siennes annule. Quatre lots en vol au plus (`BATCH_FLIGHTS`) : une fenêtre sans
+  créneau attend, ouverte encore, et part sans ses lectures abandonnées. Un lot refusé
+  repart en lot : la gigue d'un `Retry-After` se tire une fois par refus, partagée par ses
+  lectures. Une colonne de propriétés ne lit qu'une fois sa première
+  fenêtre donnée par la grille.
 - **Pages lâchées** (021-22f) : le partage structurel d'une liste compare chaque page à
   celle lue avant sous le même curseur (`sharePages`), jamais à celle de sa place, et une
   page sous un curseur neuf (la liste relue) garde ses lignes inchangées par leur `id` ; passé

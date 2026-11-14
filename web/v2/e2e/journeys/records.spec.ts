@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { readsOf } from "../fixtures/env.ts";
 import {
   apiCall,
   DATA,
@@ -530,9 +531,11 @@ test("a network of the list hovered reads its record alone, its properties read 
 }) => {
   await login("alice");
   const reads: string[] = [];
+  // The rows in view read their properties as one batch (task 021-11p10-c): each its own.
   page.on("request", (request) => {
-    const path = new URL(request.url()).pathname;
-    if (path.startsWith("/v1/prefixes/")) reads.push(path);
+    for (const path of readsOf(request.url())) {
+      if (path.startsWith("/v1/prefixes/")) reads.push(path);
+    }
   });
   const grid = page.getByRole("grid", { name: "Préfixes" });
   const idOf = async (name: string) => {
@@ -545,20 +548,41 @@ test("a network of the list hovered reads its record alone, its properties read 
   await expect.poll(() => reads).toContain(`/v1/prefixes/${net}/properties`);
   expect(reads).not.toContain(`/v1/prefixes/${container}/properties`);
 
-  /** The reads of the prefix `id` that the hover of `name` sends, its record answered. */
+  /**
+   * The reads of the prefix `id` that the hover of `name` sends, once its record is answered:
+   * as they stand then and as they come after.
+   */
   const hovered = async (name: string, id: string) => {
     const from = reads.length;
     const record = page.waitForResponse((r) => new URL(r.url()).pathname === `/v1/prefixes/${id}`);
     await grid.getByRole("link", { name, exact: true }).hover();
     await record;
     // The VLAN cells of the other rows in view may still be reading theirs.
-    return reads.slice(from).filter((path) => path.startsWith(`/v1/prefixes/${id}`));
+    return () => reads.slice(from).filter((path) => path.startsWith(`/v1/prefixes/${id}`));
   };
-  // The reads of a target go out together (`prefetch`): the record answered, none is left.
-  expect(await hovered(DATA.wide.prefix, container)).toEqual(
-    expect.arrayContaining([`/v1/prefixes/${container}`, `/v1/prefixes/${container}/properties`]),
-  );
-  expect(await hovered(DATA.prefix, net)).toEqual([`/v1/prefixes/${net}`]);
+  // The reads of a target go out together (`prefetch`); its properties wait the window of
+  // the batches of the SDK (10 ms, task 021-11p10-c), the record may be answered before.
+  const ofContainer = await hovered(DATA.wide.prefix, container);
+  await expect
+    .poll(ofContainer)
+    .toEqual(
+      expect.arrayContaining([`/v1/prefixes/${container}`, `/v1/prefixes/${container}/properties`]),
+    );
+  /**
+   * Past the window of the batches, without a bare delay: the page sends a sentinel read on
+   * a timer set after any window open (the timers of the page go in order of their end), and
+   * the requests are seen in the order sent: once the sentinel seen, a batch due is seen too.
+   */
+  const pastTheWindow = async () => {
+    const sentinel = page.waitForRequest((r) => r.headers()["x-sentinel"] === "1");
+    await page.evaluate(() => {
+      setTimeout(() => void fetch("/v1/me", { headers: { "X-Sentinel": "1" } }), 50);
+    });
+    await sentinel;
+  };
+  const ofNet = await hovered(DATA.prefix, net);
+  await pastTheWindow();
+  expect(ofNet()).toEqual([`/v1/prefixes/${net}`]);
   const from = reads.length;
   await grid.getByRole("link", { name: DATA.prefix, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/prefixes/${net}$`));
@@ -566,6 +590,7 @@ test("a network of the list hovered reads its record alone, its properties read 
   // In cache: the screen reads neither the record nor its properties again (its panels
   // beside, the occupancy and the plugins', are no reads of its route).
   const again = [`/v1/prefixes/${net}`, `/v1/prefixes/${net}/properties`];
+  await pastTheWindow();
   expect(reads.slice(from).filter((path) => again.includes(path))).toEqual([]);
 });
 

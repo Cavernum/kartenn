@@ -21,6 +21,7 @@ import { search } from "../api/client.ts";
 import { FILTERS } from "../api/filters.ts";
 import { ApiProblem } from "../api/problem.ts";
 import type { paths } from "../api/schema";
+import { createBatcher } from "./batch.ts";
 import {
   isImmutable,
   isRevalidated,
@@ -253,12 +254,19 @@ function retry(failures: number, error: unknown): boolean {
  * those of five seconds at most through), plus a jitter of up to a half of it, never less:
  * the reads refused together (the server rounds its wait up to the second) do not come back
  * in the same millisecond. Else 1 s, then 2 s, as before. Only an `ApiProblem` has one;
- * `random`, for the tests.
+ * `random`, for the tests. The jitter is drawn once per refusal: the reads of a batch refused
+ * together (`batch.ts`, one problem for all) go again at the same instant, in one batch.
  */
 export function retryDelay(failures: number, error: unknown, random = Math.random): number {
   const wait = (error as Partial<ApiProblem> | undefined)?.retryAfter;
-  return wait == null ? 2 ** failures * SECOND : wait * SECOND * (1 + random() / 2);
+  if (wait == null) return 2 ** failures * SECOND;
+  let delay = jitters.get(error as ApiProblem);
+  if (delay === undefined)
+    jitters.set(error as ApiProblem, (delay = wait * SECOND * (1 + random() / 2)));
+  return delay;
 }
+/** The wait drawn for each refusal, shared by the reads it refused. */
+const jitters = new WeakMap<ApiProblem, number>();
 
 /** A new `QueryClient` with the defaults of the SDK. */
 export function createQueryClient(): QueryClient {
@@ -290,6 +298,7 @@ export interface CacheDeps {
 export function createQueries({ client, queryClient }: CacheDeps) {
   /** Hashes of the queries to read again without `If-None-Match` (`truncated`, 022). */
   const unconditional = new Set<string>();
+  const batcher = createBatcher(client);
 
   async function conditional<T>(
     key: QueryKey,
@@ -394,8 +403,28 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       time?: TimeArg | null,
     ): ReadOptions<T, SubKey> {
       const key = keys.sub(type, id, sub, params, time);
-      const url = urlOf(`${collection(type)}/${encodeURIComponent(id)}/${sub}`, key[4], key[5]);
-      return read<T, SubKey>(key, url, sub === "children" ? "children" : "object");
+      const path = collection(type);
+      const url = urlOf(`${path}/${encodeURIComponent(id)}/${sub}`, key[4], key[5]);
+      const one = read<T, SubKey>(key, url, sub === "children" ? "children" : "object");
+      // The resolved properties, every key: batched with the others of the window
+      // (`batch.ts`, task 021-11p10-c), under the key of this read.
+      if (sub !== "properties" || Object.keys(key[4]).length > 0) return one;
+      return {
+        ...one,
+        queryFn: async (context) => {
+          const alone = (signal: AbortSignal) => one.queryFn({ ...context, signal });
+          const entry = (await batcher.load(path, id, key[5], context.signal, alone)) as Entry<T>;
+          // A batch goes without `If-None-Match`: the read asked unconditional is done.
+          unconditional.delete(
+            queryClient.getQueryCache().find({ queryKey: key, exact: true })?.queryHash ?? "",
+          );
+          // An answer of a batch equal to the entry kept gives it back, as a 304 would.
+          const kept = queryClient.getQueryData<Entry<T>>(key);
+          return kept && kept !== entry && replaceEqualDeep(kept.data, entry.data) === kept.data
+            ? kept
+            : entry;
+        },
+      };
     },
 
     /**
