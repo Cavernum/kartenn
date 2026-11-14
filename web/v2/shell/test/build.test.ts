@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
-import { build } from "vite";
+import { build, type Rolldown } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { initialFiles, SHELL_BUDGET, shellMeasure } from "../scripts/shell-size.ts";
 import type { Manifest } from "../scripts/size.ts";
@@ -50,8 +50,9 @@ async function built(mode: string) {
   // build the development code of vue and of the libraries, not what is served (task 22n).
   const nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = "production";
+  let output: Awaited<ReturnType<typeof build>>;
   try {
-    await build({
+    output = await build({
       root,
       mode,
       configFile: join(root, "vite.config.ts"),
@@ -63,6 +64,18 @@ async function built(mode: string) {
     if (nodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = nodeEnv;
   }
+  // The modules of each script, gzipped one by one (task 22r): what the budget names.
+  const modules = new Map<string, { id: string; bytes: number }[]>();
+  for (const { output: files } of [output].flat() as Rolldown.RolldownOutput[])
+    for (const file of files)
+      if (file.type === "chunk")
+        modules.set(
+          file.fileName,
+          Object.entries(file.modules).map(([id, { code }]) => ({
+            id,
+            bytes: code ? gzipSync(code, { level: 9 }).length : 0,
+          })),
+        );
   const manifest = JSON.parse(
     readFileSync(join(outDir, ".vite/manifest.json"), "utf8"),
   ) as Manifest;
@@ -72,7 +85,7 @@ async function built(mode: string) {
     .map((file) => readFileSync(join(outDir, "assets", file), "utf8"))
     .join("\n");
   const html = readFileSync(join(outDir, "index.html"), "utf8");
-  return { outDir, manifest, assets, js, html };
+  return { outDir, manifest, assets, js, html, modules };
 }
 
 let production: Awaited<ReturnType<typeof built>>;
@@ -224,12 +237,46 @@ describe("builds of the shell", () => {
       production.html,
       (file) => gzipSync(readFileSync(join(production.outDir, file)), { level: 9 }).length,
     );
+    const ko = (bytes: number) => `${(bytes / 1000).toFixed(1)} Ko`;
+    const said =
+      `initial shell at ${ko(measure.bytes)} gzip, ${ko(SHELL_BUDGET - measure.bytes)} ` +
+      `under its budget of ${ko(SHELL_BUDGET)}`;
     if (measure.bytes > SHELL_MARGIN)
-      console.warn(
-        `initial shell at ${(measure.bytes / 1000).toFixed(1)} Ko gzip: less than ` +
-          `${(SHELL_BUDGET - SHELL_MARGIN) / 1000} Ko under its budget of ${SHELL_BUDGET / 1000} Ko`,
+      console.warn(`${said}: less than ${ko(SHELL_BUDGET - SHELL_MARGIN)} of margin`);
+    else console.info(said);
+    // Above the budget, the five heaviest modules of the first load (each gzipped alone),
+    // where to look first (task 22r).
+    const heaviest = measure.files
+      .flatMap((file) => production.modules.get(file) ?? [])
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 5)
+      .map(
+        ({ id, bytes }) =>
+          `${ko(bytes)} ${id.replace(/^.*\/node_modules\//, "").replace(/^.*\/web\/(v2\/)?/, "")}`,
       );
-    expect(measure.bytes).toBeLessThanOrEqual(SHELL_BUDGET);
+    expect(measure.bytes, `${said}; heaviest modules: ${heaviest.join(", ")}`).toBeLessThanOrEqual(
+      SHELL_BUDGET,
+    );
+  });
+
+  it("loads the components of the screens with the first screen, never at first", () => {
+    // @kartenn/ui in two chunks (task 22r, vite.config.ts `FRAME_COMPONENTS`): what the frame
+    // shows, and the components of the screens (the grids, the trees, the pickers, the
+    // charts), read with the first screen that uses one. Neither they nor the entry of the
+    // import map, which imports them all for the plugins, are in the initial shell: a
+    // component the frame uses unnamed in `FRAME_COMPONENTS` would bring them back.
+    const screens = [...production.modules.keys()].find((file) =>
+      file.startsWith("assets/ui.screens-"),
+    );
+    expect(screens, "chunk of the components of the screens").toBeDefined();
+    expect(
+      production.modules.get(screens!)!.some(({ id }) => id.includes("/DataGrid/DataGrid.vue")),
+    ).toBe(true);
+    const entry = production.manifest["src/shared/ui.ts"]?.file;
+    expect(entry, "entry of @kartenn/ui").toBeDefined();
+    const initial = initialFiles(production.manifest, production.html);
+    expect(initial).not.toContain(screens);
+    expect(initial).not.toContain(entry);
   });
 
   it("serves the runtime build of vue: nothing evaluated under the CSP", () => {

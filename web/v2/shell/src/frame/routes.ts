@@ -6,10 +6,10 @@ import { labelOf, usePlugins, viewPath } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
 import LoginView from "../session/LoginView.vue";
 import { SEARCHED } from "../shortcuts/search.ts";
-import HelpView from "../shortcuts/HelpView.vue";
 import { COLLECTIONS } from "../views/collections.ts";
 import { recordName } from "../views/names.ts";
 import { entryScreen, recordScreen } from "../views/routes.ts";
+import { worded } from "../views/words.ts";
 import AboutView from "./AboutView.vue";
 import PendingView from "./PendingView.vue";
 import { CORE_SPACES, locate, spaceEntry, type Space, type SpaceEntry } from "./spaces.ts";
@@ -105,7 +105,8 @@ export const frameRoutes: RouteRecordRaw[] = [
   {
     path: "help/shortcuts",
     name: "help-shortcuts",
-    component: HelpView,
+    // Its table (a `DataGrid`) in a chunk of its own, out of the initial shell (task 22r).
+    component: worded(() => import("../shortcuts/HelpView.vue")),
     meta: { breadcrumb: (_, t) => [{ label: t("shortcuts.title") }] },
   },
   // Open without a session (task 16): the login page, « À propos ».

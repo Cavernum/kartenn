@@ -27,6 +27,61 @@ const UI_SHEET = /\/ui\/src\/style\.css(\?|$)/;
 const UI_ROOT = fileURLToPath(new URL("../ui/src/", import.meta.url));
 const UI_SOURCES = (id: string) => id.startsWith(UI_ROOT);
 /**
+ * The components of @kartenn/ui the frame shows before any screen (`ShellFrame.vue`, the
+ * login, the toasts, the palette), by their folder under `components/`, and the two
+ * scripts of a component it reads without the component (task 22r). Each is in the
+ * initial shell with what it imports; the other components (the grids, the trees, the
+ * pickers, the charts) come with the first screen that uses one. A component the frame
+ * starts to use without being named here brings all of them back at first: the test of
+ * the budget (`test/build.test.ts`) says it.
+ */
+const FRAME_COMPONENTS = [
+  "AlertDialog",
+  "Breadcrumb",
+  "Button",
+  "CodeBadge",
+  "CommandPalette",
+  "DatePill",
+  "Dialog",
+  "DraftCounter",
+  "Drawer",
+  "EmptyState",
+  "ErrorState",
+  "Heading",
+  "IconButton",
+  "InlineAlert",
+  "Menu",
+  "ShortcutHint",
+  "SidebarNav",
+  "SidePanel",
+  "Skeleton",
+  "Stack",
+  "StatusBadge",
+  "TextField",
+  "TimeBand",
+  "Toast",
+];
+const FRAME_SCRIPTS = ["Combobox/combobox.ts", "FilterPicker/filters.ts"];
+const UI_COMPONENTS = `${UI_ROOT}components/`;
+/** The barrel of @kartenn/ui: in neither group, whose dependencies are all of it. */
+const UI_BARREL = `${UI_ROOT}index.ts`;
+/**
+ * The part of @kartenn/ui in the initial shell: its modules outside `components/` (words,
+ * tokens, icons, context), the shared scripts and sheets of `components/`, the frame's
+ * components, and every sheet of the library, so that it keeps one sheet, in the order of
+ * its sources, whichever chunk holds the script of a component.
+ */
+function uiFirst(id: string): boolean {
+  if (!UI_SOURCES(id) || id === UI_BARREL) return false;
+  if (/\.css(\?|$)|[?&]type=style/.test(id) || !id.startsWith(UI_COMPONENTS)) return true;
+  const path = id.slice(UI_COMPONENTS.length).replace(/\?.*$/, "");
+  return (
+    !path.includes("/") ||
+    FRAME_COMPONENTS.some((name) => path.startsWith(`${name}/`)) ||
+    FRAME_SCRIPTS.includes(path)
+  );
+}
+/**
  * The runtime of Vue (`vue` and its `@vue/*` packages), without the devtools of
  * vue-router and vue-i18n, which are no part of what the import map shares.
  */
@@ -62,7 +117,6 @@ function sharedModules(): Plugin {
   let config: ResolvedConfig;
   const entries = new Map<string, string>();
   let sheet: string | undefined;
-  const modules: string[] = [];
   return {
     name: "kartenn-shared-modules",
     apply: (_, env) => env.command === "build" || env.isPreview === true,
@@ -74,17 +128,28 @@ function sharedModules(): Plugin {
             ...Object.fromEntries(SHARED.map(({ entry, source }) => [entry, source])),
           },
           preserveEntrySignatures: "strict",
-          // @kartenn/ui in one chunk, hence one sheet in the order of its sources: split by
-          // the screens that use its components, its rules of a same layer would come in
-          // the order of the split sheets instead (a later rule no longer winning).
-          // `vue` first, in a chunk of its own: the library's group would take it along
-          // with its other dependencies, and a plugin that imports `vue` alone would load
-          // the whole library.
+          // Each group takes the modules it names with their dependencies not yet taken, by
+          // decreasing priority. `vue` first, in a chunk of its own: the library's group
+          // would take it along with its other dependencies, and a plugin that imports
+          // `vue` alone would load the whole library. Then @kartenn/ui in two chunks (task
+          // 22r): `ui`, what the frame shows with every sheet of the library, hence one
+          // sheet in the order of its sources (split by the screens that use its
+          // components, its rules of a same layer would come in the order of the split
+          // sheets instead, a later rule no longer winning); `ui.screens`, the scripts of
+          // the other components, read with the first screen that uses one. The barrel
+          // last, alone (its dependencies all taken), out of the entry of the import map
+          // that imports both: the frame reads `UI_VERSION` from it.
           output: {
             codeSplitting: {
               groups: [
-                { name: "vue.runtime", test: VUE_SOURCES, priority: 2 },
-                { name: "ui", test: UI_SOURCES, priority: 1 },
+                { name: "vue.runtime", test: VUE_SOURCES, priority: 4 },
+                { name: "ui", test: uiFirst, priority: 3 },
+                {
+                  name: "ui.screens",
+                  test: (id: string) => UI_SOURCES(id) && id !== UI_BARREL,
+                  priority: 2,
+                },
+                { name: "ui", test: (id: string) => id === UI_BARREL, priority: 1 },
               ],
             },
           },
@@ -100,11 +165,9 @@ function sharedModules(): Plugin {
     },
     generateBundle(_, bundle) {
       entries.clear();
-      modules.length = 0;
       sheet = undefined;
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== "chunk") continue;
-        modules.push(chunk.fileName);
         const shared = SHARED.find(({ entry }) => chunk.isEntry && chunk.name === entry);
         if (shared) entries.set(shared.specifier, chunk.fileName);
         // The sheet of @kartenn/ui: that of the chunk holding its style.css.
@@ -119,7 +182,10 @@ function sharedModules(): Plugin {
     writeBundle: {
       sequential: true,
       order: "post",
-      handler() {
+      handler(_, bundle) {
+        const modules = Object.values(bundle).flatMap((file) =>
+          file.type === "chunk" ? [file.fileName] : [],
+        );
         const out = resolve(config.root, config.build.outDir);
         const url = (file: string) => `${config.base}${file}`;
         const imports: Record<string, string> = {};

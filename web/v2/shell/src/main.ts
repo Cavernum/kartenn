@@ -1,7 +1,9 @@
 import { onUnauthorized, reserveKeys, setFetch } from "@kartenn/sdk/host";
 import { createApp, watch } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
-import "./shared/ui.ts";
+// The sheet of @kartenn/ui, not its entry of the import map (`shared/ui.ts`), which imports
+// every component of the library and is read by the plugins alone (task 22r).
+import "@kartenn/ui/style.css";
 import App from "./App.vue";
 import { installData } from "./data/query.ts";
 import { installSession } from "./frame/session.ts";

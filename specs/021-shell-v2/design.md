@@ -804,7 +804,7 @@ passage complet.
 
 | Budget | Seuil | Mesure |
 |---|---|---|
-| Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : ce que charge le document, entrée et ses imports statiques (framework, SDK, `@kartenn/ui` compris), CSS, scripts, préchargements de modules et feuilles nommés par `index.html` (fichiers d'amorce compris), chaque fichier une fois ; ni les polices, ni les entrées de l'import map que seul un plugin charge |
+| Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : ce que charge le document, entrée et ses imports statiques (framework, SDK, la part de `@kartenn/ui` que montre le cadre et toute sa feuille compris ; ses autres composants viennent avec le premier écran qui en use, 22r), CSS, scripts, préchargements de modules et feuilles nommés par `index.html` (fichiers d'amorce compris), chaque fichier une fois ; ni les polices, ni les entrées de l'import map que seul un plugin charge |
 | Plugin | ≤ 50 Ko gzip | `web/v2/tools/plugin-size.ts` par plugin (son test de paquet, Vitest), modules partagés exclus |
 | Premier écran utile | ≤ 2 s | `fetchStart` de la navigation après le rappel OIDC → première trame où les tuiles de l'accueil (`.k-home-tiles`) sont dans le document, relevée par le banc |
 | Page de 100 lignes | ≤ 100 ms | `responseEnd` de la page de `/v1/addresses` demandée (sa propre ressource) → première trame où l'une de ses lignes (`data-row`) est dans le DOM (pas forcément la première : passé dix pages, le cache lâche la première et les lignes montent d'une page sous la fenêtre ; précisé par la 22a, retenu par la session principale à sa fusion le 2026-11-09), p95 de 20 pages, médiane imprimée ; lectures sans lignes (304) comptées à part |

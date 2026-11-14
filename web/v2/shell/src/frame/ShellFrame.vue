@@ -49,6 +49,7 @@ import {
   Menu,
   SidePanel,
   SidebarNav,
+  Skeleton,
   TimeBand,
   ToastRegion,
   createToasts,
@@ -64,6 +65,7 @@ import {
 } from "@kartenn/ui";
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -77,6 +79,7 @@ import { RouterView, useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
 import { pluginLetters, pluginSpaces, registerLetters } from "../plugins/navigation.ts";
+import { whenIdle } from "../plugins/loader.ts";
 import { refuseLetters, usePlugins } from "../plugins/registry.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
@@ -106,7 +109,6 @@ import { recentObjects, rememberObject, type FoundObject } from "../shortcuts/re
 import { createKeyListener, createShortcutRegistry } from "../shortcuts/registry.ts";
 import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
-import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { offered, play } from "../shortcuts/view.ts";
 import { dropMotive, typedMotive } from "../draft/motive.ts";
 import { closeEditWithPage, editRequest, guardEdit, lineToReturn } from "../views/edit/panel.ts";
@@ -732,8 +734,14 @@ function toggleSidebar(): boolean {
   return true;
 }
 
-// The help of the shortcuts `?` (and the page /help/shortcuts).
+// The help of the shortcuts `?` (and the page /help/shortcuts). Its table, a `DataGrid`,
+// in a chunk of its own out of the initial shell (task 22r), read in an idle moment after
+// the frame is shown, so that the dialog opens with it; asked before (a slow network), its
+// rows drawn as a skeleton until it comes.
 const helpOpen = ref(false);
+const loadHelp = () => import("../shortcuts/ShortcutHelp.vue");
+const ShortcutHelp = defineAsyncComponent({ loader: loadHelp, loadingComponent: Skeleton });
+onMounted(() => whenIdle(() => void loadHelp()));
 
 // The shortcuts (REQ-021-7, 8): the shell's, then those of the plugin's view (the keys of
 // the shell refused to them since `main.ts`). One listener on the document.
