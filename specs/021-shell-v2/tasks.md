@@ -1836,7 +1836,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       propertyColumns.ts` (import), `anomalies/AnomalyGrid.vue`, `anomalies/GapList.vue`,
       `record/PropertyValue.vue`
     - dépend de : 11p11
-  - [ ] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
+  - [x] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
     essais, cinq secondes au plus), au lieu de l'état d'erreur ; aucun autre 4xx relu —
     verify : Vitest du cache du SDK, un 429 `Retry-After: 1` puis 200 : la donnée vient
     sans erreur montrée, un 403 n'est pas relu (échoue sur main : aucun 4xx relu) ; un
@@ -1845,6 +1845,27 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       `sdk/src/api/problem.ts` (`Retry-After` porté par le problème), le test du cache du
       SDK, `web/v2/e2e/kartenn.toml` et `serve.sh` (une instance au quota par défaut)
     - dépend de : 11p9
+    - fait le 2026-11-14 : `ApiProblem.retryAfter` (`sdk/src/api/problem.ts`, les
+      delay-seconds de `Retry-After`, `null` sans l'en-tête) ; `retry` et `retryDelay` du
+      cache (`sdk/src/data/cache.ts`) : un 429, ou un 503 portant `Retry-After`, relu après
+      ce délai s'il vaut cinq secondes au plus, trois essais en tout ; 401, 403, 404, 412,
+      422 jamais relus, ni un refus qui demande plus ; 5xx et réseau comme avant (1 s puis
+      2 s) ; une lecture annulée s'arrête (le retryer s'arrête à son annulation) ; les
+      écritures ne sont pas des requêtes du cache. Pendant l'attente la lecture reste
+      `pending`, sans erreur. Tests : `sdk/test/cache.test.ts`, « refusals by load » (429
+      et 503 `Retry-After: 1` puis 200, chaque statut refusé, trois essais au plus, lecture
+      annulée pendant l'attente ; le 429 échoue sur main). Vérification :
+      `k-web2-check --base main` (1 255 tests, 2 741 captures sur 2 741 : tout,
+      `problem.ts` étant tiré par l'entrée du shell).
+    - choix : un `Retry-After` en date HTTP n'est pas lu (`NaN`, refus non relu) : kartenn
+      n'envoie que des secondes ; la borne de cinq secondes vaut pour chaque attente ; un
+      503 qui demande plus de cinq secondes n'est plus relu (avant : relu après 1 s) ; le
+      `?? String(status)` mort de `ApiProblem.from` retiré (`statusText` est toujours une
+      chaîne).
+    - reste : le parcours au `[http.rate]` par défaut (dix pages défilées sans avis ni
+      erreur) demande une seconde instance (port, configuration, `redirect_uri` de
+      l'émetteur, cas de `serve.sh`, entrée `webServer`, connexion paramétrée, jeu de dix
+      pages) : plus qu'un fichier de configuration et un parcours, non fait.
   - [ ] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
     l'utilisateur le 2026-11-14) : les lectures de propriétés résolues demandées dans une
     même fenêtre de quelques millisecondes, pour une même collection et les mêmes dates,
