@@ -54,6 +54,44 @@ const Keyboard = defineComponent({
   },
 });
 
+/** More tabs than a narrow list holds, one label longer than the list itself. */
+const many: TabItem[] = [
+  ...tabs.slice(0, 3),
+  { value: "inherited", label: "Correspondances héritées des politiques de flux du domaine" },
+  { value: "machines", label: "Machines", count: 3 },
+];
+
+/**
+ * The tabs in a narrow place (`--k-size-panel-sm`): they go to the line, the long label
+ * inside the list (WCAG 1.4.10); the keyboard script crosses the rows.
+ */
+const Narrow = defineComponent({
+  setup() {
+    const before = ref("");
+    const tab = ref("attributes");
+    return () =>
+      h(Stack, { gap: "3" }, () => [
+        h(TextField, {
+          label: "Préfixe",
+          modelValue: before.value,
+          "onUpdate:modelValue": (value: string) => (before.value = value),
+        }),
+        h("div", { style: { inlineSize: "var(--k-size-panel-sm)" } }, [
+          h(
+            Tabs as Component,
+            {
+              tabs: many,
+              label: "Fiche étroite",
+              modelValue: tab.value,
+              "onUpdate:modelValue": (value: string) => (tab.value = value),
+            },
+            Object.fromEntries(many.map((t) => [t.value, () => h("p", `Panneau « ${t.label} ».`)])),
+          ),
+        ]),
+      ]);
+  },
+});
+
 export default {
   component: Tabs,
   pattern: "Tabs (activation manuelle)",
@@ -97,6 +135,13 @@ export default {
       props: {},
       demo: Keyboard,
       wide: true,
+    },
+    {
+      name: "narrow",
+      description:
+        "Dans un lieu étroit : les onglets vont à la ligne, un libellé plus long que la liste y revient à la ligne, rien ne défile de côté ; les flèches passent d'une rangée à l'autre",
+      props: {},
+      demo: Narrow,
     },
   ],
 } satisfies CatalogueEntry;

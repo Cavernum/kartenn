@@ -79,10 +79,13 @@ watch(active, (value) => shown.add(value), { immediate: true });
     min-inline-size: 0;
   }
 
+  /* The tabs go to the line rather than scroll sideways: a record's tabs read at 320 px
+   * (WCAG 1.4.10, REQ-021-29); the rows touch, so that a tab's underline stays on its
+   * label and the rows read as one list. */
   .k-tabs__list {
     display: flex;
-    gap: var(--k-space-1);
-    overflow-x: auto;
+    flex-wrap: wrap;
+    gap: 0 var(--k-space-1);
     border-block-end: var(--k-border-width) solid var(--k-border-strong);
   }
 
@@ -94,9 +97,12 @@ watch(active, (value) => shown.add(value), { immediate: true });
     padding-inline: var(--k-control-padding-inline-md);
     margin-block-end: calc(var(--k-border-width) * -1);
     font: inherit;
+    /* Never wider than the list: a label longer than it goes to the line (1.4.10). */
+    max-inline-size: 100%;
     font-weight: var(--k-weight-medium);
     color: var(--k-text-muted);
-    white-space: nowrap;
+    text-align: start;
+    overflow-wrap: break-word;
     cursor: pointer;
     background: none;
     border: 0;

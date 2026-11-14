@@ -1,0 +1,17 @@
+- main:
+  - region "Tabs":
+    - heading "Tabs" [level=1]
+    - paragraph: "Motif : Tabs (activation manuelle)"
+    - 'figure "narrow — Dans un lieu étroit : les onglets vont à la ligne, un libellé plus long que la liste y revient à la ligne, rien ne défile de côté ; les flèches passent d''une rangée à l''autre"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - tablist "Fiche étroite":
+        - tab "Attributs" [selected]
+        - tab /Adresses \d+/
+        - tab "Historique"
+        - tab "Correspondances héritées des politiques de flux du domaine"
+        - tab "Machines 3"
+      - tabpanel "Attributs":
+        - paragraph: Panneau « Attributs ».
+      - code: narrow
+      - text: ""
