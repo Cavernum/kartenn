@@ -6812,6 +6812,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/e2e/budgets/budgets.spec.ts` (« Arrow down in a grid »)
   - dépend de : 22f ; à faire avec la 22o-b (lignes de la grille en composants), qui vise
     le même rendu
+  - cause cherchée le 2026-11-14 (branche `tache-021-22o-b`), case laissée ouverte (passe
+    réduite à la session principale) : **le travail d'un pas de flèche n'a pas changé entre
+    e86f6af1 et 24622281**. Sonde montée (Vitest, happy-dom, la liste des adresses du vrai
+    shell, une page de 50 lignes éditables, `editability` compté par un `vi.mock` de
+    `views/edit/fields.ts`, les rendus comptés par composant), passée sur les deux commits
+    (un arbre de travail détaché pour e86f6af1) : à chaque pas, sur l'un comme sur l'autre,
+    toute la `DataGrid` rendue, la `ListView` (`v-model:active`) et ses enfants, 100 `KLink`
+    (deux liens par ligne) et 552 appels d'`editability` ; JS d'un pas 15,4 à 21,0 ms en
+    médiane contre 11,6 à 17,1 (trois passages alternés, dans le bruit). Ni la mesure différée
+    des lignes (la liste des adresses n'est pas virtualisée : 100 à 200 lignes chargées
+    pendant les 50 appuis, `VIRTUAL_ROWS` 200), ni la porte lue par cellule (`useWrites`, un
+    `computed`), ni `rankedRefusal`, ni la fente `extension` (aucune colonne de plugin) ne
+    s'ajoutent au pas ; aucun CSS, aucun test de banc ni jeu de données n'a changé entre les
+    deux. Le p75 tombe sur la frontière des deux modes d'un pas (médiane 65,1, p75 104,9 : la
+    moitié des appuis fait défiler la grille, son `window` et la `ListView` en plus) : l'écart
+    de 89,1 à 104,9 ms est la variance du banc, sur un pas qui rendait toute la grille. Borné
+    par la 22o-b : un pas rend deux lignes (`shell/test/list-grid-work.test.ts`, qui échoue
+    sur l'ancien code : 100 liens rendus au lieu de 4).
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
@@ -6906,6 +6924,53 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       (composant de ligne, `computed` par ligne) ; la première est locale, la seconde
       profite aussi aux flèches
     - dépend de : 22o
+    - code fait le 2026-11-14 (branche `tache-021-22o-b`), case laissée ouverte (passe
+      réduite à la session principale) : la seconde option, arbitrée par la session
+      principale. Chaque ligne du corps de la `DataGrid` est un composant
+      (`DataGrid/DataGridRow.vue`, contexte `DataGrid/row.ts`, comme `TreeGridRow` de la
+      22e-b) : l'état partagé de la grille (point d'arrêt, éditeur, erreur ouverte,
+      sélection, ligne fraîche) lu par la clé de la ligne dans des `computed` qui gardent leur
+      valeur, si bien qu'un pas de focus — flèche, appui sur un lien (`focusin`), Entrée —
+      rend la ligne quittée et la ligne atteinte, jamais les autres ; chaque état de l'hôte
+      demandé une fois par cellule (`cellsOf` : état, éditeur, raisons, erreur, extension ;
+      l'état de la ligne une fois par ligne). Les emplacements de l'hôte (`cell`, `editor`,
+      `extension`) sont transmis à la ligne par le gabarit de la grille : un hôte compilé
+      (`ListView`) laisse les lignes, une fonction de rendu qui refait ses emplacements les
+      rend avec la grille, comme Vue tout enfant ; aucun compteur. Les widgets des cellules
+      sortent de la tabulation au montage de la grille, puis par son observateur des
+      mutations (`useExtensionControls`, désormais avec ou sans colonne d'extension : un lien
+      qu'un composant de l'hôte montre seul, après une lecture, `ObjectName`), jamais par un
+      balayage de la grille à chacun de ses rendus. Une ligne montée avec une erreur ouverte
+      (revenue dans la fenêtre sous le focus) se rend une fois de plus après son montage, pour
+      que la bulle trouve sa cellule. La table des identifiants de raisons (`internal/cellReasons.ts`) ne garde que
+      les phrases des lignes rendues (un compteur pour les nouvelles, jamais un numéro
+      repris). Preuves : `ui/test/data-grid-rows-mounted.test.ts` (au montage, deux appels
+      par cellule, la ligne et la table des phrases ; la grille rendue seule, aucune ligne ;
+      un pas de flèche et un appui sur un lien, deux lignes ; sélection, éditeur, erreur, la
+      seule ligne visée ; une ligne non rendue montre la marque de brouillon, la raison
+      changée puis partie, la porte fermée puis rouverte, la langue ; un seul arrêt de
+      tabulation, liens hors tabulation ; hôte compilé `test/fixtures/GridRowsHost.vue`) et
+      `shell/test/list-grid-work.test.ts` (la liste des adresses : un pas de flèche et un
+      appui sur un lien, au plus deux lignes, quatre liens et 18 appels d'`editability`, au
+      lieu de toute la grille, 100 liens et 552 appels). JS d'un pas dans la sonde : 3,3 ms en
+      médiane contre 15 à 20.
+    - choix : composant de ligne plutôt que différer `active` après le `click` (la
+      seconde option, qui profite aux flèches et aux pages) ; emplacements transmis par le
+      gabarit plutôt que lus par le contexte (aucune ligne périmée quand l'hôte refait ses
+      emplacements) ; le commentaire du gabarit hors de la chaîne `v-if`/`v-else` (en
+      développement, il faisait de chaque ligne un fragment patché en entier :
+      `DEV_ROOT_FRAGMENT`) ; la `ListView` laissée telle quelle (son pied lit `active`, elle
+      se rend à chaque pas, sans ses lignes) ; l'observateur des mutations pour toute
+      `DataGrid` (relecture d'accessibilité : un widget qu'un composant de l'hôte rend seul
+      gardait sinon un arrêt de tabulation ; la 11o le réservait aux colonnes d'extension) ;
+      les fonctions de l'hôte (`cellState`, `rowState`, `editable`, raisons) lisent un état
+      réactif, comme un `computed` (dit dans `DataGrid.vue`).
+    - reste : la présence d'un emplacement de l'hôte (`editor`, `extension`) est lue au rendu
+      de la ligne, non réactive (un hôte qui en ajoute un après le montage) ; la table des phrases cachées (`useCellReasons.reasons`) relit toutes les
+      cellules rendues à chaque changement d'un état de l'hôte (un commit, une page) ; la
+      `TreeGrid` garde deux écarts que la 22o-b évite (son `cells` lit `isStop` directement :
+      chaque ligne se rend à chaque pas de focus ; un commentaire entre `v-if` et `v-else`
+      devant `TreeGridRow`, sans effet en production) : à la 22e-c.
   - [ ] 22o-c. Mise en page forcée au démontage d'une liste : quand le routeur remplace la
     liste des préfixes par une fiche, `removeChild` de Vue force une mise en page de
     l'ancienne page (11 ms sous CPU ×4), au clavier comme à la souris ; ni le focus, ni la
