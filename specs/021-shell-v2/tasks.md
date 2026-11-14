@@ -6975,6 +6975,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     refusée aussi hors du présent (elle écrit le brouillon, comme « Retirer » de la 21d)
   - passe de relecture (`ui-reviewer`, `a11y-auditor`) : rien de bloquant ; la span de
     statut dans le `Stack` du détail ne prend pas d'écart (absolue, `gap` du flex)
+  - passe de corrections (revue) : le rang « raison durable d'abord (droit manquant,
+    groupe ou rôle livré, portée plus large), la porte ensuite » est la cible (arbitrage de
+    la session principale ; 21h l'étend aux autres écrans). `c` et `e` disent la raison du
+    bouton : `allowed` et `why` lisent les refus durables (`refusalsAt(null)`,
+    `createRefusal` sans porte), l'action est `lasting` (`ViewAction.lasting`,
+    `shortcuts/view.ts` : `play` dit alors son `why` avant la porte ; sans lui, rien ne
+    change pour les autres écrans) ; le droit manquant dit « Il faut core.rbac.admin »
+    comme `BlockedReason` (clé `admin.why.forbidden`, fr et en) ; la palette garde
+    « Modifier le groupe… », « Modifier le rôle… » et « Créer… » quand la porte seule les
+    retient (lancée, elle dit la largeur) et les ôte quand un droit manque ;
+    `createRefusal` (`model.ts`) seule fonction de « Créer » ; `gated` de `useAdminDraft`
+    dit le refus par le statut de la vue sans toasts (`say`). Tests : `admin-gate.test.ts`
+    (bouton et touche, `c` et `e`, quatre cas ; la palette, porte seule et droit manquant),
+    `shortcuts.test.ts` (`lasting`), `admin.test.ts` (`createRefusal`)
   - reste : 21e2 ; d'ici là, les écrans des comptes, identités et émetteurs qui passent
     par `useAdminDraft` montrent leurs actions offertes sous 1024 px et ne les refusent
     qu'à l'envoi (toast, rien d'écrit) ; « Clore… » d'un groupe et « Supprimer… » d'un
@@ -6989,6 +7003,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   `test/admin-gate.test.ts` (un dialogue ouvert puis rétréci : saisie gardée, rien
   envoyé) ; parcours `accessibility` à 768 px : « Créer » des comptes de service refusé
   avec le motif
+  - **à faire avant la bascule (27)** : trois écritures de l'administration ne passent pas
+    par `useAdminDraft` et restent RÉELLEMENT possibles sous 1024 px tant que la 21e2 n'est
+    pas faite : `secret.ts:83` et `:89` (création d'un compte de service et nouveau
+    secret, POST direct), `IdentityDetail.vue:190` (pseudonymisation, POST direct),
+    `ImportDetail.vue` (`steer` : reprise et annulation d'un import)
   - où : `web/v2/shell/src/admin/access.ts` (`globalRefusal`, vers la ligne 54 : `present`
     → `refused`, mots `GateWords` de `model.ts`), `AccountsView.vue` (vers la ligne 91),
     `AccountDetail.vue` (58), `IdentityDetail.vue` (95, 107 ; `pseudonymise` vers la
@@ -6997,8 +7016,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `ImportDetail.vue` (`pastRefusal` vers la ligne 89, `steer` vers la ligne 108, appel
     direct), `SecretDialog.vue` et `secret.ts` (`run`, vers la ligne 49, POST direct) ;
     modèle : `useAdminGate` (`admin/gate.ts`), `GroupForm.vue` (`held`, `InlineAlert`,
-    bouton à raison), `GroupsView.vue` (`say` de `c`) ; `useAdminDraft` relit déjà la porte
-    à l'envoi. Chaque fichier repris quitte `PERIOD_ONLY` (entrées `21e` restantes de
+    bouton à raison), `GroupsView.vue` (`createRefusal`, `c` : `allowed`/`why` durables,
+    `lasting`, `say`) ; `useAdminDraft` relit déjà la porte à l'envoi ; le rang : la raison
+    durable d'abord, la porte ensuite (21e). Chaque fichier repris quitte `PERIOD_ONLY` (entrées `21e` restantes de
     `web/v2/shell/test/writes.test.ts`)
   - dépend de : 21e
 - [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
@@ -7031,6 +7051,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     modèle : `test/writes.test.ts`
   - touche le contrat du SDK des plugins (contexte) : à arbitrer avant code, avec la 24f
   - dépend de : 21c
+- [ ] 21h. Même rang partout : la raison durable (droit manquant, objet livré, portée plus
+  large, auteur d'un changeset) avant la porte d'écriture (`past`, `narrow`) dans les vues
+  et les changesets aussi, comme l'administration (21e, arbitrage de la session
+  principale) — REQ-021-29, REQ-021-37 — verify : Vitest, sur un même écran, le bouton, la
+  cellule, la touche (`c`, `e`) et la commande de palette disent la même raison dans les
+  quatre cas (droit manquant seul, largeur seule, les deux, aucun) ; un relecteur sans le
+  droit lit le droit, pas la largeur (cellule en place, `e`, décision d'un changeset) ; la
+  palette garde une commande retenue par la porte seule et l'ôte quand un droit manque
+  - où : `web/v2/shell/src/shortcuts/view.ts` (`play` vers la ligne 115, `offered` vers la
+    ligne 92 ; `ViewAction.lasting` de la 21e, à généraliser puis à retirer),
+    `views/edit/fields.ts` (`editability`, vers la ligne 518 : la porte avant le droit),
+    `changesets/model.ts` (`reviewActions`, vers la ligne 138 : la porte avant `held`,
+    `author` et le droit), `draft/state.ts` (`refused` à côté de `writable`, vers la ligne
+    138) ; tests : `edit.test.ts` (`editability`), `shortcuts.test.ts` (`play`,
+    `offered`), `changesets.test.ts` (`reviewActions`), modèle `test/admin-gate.test.ts`
+  - amende les choix des 21c (« la largeur avant le droit manquant, comme le passé ») et
+    21d (« la porte avant `held`, `author` et le droit manquant ») ; à faire après la 21f
+  - dépend de : 21e, 21f
 - [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
