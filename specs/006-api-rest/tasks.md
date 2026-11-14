@@ -686,15 +686,49 @@ routeur complet, sauf mention « vrai TCP ».
   `/<collection>/properties` passe avant `/<collection>/{id}` (matchit), vérifié par le
   test.
 - [ ] 32. Filtre `id` répété sur toute collection, `address` répété sur la liste des
-  interfaces ; déclarés au contrat — REQ-006-41 — verify : `k-check -p kartenn-rest`
-  (deux identifiants dont un illisible : un seul rendu ; conjonction avec un autre
-  filtre ; au-delà de la taille de page maximale → 400 ; le paramètre présent aux
-  `parameters` de chaque liste) ; `k-check -p kartenn-machines`
-  - où : `crates/kartenn-rest/src/objects.rs` (filtres, vers les lignes 195-197),
-    `crates/kartenn-store-pg/src/list.rs` (`Criteria.ids`, vers la ligne 190),
-    `crates/kartenn-machines/src/rest.rs` (`address`, vers la ligne 1087), contrat
-    OpenAPI (H20)
+  interfaces ; déclarés au contrat — REQ-006-41. Découpée en 32a–32d (2026-11-14) : une
+  trentaine de collections, onze listes à SQL propre dans sept crates. Commun aux quatre :
+  borne `cursor::MAX_SIZE` (1000), refus dès le 1001ᵉ `id` lu ; poids au quota 1, la
+  taille de page bornant déjà la lecture ; illisible = inconnu = absent de la page ;
+  contrat et types des deux SDK régénérés (`cargo run -p kartenn-server -- openapi`,
+  `scripts/gen.mjs`).
+- [ ] 32a. Brique commune, listes du noyau et des VLAN : `filter::ids` (retire `id` des
+  paramètres comme `filter::prefix` ; UUID mal formé ou au-delà de la borne → 400 qui
+  nomme `id`), `Op::ids` (sur `Op::repeated`) ; six listes du noyau (`Criteria.ids` sur
+  la lecture par clé naturelle, intersection sur la lecture par propriétés) ; groupes de
+  VLAN et VLAN — verify : `k-check -p kartenn-rest` (deux identifiants dont un
+  illisible : un seul rendu, page identique à celle d'un inconnu ; conjonction avec
+  `domain` ; 1001 `id` → 400, 1000 → 200 ; `id` aux `parameters` de ces listes)
+  - où : `crates/kartenn-rest/src/filter.rs` (`prefix`, à imiter), `openapi.rs`
+    (`Op::repeated`), `objects.rs` (`declare_filters`, `wanted`, `list` vers les lignes
+    1053-1130), `vlan.rs` (`list_groups`, `list_vlans`, vers les lignes 409 et 478),
+    `crates/kartenn-store-pg/src/list.rs` (`Criteria.ids`, déjà en conjonction) ; tests
+    `rest/tests/it/objects.rs` (lots de la 31, à imiter)
   - dépend de : —
+- [ ] 32b. Listes des machines : `id` sur les grappes, machines et interfaces ; `address`
+  répété sur les interfaces (un parmi) — verify : `k-check -p kartenn-machines` (deux
+  identifiants dont un illisible : un seul rendu ; conjonction ; deux adresses : leurs
+  deux interfaces)
+  - où : `crates/kartenn-machines/src/rest.rs` (`list_clusters`, `list_machines`,
+    `list_interfaces` vers les lignes 644, 887, 1071 ; `optional_uuid` de `address` →
+    `uuid[]`)
+  - dépend de : 32a
+- [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
+  `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
+  conjonction)
+  - où : `crates/kartenn-kube/src/rest/clusters.rs` (`list`), `rest/mirrors.rs`
+    (`list<M>`), listes des correspondances de libellés, valeurs admises et libellés
+    suivis (à repérer) ; `crates/kartenn-flow/src/rest.rs` (`page_of`, `list`, vers les
+    lignes 901 et 1062)
+  - dépend de : 32a
+- [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
+  politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
+  d'objets, kube compris — verify : `k-check -p kartenn-policy`,
+  `k-check -p kartenn-rest contract`
+  - où : `crates/kartenn-policy/src/rest.rs` (`list`, vers la ligne 449),
+    `crates/kartenn-rest/tests/it/contract.rs`
+    (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter)
+  - dépend de : 32a, 32b, 32c
 - [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
   référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
   d'une propriété de type référence), puis `{id, clé naturelle, href}`, réduit à `{id}`
