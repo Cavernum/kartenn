@@ -6503,6 +6503,59 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       0 lecture pendant le défilement ; avant la 22e-a : 77 % et 137 tâches longues.
       L'écart au budget reste d'un ordre de grandeur : l'arbitrage B ou C attend
       l'utilisateur, la 22e-b reste à faire dans les deux cas.
+    - avancé le 2026-11-14 (agent, non cochée : la 22e se clôt sur la mesure de la session
+      principale) — profil (trace CDP de la vue réelle, CPU ×4, 3 s à 1 000 lignes/s, build
+      non minifié) : ≈ 25 à 30 ms par trame pour 16,7 lignes entrant par trame ; flush de
+      Vue ≈ 9 ms (rendu ≈ 3, patch ≈ 4,4 : toute la fenêtre, ≈ 37 lignes, rendue à chaque
+      trame, rappels de l'hôte ≈ 1,5), mise en page forcée par le `scrollTop` du protocole
+      ≈ 6 ms (≈ 63 objets sales sur 1 274), PrePaint 2, Paint 2,5, Layerize 1,9, hit test
+      et déplacement de souris synthétique ≈ 1. Le « double Paint » est le parcours de
+      peinture de `LayoutView` et de la racine (deux événements par trame, peinture en
+      cache, pas un repeint du document). Le banc du catalogue (`/_ui/bancs/TreeGrid`,
+      5 100 lignes, une colonne, sans rappels) tient 1,6 à 2,7 % à ×4 : l'écart vient de ce
+      que la vue réelle rend par ligne. Banc A/B du catalogue à ×8 (feuille injectée) :
+      `will-change: scroll-position`, première cellule non collante, pistes fixes au lieu
+      de `minmax(auto, …)`, `contain: strict` ou `content` sur les lignes — aucun effet
+      au-dessus du bruit ; rien de changé dans les styles. Corrections : lignes de nœud en
+      composant (`TreeGridRow`, contexte commun `row.ts`) : au défilement, seules les
+      lignes dont la ligne du modèle change se rendent (17 rendus par trame à 1 000 lignes/s
+      au lieu de toute la fenêtre, compté sur le banc du catalogue) ; chaque état de
+      l'hôte demandé une fois par rendu de ligne (`nodeState` deux fois par ligne au lieu
+      de six, `cellState` trois fois par ligne de deux cellules au lieu de sept par
+      cellule) ; ids des raisons fixes par phrase (`cellReasons.ts`, `DataGrid` aussi),
+      sans quoi la description de chaque cellule suivait la fenêtre et rendait toute
+      ligne ; `tame` n'écrit plus un `tabIndex` déjà à −1. Avec l'emplacement `extension`
+      et une colonne d'extension, les lignes se rendent à chaque rendu de l'arbre, comme
+      avant (`tick`) ; sans colonne d'extension, l'emplacement ne coûte rien (la vue de la
+      topographie le donne toujours). Tests : `ui/test/trees-mounted.test.ts` (états
+      demandés une fois, aucun rendu de ligne quand l'arbre seul se rend, avec et sans
+      l'emplacement). Passes réduites filtrées (`bench-web small -g "container of"`) :
+      départ 29,49 %, 1 tâche longue de 56,0 ms (verrous libres) ; après les composants,
+      mais avec `tick` posé dès que l'hôte donne l'emplacement (toutes les lignes rendues à
+      chaque trame dans la topographie, erreur corrigée ensuite) 31,42 %, 2 tâches longues,
+      la plus longue 56,0 ms (verrous libres, charge 1,6) ; la correction finale n'a pas
+      été mesurée sur la vue réelle (quota de passes atteint). Profils sous verrou (vue
+      réelle, spec de brouillon) : 30,42 % à 1 000 lignes/s et 18,47 % à 500 lignes/s
+      (départ, verrous libres) ; 31,88 % (départ, non minifié, 21f tenant `pg` et les deux
+      créneaux). `k-web2-check --base main` : 1 165 Vitest ; ciblé : 2 322 captures sur
+      2 741 ; scripts `tree`, `tree-grid`, `data-grid` (41) ; parcours `tree` (10).
+    - choix : composant de ligne plutôt que `v-memo` (les dépendances suivies par Vue, pas
+      une liste à tenir) ; contexte en une prop stable plutôt que `provide` ; `TreeGridRow`
+      interne, non exporté ; lignes « suite » et avis laissées dans le gabarit de l'arbre
+      (sans état ni rappel) ; rien de changé dans les styles (aucun effet mesuré) ; aucun
+      relecteur d'interface (le DOM rendu est le même, captures inchangées).
+    - reste : la mesure de la session principale (passe réduite, machine calme) ; selon
+      elle, 22e-c.
+  - [ ] 22e-c. Ce que la 22e-b laisse, selon la mesure de la session principale : le coût
+    d'une ligne qui entre (patch d'une ligne recyclée, mise en page ≈ 6 ms et peinture
+    ≈ 6 ms par trame à ×4 pour ≈ 17 lignes) — moins de nœuds par ligne (icônes SVG, « + »
+    caché monté sur chaque ligne, spans cachés), puis profil de la mise en page — ou
+    l'arbitrage C (protocole à 500 lignes/s) — verify : celui de la 22e
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGridRow.vue`,
+      `web/v2/ui/src/components/IconButton/IconButton.vue` (« + » de chaque ligne),
+      `web/v2/shell/src/views/TopologyView.vue` (`cellState`, `readonlyReason` de chaque
+      cellule)
+    - dépend de : 22e-b, mesure de la session principale
 
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une

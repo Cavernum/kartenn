@@ -55,14 +55,26 @@ export function useCellReasons<R>(host: CellReasonsHost<R>) {
     }
     return [...found];
   });
-  const reasonId = (i: number) => `${host.idPrefix}-reason-${i}`;
-  /** The ids of the sentences of a cell, its description; nothing without one. */
+  /**
+   * The id of the hidden sentence `text`: the same for the life of the grid, whatever the
+   * rows rendered around it (task 021-22e-b: a row of `TreeGrid` that stays in view keeps
+   * its description as the tree scrolls, and so does not render again).
+   */
+  const numbers = new Map<string, number>();
+  function reasonId(text: string): string {
+    let n = numbers.get(text);
+    if (n === undefined) {
+      n = numbers.size;
+      numbers.set(text, n);
+    }
+    return `${host.idPrefix}-reason-${n}`;
+  }
+  /**
+   * The ids of the sentences of a cell, its description; nothing without one. A cell is
+   * rendered with its row, whose sentences `reasons` holds: never an id without its text.
+   */
   function reasonOf(row: R, column: GridColumn): string | undefined {
-    const ids = host
-      .notesOf(row, column)
-      .map((text) => reasons.value.indexOf(text))
-      .filter((at) => at >= 0)
-      .map(reasonId);
+    const ids = host.enabled() ? host.notesOf(row, column).map(reasonId) : [];
     return ids.length ? ids.join(" ") : undefined;
   }
 
