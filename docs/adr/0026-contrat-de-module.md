@@ -571,6 +571,33 @@ la période refuse un `within` sur ces opérations (les paramètres de `kube` s'
 présent, `kube.operation.invalid`, revue de la 7d3). Rejoué avec `prepare` à la validation
 d'un changeset en attente (REQ-004-21).
 
+### Amendement 17 — 2026-11-14, résolution typée des références d'un module (002-29)
+
+Un changement du contrat, **arbitré par l'utilisateur le 2026-11-14** (tâches 002-29b et
+29b1, REQ-002-12 amendée), livré par la tâche 002-29b1 :
+
+| Changement | Clause | Raison |
+|---|---|---|
+| La fonction de résolution que reçoit `ModuleHandler::plan` prend le type attendu et le champ : `resolve: &dyn Fn(Ref, ObjectKind, &str) -> Option<Uuid>` (au lieu de `Fn(Ref)`) | 6, 12 | une référence par identifiant d'une opération de module n'était jamais lue avant d'être écrite : un objet de module pouvait désigner un identifiant inconnu, d'un autre type ou clos |
+
+Ce que le pipeline en fait : une référence locale (`Ref::Local`) se résout comme avant,
+`None` si aucune opération antérieure du changeset ne la définit. Une référence par
+identifiant (`Ref::Id`) rend son identifiant, sans lecture (`plan` ne lit aucune base), et
+le pipeline la relève avec son type et son champ ; après les verrous, il la lit comme
+celles des opérations du noyau (tâche 002-29a) : absente, d'un autre type ou close au
+début de la période de l'opération, le changeset est refusé par `core.reference.unknown`,
+dont le détail nomme le champ (`detail.field`) et le type attendu (`detail.expected`).
+Les droits d'abord (INV-63) : le refus n'est révélé qu'à qui pourrait lire un objet de ce
+type à cet identifiant, les autres recevant le refus de leurs droits. Une référence vers
+un objet que le changeset crée plus tôt reste acceptée.
+
+Ce que le module doit : donner à chaque résolution le type de l'objet qu'il attend
+(`ObjectKind::Module` pour un type de module, qualifié) et le nom du champ de son corps
+qui le porte, chemin JSON compris (`owner`, `host`, `vlans[]`) ; ne résoudre par
+`resolve` que des références d'objets, jamais un identifiant qu'il ne veut pas voir
+contrôlé. Une référence dont le type dépend du corps (l'hôte, machine ou grappe) se
+résout avec le type que le corps désigne.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

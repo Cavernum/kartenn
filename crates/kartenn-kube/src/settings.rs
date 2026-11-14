@@ -514,7 +514,7 @@ fn closing(kind: ModuleKind, ids: &[Uuid]) -> Option<ModulePlan> {
 pub(crate) fn plan(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &kartenn_service::module::Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let plan = match operation.name.as_str() {
         "set_label_mapping" => plan_mapping(operation, object, resolve),
@@ -528,20 +528,22 @@ pub(crate) fn plan(
 fn reference(
     body: &Map<String, Value>,
     field: &str,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    kind: ModuleKind,
+    resolve: &kartenn_service::module::Resolve<'_>,
 ) -> Result<Uuid, Violation> {
     let value = body
         .get(field)
         .ok_or_else(|| invalid(format!("{field}: required")))?;
     let r: Ref =
         serde_json::from_value(value.clone()).map_err(|e| invalid(format!("{field}: {e}")))?;
-    resolve(r).ok_or_else(|| invalid(format!("{field}: unknown object")))
+    resolve(r, ObjectKind::Module(kind), field)
+        .ok_or_else(|| invalid(format!("{field}: unknown object")))
 }
 
 fn plan_mapping(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &kartenn_service::module::Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     match operation.body.get("action").and_then(Value::as_str) {
         Some("upsert") => {
@@ -578,7 +580,7 @@ fn plan_mapping(
         }
         Some("close") => {
             let (body, completed) = body(operation, &["action", "id"])?;
-            let id = reference(&body, "id", resolve)?;
+            let id = reference(&body, "id", mapping_kind(), resolve)?;
             if completed.existing != Some(id) {
                 return Err(invalid(format!("id: {id} is not a living label mapping")));
             }
@@ -591,10 +593,11 @@ fn plan_mapping(
 fn plan_admitted(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &kartenn_service::module::Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let (body, completed) = body(operation, &["namespace", "axis", "values"])?;
-    let namespace = reference(&body, "namespace", resolve)?;
+    let namespace_kind = ModuleKind::parse(crate::module::NAMESPACE).expect("a valid kind");
+    let namespace = reference(&body, "namespace", namespace_kind, resolve)?;
     if completed.namespace != Some(namespace) {
         return Err(invalid(format!(
             "namespace: {namespace} is not a living namespace"

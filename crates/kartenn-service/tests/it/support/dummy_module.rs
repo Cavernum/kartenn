@@ -14,7 +14,7 @@ use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
     BoxFuture, CheckContext, EndContext, Findings, Module, ModuleHandler, ModuleMigration,
     ModuleObjectRow, ModulePlan, ModuleRegistry, ModuleTx, ObjectType, OnClose, OperationType,
-    Reference, Shared,
+    Reference, Resolve, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -277,16 +277,21 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
+        use kartenn_service::ObjectKind;
         let invalid = |message: String| Violation::new(&INVALID, message);
         if operation.name == "update_thing" {
             let update: UpdateThing =
                 serde_json::from_value(serde_json::Value::Object(operation.body.clone()))
                     .map_err(|e| invalid(e.to_string()))?;
-            let target = resolve(update.id).ok_or_else(|| invalid("unknown thing".into()))?;
+            let target = resolve(update.id, ObjectKind::from_qualified(kind()), "id")
+                .ok_or_else(|| invalid("unknown thing".into()))?;
             let release = match update.release {
-                Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown address".into()))?),
+                Some(r) => Some(
+                    resolve(r, ObjectKind::Address, "release")
+                        .ok_or_else(|| invalid("unknown address".into()))?,
+                ),
                 None => None,
             };
             let core = release
@@ -323,18 +328,13 @@ impl ModuleHandler for Handler {
         if thing.label.is_empty() {
             return Err(invalid("a thing needs a label".into()));
         }
-        let prefix = match thing.prefix {
-            Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown prefix".into()))?),
-            None => None,
+        let lookup = |r: Option<Ref>, kind: ObjectKind, field: &str| {
+            r.map(|r| resolve(r, kind, field).ok_or_else(|| invalid(format!("unknown {field}"))))
+                .transpose()
         };
-        let domain_ref = match thing.domain_ref {
-            Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown domain".into()))?),
-            None => None,
-        };
-        let address_ref = match thing.address_ref {
-            Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown address".into()))?),
-            None => None,
-        };
+        let prefix = lookup(thing.prefix, ObjectKind::Prefix, "prefix")?;
+        let domain_ref = lookup(thing.domain_ref, ObjectKind::Domain, "domain_ref")?;
+        let address_ref = lookup(thing.address_ref, ObjectKind::Address, "address_ref")?;
         let mut core: Vec<Operation> = thing
             .domain
             .into_iter()

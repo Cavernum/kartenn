@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::module::{ModulePlan, ObjectType, OnClose, OperationType, Reference};
+use crate::module::{ModulePlan, ObjectType, OnClose, OperationType, Reference, Resolve};
 use crate::operations::{ModuleKind, ModuleOperation, ObjectKind, Operation, RawInput, Ref};
 
 /// The kind of a group of VLAN.
@@ -173,6 +173,26 @@ impl AnchorInput {
             Self::Entity(_) => "entity",
             Self::Site(_) => "site",
             Self::Domain(_) => "domain",
+        }
+    }
+
+    /// The kind of the object of the anchor.
+    #[must_use]
+    pub const fn object_kind(self) -> ObjectKind {
+        match self {
+            Self::Entity(_) => ObjectKind::Entity,
+            Self::Site(_) => ObjectKind::Site,
+            Self::Domain(_) => ObjectKind::Domain,
+        }
+    }
+
+    /// The field of the operation that designates it.
+    #[must_use]
+    pub const fn field(self) -> &'static str {
+        match self {
+            Self::Entity(_) => "anchor.entity",
+            Self::Site(_) => "anchor.site",
+            Self::Domain(_) => "anchor.domain",
         }
     }
 
@@ -395,19 +415,21 @@ fn bound(value: Option<i64>, default: i64) -> Result<i64, Violation> {
 fn plan_create_group(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let create: CreateGroup = decode(operation)?;
     let _ = create.local;
     let slug = Slug::parse(&create.slug)?;
     let range = VidRange::new(bound(create.vid_min, 1)?, bound(create.vid_max, 4094)?)?;
-    let anchor = resolve(create.anchor.object())
+    let input = create.anchor;
+    let anchor = resolve(input.object(), input.object_kind(), input.field())
         .ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown anchor"))?;
-    let kind = create.anchor.kind();
+    let kind = input.kind();
     let given = match create.owner {
-        Some(r) => {
-            Some(resolve(r).ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown owner"))?)
-        }
+        Some(r) => Some(
+            resolve(r, ObjectKind::Entity, "owner")
+                .ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown owner"))?,
+        ),
         None => None,
     };
     let owner = owner_of(Some((kind, anchor)), given)?;
@@ -433,11 +455,11 @@ fn plan_create_group(
 
 fn plan_update_group(
     operation: &ModuleOperation,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let update: UpdateGroup = decode(operation)?;
-    let group =
-        resolve(update.id).ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown group"))?;
+    let group = resolve(update.id, ObjectKind::VlanGroup, "id")
+        .ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown group"))?;
     let mut patch = serde_json::Map::new();
     if let Some(slug) = &update.slug {
         patch.insert("slug".into(), Slug::parse(slug)?.as_str().into());
@@ -452,7 +474,7 @@ fn plan_update_group(
     }
     let anchor = match update.anchor {
         Some(input) => {
-            let object = resolve(input.object())
+            let object = resolve(input.object(), input.object_kind(), input.field())
                 .ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown anchor"))?;
             patch.insert("anchor_kind".into(), input.kind().into());
             patch.insert("anchor_id".into(), object.to_string().into());
@@ -461,9 +483,10 @@ fn plan_update_group(
         None => None,
     };
     let given = match update.owner {
-        Some(r) => {
-            Some(resolve(r).ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown owner"))?)
-        }
+        Some(r) => Some(
+            resolve(r, ObjectKind::Entity, "owner")
+                .ok_or_else(|| Violation::new(&VLAN_GROUP_ANCHOR, "unknown owner"))?,
+        ),
         None => None,
     };
     let owner = owner_of(anchor, given)?;
@@ -490,14 +513,14 @@ fn plan_update_group(
 fn plan_create_vlan(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let create: CreateVlan = decode(operation)?;
     let _ = create.local;
     let vid = Vid::new(create.vid)?;
     let name = VlanName::new(&create.name)?;
     let status = create.status.map_or(VlanStatus::Active, VlanStatus::from);
-    let group = resolve(create.group)
+    let group = resolve(create.group, ObjectKind::VlanGroup, "group")
         .ok_or_else(|| Violation::new(&VLAN_VID_OUT_OF_RANGE, "unknown group of VLAN"))?;
     Ok(ModulePlan {
         kind: vlan_kind(),
@@ -519,11 +542,11 @@ fn plan_create_vlan(
 
 fn plan_update_vlan(
     operation: &ModuleOperation,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     let update: UpdateVlan = decode(operation)?;
-    let vlan =
-        resolve(update.id).ok_or_else(|| Violation::new(&VLAN_VID_OUT_OF_RANGE, "unknown VLAN"))?;
+    let vlan = resolve(update.id, ObjectKind::Vlan, "id")
+        .ok_or_else(|| Violation::new(&VLAN_VID_OUT_OF_RANGE, "unknown VLAN"))?;
     let mut patch = serde_json::Map::new();
     // The group it leaves and the group it joins are both serialised.
     let mut keys: Vec<String> = update
@@ -533,7 +556,7 @@ fn plan_update_vlan(
         .into_iter()
         .collect();
     if let Some(group) = update.group {
-        let group = resolve(group)
+        let group = resolve(group, ObjectKind::VlanGroup, "group")
             .ok_or_else(|| Violation::new(&VLAN_VID_OUT_OF_RANGE, "unknown group of VLAN"))?;
         patch.insert("group_id".into(), group.to_string().into());
         keys.push(group_key(group));
@@ -568,7 +591,7 @@ fn plan_update_vlan(
 pub fn plan(
     operation: &ModuleOperation,
     object: Uuid,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<ModulePlan, Violation> {
     match operation.name.as_str() {
         "create_vlan_group" => plan_create_group(operation, object, resolve),
@@ -608,7 +631,7 @@ mod tests {
                 json!({ "slug": "g", "anchor": { "entity": { "id": entity } }, "completed": completed }),
             ),
             Uuid::now_v7(),
-            &|r| match r {
+            &|r, _, _| match r {
                 Ref::Id(id) => Some(id),
                 Ref::Local(_) => None,
             },
@@ -624,7 +647,7 @@ mod tests {
                         "owner": { "id": Uuid::now_v7() }, "completed": completed }),
             ),
             Uuid::now_v7(),
-            &|r| match r {
+            &|r, _, _| match r {
                 Ref::Id(id) => Some(id),
                 Ref::Local(_) => None,
             },
@@ -635,7 +658,7 @@ mod tests {
     #[test]
     fn a_group_moved_writes_the_domain_it_leaves_and_the_one_it_joins() {
         let (group, from, to) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
-        let resolve = |r| match r {
+        let resolve = |r: Ref, _: ObjectKind, _: &str| match r {
             Ref::Id(id) => Some(id),
             Ref::Local(_) => None,
         };
@@ -675,7 +698,7 @@ mod tests {
                 json!({ "group": { "id": group }, "vid": 10, "name": "web" }),
             ),
             Uuid::now_v7(),
-            &|r| match r {
+            &|r, _, _| match r {
                 Ref::Id(id) => Some(id),
                 Ref::Local(_) => None,
             },
@@ -689,7 +712,7 @@ mod tests {
                 json!({ "group": { "id": group }, "vid": 4095, "name": "web" }),
             ),
             Uuid::now_v7(),
-            &|_| None,
+            &|_, _, _| None,
         );
         assert_eq!(refused.unwrap_err().rule.id, "core.vlan.vid_invalid");
     }

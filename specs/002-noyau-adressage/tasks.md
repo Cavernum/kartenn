@@ -252,21 +252,86 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `crates/kartenn-store-pg/src/vlan.rs` (753), `tests/it/support/dummy_module.rs`,
   `kit_module.rs` ; ADR 0026
   dépend de : 29a
+  - découpée le 2026-11-14 (relevé par l'agent de la tâche, avant tout code) en 29b1 et
+    29b2 : changer la signature de la résolution casse d'un coup les six crates qui
+    implémentent `ModuleHandler` (une vingtaine de fichiers, une soixantaine de sites
+    d'appel) ; sans résolveur non typé provisoire, le contrat et tous ses sites d'appel
+    passent dans un seul commit (29b1), les tests de refus suivent (29b2, 29c, 29d).
+    Arbitré le même jour : le résolveur reçoit aussi le champ, que le refus nomme
+    (`detail.field`, comme en 29a).
+- [x] 29b1. Contrat typé de la résolution d'un module, en un commit atomique sur les six
+  crates : l'amendement 17 de l'ADR 0026 (commit `docs(adr)` à part, avant le code), puis
+  `ModuleHandler::plan` reçoit `resolve: &dyn Fn(Ref, ObjectKind, &str) -> Option<Uuid>`
+  (référence, type attendu, champ) ; chaque `Ref::Id` qui la traverse devient une
+  `Designation` du contrôle de la 29a (même règle, même ordre des droits avant les
+  références, INV-63) ; chaque site d'appel de `kartenn-service` (VLAN, groupes de VLAN),
+  `kartenn-store-pg`, `kartenn-machines`, `kartenn-kube`, `kartenn-flow`,
+  `kartenn-policy` et des modules de test donne son type et son champ ; jeux de données
+  réparés là où le contrôle les refuse désormais, chacun avec la raison de sa fausseté,
+  sans affaiblir la règle. Aucun nouveau test de refus par module (29b2, 29c, 29d) —
+  REQ-002-12 (amendée) — verify : `k-check` complet
+  où : `crates/kartenn-service/src/module.rs` (`ModuleHandler::plan`, vers 525),
+  `pipeline.rs` (`plan`, vers 1393 ; `Designation`, vers 1127), `vlan.rs` (398-580),
+  `crates/kartenn-store-pg/src/vlan.rs` (vers 770), `crates/kartenn-machines/src/handler.rs`,
+  `crates/kartenn-kube/src/handler.rs` (`reference`, vers 226), `settings.rs`,
+  `crates/kartenn-flow/src/handler.rs`, `crates/kartenn-policy/src/handler.rs`,
+  `matrix.rs`, `objects.rs` (`Fields`), `infer.rs`, `verdict.rs` ; modules de test
+  (`kartenn-service`, `kartenn-rest`, `kartenn-server`, `kartenn-machines` sous
+  `tests/it/`) ; ADR 0026
+  dépend de : 29a
+  - fait le 2026-11-14 : amendement 17 de l'ADR 0026 ; alias `module::Resolve` ; dans
+    `pipeline::plan`, chaque `Ref::Id` que résout un module devient une `Designation`
+    (champ en `Cow`, le chemin JSON du corps) lue par `check_designations` comme celles du
+    noyau ; types et champs donnés partout : VLAN et groupes du cœur (`anchor.entity`,
+    `anchor.site`, `anchor.domain`, `owner`, `group`, `id`), `machines` (propriétaire,
+    site, `host.machine`, `host.cluster`, `member_of`, `machine`, `interface`,
+    `address`, `vlan.access`, `vlan.native`, `vlan.tagged[]`, `id`), `kube` (domaines,
+    préfixes `pod_containers[]`/`service_networks[]`, `machines_cluster`, `machine`,
+    propriétaire, site, grappe, `id` et `namespace` des paramètres), `flow` (extrémités
+    `source.id`/`destination.id` par leur type, service `policy.service`, entité, flux),
+    `policy` (`Fields::object`/`objects` avec le type de chaque champ, axe, matrice,
+    règles d'inférence), modules de test. Jeu de données : aucun refusé ; une attente
+    changée, `machines::closed_vlan_refused` (un VLAN clos ou inconnu : la règle attendue
+    passe de `machines.vlan.mode` à `core.reference.unknown`, le refus arrivant désormais
+    avant le module, comme les six tests changés de la 29a)
+  - choix : le groupe du connecteur d'une grappe `kube` (`connector_group`) est un groupe
+    du RBAC, pas un `ObjectKind` : hors de `resolve`, lu par son identifiant, une référence
+    locale refusée (aucune opération n'en définit sous un nom local) et jugé comme avant
+    par `kube.cluster.connector_group` ; une désignation répétée (comparaison d'une
+    extrémité inchangée dans `flow.update`) est relevée comme les autres
+  - reste : l'exemption de `created` pour l'objet d'une mise à jour ou d'une clôture
+    (29b2) ; tests de refus par module (29b2, 29c, 29d)
+- [ ] 29b2. Références des VLAN et groupes de VLAN du cœur et des modules de test, et
+  objet écrit par un plan : seul un plan qui crée (`module_plan.creates`) met son objet
+  dans `created` ; une mise à jour ou une clôture désigne un objet en vigueur, l'exemption
+  d'une période prolongée ne valant que pour les opérations du noyau qu'ajoute ce même plan
+  — REQ-002-12 (amendée) — verify : test rouge d'abord (une opération du noyau de la même
+  requête qui désigne l'objet d'une mise à jour de module, cet objet inconnu : 422) ; un
+  groupe de VLAN ancré sur un identifiant inconnu ou d'un autre type, un VLAN d'un groupe
+  inconnu : 422 `core.reference.unknown` ; test qui parcourt les types d'opérations des
+  modules du build ; un test des droits avant les références (INV-63) pour une opération
+  de module ; `k-check`
+  où : `crates/kartenn-service/src/pipeline.rs` (`plan`, vers 1393-1404),
+  `tests/it/reference_integrity.rs`, `tests/it/rbac.rs`
+  (`no_right_reaches_through_an_unknown_domain`), `tests/it/support/dummy_module.rs`,
+  `kit_module.rs`
+  dépend de : 29b1
 - [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
-  machine ou grappe, `member_of`, machine, interface, adresse) — contrat de la 29b —
-  REQ-002-12 (amendée) — verify : une
+  machine ou grappe, `member_of`, machine, interface, adresse), typées par la 29b1 : tests
+  de refus et cas particuliers — REQ-002-12 (amendée) — verify : une
   interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
   `core.reference.unknown` ; `k-check -p kartenn-machines`
   où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
   `crates/kartenn-machines/tests/it/machines.rs`
-  dépend de : 29b
-- [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`
-  — contrat de la 29b — REQ-002-12 (amendée) —
+  dépend de : 29b1
+- [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`,
+  typées par la 29b1 : tests de refus et cas particuliers (champs de `Fields` dans
+  `kartenn-policy`) — REQ-002-12 (amendée) —
   verify : une référence inconnue par module : 422 `core.reference.unknown` ; `k-check`
   où : `crates/kartenn-kube/src/handler.rs`, `settings.rs` ;
   `crates/kartenn-flow/src/handler.rs` ; `crates/kartenn-policy/src/handler.rs`,
-  `matrix.rs`, `infer.rs`
-  dépend de : 29b
+  `matrix.rs`, `objects.rs`, `infer.rs`
+  dépend de : 29b1
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en

@@ -1123,14 +1123,15 @@ fn module_provenance_of(by: &Planned, index: usize) -> Result<Option<String>, Vi
 
 /// A reference by identifier of a core operation, as [`plan`] resolves it (REQ-002-12,
 /// amendment of 2026-11-14).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Designation {
     /// The operation of the request it comes from.
     operation: usize,
     /// The own period of a core operation a module operation adds, as in `plan`.
     own: Option<PeriodSpec>,
-    /// The field that designates the object.
-    field: &'static str,
+    /// The field that designates the object: its JSON path in the operation, or in the
+    /// body of a module operation (ADR 0026, amendment 17).
+    field: std::borrow::Cow<'static, str>,
     /// The object.
     id: Uuid,
     /// The kind it must have.
@@ -1358,7 +1359,7 @@ fn plan(
                     Ref::Id(id) => Some(Designation {
                         operation: index,
                         own,
-                        field: r.field,
+                        field: r.field.into(),
                         id,
                         kind: r.kind,
                     }),
@@ -1390,10 +1391,25 @@ fn plan(
                         // Refused by `check_request` already.
                         continue;
                     };
-                    let found = handler.plan(operation, id, &|r| match r {
-                        Ref::Id(id) => Some(id),
+                    // REQ-002-12 (amendment of 2026-11-14, ADR 0026, amendment 17): every
+                    // reference by identifier the module resolves, read with those of the
+                    // core once the locks are held.
+                    let resolved: std::cell::RefCell<Vec<Designation>> =
+                        std::cell::RefCell::default();
+                    let found = handler.plan(operation, id, &|r, kind, field| match r {
+                        Ref::Id(id) => {
+                            resolved.borrow_mut().push(Designation {
+                                operation: index,
+                                own,
+                                field: field.to_owned().into(),
+                                id,
+                                kind,
+                            });
+                            Some(id)
+                        }
                         Ref::Local(n) => ids.get(&n).copied(),
                     });
+                    designated.extend(resolved.into_inner());
                     match found {
                         Ok(module_plan) => {
                             // Created or changed (its period extended, say): the operations
@@ -3754,7 +3770,7 @@ mod tests {
             &self,
             operation: &ModuleOperation,
             object: Uuid,
-            _: &dyn Fn(Ref) -> Option<Uuid>,
+            _: &crate::module::Resolve<'_>,
         ) -> Result<ModulePlan, Violation> {
             let domain: Uuid = serde_json::from_value(operation.body["domain"].clone()).unwrap();
             Ok(ModulePlan {
@@ -3839,7 +3855,7 @@ mod tests {
             &self,
             operation: &ModuleOperation,
             object: Uuid,
-            _: &dyn Fn(Ref) -> Option<Uuid>,
+            _: &crate::module::Resolve<'_>,
         ) -> Result<ModulePlan, Violation> {
             let domain: Uuid = serde_json::from_value(operation.body["domain"].clone()).unwrap();
             let address = operation.body["address"].as_str().unwrap().to_owned();

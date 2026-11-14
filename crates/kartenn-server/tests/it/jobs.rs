@@ -548,7 +548,7 @@ impl kartenn_service::module::ModuleHandler for TickerHandler {
         &self,
         _: &kartenn_service::operations::ModuleOperation,
         _: Uuid,
-        _: &dyn Fn(kartenn_service::operations::Ref) -> Option<Uuid>,
+        _: &kartenn_service::module::Resolve<'_>,
     ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
         unreachable!("the module has no operation")
     }

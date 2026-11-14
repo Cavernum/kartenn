@@ -25,7 +25,7 @@ use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffSection, Edge, Findings, ModuleHandler,
-    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference, Shared,
+    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference, Resolve, Shared,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -227,22 +227,24 @@ fn completed(body: &Map<String, Value>) -> Completed {
 fn reference(
     value: &Value,
     field: &str,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    kind: ObjectKind,
+    resolve: &Resolve<'_>,
 ) -> Result<Uuid, Violation> {
     let r: Ref = decode(value.clone(), field)?;
-    resolve(r).ok_or_else(|| invalid(format!("{field}: unknown object")))
+    resolve(r, kind, field).ok_or_else(|| invalid(format!("{field}: unknown object")))
 }
 
 /// The reference `value` resolved, `null` for none.
 fn optional_reference(
     value: &Value,
     field: &str,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    kind: ObjectKind,
+    resolve: &Resolve<'_>,
 ) -> Result<Option<Uuid>, Violation> {
     if value.is_null() {
         Ok(None)
     } else {
-        reference(value, field, resolve).map(Some)
+        reference(value, field, kind, resolve).map(Some)
     }
 }
 
@@ -250,14 +252,34 @@ fn optional_reference(
 fn references(
     value: &Value,
     field: &str,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    kind: ObjectKind,
+    resolve: &Resolve<'_>,
 ) -> Result<Vec<Uuid>, Violation> {
     let refs: Vec<Ref> = decode(value.clone(), field)?;
+    let path = format!("{field}[]");
     let ids: BTreeSet<Uuid> = refs
         .into_iter()
-        .map(|r| resolve(r).ok_or_else(|| invalid(format!("{field}: unknown object"))))
+        .map(|r| resolve(r, kind, &path).ok_or_else(|| invalid(format!("{field}: unknown object"))))
         .collect::<Result<_, _>>()?;
     Ok(ids.into_iter().collect())
+}
+
+/// The kind of the objects of the qualified type `name`.
+fn of(name: &str) -> ObjectKind {
+    ObjectKind::Module(ModuleKind::parse(name).expect("a valid kind"))
+}
+
+/// The group of the connector of a cluster (spec 025), `null` for none: a group of the
+/// RBAC, not an object, named by its identifier and judged by `kube.cluster.connector_group`
+/// once written (no operation of a changeset defines one under a local name).
+fn group_reference(value: &Value, field: &str) -> Result<Option<Uuid>, Violation> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    match decode::<Ref>(value.clone(), field)? {
+        Ref::Id(id) => Ok(Some(id)),
+        Ref::Local(_) => Err(invalid(format!("{field}: a group by its identifier"))),
+    }
 }
 
 /// An integer of `field` within `bounds`.
@@ -296,13 +318,11 @@ enum Site {
 
 impl Site {
     /// The site of `body`.
-    fn of(
-        body: &Map<String, Value>,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
-    ) -> Result<Self, Violation> {
+    fn of(body: &Map<String, Value>, resolve: &Resolve<'_>) -> Result<Self, Violation> {
         Ok(match body.get("site") {
             None => Self::Keep,
-            Some(v) => optional_reference(v, "site", resolve)?.map_or(Self::Remove, Self::Set),
+            Some(v) => optional_reference(v, "site", ObjectKind::Site, resolve)?
+                .map_or(Self::Remove, Self::Set),
         })
     }
 }
@@ -370,10 +390,7 @@ const CLUSTER_FIELDS: &[&str] = &[
 ];
 
 /// The columns of the cluster fields of `body` (REQ-019-5), and the rights they need.
-fn cluster_columns(
-    body: &Map<String, Value>,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
-) -> Result<Columns, Violation> {
+fn cluster_columns(body: &Map<String, Value>, resolve: &Resolve<'_>) -> Result<Columns, Violation> {
     let mut columns = Map::new();
     let mut cited = Vec::new();
     for (field, value) in body {
@@ -386,7 +403,7 @@ fn cluster_columns(
                 if value.is_null() {
                     return Err(invalid(format!("{field}: a cluster keeps it")));
                 }
-                let domain = reference(value, field, resolve)?;
+                let domain = reference(value, field, ObjectKind::Domain, resolve)?;
                 cited.push(("core.domain.read", domain));
                 let column = if field == "pod_domain" {
                     "pod_domain_id"
@@ -396,12 +413,12 @@ fn cluster_columns(
                 (column, json!(domain))
             }
             "external_domain" => {
-                let domain = optional_reference(value, field, resolve)?;
+                let domain = optional_reference(value, field, ObjectKind::Domain, resolve)?;
                 cited.extend(domain.map(|d| ("core.domain.read", d)));
                 ("external_domain_id", json!(domain))
             }
             "pod_containers" | "service_networks" => {
-                let ranges = references(value, field, resolve)?;
+                let ranges = references(value, field, ObjectKind::Prefix, resolve)?;
                 cited.extend(ranges.iter().map(|r| ("core.prefix.read", *r)));
                 let column = if field == "pod_containers" {
                     "pod_container_ids"
@@ -411,14 +428,11 @@ fn cluster_columns(
                 (column, json!(ranges))
             }
             "machines_cluster" => {
-                let cluster = optional_reference(value, field, resolve)?;
+                let cluster = optional_reference(value, field, of("machines.cluster"), resolve)?;
                 cited.extend(cluster.map(|c| ("machines.cluster.read", c)));
                 ("machines_cluster_id", json!(cluster))
             }
-            "connector_group" => (
-                "connector_group_id",
-                json!(optional_reference(value, field, resolve)?),
-            ),
+            "connector_group" => ("connector_group_id", json!(group_reference(value, field)?)),
             "retention_days" => ("retention_days", json!(bounded(value, field, (1, 400))?)),
             "batch_window_seconds" => (
                 "batch_window_seconds",
@@ -1127,7 +1141,7 @@ struct NodeAddress {
 fn mirror_columns(
     kind: ModuleKind,
     body: &Map<String, Value>,
-    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    resolve: &Resolve<'_>,
 ) -> Result<Columns, Violation> {
     let fields = fields_of(kind);
     let mut columns = Map::new();
@@ -1162,7 +1176,7 @@ fn mirror_columns(
                 ("zone", json!(zone))
             }
             "machine" => {
-                let machine = optional_reference(value, field, resolve)?;
+                let machine = optional_reference(value, field, of(MACHINE), resolve)?;
                 cited.extend(machine.map(|m| ("machines.read", m)));
                 ("machine_id", json!(machine))
             }
@@ -1489,7 +1503,7 @@ impl Handler {
     fn plan_create_cluster(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(
             operation,
@@ -1507,7 +1521,7 @@ impl Handler {
         row.insert("id".into(), json!(object));
         let owner = body
             .get("owner")
-            .map(|v| reference(v, "owner", resolve))
+            .map(|v| reference(v, "owner", ObjectKind::Entity, resolve))
             .transpose()?;
         let site = Site::of(&body, resolve)?;
         Ok(ModulePlan {
@@ -1523,7 +1537,7 @@ impl Handler {
 
     fn plan_update_cluster(
         operation: &ModuleOperation,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(
             operation,
@@ -1533,13 +1547,14 @@ impl Handler {
         let cluster = reference(
             body.get("id").ok_or_else(|| invalid("id: required"))?,
             "id",
+            ObjectKind::Module(cluster_kind()),
             resolve,
         )?;
         let (patch, cited) = cluster_columns(&body, resolve)?;
         let owner = match body.get("owner") {
             None => None,
             Some(Value::Null) => return Err(invalid("owner: a cluster keeps an owner")),
-            Some(v) => Some(reference(v, "owner", resolve)?),
+            Some(v) => Some(reference(v, "owner", ObjectKind::Entity, resolve)?),
         };
         let site = Site::of(&body, resolve)?;
         Ok(ModulePlan {
@@ -1560,7 +1575,7 @@ impl Handler {
     fn plan_sync(
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         let body = body(
             operation,
@@ -1583,6 +1598,7 @@ impl Handler {
             body.get("cluster")
                 .ok_or_else(|| invalid("cluster: required"))?,
             "cluster",
+            ObjectKind::Module(cluster_kind()),
             resolve,
         )?;
         let domain = completed
@@ -2104,7 +2120,7 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),

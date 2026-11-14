@@ -181,8 +181,9 @@ impl ModuleHandler for Handler {
         &self,
         operation: &ModuleOperation,
         object: Uuid,
-        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
+        use kartenn_service::ObjectKind;
         let invalid = |message: String| Violation::new(&INVALID, message);
         let create: Create =
             serde_json::from_value(serde_json::Value::Object(operation.body.clone()))
@@ -192,14 +193,15 @@ impl ModuleHandler for Handler {
             "create_group" => "kit.group",
             _ => "kit.item",
         };
-        let lookup = |r: Option<Ref>, what: &str| match r {
-            Some(r) => resolve(r)
+        let lookup = |r: Option<Ref>, expected: ObjectKind, what: &str| match r {
+            Some(r) => resolve(r, expected, what)
                 .map(Some)
                 .ok_or_else(|| invalid(format!("unknown {what}"))),
             None => Ok(None),
         };
-        let parent = lookup(create.parent, "parent")?;
-        let domain = lookup(create.domain, "domain")?;
+        let group = ObjectKind::Module(ModuleKind::parse("kit.group").expect("a valid kind"));
+        let parent = lookup(create.parent, group, "parent")?;
+        let domain = lookup(create.domain, ObjectKind::Domain, "domain")?;
         Ok(ModulePlan {
             kind: ModuleKind::parse(kind).expect("a valid kind"),
             object,

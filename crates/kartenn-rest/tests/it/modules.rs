@@ -26,7 +26,7 @@ use kartenn_service::module::{
     BoxFuture, Edge, EdgeType, Module, ModuleHandler, ModulePlan, ModuleRead, ModuleRegistry,
     ModuleTx, ObjectType,
 };
-use kartenn_service::operations::{ModuleOperation, Ref};
+use kartenn_service::operations::ModuleOperation;
 use kartenn_service::port::{StoreError, WriteError};
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
@@ -65,7 +65,7 @@ impl ModuleHandler for Kit {
         &self,
         _: &ModuleOperation,
         _: Uuid,
-        _: &dyn Fn(Ref) -> Option<Uuid>,
+        _: &kartenn_service::module::Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
         unreachable!("the test module has no operation")
     }

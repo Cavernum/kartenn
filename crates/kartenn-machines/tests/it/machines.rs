@@ -1006,13 +1006,15 @@ async fn closed_vlan_refused(pool: PgPool) {
         cascade: false,
     }])
     .await;
+    // A VLAN that is no longer in force is not one (REQ-002-12, amendment of 2026-11-14):
+    // the reference is refused before the module reads it.
     env.refused(
         vec![interface(
             m,
             0,
             json!({"mode": "access", "access": {"id": a}}),
         )],
-        "machines.vlan.mode",
+        "core.reference.unknown",
     )
     .await;
     env.refused(
@@ -1021,7 +1023,7 @@ async fn closed_vlan_refused(pool: PgPool) {
             0,
             json!({"mode": "trunk", "tagged": [{"id": b}, {"id": a}]}),
         )],
-        "machines.vlan.mode",
+        "core.reference.unknown",
     )
     .await;
     // An unknown VLAN neither.
@@ -1031,7 +1033,7 @@ async fn closed_vlan_refused(pool: PgPool) {
             0,
             json!({"mode": "access", "access": {"id": Uuid::now_v7()}}),
         )],
-        "machines.vlan.mode",
+        "core.reference.unknown",
     )
     .await;
     env.applied(vec![interface(
@@ -2090,7 +2092,7 @@ impl kartenn_service::module::ModuleHandler for ReaderHandler {
         &self,
         operation: &kartenn_service::operations::ModuleOperation,
         _object: Uuid,
-        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        _resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
         panic!("no operation: {operation:?}")
     }
@@ -2375,7 +2377,7 @@ impl kartenn_service::module::ModuleHandler for ProbeHandler {
         &self,
         operation: &kartenn_service::operations::ModuleOperation,
         _object: Uuid,
-        _resolve: &dyn Fn(Ref) -> Option<Uuid>,
+        _resolve: &kartenn_service::module::Resolve<'_>,
     ) -> Result<kartenn_service::module::ModulePlan, kartenn_core::rules::Violation> {
         panic!("no operation: {operation:?}")
     }
