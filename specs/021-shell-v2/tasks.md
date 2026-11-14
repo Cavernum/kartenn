@@ -6788,6 +6788,30 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `views/data.ts` réexporte `rowsOf`, `carrierOf`, `carriedRead` de `views/carried.ts` :
     une trentaine d'importeurs à pointer sur `carried.ts`, dont `admin/*` que la 21e
     modifie en ce moment, laissés pour une tâche hors de ces branches.
+- [ ] 22q. Relevé de la seconde passe réduite et ce qu'elle laisse (session principale, le
+  2026-11-14, `bench-web small`, main 24622281, seule sur la machine, les quatre verrous
+  libres, charge 1,4) ; entre parenthèses la première passe (main e86f6af1) :
+  shell initial 296,1 Ko (306,3 ; budget 300) tenu ; navigation en cache, dix préchargées,
+  p75 115,5 ms, médiane 112,2, pire 364,1 (126,5 ; 120,5 ; 313,0 ; budget 100) ; page de
+  100 lignes, les vingt pages dessinées, p95 257,2 ms, médiane 106,2, pire 401,8 (test en
+  échec avant son p95 ; budget 100) ; arbre de 10⁴ lignes, 28,53 % de trames perdues et
+  1 tâche longue de 54,0 ms (28,25 % ; 1 de 51,0 ms ; budget 2 % et 0) : les lignes en
+  composants de la 22e-b n'ont rien gagné sur la vraie vue ; fenêtre `bench-a40` écrite,
+  31,38 % et 3 tâches longues, la plus longue 362,0 ms, 18 changements vus pour 19 écrits,
+  0 lecture `/children` ; **flèche bas dans une grille, p75 104,9 ms, médiane 65,1, pire
+  114,6 (89,1 ; budget 100) : budget tenu à la première passe, perdu depuis** — à trouver
+  parmi ce qui est entré entre e86f6af1 et 24622281 (mesure différée des lignes et
+  `rowKeyList` de la 22f, porte lue par cellule et `rankedRefusal` des 21c et 21h, fente
+  `extension` de la 11o2) ; les autres mesures tenues (premier écran 757,5 ms, INP des cinq
+  gestes de 40 à 96 ms, flèche dans l'arbre 15,6 ms, tas 25,5 Mo) — verify : la cause de
+  la flèche dans une grille nommée et corrigée, Vitest qui borne le travail d'un pas de
+  flèche ; passe réduite par la session principale, p75 ≤ 100 ms
+  - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (pas de flèche, `rowKeyList`,
+    `isEditing`, `tameWidgets`), `internal/virtualRows.ts` (`measure`, `commit`),
+    `web/v2/shell/src/views/edit/{inline,fields}.ts` (`editability`, raison de cellule),
+    `web/v2/e2e/budgets/budgets.spec.ts` (« Arrow down in a grid »)
+  - dépend de : 22f ; à faire avec la 22o-b (lignes de la grille en composants), qui vise
+    le même rendu
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
