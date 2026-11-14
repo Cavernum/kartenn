@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type Request,
+} from "@playwright/test";
 import { benchPage, framed, heap, quantile, settle, timed } from "../bench/measure.ts";
 import { BASE_URL, STATE } from "../fixtures/env.ts";
 import { loginIn } from "../fixtures/journeys.ts";
@@ -293,6 +300,32 @@ const shiftsBetween = (page: Page, from: number, to: number) =>
         .reduce((sum, s) => sum + s.value, 0),
     [from, to] as const,
   );
+
+/** Under the 30 s an object read stays fresh in the cache (`FRESHNESS.object`, @kartenn/sdk). */
+const FRESH = 25_000;
+
+/**
+ * Whether a path of the API is fresh in the cache of the page, whichever screen read it:
+ * answered (2xx or 304) within `FRESH` ms, and no read of it under way. By path: the
+ * navigations measured read at the present, without dates.
+ */
+function freshReads(page: Page): (path: string) => boolean {
+  const pending = new Map<string, number>();
+  const answered = new Map<string, number>();
+  const pathOf = (request: Request) => new URL(request.url()).pathname;
+  const add = (path: string, n: number) => pending.set(path, (pending.get(path) ?? 0) + n);
+  page.on("request", (request) => add(pathOf(request), 1));
+  page.on("requestfailed", (request) => add(pathOf(request), -1));
+  page.on("requestfinished", (request) => {
+    // Its status known before it leaves the reads under way.
+    void request.response().then((response) => {
+      if (response && response.status() < 400) answered.set(pathOf(request), Date.now());
+      add(pathOf(request), -1);
+    });
+  });
+  return (path) =>
+    (pending.get(path) ?? 0) === 0 && Date.now() - (answered.get(path) ?? -Infinity) < FRESH;
+}
 
 test("first useful screen within 2 s of the callback, without shift; a slow plugin set aside", async ({
   page,
@@ -635,6 +668,8 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
   const domain = await benchDomain(page);
   await slowDown(cdp);
   const list = `/prefixes?domain=${encodeURIComponent(domain)}`;
+  // From the first screen of the list: its cells read before any hover.
+  const fresh = freshReads(page);
   await page.goto(list);
   const grid = page.getByRole("grid", { name: "Préfixes" });
   const records = grid.locator("[role='gridcell'][data-column='value'] a");
@@ -644,19 +679,23 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
   const navigationShifts = async (i: number, witness = false) => {
     const link = records.nth(i);
     await link.scrollIntoViewIfNeeded();
-    // Its reads on intent (60 ms of hover), awaited before the click: without them, the
-    // navigation is not one in cache, and the measure fails.
-    const read = page
-      .waitForResponse((r) => /\/v1\/prefixes\/[0-9a-f-]+\/properties/.test(r.url()), {
-        timeout: 10_000,
-      })
-      .then(() => true)
-      .catch(() => false);
+    const id = new URL((await link.getAttribute("href"))!, BASE_URL).pathname.split("/").at(-1);
+    // The reads of its route (`meta.queries`): the record and its properties. The hover
+    // (60 ms) reads what the cache lacks: the VLAN column of the list has already read the
+    // properties of a network in view (REQ-026-6), the hover then reads the record alone
+    // (task 021-22g). Both fresh before the click, or the navigation is not one in cache.
+    const reads = [`/v1/prefixes/${id}`, `/v1/prefixes/${id}/properties`];
     // Two moves within the link: the intent starts with a `pointermove` (021-7a), which a
     // move to where the pointer already is would not send (the link scrolled under it).
     await link.hover({ position: { x: 2, y: 2 } });
     await link.hover();
-    const prefetched = await read;
+    const prefetched = await expect
+      .poll(() => reads.every(fresh), { timeout: 10_000 })
+      .toBe(true)
+      .then(
+        () => true,
+        () => false,
+      );
     if (!prefetched) console.log(`FAIL navigation in cache: record ${i} not prefetched on hover`);
     expect.soft(prefetched, `record ${i} prefetched on hover`).toBe(true);
     await settle(page);
@@ -681,18 +720,29 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
     const shift = await shiftsBetween(page, view, view + SHIFT_WINDOW);
     await page.goBack();
     await expect(records.nth(i + 1)).toBeVisible();
-    return { delay, shift };
+    return { delay, shift, prefetched };
   };
   const delays: number[] = [];
+  const missed: string[] = [];
   const shifts: number[] = [];
   for (let i = 0; i < CACHED; i++) {
-    const { delay, shift } = await navigationShifts(i);
-    delays.push(delay);
+    const { delay, shift, prefetched } = await navigationShifts(i);
+    if (prefetched) delays.push(delay);
+    else missed.push(`record ${i} ${delay.toFixed(1)} ms`);
     shifts.push(shift);
   }
-  // The 75th percentile, the worst printed below (A35).
-  check(`navigation in cache to k:view, p75 of ${CACHED}`, quantile(delays, 0.75), 100, "ms");
-  spread("navigation in cache", delays, "ms");
+  // The 75th percentile of the navigations in cache alone, the worst printed below (A35);
+  // one not prefetched waits for its reads, is no navigation in cache and is printed apart.
+  check(
+    `navigation in cache to k:view, p75 of ${delays.length} prefetched`,
+    delays.length > 0 ? quantile(delays, 0.75) : Infinity,
+    100,
+    "ms",
+  );
+  if (delays.length > 0) spread("navigation in cache", delays, "ms");
+  console.log(
+    `INFO navigations not prefetched, out of the p75: ${missed.length > 0 ? missed.join(", ") : "none"}`,
+  );
   check(`CLS of a navigation, worst of ${CACHED}`, Math.max(...shifts), 0.05, "");
   spread("CLS of a navigation", shifts, "");
   // The method sees a shift provoked on purpose, which a measure of the shifts without a

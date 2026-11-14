@@ -366,6 +366,54 @@ test("a record hovered then opened shows without a skeleton (its reads prefetche
   expect(await main.locator(".k-skeleton-fill, [aria-busy='true']").count()).toBe(0);
 });
 
+// Task 021-22g: the VLAN column of the list of prefixes (REQ-026-6) reads the properties of
+// each network in view, under the key of the record's route; hovered, a network reads its
+// record alone, and opens in cache. A container carries no VLAN: its hover reads both.
+test("a network of the list hovered reads its record alone, its properties read by its row", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  const reads: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith("/v1/prefixes/")) reads.push(path);
+  });
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  const idOf = async (name: string) => {
+    const href = await grid.getByRole("link", { name, exact: true }).getAttribute("href");
+    return href!.split("/").at(-1)!;
+  };
+  await page.goto(`/prefixes?domain=${DATA.domain}`);
+  const [net, container] = [await idOf(DATA.prefix), await idOf(DATA.wide.prefix)];
+  // Before any hover: the properties of the network read by its row, none of the container.
+  await expect.poll(() => reads).toContain(`/v1/prefixes/${net}/properties`);
+  expect(reads).not.toContain(`/v1/prefixes/${container}/properties`);
+
+  /** The reads of the prefix `id` that the hover of `name` sends, its record answered. */
+  const hovered = async (name: string, id: string) => {
+    const from = reads.length;
+    const record = page.waitForResponse((r) => new URL(r.url()).pathname === `/v1/prefixes/${id}`);
+    await grid.getByRole("link", { name, exact: true }).hover();
+    await record;
+    // The VLAN cells of the other rows in view may still be reading theirs.
+    return reads.slice(from).filter((path) => path.startsWith(`/v1/prefixes/${id}`));
+  };
+  // The reads of a target go out together (`prefetch`): the record answered, none is left.
+  expect(await hovered(DATA.wide.prefix, container)).toEqual(
+    expect.arrayContaining([`/v1/prefixes/${container}`, `/v1/prefixes/${container}/properties`]),
+  );
+  expect(await hovered(DATA.prefix, net)).toEqual([`/v1/prefixes/${net}`]);
+  const from = reads.length;
+  await grid.getByRole("link", { name: DATA.prefix, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/prefixes/${net}$`));
+  await expect(page.getByRole("heading", { level: 1, name: titled(DATA.prefix) })).toBeVisible();
+  // In cache: the screen reads neither the record nor its properties again (its panels
+  // beside, the occupancy and the plugins', are no reads of its route).
+  const again = [`/v1/prefixes/${net}`, `/v1/prefixes/${net}/properties`];
+  expect(reads.slice(from).filter((path) => again.includes(path))).toEqual([]);
+});
+
 // « Clore… » of a record (task 11g, 021/A31): the closure in the right panel, its simulation
 // said first; to the draft by Ctrl+Enter, then applied from the draft; refused by a rule, the
 // code said before and after it is sent. Each test closes in a domain of its own (RFC 5737).
