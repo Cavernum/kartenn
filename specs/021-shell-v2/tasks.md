@@ -7160,6 +7160,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     ligne) ; l'arbre de 10⁴ lignes, 23,49 % de trames perdues et 1 tâche longue de 56 ms
     (budget 2 % et 0 ; 22e, dont la cause nommée par la 22e-c, les SVG des lignes et le
     survol, attend un arbitrage B1, B2, B3 ou C).
+- [ ] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
+  11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
+  échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
+  premier écran — d'abord l'inventaire (le premier lot module par module, en octets gzip,
+  classé par poids, sans dépendance nouvelle), puis sortir à la demande ce que le premier
+  écran n'utilise pas (modèle : la 22n) ; le test du budget imprime la marge et échoue avec
+  les cinq plus gros modules — verify : `test/build.test.ts` et
+  `web/v2/shell/scripts/shell-size.ts` ≤ 292 Ko ; `k-web2-check --base main`,
+  `k-web2-e2e` ; passe filtrée `bench-web small` (premier écran, navigation en cache) par
+  la session principale, verrou `bench` libre
+  - où : `web/v2/shell/vite.config.ts` (`sharedModules`, groupes de `codeSplitting`),
+    `web/v2/shell/src/main.ts` et ses imports statiques, `src/shared/ui.ts` (entrée de
+    l'import map), `src/frame/{ShellFrame.vue,routes.ts}`, `test/build.test.ts`
+    (« weighs its initial shell within the budget ») ; sans toucher
+    `ui/src/components/DataGrid/*`, `shell/src/views/propertyColumns.ts`,
+    `shell/src/data/queries.ts`, `shell/src/views/edit/inline.ts`, `sdk/src/data/cache.ts`,
+    `sdk/src/api/problem.ts` (trois tâches en cours)
+  - dépend de : 22n
 - [x] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
