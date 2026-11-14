@@ -6994,6 +6994,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     relève depuis la 11p9 le quota de lecture (`[http.rate] read`, 1 000/s, 4 000 d'un
     coup) ; les passes de banc d'avant ce commit, ces deux-ci comprises, tournaient au quota
     par défaut (50/s, 200, REQ-006-29) et ne sont pas strictement comparables aux suivantes.
+  - troisième passe réduite, de référence (session principale, le 2026-11-14, `bench-web
+    small`, main 0d968c65 après les 22o-b, 11p9 et 22e-c, seule sur la machine, les quatre
+    verrous libres, charge 1,3 ; aucun 429 ni 503 au journal) : shell initial 297,1 Ko
+    tenu ; premier écran 697 ms ; navigation en cache, p75 91,2 ms, médiane 82,7, pire
+    151,6, tenu : les 22g, 22o et 22o-b closes ; flèche bas dans une grille, p75 27,0 ms,
+    médiane 16,4, tenu : la 22q close, l'écart de la deuxième passe ne tenait donc pas à
+    une mise en page ajoutée ce jour-là ; flèche dans l'arbre 13,1 ms ; INP des cinq
+    gestes 40 à 96 ms ; tas 26,6 Mo ; A40 tenu (19 vus pour 19 écrits, aucune lecture de
+    `/children`). Restent en échec : la page de 100 lignes, p95 256,7 ms, médiane 98,5,
+    pire 361,2 (budget 100 ; 22f, et sans doute 11p10 : une lecture de propriétés par
+    ligne) ; l'arbre de 10⁴ lignes, 23,49 % de trames perdues et 1 tâche longue de 56 ms
+    (budget 2 % et 0 ; 22e, dont la cause nommée par la 22e-c, les SVG des lignes et le
+    survol, attend un arbitrage B1, B2, B3 ou C).
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
