@@ -6,7 +6,7 @@ import { useInfiniteQuery, type UseInfiniteQueryResult } from "../data/query.ts"
 import { useNextPage, type ListWindow } from "../prefetch/nextPage.ts";
 import { useTime } from "../time/index.ts";
 import { problemSlug } from "../problems/index.ts";
-import { rowsOf, useDeclarations, useFilterWords } from "./data.ts";
+import { carrierOf, rowsOf, useDeclarations, useFilterWords } from "./data.ts";
 import {
   filtersOfQuery,
   listFilterModel,
@@ -101,7 +101,8 @@ export function useFilteredList<T>(
   const route = useRoute();
   const router = useRouter();
   const time = useTime();
-  const declared = useDeclarations();
+  // The declarations of the list's kind alone (`carrier`): those its property filters read.
+  const declared = useDeclarations(() => carrierOf(path()));
   const { declarations } = declared;
   const shared = useFilterWords(declarations);
   const words: FilterWords = options.field
@@ -113,7 +114,7 @@ export function useFilteredList<T>(
   });
 
   // The property filters of the URL that no declaration read types (REQ-021-18): the list
-  // waits for every page of the declarations; a key still unknown then (or the
+  // waits for every page of the declarations of its kind; a key still unknown then (or the
   // declarations unread) is a chip « non reconnu » and an error state — never a list read
   // without the filter the URL holds.
   const untyped = computed(() =>

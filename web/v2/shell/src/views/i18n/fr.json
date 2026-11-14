@@ -366,9 +366,6 @@
       "valuesError": "Les valeurs n'ont pas pu être lues.",
       "noValues": "Aucune valeur dans la liste.",
       "none": "Aucune propriété déclarée",
-      "countPartial": "{n} lue, d'autres restent | {n} lues, d'autres restent",
-      "partialTitle": "Liste incomplète",
-      "partial": "Une partie des propriétés déclarées n'a pas été lue (plafond de pages atteint, ou page refusée) ; les filtres des listes ne connaissent que celles-ci.",
       "error": "Les propriétés déclarées n'ont pas pu être lues."
     }
   },

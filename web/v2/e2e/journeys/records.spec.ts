@@ -272,6 +272,18 @@ test("prefixes filtered by their site and their owner, chosen among the suggesti
   });
   expect(made.status, JSON.stringify(made.body)).toBe(201);
 
+  // The declarations the screen reads from here on (task 021-11p7): those of the prefixes
+  // (`carrier=prefix`), never the whole catalog.
+  const declarationReads = (target: Page) => {
+    const seen: URL[] = [];
+    target.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/v1/property-declarations") seen.push(url);
+    });
+    return seen;
+  };
+  const read = declarationReads(page);
+
   // Properties filter the objects of one domain (`kartenn-rest`, `filter::parse`).
   await page.goto(`/prefixes?domain=${tag}`);
   const grid = page.getByRole("grid", { name: "Préfixes" });
@@ -300,6 +312,14 @@ test("prefixes filtered by their site and their owner, chosen among the suggesti
   }
   const chips = await bar.getByRole("button").allTextContents();
   await expectAccessible(page);
+  /** Each declaration read of a page filtered by `carrier=prefix`, its cursor apart. */
+  const byPrefix = (seen: readonly URL[]) => {
+    expect(seen.length).toBeGreaterThan(0);
+    for (const url of seen) {
+      if (!url.searchParams.has("cursor")) expect(url.search).toBe("?carrier=prefix");
+    }
+  };
+  byPrefix(read);
 
   // The link, opened by another session: the same chips, named by their objects, the
   // same rows.
@@ -308,6 +328,7 @@ test("prefixes filtered by their site and their owner, chosen among the suggesti
   try {
     const second = await other.newPage();
     await loginIn(second, "alice");
+    const readAgain = declarationReads(second);
     await second.goto(link);
     const again = second.getByRole("grid", { name: "Préfixes" });
     await expect(again.getByRole("link", { name: "198.51.100.0/25", exact: true })).toBeVisible();
@@ -317,6 +338,7 @@ test("prefixes filtered by their site and their owner, chosen among the suggesti
       await expect(bar2.getByRole("button", { name, exact: true })).toBeVisible();
     }
     expect(await bar2.getByRole("button").allTextContents()).toEqual(chips);
+    byPrefix(readAgain);
   } finally {
     await other.close();
   }

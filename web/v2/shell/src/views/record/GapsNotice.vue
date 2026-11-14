@@ -17,16 +17,11 @@ import { useInfiniteQuery } from "../../data/query.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
 import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
-import { rowsOf, useKeyLabel } from "../data.ts";
-import type { DeclarationOfModel } from "../filters.ts";
+import { rowsOf, useDeclarationsOf, useKeyLabel } from "../data.ts";
 import { gapDetail as detailOf, noValue as empty, type Gap } from "../anomalies/gap.ts";
 import PropertyValue from "./PropertyValue.vue";
 
-const props = defineProps<{
-  id: string;
-  /** The declared properties, read by the tab: the type of each value. */
-  declarations: readonly DeclarationOfModel[];
-}>();
+const props = defineProps<{ id: string }>();
 const { t } = useI18n();
 const time = useTime();
 const keyLabel = useKeyLabel();
@@ -42,10 +37,14 @@ const failed = computed(
   () => present.value && list.isError.value && !list.isFetchNextPageError.value,
 );
 const nextFailed = computed(() => present.value && list.isFetchNextPageError.value);
-const byKey = computed(() => new Map(props.declarations.map((d) => [d.key, d])));
+// The declaration of each property gapped, read by its key: an heir that does not carry
+// it may lack an inherited one (003), which no read by kind would find.
+const declared = useDeclarationsOf(() =>
+  gaps.value.flatMap((gap) => (gap.property ? [gap.property] : [])),
+);
 /** What the value of a gap is shown as: its declared type, and the kind a reference targets. */
 const shape = (gap: Gap) => {
-  const declaration = gap.property ? byKey.value.get(gap.property) : undefined;
+  const declaration = declared.of(gap.property);
   const target = declaration?.params?.target;
   return {
     property: gap.property ?? "",

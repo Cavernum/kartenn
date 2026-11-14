@@ -14,9 +14,11 @@
 // container the rows stack, each value and its source on a line of their own.
 import { reads, type components } from "@kartenn/sdk";
 import {
+  Button,
   DataGrid,
   EmptyState,
   IconButton,
+  InlineAlert,
   KeyLabel,
   Popover,
   Stack,
@@ -30,7 +32,7 @@ import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import type { Collection } from "../collections.ts";
-import { useDeclarations, useKeyLabel } from "../data.ts";
+import { useDeclarations, useDeclarationsOf, useKeyLabel } from "../data.ts";
 import EditHint from "../edit/EditHint.vue";
 import { whyWords } from "../edit/inline.ts";
 import {
@@ -60,7 +62,13 @@ const props = defineProps<{
 const { t } = useI18n();
 const time = useTime();
 const keyLabel = useKeyLabel();
-const { declarations } = useDeclarations();
+// The declarations the object's kind carries (`carrier`): those its edits and its drafts
+// name. A value inherited from an object of another kind may be of a property this kind
+// does not carry (003: heirs that are no carriers): read by its key.
+const problems = useProblems();
+const problemLines = problems.lines;
+const carriedRead = useDeclarations(() => props.collection.kind);
+const { declarations, settled } = carriedRead;
 
 const resolved = useQuery(() =>
   reads.sub<Resolved>(props.collection.kind, props.id, "properties", null, {
@@ -92,8 +100,30 @@ const read = computed<PropertyRow[]>(() => {
  * read one's); `null` for a masked key, or a key only the draft adds.
  */
 const originOf = (key: string) => valueOriginOf(resolved.data.value?.data.sources[key]);
+const carried = computed(() => new Map(declarations.value.map((d) => [d.key, d])));
+// Asked once the kind's are read, for the keys they lack only.
+const inherited = useDeclarationsOf(() =>
+  settled.value
+    ? read.value.filter((row) => !row.masked && !carried.value.has(row.key)).map((r) => r.key)
+    : [],
+);
 const declarationOf = (key: string) =>
-  declarations.value.find((d) => d.key === key) as Declared | undefined;
+  (carried.value.get(key) ?? inherited.of(key)) as Declared | undefined;
+/**
+ * Why declarations could not be read, those of the kind or of an inherited key: the values
+ * stay shown, but untyped and without an editor until read again.
+ */
+const declarationsError = computed(() =>
+  carriedRead.failed.value
+    ? carriedRead.error.value
+    : inherited.failed.value
+      ? inherited.error.value
+      : null,
+);
+function rereadDeclarations(): void {
+  if (carriedRead.failed.value) carriedRead.refetch();
+  if (inherited.failed.value) inherited.refetch();
+}
 const targetOf = (key: string) => {
   const target = declarationOf(key)?.params?.target;
   return typeof target === "string" ? target : undefined;
@@ -114,7 +144,7 @@ const edit = recordGrid(
     valueLabel: (key, value) => keyLabel("value", `${key}/${value}`),
     reread: () => void resolved.refetch(),
     t: (key, values) => t(key, values ?? {}),
-    sentence: useProblems().sentence,
+    sentence: problems.sentence,
     say,
   }),
   () => props.id,
@@ -176,7 +206,17 @@ function onCancelAsk(): void {
 
 <template>
   <Stack gap="3">
-    <GapsNotice :id="props.id" :declarations="declarations" />
+    <GapsNotice :id="props.id" />
+    <InlineAlert
+      v-if="declarationsError !== null && !resolved.isError.value"
+      tone="ko"
+      :title="t('views.properties.error')"
+      :items="problemLines(declarationsError)"
+    >
+      <Button size="sm" icon="refresh-cw" @click="rereadDeclarations()">{{
+        t("views.retry")
+      }}</Button>
+    </InlineAlert>
     <div>
       <ProblemState
         v-if="resolved.isError.value"

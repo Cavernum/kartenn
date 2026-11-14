@@ -2,23 +2,28 @@
 // The declared properties (REQ-021-9; design 021 « Catalogue des écrans » : Propriétés
 // déclarées; 003, 016): each its label and key, its type, its cardinality, the kinds that
 // carry it, how it is inherited, whether it is expected or sensitive, and the values of a
-// closed list on demand. Their gaps are a tab of the anomalies. Three states.
+// closed list on demand. Their gaps are a tab of the anomalies. Three states. Read page by
+// page as the grid nears its end, like the other lists (task 021-11p7), never capped.
+import { reads } from "@kartenn/sdk";
 import {
   Cluster,
   DataGrid,
   EmptyState,
   IconButton,
-  InlineAlert,
   KeyLabel,
   NoValue,
   Popover,
   type GridColumn,
+  type GridWindow,
 } from "@kartenn/ui";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { useInfiniteQuery } from "../data/query.ts";
+import { useNextPage, type ListWindow } from "../prefetch/nextPage.ts";
+import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
-import { useDeclarations, useKeyLabel } from "./data.ts";
+import { rowsOf, useKeyLabel } from "./data.ts";
 import type { DeclarationOfModel } from "./filters.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import DeclarationValues from "./properties/DeclarationValues.vue";
@@ -34,15 +39,19 @@ type Row = DeclarationOfModel & {
 const { t, te, locale } = useI18n();
 const router = useRouter();
 const keyLabel = useKeyLabel();
-const { declarations, loading, settled, partial, failed, error, refetch } = useDeclarations();
-/** Whole once every page is read; while they come, or past the cap, said partial. */
+const list = useInfiniteQuery(() => reads.list("/v1/property-declarations", null, null));
+const view = ref<ListWindow>({ end: 0, size: 0 });
+useNextPage(list, view);
+const onWindow = (window: GridWindow) => (view.value = { end: window.end, size: window.size });
+const rows = computed(() => rowsOf(list.data.value) as unknown as Row[]);
+const failed = computed(() => list.isError.value && !list.isFetchNextPageError.value);
+const complete = computed(() => list.isSuccess.value && !list.hasNextPage.value);
+/** Whole once every page is read; while pages remain, those loaded so far. */
 const count = computed(() => {
-  if (loading.value || failed.value) return undefined;
+  if (list.data.value === undefined) return undefined;
   const n = new Intl.NumberFormat(locale.value).format(rows.value.length);
-  if (partial.value) return t("views.properties.countPartial", { n }, rows.value.length);
-  return settled.value ? n : t("views.list.loaded", { n }, rows.value.length);
+  return complete.value ? n : t("views.list.loaded", { n }, rows.value.length);
 });
-const rows = computed(() => declarations.value as unknown as Row[]);
 
 const columns = computed<GridColumn[]>(() => [
   { id: "key", label: t("views.record.property"), width: "fill" },
@@ -81,25 +90,29 @@ const gaps = (key: string) =>
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.properties") }}</h1>
   <ViewPanel :title="t('nav.properties')" :detail="count" main flush>
-    <!-- Pages left unread (the cap, or a page refused): the ones read stay shown. -->
-    <InlineAlert v-if="partial" tone="warn" :title="t('views.properties.partialTitle')">
-      {{ t("views.properties.partial") }}
-    </InlineAlert>
+    <!-- A next page refused: the rows read stay shown, that page retried alone. -->
+    <NextPageAlert
+      v-if="list.isFetchNextPageError.value"
+      :error="list.error.value"
+      :retry="list.fetchNextPage"
+    />
     <ProblemState
       v-if="failed"
       :title="t('views.properties.error')"
-      :error="error"
-      :retry="refetch"
+      :error="list.error.value"
+      :retry="list.refetch"
     />
-    <EmptyState v-else-if="settled && rows.length === 0" :title="t('views.properties.none')" />
+    <EmptyState v-else-if="complete && rows.length === 0" :title="t('views.properties.none')" />
     <DataGrid
       v-else
       :label="t('nav.properties')"
       :columns="columns"
       :rows="rows as unknown as Record<string, unknown>[]"
       row-key="id"
-      :loading="loading"
+      :loading="list.isPending.value"
       :loading-rows="8"
+      :row-count="complete ? rows.length : undefined"
+      @window="onWindow"
     >
       <template #cell="{ row, column }">
         <KeyLabel

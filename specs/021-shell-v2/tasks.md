@@ -1604,7 +1604,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     les autres inchangés). Reste ouvert (antérieur, relecture) : à 390 px la colonne
     Source d'E2 est coupée (« Masquée » illisible), et à 768 px l'historique d'E2 ne montre
     que « Version » et « Valide », le reste par défilement horizontal.
-- [ ] 11p7. Déclarations lues par filtre : `useDeclarations` lit
+- [x] 11p7. Déclarations lues par filtre : `useDeclarations` lit
   `GET /v1/property-declarations?carrier=<sorte>` (filtres typés d'une liste) et `q=`
   (suggestions de clé), au lieu de dix pages au plus — REQ-021-18 — verify : Vitest des
   vues (une lecture filtrée, plus de plafond), parcours `records` : l'acceptation amendée
@@ -1615,6 +1615,57 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`list.ts`, `ListView.vue`, `PropertiesView.vue`, `anomalies/GapList.vue`,
     `record/PropertiesTab.vue`, `record/NetworkVlanTab.vue`)
   - dépend de : 11p3
+  - fait le 2026-11-14 — `useDeclarations(carrier)` lit `carrier=<sorte>` (la sorte d'une
+    collection du shell, `carrierOf`, `null` pour une liste sans sorte : rien lu), toutes
+    les pages suivies et gardées (`maxPages: Infinity` sur cette lecture seule, le cache
+    en garderait dix et lâcherait les premières), sans `placeholderData` (les déclarations
+    d'une autre sorte ne tiennent jamais lieu) ; la liste, ses colonnes et l'onglet
+    Propriétés partagent cette clé (`carriedRead`), que la route d'une liste précharge et
+    que `prefetchFilters` lit. `useDeclarationsOf(keys)` lit une déclaration par sa clé
+    (`q=<clé>`, la clé exacte gardée ; requête `["shell", "declaration", clé]` au-dessus de
+    `cacheSuggest`) : lacunes (`GapList`, `GapsNotice`, qui ne reçoit plus les
+    déclarations de l'onglet), `core.vlan` de l'onglet VLAN, valeurs héritées d'une autre
+    sorte dans l'onglet Propriétés (demandées une fois celles de la sorte lues, pour les
+    clés qui leur manquent). Suggestions du filtre `property` des lacunes par `q`
+    (`keySuggest`). L'écran des propriétés déclarées lit le catalogue page à page à la
+    fenêtre de la grille (`useNextPage`), `NextPageAlert` sur une page refusée, au lieu de
+    l'encart « Liste incomplète » (clés `countPartial`, `partialTitle`, `partial` ôtées).
+    Vitest des vues (lecture filtrée par `carrier=address`, douze pages suivies sans perte,
+    clé inconnue après toutes les pages, suggestions `q`), parcours `records` (lectures
+    des déclarations toutes en `?carrier=prefix`, dans les deux sessions).
+  - choix : un texte sans point demande aussi `q=core.<texte>` (« site » → `core.site`),
+    deux lectures fusionnées sans doublon ; une clé d'un autre espace (`ttl` pour
+    `dns.ttl`) ne se trouve que par son espace ou un libellé. Le libellé d'une suggestion
+    vient du dictionnaire (`property`), seul : il est fait des `labels` des déclarations
+    (11p3), un repli sur les `labels` de l'item serait la même donnée (relecture). La
+    requête par clé est hors des clés par chemin du SDK : un changeset ne l'invalide pas,
+    elle se relit périmée après 30 s (`FRESHNESS.list`). La sorte se tire de `COLLECTIONS`
+    du shell (le SDK n'exporte pas `typeOfCollection`, et `cache.ts`/l'index du SDK sont
+    chargés sur toutes les pages). `:row-count` passé à la grille des propriétés une fois
+    complète, comme les autres listes (relecture). Passe de revue : l'onglet Propriétés dit
+    en encart (`InlineAlert`, codes, « Réessayer ») les déclarations non lues, de la sorte
+    ou d'une clé héritée, les valeurs restant montrées ; Vitest de `useDeclarationsOf`
+    (clé exacte seule gardée, clé absente, refus) et de cet encart ; fixtures des vues
+    servant sous `carrier=address` ce que le serveur y sert (`dns.ttl`, et non
+    `core.owner` à `carriers: []`).
+  - reste :
+    - à arbitrer : filtres et colonnes d'une liste sur une propriété héritée que la sorte
+      ne porte pas (`core.owner` sur `/addresses` ou `/ranges`, porté par `domain`,
+      `prefix` et les types de module) : le serveur filtre sur la valeur résolue, mais le
+      shell ne l'a jamais offert, ni avant ni après la 11p7 (`propertyFields` du SDK,
+      `sdk/src/data/filters.ts:55`, et `declaredFor`, `propertyColumns.ts:41`, ne gardent
+      que les porteurs). Options : ajout au contrat (`carrier` étendu aux héritiers, ou
+      `inherited=true`) ; arbres d'héritage connus du shell (lire aussi les sortes
+      ancêtres, garder les déclarations héritables) ; clés nommées par l'URL seules,
+      cherchées par `useDeclarationsOf` et acceptées si héritables (sans les proposer au
+      sélecteur).
+    - lecture groupée de plusieurs clés : une requête `q=` par clé distincte aujourd'hui
+      (une quarantaine en parallèle sur une page de lacunes) ; il faudrait un paramètre au
+      contrat, donc un arbitrage.
+    - la requête par clé (`["shell", "declaration", clé]`) n'est pas invalidée par un
+      changeset : relue périmée après 30 s.
+    - `edit/properties.ts:524` offre un éditeur sans vérifier que la sorte porte la
+      déclaration (une valeur héritée d'une propriété non portée).
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)

@@ -32,7 +32,7 @@ import ProblemState from "../../problems/ProblemState.vue";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
-import { useDeclarations } from "../data.ts";
+import { useDeclarationsOf } from "../data.ts";
 import { editRight } from "../edit/fields.ts";
 import { NETWORK_VLAN_EDITS } from "../edit/vlan.ts";
 import type { Refusal } from "../edit/inline.ts";
@@ -85,15 +85,10 @@ const attributes = computed(() => [
   { key: "property", label: t("views.vlan.property") },
 ]);
 
-// The declaration of `core.vlan`, which the operation names by its identifier.
-const declared = useDeclarations();
-const property = computed(
-  () =>
-    (
-      declared.declarations.value.find((d) => d.key === VLAN_PROPERTY) as
-        { id?: string } | undefined
-    )?.id,
-);
+// The declaration of `core.vlan`, which the operation names by its identifier: read by its
+// key alone.
+const declared = useDeclarationsOf(() => [VLAN_PROPERTY]);
+const property = computed(() => (declared.of(VLAN_PROPERTY) as { id?: string } | undefined)?.id);
 // The active draft: a removal already there is not added again.
 const active = ref<string | null>(drafts.active());
 onScopeDispose(drafts.onActive((id) => (active.value = id)));
