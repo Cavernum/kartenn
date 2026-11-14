@@ -307,8 +307,14 @@ pub fn chunk_weight(elements: usize) -> NonZeroU32 {
         .unwrap_or(NonZeroU32::MIN)
 }
 
+/// Weight of a read of `ids` identifiers at once (REQ-006-40): one per hundred begun.
+#[must_use]
+pub fn ids_weight(ids: usize) -> NonZeroU32 {
+    NonZeroU32::new(u32::try_from(ids.div_ceil(100)).unwrap_or(u32::MAX)).unwrap_or(NonZeroU32::MIN)
+}
+
 /// The quota of a request, in its extensions, for a route whose request weighs more than
-/// one (an import chunk).
+/// one (an import chunk, a read of several objects).
 #[derive(Clone)]
 pub struct Charge {
     quotas: Arc<Quotas>,
@@ -517,6 +523,13 @@ mod tests {
     fn a_chunk_weighs_one_per_thousand_rounded_up() {
         for (elements, weight) in [(0, 1), (1, 1), (1000, 1), (1001, 2), (10_000, 10)] {
             assert_eq!(chunk_weight(elements).get(), weight, "{elements}");
+        }
+    }
+
+    #[test]
+    fn a_read_of_several_objects_weighs_one_per_hundred_begun() {
+        for (ids, weight) in [(1, 1), (100, 1), (101, 2), (200, 2)] {
+            assert_eq!(ids_weight(ids).get(), weight, "{ids}");
         }
     }
 

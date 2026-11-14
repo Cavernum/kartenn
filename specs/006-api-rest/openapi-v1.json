@@ -12324,6 +12324,67 @@
         ],
         "type": "object"
       },
+      "ResolvedBatch": {
+        "description": "The resolved values of the properties of several objects (REQ-006-40).",
+        "properties": {
+          "items": {
+            "description": "One per object read, in the order of the parameters `id`.",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ResolvedItem": {
+        "description": "The resolved values of the properties of one object of a batch: those of the read of\nthe object, its links aside, and its identifier (REQ-006-40).",
+        "properties": {
+          "id": {
+            "description": "The object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "masked": {
+            "description": "The keys of the values the caller may not see (REQ-005-21).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "description": "The values by key; `null`: « no value » explicitly.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueSource"
+            },
+            "description": "Where each value of `properties` comes from, by the same keys; a key of `masked`\nhas none.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "properties",
+          "sources",
+          "masked"
+        ],
+        "type": "object"
+      },
       "ResolvedLinks": {
         "description": "The links of the resolved values of an object.",
         "properties": {
@@ -14550,6 +14611,85 @@
         ]
       }
     },
+    "/v1/addresses/properties": {
+      "get": {
+        "operationId": "address_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/addresses/{id}": {
       "delete": {
         "operationId": "close_address",
@@ -15430,6 +15570,85 @@
         "summary": "The admissibility-conditions of the policy.",
         "tags": [
           "policy"
+        ]
+      }
+    },
+    "/v1/admissibility-conditions/properties": {
+      "get": {
+        "operationId": "policy_condition_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -17753,6 +17972,85 @@
         ]
       }
     },
+    "/v1/clusters/properties": {
+      "get": {
+        "operationId": "machines_cluster_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/clusters/{id}": {
       "delete": {
         "operationId": "close_cluster",
@@ -18632,6 +18930,85 @@
         "summary": "The domains the caller may read, by natural key.",
         "tags": [
           "core"
+        ]
+      }
+    },
+    "/v1/domains/properties": {
+      "get": {
+        "operationId": "domain_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -20314,6 +20691,85 @@
         ]
       }
     },
+    "/v1/entities/properties": {
+      "get": {
+        "operationId": "entity_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/entities/{id}": {
       "delete": {
         "operationId": "close_entity",
@@ -21971,6 +22427,85 @@
         ]
       }
     },
+    "/v1/flow-types/properties": {
+      "get": {
+        "operationId": "policy_flow_type_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/flow-types/{id}": {
       "delete": {
         "operationId": "close_flow_types",
@@ -22903,6 +23438,85 @@
         "summary": "The flows the caller may read (REQ-011-14).",
         "tags": [
           "flow"
+        ]
+      }
+    },
+    "/v1/flows/properties": {
+      "get": {
+        "operationId": "flow_flow_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -25374,6 +25988,85 @@
         ]
       }
     },
+    "/v1/inference-rules/properties": {
+      "get": {
+        "operationId": "policy_inference_rule_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/inference-rules/{id}": {
       "delete": {
         "operationId": "close_inference_rules",
@@ -26105,6 +26798,85 @@
         ]
       }
     },
+    "/v1/ingresses/properties": {
+      "get": {
+        "operationId": "kube_ingress_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/ingresses/{id}": {
       "get": {
         "operationId": "show_kube_ingress",
@@ -26757,6 +27529,85 @@
         "summary": "The interfaces the caller may read.",
         "tags": [
           "machines"
+        ]
+      }
+    },
+    "/v1/interfaces/properties": {
+      "get": {
+        "operationId": "machines_interface_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -27881,6 +28732,85 @@
         }
       }
     },
+    "/v1/kube-admitted-values/properties": {
+      "get": {
+        "operationId": "kube_admitted_values_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/kube-admitted-values/{id}/history": {
       "get": {
         "operationId": "kube_admitted_values_history",
@@ -28414,6 +29344,85 @@
         "summary": "The clusters the caller may read (REQ-019-38), by slug.",
         "tags": [
           "kube"
+        ]
+      }
+    },
+    "/v1/kube-clusters/properties": {
+      "get": {
+        "operationId": "kube_cluster_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -29128,6 +30137,85 @@
         ]
       }
     },
+    "/v1/kube-label-mappings/properties": {
+      "get": {
+        "operationId": "kube_label_mapping_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/kube-label-mappings/{id}/history": {
       "get": {
         "operationId": "kube_label_mapping_history",
@@ -29597,6 +30685,85 @@
         "summary": "The namespaces the caller may read (REQ-019-38), by name.",
         "tags": [
           "kube"
+        ]
+      }
+    },
+    "/v1/kube-namespaces/properties": {
+      "get": {
+        "operationId": "kube_namespace_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -30137,6 +31304,85 @@
         "summary": "The nodes the caller may read (REQ-019-38), by name.",
         "tags": [
           "kube"
+        ]
+      }
+    },
+    "/v1/kube-nodes/properties": {
+      "get": {
+        "operationId": "kube_node_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -30694,6 +31940,85 @@
         ]
       }
     },
+    "/v1/kube-services/properties": {
+      "get": {
+        "operationId": "kube_service_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/kube-services/{id}": {
       "get": {
         "operationId": "show_kube_service",
@@ -31047,6 +32372,85 @@
           }
         },
         "summary": "The value the source of a property expects for the object (REQ-003-23).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/v1/kube-tracked-labels/properties": {
+      "get": {
+        "operationId": "kube_tracked_label_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
         "tags": [
           "properties"
         ]
@@ -31807,6 +33211,85 @@
         "summary": "The machines the caller may read.",
         "tags": [
           "machines"
+        ]
+      }
+    },
+    "/v1/machines/properties": {
+      "get": {
+        "operationId": "machines_machine_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -32908,6 +34391,85 @@
         ]
       }
     },
+    "/v1/policy-axes/properties": {
+      "get": {
+        "operationId": "policy_axis_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/policy-axes/{id}": {
       "delete": {
         "operationId": "close_policy_axes",
@@ -33684,6 +35246,85 @@
         "summary": "The policy-exempt-roles of the policy.",
         "tags": [
           "policy"
+        ]
+      }
+    },
+    "/v1/policy-exempt-roles/properties": {
+      "get": {
+        "operationId": "policy_exempt_role_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -34547,6 +36188,85 @@
         "summary": "The policy-patterns of the policy.",
         "tags": [
           "policy"
+        ]
+      }
+    },
+    "/v1/policy-patterns/properties": {
+      "get": {
+        "operationId": "policy_pattern_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -35635,6 +37355,85 @@
         ]
       }
     },
+    "/v1/policy-rules/properties": {
+      "get": {
+        "operationId": "policy_rule_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/policy-rules/{id}": {
       "delete": {
         "operationId": "close_policy_rules",
@@ -36415,6 +38214,85 @@
         ]
       }
     },
+    "/v1/policy-values/properties": {
+      "get": {
+        "operationId": "policy_value_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/policy-values/{id}": {
       "get": {
         "operationId": "show_policy_values",
@@ -37094,6 +38972,85 @@
         "summary": "The prefixes the caller may read, by natural key; `prop.{key}` filters by property (`:between`, `:exists`), with one `domain`.",
         "tags": [
           "core"
+        ]
+      }
+    },
+    "/v1/prefixes/properties": {
+      "get": {
+        "operationId": "prefix_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -38688,6 +40645,85 @@
         ]
       }
     },
+    "/v1/ranges/properties": {
+      "get": {
+        "operationId": "range_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/ranges/{id}": {
       "delete": {
         "operationId": "close_range",
@@ -39485,6 +41521,85 @@
         "summary": "The risk-signals of the policy.",
         "tags": [
           "policy"
+        ]
+      }
+    },
+    "/v1/risk-signals/properties": {
+      "get": {
+        "operationId": "policy_signal_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -41048,6 +43163,85 @@
         ]
       }
     },
+    "/v1/services/properties": {
+      "get": {
+        "operationId": "policy_service_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/services/{id}": {
       "delete": {
         "operationId": "close_services",
@@ -41846,6 +44040,85 @@
         "summary": "The sites the caller may read, by natural key.",
         "tags": [
           "core"
+        ]
+      }
+    },
+    "/v1/sites/properties": {
+      "get": {
+        "operationId": "site_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },
@@ -42852,6 +45125,85 @@
         ]
       }
     },
+    "/v1/vlan-groups/properties": {
+      "get": {
+        "operationId": "vlan_group_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/vlan-groups/{id}": {
       "delete": {
         "operationId": "close_vlan_group",
@@ -43827,6 +46179,85 @@
         ]
       }
     },
+    "/v1/vlans/properties": {
+      "get": {
+        "operationId": "vlan_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/v1/vlans/{id}": {
       "delete": {
         "operationId": "close_vlan",
@@ -44677,6 +47108,85 @@
         "summary": "The workloads the caller may read (REQ-019-38), by name.",
         "tags": [
           "kube"
+        ]
+      }
+    },
+    "/v1/workloads/properties": {
+      "get": {
+        "operationId": "kube_workload_properties_batch",
+        "parameters": [
+          {
+            "description": "An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out.",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "A property, repeated: those only; every one declared by default.",
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedBatch"
+                }
+              }
+            },
+            "description": "The resolved values of each object, in the order of `id`."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "The resolved values of the properties of several objects (REQ-006-40).",
+        "tags": [
+          "properties"
         ]
       }
     },

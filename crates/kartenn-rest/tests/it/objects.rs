@@ -91,6 +91,11 @@ fn app(pool: &PgPool, who: Principal) -> Router {
 
 /// [`app`], the writes bounded by `bound`: past it, a read at `as_of` is frozen.
 fn app_bounded(pool: &PgPool, who: Principal, bound: Duration) -> Router {
+    app_with(pool, who, bound, Rates::default())
+}
+
+/// [`app_bounded`] under the quotas `rates`.
+fn app_with(pool: &PgPool, who: Principal, bound: Duration, rates: Rates) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
@@ -105,7 +110,7 @@ fn app_bounded(pool: &PgPool, who: Principal, bound: Duration) -> Router {
         kartenn_rest::v1(api),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
         Settings::default(),
-        Arc::new(Quotas::new(Rates::default())),
+        Arc::new(Quotas::new(rates)),
         Arc::new(common::As(who)),
     )
 }
@@ -1970,5 +1975,317 @@ async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
         let detail = json_of(response).await["detail"].to_string();
         assert!(detail.contains(named), "{uri}: {detail}");
+    }
+}
+
+// ------------------------------------------------- the properties of several objects
+
+/// Assigns « no value » to `property` on `holder`, the origin of itself and of `heirs`.
+async fn clear(pool: &PgPool, property: Uuid, holder: Uuid, heirs: &[Uuid]) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO property_assignment (object_id, object_type, property_id, kind,
+                                          provenance, valid_period, changeset_id)
+         VALUES ($1, 'prefix', $2, 'cleared', 'input', {SINCE})"
+    )))
+    .bind(holder)
+    .bind(property)
+    .execute(pool)
+    .await
+    .unwrap();
+    for object in std::iter::once(&holder).chain(heirs) {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO property_origin (object_id, property_id, origin_object_id,
+                                          valid_period, changeset_id)
+             VALUES ($1, $2, $3, {SINCE})"
+        )))
+        .bind(object)
+        .bind(property)
+        .bind(holder)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+}
+
+/// The items of a batch, each by its identifier and without it.
+fn batch_items(body: &Value) -> Vec<(String, Value)> {
+    body["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{body}"))
+        .iter()
+        .map(|item| {
+            let mut item = item.clone();
+            let id = item.as_object_mut().unwrap().remove("id").unwrap();
+            (id.as_str().unwrap().to_owned(), item)
+        })
+        .collect()
+}
+
+/// The read of one object as the item of a batch would show it: without its links, and
+/// with the values of `keys` only (all of them when empty).
+fn as_item(mut body: Value, keys: &[&str]) -> Value {
+    let object = body.as_object_mut().unwrap();
+    object.remove("links");
+    if !keys.is_empty() {
+        for field in ["properties", "sources"] {
+            object[field]
+                .as_object_mut()
+                .unwrap()
+                .retain(|key, _| keys.contains(&key.as_str()));
+        }
+        object["masked"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|key| keys.contains(&key.as_str().unwrap()));
+    }
+    body
+}
+
+/// The URI of the batch of `ids` and `keys`, then `more`.
+fn batch_uri(ids: &[Uuid], keys: &[&str], more: &str) -> String {
+    let mut query: Vec<String> = ids.iter().map(|id| format!("id={id}")).collect();
+    query.extend(keys.iter().map(|key| format!("key={key}")));
+    if !more.is_empty() {
+        query.push(more.to_owned());
+    }
+    format!("/v1/prefixes/properties?{}", query.join("&"))
+}
+
+#[kartenn_testing::pg_test]
+async fn a_batch_reads_each_object_as_its_own_read(pool: PgPool) {
+    // REQ-006-40: each item equals the read of its object at the same dates, inherited,
+    // sensitive, masked and « no value » included.
+    let lab = domain(&pool, "lab").await;
+    let top = prefix_of(&pool, lab, "10.0.0.0/8", "container").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let side = prefix(&pool, lab, "10.1.3.0/24").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let secret = declare(&pool, "site.secret", true).await;
+    let blank = declare(&pool, "site.blank", true).await;
+    let own = declare(&pool, "zone.own", false).await;
+    assign(&pool, zone, top, "red", &[block, net, side]).await;
+    assign(&pool, secret, top, "s3", &[block, net, side]).await;
+    clear(&pool, blank, block, &[net]).await;
+    assign(&pool, own, net, "green", &[]).await;
+    let mut rights = READ_ALL.to_vec();
+    rights.extend(["prop.site.secret.read", "prop.site.blank.read"]);
+    let everything = app(&pool, person(&pool, &rights, ("global", None)).await);
+    // Prefixes under the /16 only, without the sensitive values: the /8 that carries
+    // most values is invisible.
+    let reader = app(
+        &pool,
+        person(&pool, &["core.prefix.read"], ("prefix", Some(block))).await,
+    );
+    let before: time::OffsetDateTime = sqlx::query_scalar("SELECT now()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE property_assignment SET v_text = 'blue', changeset_id = gen_random_uuid()
+         WHERE object_id = $1 AND property_id = $2",
+    )
+    .bind(top)
+    .bind(zone)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let ids = [net, top, side, block];
+    let dates = [
+        String::new(),
+        format!("as_of={}", query_date(before)),
+        "valid_at=2019-06-01T00:00:00Z".to_owned(),
+    ];
+    let all: &[&str] = &[];
+    let some: &[&str] = &["policy.zone", "site.blank", "zone.none"];
+    for (who, app) in [("reader", &reader), ("everything", &everything)] {
+        for keys in [all, some] {
+            for date in &dates {
+                let uri = batch_uri(&ids, keys, date);
+                let body = ok(app, &uri).await;
+                let mut expected = Vec::new();
+                for id in ids {
+                    let mut one = format!("/v1/prefixes/{id}/properties");
+                    if !date.is_empty() {
+                        one = format!("{one}?{date}");
+                    }
+                    let response = get(app, &one).await;
+                    if response.status() == StatusCode::OK {
+                        expected.push((id.to_string(), as_item(json_of(response).await, keys)));
+                    } else {
+                        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{who} {one}");
+                    }
+                }
+                assert_eq!(batch_items(&body), expected, "{who} {uri}");
+            }
+        }
+    }
+
+    // What the comparison covers: an unreadable object left out, the order of `id` kept,
+    // the sensitive values masked, « no value » shown as `null` under its right.
+    let body = ok(&reader, &batch_uri(&ids, &[], "")).await;
+    let order: Vec<String> = batch_items(&body).into_iter().map(|(id, _)| id).collect();
+    assert_eq!(order, [net, side, block].map(|id| id.to_string()));
+    assert_eq!(
+        body["items"][0]["masked"],
+        json!(["site.blank", "site.secret"])
+    );
+    assert_eq!(
+        body["items"][0]["sources"]["policy.zone"],
+        json!({ "origin": null, "inherited": true, "provenance": "input" }),
+        "{body}"
+    );
+    let body = ok(&everything, &batch_uri(&[net], &["site.blank"], "")).await;
+    assert_eq!(
+        body["items"][0]["properties"],
+        json!({ "site.blank": null })
+    );
+    assert_eq!(
+        body["items"][0]["sources"]["site.blank"]["origin"]["id"],
+        block.to_string()
+    );
+    // No version of 200 objects to revalidate (H23).
+    let response = get(&everything, &batch_uri(&ids, &[], "")).await;
+    assert!(response.headers().get("etag").is_none());
+}
+
+#[kartenn_testing::pg_test]
+async fn a_batch_leaves_out_alike_the_unknown_the_foreign_and_the_unreadable(pool: PgPool) {
+    // REQ-006-40, 005: invisible is absent; neither the answer nor the audit tells an
+    // unknown identifier from an object of another collection or one the caller may not
+    // read.
+    let lab = domain(&pool, "lab").await;
+    let far = domain(&pool, "far").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let gateway = address(&pool, lab, "10.1.2.1").await;
+    let hidden = prefix(&pool, far, "10.9.0.0/16").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    let secret = declare(&pool, "site.secret", true).await;
+    for object in [net, hidden] {
+        assign(&pool, zone, object, "red", &[]).await;
+        assign(&pool, secret, object, "s3", &[]).await;
+    }
+    let reader = app(
+        &pool,
+        person(
+            &pool,
+            &[
+                "core.prefix.read",
+                "core.address.read",
+                "prop.site.secret.read",
+            ],
+            ("domain", Some(lab)),
+        )
+        .await,
+    );
+    // The address is readable, as an address; the prefix of the other domain is not.
+    assert_eq!(
+        get(&reader, &format!("/v1/addresses/{gateway}"))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        get(&reader, &format!("/v1/prefixes/{hidden}"))
+            .await
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    let seq: i64 = sqlx::query_scalar("SELECT coalesce(max(seq), 0) FROM audit.event")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let mut answers = Vec::new();
+    for other in [Uuid::now_v7(), gateway, hidden] {
+        let response = get(&reader, &batch_uri(&[net, other], &[], "")).await;
+        let status = response.status();
+        // All the headers, but the identifier of the request, its own.
+        let mut headers = response.headers().clone();
+        assert!(headers.remove("request-id").is_some());
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        answers.push((status, headers, bytes));
+    }
+    assert_eq!(answers[0].0, StatusCode::OK);
+    assert_eq!(answers[0], answers[1], "unknown and foreign");
+    assert_eq!(answers[0], answers[2], "unknown and unreadable");
+    let body: Value = serde_json::from_slice(&answers[0].2).unwrap();
+    assert_eq!(batch_items(&body).len(), 1, "{body}");
+    assert_eq!(body["items"][0]["id"], net.to_string());
+
+    // One read event per batch, naming the object read; one disclosure of the sensitive
+    // value shown; no refusal recorded.
+    let events: Vec<(String, Vec<Uuid>, Value)> = sqlx::query_as(
+        "SELECT name, target_ids, details FROM audit.event WHERE seq > $1 ORDER BY seq",
+    )
+    .bind(seq)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let names: Vec<&str> = events.iter().map(|(name, ..)| name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["data.sensitive.read", "data.objects.read"].repeat(3),
+        "{events:?}"
+    );
+    // The criteria alike, but the time of each read.
+    let criteria = |details: &Value| {
+        let mut criteria = details["criteria"].clone();
+        criteria.as_object_mut().unwrap().remove("valid_at");
+        criteria
+    };
+    for (name, targets, details) in &events {
+        assert_eq!(targets, &[net], "{name}");
+        if name == "data.objects.read" {
+            assert_eq!(
+                criteria(details),
+                json!({ "collection": "prefixes", "keys": null, "as_of": null }),
+                "{details}"
+            );
+        }
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn a_batch_names_its_parameter_and_weighs_per_hundred(pool: PgPool) {
+    // REQ-006-40: no identifier or more than 200 → 400 naming `id`; the batch weighs one
+    // read per hundred identifiers begun (REQ-006-29).
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let unknown = |n: usize| -> Vec<Uuid> { (0..n).map(|_| Uuid::now_v7()).collect() };
+    let mut most = unknown(199);
+    most.push(net);
+    let body = ok(&app, &batch_uri(&most, &[], "")).await;
+    assert_eq!(body["items"][0]["id"], net.to_string(), "{body}");
+    for (uri, named) in [
+        ("/v1/prefixes/properties".to_owned(), "id"),
+        (batch_uri(&unknown(201), &[], ""), "id"),
+        ("/v1/prefixes/properties?id=properties".to_owned(), "id"),
+        (batch_uri(&[net], &[], &format!("ids={net}")), "ids"),
+        (batch_uri(&[net], &[], "valid_at=2026-01-01"), "valid_at"),
+    ] {
+        let response = get(&app, &uri).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let detail = json_of(response).await["detail"].to_string();
+        assert!(detail.contains(named), "{uri}: {detail}");
+    }
+    // The read of one object keeps its route beside the batch.
+    ok(&app, &format!("/v1/prefixes/{net}/properties")).await;
+
+    // A burst of one read: 100 identifiers weigh one, 101 two; a burst of two lets 200 by.
+    for (burst, n, status) in [
+        (1, 100, StatusCode::OK),
+        (1, 101, StatusCode::TOO_MANY_REQUESTS),
+        (2, 200, StatusCode::OK),
+    ] {
+        let rates = Rates {
+            read: kartenn_rest::quota::Rate::new(1, burst).unwrap(),
+            ..Rates::default()
+        };
+        let who = person(&pool, &READ_ALL, ("global", None)).await;
+        let app = app_with(&pool, who, Duration::from_secs(60), rates);
+        let response = get(&app, &batch_uri(&unknown(n), &[], "")).await;
+        assert_eq!(response.status(), status, "burst {burst}, {n} identifiers");
     }
 }

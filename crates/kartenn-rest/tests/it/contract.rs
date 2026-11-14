@@ -86,6 +86,7 @@ fn surface() -> Vec<(&'static str, String)> {
             ("delete", one.clone()),
             ("get", format!("{one}/history")),
             ("get", format!("{one}/properties")),
+            ("get", format!("/v1/{collection}/properties")),
             ("get", format!("{one}/properties/{{key}}/explanation")),
             ("get", format!("{one}/properties/{{key}}/suggestion")),
         ]);
