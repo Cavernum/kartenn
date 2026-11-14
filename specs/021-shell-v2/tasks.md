@@ -6648,6 +6648,70 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `web/v2/shell/src/views/TopologyView.vue` (`cellState`, `readonlyReason` de chaque
       cellule)
     - dépend de : 22e-b, mesure de la session principale
+    - avancé le 2026-11-14 (agent, branche `tache-021-22e-c`, non cochée : le verify revient
+      à la passe de la session principale ; **budget toujours hors d'atteinte**) — profil :
+      sonde montée de la vraie vue (`shell/test/tree-grid-work.test.ts` : la topographie,
+      un conteneur de 1 000 enfants ouvert, l'arbre virtualisé, défilé de 17 lignes par pas,
+      les rappels de l'hôte comptés par prop, les rendus par composant) : à chaque pas,
+      17 lignes rendues (bien), mais 268 appels de `cellState`, 234 d'`editable`, 122 de
+      `readonlyReason` — la table des raisons cachées relisait toutes les cellules des
+      43 lignes rendues, et chaque ligne qui entre redemandait l'état de ses cellules
+      (`messageOf`, `reasonOf`) ; un pas de focus rendait 31 lignes (`isStop` lu par
+      chacune). Trace CDP de la vraie vue (passe 1, build minifié, CPU ×4) : ≈ 22 ms par
+      trame — flush de Vue ≈ 6 ms (rendu des 17 lignes ≈ 1,3, patch, 17 `insertBefore`
+      des lignes recyclées), mise en page forcée par le `scrollTop` du protocole ≈ 5,5 ms
+      (83 objets sales), PrePaint ≈ 2, Paint ≈ 2,6, Layerize ≈ 1,3, puis une seconde mise
+      en page (≈ 0,7, le survol du pointeur synthétique). Bancs A/B dans la vraie vue (même
+      passe, feuilles construites qui retirent une partie des lignes, `K_BENCH_TREE_AB=1`,
+      écart entre deux passages identiques jusqu'à 11 points) : base 26,5 et 24,7 % ; sans
+      le « + » 6,8 et 7,2 % ; sans aucun SVG 4,9 et 4,4 % ; sans survol (`pointer-events`)
+      13,5 et 8,2 % ; sans SVG ni survol 2,06 % ; pistes fixes 24,7 et 20,1 % ; cellules
+      en bloc 15,8 et 24,1 % ; sans transition 23,5 et 19,0 % ; sans `sticky` 22,2 % ;
+      `contain` 23,7 %. **Cause nommée** : ce que la ligne qui entre a de nœuds à remettre
+      en page et à peindre — ses trois SVG (chevron, icône du type, icône du « + ») et le
+      bouton « + » transparent — et le survol du pointeur posé sur l'arbre (la ligne
+      survolée change à chaque trame) ; le JS n'en est plus que le quart. Corrections :
+      ce que l'hôte dit des cellules d'un nœud (`cellState`, `editable`, raisons) demandé
+      une fois par cellule et gardé dans un `computed` par nœud (`factsOf`), lu par la ligne
+      et par la table des raisons (un pas : 51, 51 et 34 appels pour 17 lignes ; un retour
+      sur des lignes vues : aucun) ; le point d'arrêt et la sélection lus par la clé de la
+      ligne dans des `computed` (`stopIn`, comme `DataGrid/row.ts`) : un pas de focus, une
+      sélection déplacée rendent deux lignes ; les commentaires de la chaîne
+      `v-if`/`v-else` du corps passés dans le script (fragments en développement ; hors de
+      la chaîne, un commentaire du gabarit est livré : 134 o gzip du shell initial) ;
+      l'icône du « + » caché n'est
+      plus mise en page (`display: none`, le bouton transparent gardé, dans l'arbre
+      d'accessibilité, sa place tenue). Tests : `shell/test/tree-grid-work.test.ts` (un pas
+      de défilement : au plus 18 lignes, chaque rappel au plus une fois par cellule des
+      lignes qui entrent, aucun au retour ; un pas de focus : deux lignes, aucun
+      `cellState`), `ui/test/trees-mounted.test.ts` (`cellState` une fois par cellule ; un
+      pas de focus et une sélection déplacée : deux lignes) ; tous en échec sur main
+      3a9e548e (268 appels pour 54 permis, 31 lignes pour 2). Passes réduites filtrées
+      (`bench-web small -g "container of"`, verrous libres au départ ; 11p9 tenait un
+      créneau et faisait tourner Chromium à la première, charge 1 à 22 ; seule à la
+      troisième, charge 0,4 à 1,3) : après les corrections de JS 28,61 %, 3 tâches longues
+      (56,0 ms) — rien gagné, comme la 22e-b ; avec l'icône du « + » cachée 24,79 %,
+      1 tâche longue, dans l'écart des passes ; flèche dans l'arbre p75 13,1 ms.
+    - choix : `factsOf` par nœud (un `computed` dans une `WeakMap` du nœud) plutôt que par
+      ligne (la table des raisons et la ligne lisent le même) ; le contrat des rappels de
+      l'hôte (lire un état réactif, comme un `computed`) écrit en tête de `TreeGrid.vue` ;
+      l'icône du « + » cachée plutôt que le bouton (`visibility`, `display` ou non monté
+      le retireraient de l'arbre d'accessibilité et des parcours `time`, `accessibility`
+      qui le trouvent sur une ligne sans focus) ; le diagnostic A/B gardé dans
+      `budgets.spec.ts`, éteint par défaut ; l'éditeur, l'ouverture d'un nœud et la cible
+      d'un dépôt laissés lus directement par chaque ligne (rares, et le shell initial est à
+      299 914 o pour un budget de 300 000 : main 3a9e548e à 299 875).
+    - reste (à arbitrer par l'utilisateur, le budget de 2 % n'étant tenu qu'en retirant ce
+      que les lignes montrent) : (B1) le « + » monté seulement sur les lignes où il se
+      montre (focus, sélection, survol) — mesuré ≈ 7 % ; change l'arbre d'accessibilité
+      (les « + » des autres lignes ne sont plus lus en mode navigation) et deux parcours ;
+      (B2) les icônes des lignes en masques CSS plutôt qu'en SVG en ligne (système de
+      design) — sans aucun SVG, ≈ 4,5 % ; (B3) le survol suspendu pendant un défilement
+      (`pointer-events` coupé jusqu'à la fin du défilement) — sans SVG ni survol, 2,06 % ;
+      (B4) piste à vérifier : la ligne recyclée déplacée par `insertBefore` recrée ses
+      objets de mise en page, ses SVG avec, même inchangés — un recyclage sans déplacement
+      changerait l'ordre du DOM (structurant) ; ou l'arbitrage C (protocole à
+      500 lignes/s, 18,47 % mesuré par la 22e-b avant ces corrections).
 
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une
