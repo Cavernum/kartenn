@@ -331,6 +331,34 @@ describe("next page of a list", () => {
     scope.stop();
   });
 
+  it("reads no next page while the list read again is refused, until a read again passes", async () => {
+    // A next page read would clear the error, and with it the alert that the rows shown
+    // were not read again (task 021-11p9): the rows stay as read until a read passes.
+    const page = (n: number) => ({
+      data: { items: Array.from({ length: n }), links: {} },
+      etag: null,
+    });
+    const fetchNextPage = vi.fn(async () => {});
+    const isRefetchError = ref(true);
+    const list: PagedList = {
+      data: shallowRef({ pages: [page(50)], pageParams: [null] }),
+      hasNextPage: ref(true),
+      isFetching: ref(false),
+      isFetchNextPageError: ref(false),
+      isRefetchError,
+      fetchNextPage,
+    };
+    const view = ref({ end: 45, size: 20 });
+    const scope = effectScope();
+    scope.run(() => useNextPage(list, view));
+    await nextTick();
+    expect(fetchNextPage).not.toHaveBeenCalled();
+    isRefetchError.value = false;
+    await nextTick();
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    scope.stop();
+  });
+
   it("reads nothing more when the first page is dropped, until the window comes near the end", async () => {
     // Past `MAX_PAGES` (task 021-22f): the page read lands and the cache drops the first;
     // the window was last given among the rows before, at their end. Read as it stands, a

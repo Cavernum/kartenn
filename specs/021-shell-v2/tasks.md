@@ -1718,6 +1718,98 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       changeset : relue périmée après 30 s.
     - `edit/properties.ts:524` offre un éditeur sans vérifier que la sorte porte la
       déclaration (une valeur héritée d'une propriété non portée).
+- [x] 11p9. Parcours `records` instable sur main (hors numéro, inscrite le 2026-11-14) :
+  « a filtered link copied… » (Chromium, `:304` puis `:317`) et « past ten pages… »
+  (Firefox, « page 4 shown », `:211`) échouaient sur une machine calme, pas à chaque fois
+  — établir produit ou test, preuves à l'appui (traces Playwright), corriger la cause —
+  verify : Vitest des vues (la liste relue et refusée garde sa grille et ses lignes) ;
+  parcours `records` : les deux tests vingt fois de suite sous les deux navigateurs
+  (`--repeat-each 20`), le fichier entier trois fois (`--repeat-each 3`), verts ;
+  `k-web2-check --base main`
+  - où : `web/v2/e2e/journeys/records.spec.ts` (« past ten pages », `readOneMore`),
+    `web/v2/e2e/kartenn.toml` (`[http.rate]`), `web/v2/shell/src/views/list.ts`
+    (`useFilteredList` : `failed`, `refreshFailed`), `ListView.vue` et les vues sur
+    `useFilteredList` (`AnomalyList`, `GapList`, `ProposalsView`, `ChangesetsView`,
+    `ImportsView`, `AuditView`), `problems/NextPageAlert.vue` ; test voisin : « a next page
+    refused » de `shell/test/views.test.ts`
+  - fait le 2026-11-14 — trois causes, deux d'environnement ou de test, une du produit :
+    - quota de lecture (test) : les deux workers de Playwright lisent sous la même identité
+      (Alice) et partagent son quota de lecture (50/s, 200 d'un coup, REQ-006-29) ; « past
+      ten pages » le dépense seul en quelques secondes (douze pages, une lecture de
+      propriétés par ligne montrée). Traces : 429 `rate-limited` sur `GET /v1/addresses`
+      et `property-declarations?carrier=address` dès la première lecture du lien filtré
+      (état « Trop de requêtes » à la place des lignes, `:304`), sur la page suivante de
+      « past ten pages » (« Expected > 7, received 7 »). Ce n'était ni la charge ni une
+      course de la 11p7 : à a1d663bb, « past ten pages » (22f) n'existait pas. Correctif :
+      `[http.rate] read` de l'instance des parcours à 1 000/s, 4 000 d'un coup ; les
+      écritures gardent le leur (les parcours `moves` attendent `Retry-After`).
+    - liste relue et refusée (produit) : `failed` valait aussi pour une relecture refusée
+      (invalidation par un événement, données présentes) ; l'état d'erreur remplaçait la
+      grille, qui revenait en haut une fois la relecture passée, les pages lues sous la
+      vue hors de vue. C'est, d'après l'état qu'il a consigné (sa trace écrasée depuis),
+      l'échec Firefox de la session principale (« pages 4 started 23 … top 0 … rows 0..26
+      count 401 » : quatre pages chargées, la liste relue, la vue en haut). `failed` ne vaut plus qu'avant toute ligne lue ; `refreshFailed`
+      (`isRefetchError`) montre au-dessus des lignes gardées `NextPageAlert` titré
+      `problem.readAgain`, « Réessayer » relisant la liste (`refetch`), dans les sept vues
+      sur `useFilteredList`. Test monté d'abord rouge (la grille disparaissait).
+    - course du test : la garde « plus de défilement une fois une lecture partie » se
+      jugeait dans le test (événements `request`), après coup ; sous Firefox, un second
+      `toEnd` partait avant l'événement de la page 2 et s'exécutait après son rendu,
+      lisant la page 3 sans défilement voulu (`expect(pages).toHaveLength(10)` reçu 11,
+      trace : `toEnd` de 412 ms chevauchant l'arrivée de la page). Les lectures de la liste
+      sont comptées dans la page (`fetch` enveloppé par `addInitScript`, avant que le shell
+      garde le sien, `activityFetch`) et le défilement s'y juge dans le même tour
+      (`toEndUnlessRead`) ; un premier défilement toujours, la liste relue entre-temps
+      lisant la suite d'elle-même. Ce que le test prouve est inchangé : chaque page lue
+      montrée, aucune lue sans défilement, la fin atteinte ; il vérifie en plus que le
+      compte voit les lectures.
+    Passages : les deux tests 80 sur 80 (20 × 2 tests × 2 navigateurs), le fichier entier
+    66 sur 66 (3 passages × 11 tests × 2 navigateurs), `k-heavy` tenant `pg` et tous les
+    créneaux pendant chaque série.
+    Corrections après revue (même jour), chacune d'abord rouge : les lignes ne restent que
+    sur un refus passager (429, 5xx, réseau : `passing`, `list.ts`) ; refusée pour de bon
+    (401, 403, 404…), la relecture les retire pour l'état d'erreur, comme avant (test monté
+    au 403) ; tant que la relecture est refusée, `useNextPage` ne lit aucune page suivante
+    (`isRefetchError`, `prefetch/nextPage.ts`), qui effacerait l'erreur et l'alerte alors
+    que les premières pages n'ont pas été relues (test de `prefetch.test.ts`).
+  - choix : quota de lecture relevé dans la configuration des parcours plutôt qu'une
+    identité par worker (tous les fichiers lisent sous Alice) ; `NextPageAlert` réutilisé
+    avec un titre plutôt qu'un composant de plus ; le correctif de `failed` porté aux sept
+    vues de `useFilteredList`, qui partageaient le défaut.
+  - reste :
+    - le défaut que le quota relevé cache : la 11p10.
+    - mineurs de la revue : un curseur refusé sur une relecture (`invalid-cursor` hors de
+      `fetchNextPage`) n'est pas traité comme celui d'une page suivante ; les deux avis
+      (page suivante, relecture) ne se montrent jamais ensemble, le second masqué par le
+      `v-else-if` ; le nom de `NextPageAlert`.
+    - vu une fois sous `--repeat-each 3` (avant le correctif du quota) : toutes les
+      connexions Firefox refusées pendant quatre minutes, `GET /v1/me` en 503 « too many
+      requests in flight » (plafond de 20, `quota.rs:483`) ; non reproduit ensuite, journaux
+      du serveur non gardés (`stdout: "ignore"`).
+    - les lectures hors `useFilteredList` remplacent encore leurs lignes par l'état
+      d'erreur sur une relecture refusée (relecture `ui-reviewer`) : `record/AnomaliesTab.vue:86`,
+      `record/GapsNotice.vue:39`, `PropertiesView.vue:47`, `record/HistoryTab.vue:84`,
+      `changesets/ChangesetView.vue:504`, `admin/reads.ts:28`, niveaux des arbres.
+    - `NextPageAlert` (page suivante comme relecture, défaut antérieur, relecture
+      `a11y-auditor`) : après un « Réessayer » réussi, l'alerte disparaît et le focus tombe
+      sur `body` (WCAG 2.4.3) ; pendant la relecture, ni `aria-busy` ni bouton désactivé,
+      et un second refus n'est pas réannoncé (4.1.3). Le nom `NextPageAlert` couvre mal la
+      relecture (renommer si d'autres usages viennent).
+- [ ] 11p10. Un seul utilisateur qui défile atteint le quota de lecture par défaut
+  (REQ-006-29, 50/s, 200 d'un coup) — **arbitrage de l'utilisateur** : une longue liste
+  défilée vite lit environ 50 fois par seconde, une lecture de propriétés par ligne montrée
+  (relevé de la 11p9) ; au quota, l'écran montre « Trop de requêtes » (première lecture) ou
+  l'avis de la page suivante. Les parcours ne le voient plus : la 11p9 a relevé le quota de
+  lecture de leur instance (`web/v2/e2e/kartenn.toml`, `[http.rate] read`). Options : lecture
+  des propriétés par lots (un paramètre au contrat, donc un arbitrage) ; réessai d'un 429
+  après `Retry-After` dans le cache du SDK (`sdk/src/data/cache.ts:236`, aujourd'hui aucun
+  4xx relu) — verify : un parcours au quota par défaut (une instance à `[http.rate]` par
+  défaut, une liste de dix pages défilée jusqu'au bout sans état d'erreur ni avis)
+  - où : `web/v2/sdk/src/data/cache.ts` (`retry`), les lectures
+    `/v1/<sorte>/{id}/properties` par ligne d'une liste (`web/v2/shell/src/views/
+    propertyColumns.ts`, `views/edit/`), `crates/kartenn-rest/src/quota.rs` (`Rates`),
+    `web/v2/e2e/kartenn.toml`
+  - dépend de : 11p9
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
@@ -6834,6 +6926,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     entre les deux commits. La passe réduite de référence après la 22o-b tranche. Borné
     par la 22o-b : un pas rend deux lignes (`shell/test/list-grid-work.test.ts`, qui échoue
     sur l'ancien code : 100 liens rendus au lieu de 4).
+  - note (2026-11-14, 11p9) : `web/v2/e2e/kartenn.toml`, que `serve.sh budgets` sert aussi,
+    relève depuis la 11p9 le quota de lecture (`[http.rate] read`, 1 000/s, 4 000 d'un
+    coup) ; les passes de banc d'avant ce commit, ces deux-ci comprises, tournaient au quota
+    par défaut (50/s, 200, REQ-006-29) et ne sont pas strictement comparables aux suivantes.
 - [ ] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,

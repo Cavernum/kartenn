@@ -55,6 +55,7 @@ const {
   rows,
   failed,
   nextFailed,
+  refreshFailed,
   complete,
   restarted,
   onWindow,
@@ -181,6 +182,12 @@ function clearFilters(): void {
       :items="exportLines"
     />
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <ProblemState
       v-if="failed"
       :title="t('admin.audit.error')"

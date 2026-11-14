@@ -147,10 +147,6 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
   // invalidates it, each page under a new cursor) brings no page.
   const pages: { url: string; ids: string[]; next: boolean }[] = [];
   const firsts = new Set<string>();
-  let started = 0;
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/v1/prefixes" && request.method() === "GET") started++;
-  });
   page.on("response", (response) => {
     const url = new URL(response.url());
     if (url.pathname !== "/v1/prefixes" || response.request().method() !== "GET") return;
@@ -163,6 +159,20 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
         pages.push({ url: url.search, ids, next: !!body.links?.next });
       })
       .catch(() => undefined);
+  });
+  // The reads of the list the page has started, counted in the page as it sends them: the
+  // scroll below is judged on them in the same turn, never on the `request` events of the
+  // test, which may come after the page read its rows (task 021-11p9). Before the shell
+  // starts: it keeps the `fetch` it finds then (`activityFetch`).
+  await page.addInitScript(() => {
+    const shell = window as unknown as { __reads: number };
+    shell.__reads = 0;
+    const sent = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (new URL(url, location.href).pathname === "/v1/prefixes") shell.__reads++;
+      return sent(input, init);
+    };
   });
   await page.goto(`/prefixes?domain=${DATA.domain}`);
   const grid = page.getByRole("grid", { name: "Préfixes" });
@@ -178,6 +188,18 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
     scan();
     new MutationObserver(scan).observe(el, { subtree: true, childList: true, attributes: true });
   });
+  const reads = () => page.evaluate(() => (window as unknown as { __reads: number }).__reads);
+  /**
+   * To the end of the rows, unless the list was read since `asked` reads: a page read lands
+   * under the rows in view, and a scroll after it would ask for the page after (task
+   * 021-11p9; the guard judged in the test let a second scroll pass while a page landed).
+   */
+  const toEndUnlessRead = (asked: number) =>
+    grid.evaluate((element, asked) => {
+      if ((window as unknown as { __reads: number }).__reads !== asked) return;
+      element.scrollTo(0, element.scrollHeight);
+      document.getElementById("k-surface")?.scrollTo(0, 1e9);
+    }, asked);
   // The last row wholly in view: its key and the top of its box in the grid.
   const lastInView = () =>
     grid.evaluate((el) => {
@@ -192,12 +214,14 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
       return last;
     });
   // To the end of the rows kept until one page more is read, then that page in.
-  // No more scroll once a read has started (its response parsed a moment later).
+  // No more scroll once a read has started (its response parsed a moment later): one
+  // scroll at least, the list read again meanwhile reading the next page after it.
   const readOneMore = async () => {
     const before = pages.length;
-    const asked = started;
+    const asked = await reads();
+    await toEnd(grid);
     await expect(async () => {
-      if (started === asked) await toEnd(grid);
+      await toEndUnlessRead(asked);
       expect(pages.length).toBeGreaterThan(before);
     }).toPass({ timeout: 15_000 });
     const read = pages.at(-1)!;
@@ -212,7 +236,7 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
     } catch (error) {
       // What the grid holds then: the pages read (first or next, their rows), its window.
       console.log(
-        `INFO a page read not shown: pages ${pages.length} started ${started} ${pages.map((p) => `${p.url.includes("cursor") ? "c" : "f"}${p.ids.length}`).join(",")} ${await grid.evaluate(
+        `INFO a page read not shown: pages ${pages.length} started ${await reads()} ${pages.map((p) => `${p.url.includes("cursor") ? "c" : "f"}${p.ids.length}`).join(",")} ${await grid.evaluate(
           (el) => {
             const idx = [...el.querySelectorAll<HTMLElement>("[role='row'][data-index]")].map((r) =>
               Number(r.dataset.index),
@@ -232,11 +256,14 @@ test("past ten pages: each page read is shown, none read ahead of the view, the 
     );
   for (let n = 2; n <= 10; n++) await readOneMore();
   expect(pages).toHaveLength(10);
+  // The count the scrolls are judged on sees the reads of the shell.
+  expect(await reads()).toBeGreaterThanOrEqual(10);
   // The eleventh: the view stays on its rows, nothing more read without a scroll.
   // The eleventh in, the first dropped: the last row in view is still the tenth's last.
-  const asked = started;
+  const asked = await reads();
+  await toEnd(grid);
   await expect(async () => {
-    if (started === asked) await toEnd(grid);
+    await toEndUnlessRead(asked);
     expect(pages).toHaveLength(11);
   }).toPass({ timeout: 15_000 });
   await expect.poll(async () => (await lastInView())?.key).toBe(pages[9]!.ids.at(-1));

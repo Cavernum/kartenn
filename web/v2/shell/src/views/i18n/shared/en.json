@@ -52,6 +52,7 @@
     "client": "An error of the interface stopped the display; reload the page.",
     "passOn": "If the error persists, pass these codes on.",
     "nextPage": "The rest of the list could not be read",
+    "readAgain": "The list could not be read again",
     "code": "Code of the problem",
     "requestId": "Request-Id"
   },

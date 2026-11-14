@@ -21,7 +21,7 @@ const router = useRouter();
 const words = useChangesetWords();
 
 const title = computed(() => t("nav.proposals"));
-const { list, rows, failed, nextFailed, complete, restarted, onWindow } =
+const { list, rows, failed, nextFailed, refreshFailed, complete, restarted, onWindow } =
   useFilteredList<ProposalItem>(() => "/v1/proposals");
 
 const columns = computed<GridColumn[]>(() => [
@@ -54,6 +54,12 @@ const countText = computed(() =>
   <h1 class="k-visually-hidden">{{ title }}</h1>
   <ViewPanel :title="title" :detail="total" main flush>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <ProblemState
       v-if="failed"
       :title="t('views.list.error', { name: title })"

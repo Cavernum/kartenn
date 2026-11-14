@@ -31,7 +31,7 @@ import { gapDetail as detailOf, noValue as empty, type Gap } from "./gap.ts";
 const { t, locale } = useI18n();
 const settings = useSettings();
 const keyLabel = useKeyLabel();
-const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
+const { model, filters, onFilters, list, rows, failed, nextFailed, refreshFailed, onWindow } =
   useFilteredList<Gap>(() => "/v1/property-gaps");
 // The declarations of the properties of the rows only, each read by its key.
 const declared = useDeclarationsOf(() =>
@@ -76,6 +76,12 @@ const targetOf = (key: string | null | undefined) => {
       @update:model-value="onFilters"
     />
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <NextPageAlert
+      v-else-if="refreshFailed"
+      :title="t('problem.readAgain')"
+      :error="list.error.value"
+      :retry="list.refetch"
+    />
     <ProblemState
       v-if="failed"
       :title="t('views.anomalies.gapsError')"

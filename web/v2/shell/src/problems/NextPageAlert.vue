@@ -3,7 +3,8 @@
 // alert says that the rest could not be read, why (the sentence of the problem's type),
 // with its codes copyable, and « Réessayer » for that page alone. A refused cursor is not
 // this: the list starts again from its first page (`useFilteredList`, `restarted`).
-// `title`: the list it names, when a view has several (the levels of a tree).
+// `title`: the list it names, when a view has several (the levels of a tree), or the list
+// read again and refused, its rows kept, `retry` reading it again (task 021-11p9).
 import { Button, InlineAlert } from "@kartenn/ui";
 import { useI18n } from "vue-i18n";
 import { useProblems } from "./index.ts";
