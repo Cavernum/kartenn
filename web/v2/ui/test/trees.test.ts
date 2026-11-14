@@ -5,6 +5,7 @@
 import { createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
+import type { GridColumn } from "../src/components/DataGrid/grid.ts";
 import Tree from "../src/components/Tree/Tree.vue";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
 import {
@@ -473,5 +474,66 @@ describe("TreeGrid (complete)", () => {
     expect(html).toContain('data-virtual="true"');
     expect((html.match(/role="row"/g) ?? []).length).toBeLessThan(300);
     expect(html).toMatch(/data-node="v1-900"[^>]*aria-rowindex="902"/);
+  });
+
+  const extension: GridColumn = { id: "ext", label: "Extension", element: "k-demo-cell" };
+  /** The markup of one cell, up to its end (a cell that holds no editor nor error). */
+  const cellHtml = (html: string, row: string, column: string) =>
+    html.match(new RegExp(`data-row="${row}" data-column="${column}"[\\s\\S]*?</div>`))?.[0] ?? "";
+
+  it("an extension column: an element per node, none where elementProps leaves it out, never edited", async () => {
+    const nodes: TreeNode[] = [
+      {
+        id: "d",
+        label: "Domaine",
+        children: [
+          { id: "x", label: "X", cells: { env: "Prod" } },
+          { id: "y", label: "Y", cells: { env: null } },
+        ],
+      },
+    ];
+    const base = {
+      label: "Arbre",
+      treeLabel: "Nœud",
+      nodes,
+      expanded: ["d"],
+      columns: [{ id: "env", label: "Environnement" }, extension],
+    };
+    // Without elementProps: one in each row of a node.
+    expect((await render(TreeGrid, base)).match(/<k-demo-cell/g)).toHaveLength(3);
+    const html = await render(TreeGrid, {
+      ...base,
+      elementProps: (node: TreeNode) => (node.id === "d" ? undefined : { object: node.id }),
+      editable: () => true,
+      readonlyReason: () => "Pas un champ.",
+    });
+    expect(html.match(/<k-demo-cell/g)).toHaveLength(2);
+    expect(html).toMatch(/data-row="x" data-column="ext"[^>]*data-element="true"/);
+    expect(cellHtml(html, "x", "ext")).toContain("<k-demo-cell");
+    // The domain's row: the cell stays, blank.
+    expect(cellHtml(html, "d", "ext")).toMatch(/data-element="true"/);
+    expect(cellHtml(html, "d", "ext")).not.toContain("<k-demo-cell");
+    // The cell of an extension is never edited, and says no reason why not.
+    expect(html).toMatch(/data-row="x" data-column="ext"[^>]*aria-readonly="true"/);
+    expect(html).not.toMatch(/data-row="x" data-column="ext"[^>]*aria-describedby/);
+    expect(html).not.toMatch(/data-row="x" data-column="env"[^>]*aria-readonly/);
+    // A column of the tree's own keeps its values and its absent ones.
+    expect(html).not.toMatch(/data-column="env"[^>]*data-element/);
+    expect(html).toContain("non renseigné");
+  });
+
+  it("an extension column virtualised: elements for the rows of the window only", async () => {
+    const html = await render(TreeGrid, {
+      label: "Cent mille",
+      treeLabel: "Nœud",
+      nodes: virtualTree(),
+      expanded: ["v1"],
+      selected: "v1-900",
+      columns: [extension],
+    });
+    const rows = (html.match(/role="row"[^>]*data-node=/g) ?? []).length;
+    expect(rows).toBeLessThan(300);
+    expect(html.match(/<k-demo-cell/g)).toHaveLength(rows);
+    expect(cellHtml(html, "v1-900", "ext")).toContain("<k-demo-cell");
   });
 });

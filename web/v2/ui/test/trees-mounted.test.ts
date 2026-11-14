@@ -4,7 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { createApp, h, nextTick, shallowReactive, type App, type Component } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import Tree from "../src/components/Tree/Tree.vue";
 import type { CellState, GridColumn } from "../src/components/DataGrid/grid.ts";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
@@ -16,6 +16,7 @@ import {
   type TreeNode,
 } from "../src/components/TreeGrid/tree.ts";
 import { isUnder, moveNode, noCycle } from "../src/demo/treeHost.ts";
+import { virtualTree } from "../src/demo/trees.ts";
 
 // The trees mounted (spec 020, task 26; REQ-020-31, 32): one instance per run receives the
 // models one after the other with its own state (the focused row kept, moves pending),
@@ -605,5 +606,73 @@ describe("TreeGrid: why a cell has no editor, why it is in its state (task 021-1
     expect(cell(root, "a", "used").getAttribute("aria-describedby")).toBeNull();
     expect(cell(root, "a", "").getAttribute("aria-describedby")).toBeNull();
     expect(description(cell(root, "a", "env"))).toBe(HELD);
+  });
+});
+
+// The column of an extension in a tree whose rows are recycled (task 021-11o, 22e): each
+// element shows the row it was created for, created again when its row element comes to
+// show another row — an element that reads its row once, when connected (as the test
+// plugin `notes` does), shows the right one.
+describe("TreeGrid: an extension column over recycled rows (task 021-11o)", () => {
+  const TAG = "k-test-row-cell";
+  if (!customElements.get(TAG))
+    customElements.define(
+      TAG,
+      class extends HTMLElement {
+        row: TreeNode | undefined;
+        connectedCallback(): void {
+          this.textContent = this.row?.id ?? "";
+        }
+      },
+    );
+  const shownRows = (root: HTMLElement) =>
+    [...root.querySelectorAll<HTMLElement>("[role='row'][data-node]")].map((row) => ({
+      row,
+      node: row.dataset.node!,
+      element: row.querySelector(`[data-column="ext"] ${TAG}`),
+    }));
+
+  // The tree scrolls in a box of 600 px, its rows 28 px high (the document lays nothing
+  // out): a window of rows.
+  const sizes = { clientHeight: "k-tree-grid", offsetHeight: "k-tree-grid__row" } as const;
+  const heights = { clientHeight: 600, offsetHeight: 28 } as const;
+  beforeEach(() => {
+    for (const name of ["clientHeight", "offsetHeight"] as const)
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        get(this: HTMLElement) {
+          return this.classList.contains(sizes[name]) ? heights[name] : 0;
+        },
+      });
+  });
+  afterEach(() => {
+    for (const name of ["clientHeight", "offsetHeight"] as const)
+      delete (HTMLElement.prototype as Partial<Record<typeof name, number>>)[name];
+  });
+
+  it("gives each row its own element, created again when a recycled row shows another node", async () => {
+    const { props, root } = mount(TreeGrid as Component, {
+      label: "Cent mille",
+      treeLabel: "Nœud",
+      nodes: virtualTree(),
+      expanded: ["v1"],
+      columns: [{ id: "ext", label: "Extension", element: TAG }],
+    });
+    await nextTick();
+    const before = shownRows(root);
+    expect(before.length).toBeGreaterThan(2);
+    expect(before.length).toBeLessThan(300);
+    for (const { node, element } of before) expect(element?.textContent, node).toBe(node);
+    // Another domain open: the children of the first leave the window, those of the second
+    // take their row elements (still virtualised, 1 100 rows).
+    props.expanded = ["v2"];
+    await nextTick();
+    await nextTick();
+    const after = shownRows(root);
+    const recycled = after.filter(({ row, node }) =>
+      before.some((was) => was.row === row && was.node !== node),
+    );
+    expect(recycled.length).toBeGreaterThan(0);
+    for (const { node, element } of after) expect(element?.textContent, node).toBe(node);
   });
 });

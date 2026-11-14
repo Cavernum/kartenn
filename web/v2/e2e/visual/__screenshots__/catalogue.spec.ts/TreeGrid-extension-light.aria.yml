@@ -1,0 +1,61 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "extension — Colonne d''une extension, comme dans DataGrid : un élément personnalisé par nœud, recréé quand sa ligne revient ; aucun sur la ligne d''un domaine"':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation Supervision (extension)":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+            - columnheader "Supervision (extension)"
+        - rowgroup:
+          - row "Centre de données nord" [expanded] [level=1]:
+            - gridcell "Centre de données nord"
+            - gridcell
+            - gridcell
+            - gridcell
+          - row /Serveurs \d+\.\d+\.2\.0\/\d+ Production \d+ % Sondé/ [expanded] [level=2]:
+            - gridcell /Serveurs \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
+          - row /Bases \d+\.\d+\.2\.0\/\d+ Production \d+ % Non sondé/ [level=3]:
+            - gridcell /Bases \d+\.\d+\.2\.0\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Non sondé"
+          - row /Supervision \d+\.\d+\.\d+\.\d+\/\d+ Recette \d+ % Non sondé/ [level=3]:
+            - gridcell /Supervision \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Non sondé"
+          - row /Postes \d+\.\d+\.\d+\.\d+\/\d+ Production \d+ % Sondé/ [level=2]:
+            - gridcell /Postes \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
+          - row /Invités \d+\.\d+\.\d+\.\d+\/\d+ Développement 3 % Non sondé/ [level=2]:
+            - gridcell /Invités \d+\.\d+\.\d+\.\d+\/\d+/:
+              - text: ""
+              - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+            - gridcell "Non sondé"
+      - status
+      - alert
+      - code: extension
+      - text: ""

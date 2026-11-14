@@ -45,6 +45,12 @@
 // renseigné » read); a cell not given (a domain row) and `""` stay blank, as before.
 // A notice (`TreeNode.notice`, a level capped) is a row of one cell, its icon and label,
 // out of the set of its siblings: Enter or a click activates it, nothing selects or moves it.
+// A column of an extension (`element`, as `DataGrid`): each cell of a node a custom element
+// of that tag, its `row` the node and its other properties what `elementProps` gives (none
+// on a row it leaves out); never edited, its controls out of the tab order (Enter or F2
+// reach them). Keyed by its row: a recycled element of row creates it again for the row it
+// comes to show, as a list keyed by its rows would (design 007: elements created again as
+// the rows scroll).
 import {
   computed,
   nextTick,
@@ -76,6 +82,7 @@ import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEd
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
 import CellSelect from "../internal/CellSelect.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import { CELL_WIDGETS, ExtensionCell } from "../internal/extensionCell.ts";
 import type { ListOption } from "../Select/select.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import MoveDialog from "../internal/MoveDialog.vue";
@@ -160,6 +167,13 @@ const props = withDefaults(
     options?:
       ((node: TreeNode, column: GridColumn) => readonly ListOption[] | undefined) | undefined;
     cellState?: ((node: TreeNode, column: GridColumn) => CellState | undefined) | undefined;
+    /**
+     * The properties of the element of an extension column (`element`) in the row of
+     * `node`, beside `row` (the node, unless they give another); `undefined`: no element
+     * in that row (a node of another type), its cell blank.
+     */
+    elementProps?:
+      ((node: TreeNode, column: GridColumn) => Record<string, unknown> | undefined) | undefined;
   }>(),
   {
     columns: () => [],
@@ -176,6 +190,7 @@ const props = withDefaults(
     validate: undefined,
     options: undefined,
     cellState: undefined,
+    elementProps: undefined,
   },
 );
 const emit = defineEmits<{
@@ -388,11 +403,17 @@ function toggle(id: string): void {
 
 const isEditing = (key: string, column: string) =>
   editing.value?.row === key && editing.value.column === column;
-const canEdit = (node: TreeNode, column: GridColumn) => !!props.editable?.(node, column);
+// The cell of an extension is its element's: never edited.
+const canEdit = (node: TreeNode, column: GridColumn) =>
+  !column.element && !!props.editable?.(node, column);
 /** The value of a cell: `null` absent (`NoValue`), a cell not given blank. */
 function cellOf(node: TreeNode, column: GridColumn): string | null {
   const value = node.cells?.[column.id];
   return value === undefined ? "" : value;
+}
+/** The properties of the element of an extension cell beside `row`; `null`: none there. */
+function extraOf(node: TreeNode, column: GridColumn): Record<string, unknown> | null | undefined {
+  return props.elementProps ? (props.elementProps(node, column) ?? null) : undefined;
 }
 const textOf = (cell: CellRef) => {
   const node = nodeOf(cell.row);
@@ -496,8 +517,9 @@ function errorAnchor(node: TreeNode, column: GridColumn): HTMLElement | null {
 // Why a cell is in its state (`stateReason`) and why a cell of an editable treegrid has
 // no editor (`readonlyReason`), as `DataGrid` (`internal/cellReasons.ts`): hidden
 // sentences outside the rows, the description of the cell, one tooltip for the tree.
+// A cell of an extension is no field: no reason why it has no editor.
 const readonlyText = (node: TreeNode, column: GridColumn) =>
-  props.editable && props.readonlyReason && !canEdit(node, column)
+  props.editable && props.readonlyReason && !column.element && !canEdit(node, column)
     ? props.readonlyReason(node, column)
     : undefined;
 /** Why the cell is in its state; nothing for an error, which its message says. */
@@ -566,7 +588,9 @@ function onKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape" || event.key === "F2") {
       event.preventDefault();
       const widgets = widgetsOf(cell);
-      const next = event.key === "F2" ? widgets[widgets.indexOf(target) + 1] : undefined;
+      // A control the cell does not list (in a shadow root): F2 goes back to the cell.
+      const at = widgets.indexOf(target);
+      const next = event.key === "F2" && at >= 0 ? widgets[at + 1] : undefined;
       (next ?? cell).focus();
     }
     return;
@@ -740,14 +764,62 @@ function measureHead(): void {
   if (key) grid.value!.style.setProperty("--k-tree-grid-key", `${key.offsetWidth}px`);
 }
 let observer: ResizeObserver | undefined;
-/** The widgets of a cell, in order: out of the tab order, reached by Enter or F2. */
-const widgetsOf = (cell: HTMLElement) => [...cell.querySelectorAll<HTMLElement>("button")];
+/**
+ * The widgets of a cell, in order: out of the tab order, reached by Enter or F2 — the
+ * buttons of the tree's own cells, the controls of the element of an extension.
+ */
+const widgetsOf = (cell: HTMLElement) => [
+  ...cell.querySelectorAll<HTMLElement>(cell.dataset.element ? CELL_WIDGETS : "button"),
+];
 function tame(): void {
   for (const button of grid.value?.querySelectorAll<HTMLElement>(".k-tree-grid__cell button") ?? [])
     button.tabIndex = -1;
+  if (extended.value) tameElements(grid.value);
 }
 onMounted(tame);
 onUpdated(tame);
+// The element of an extension renders when it likes (its plugin, after a read): its
+// controls leave the tab order as they come or turn focusable, in the light DOM (ADR 0038,
+// § 4), as in `DataGrid`. Observed only while a column has an element: nothing for a row
+// of a tree without one.
+const extended = computed(() => props.columns.some((column) => column.element));
+const ELEMENT_CELL = ".k-tree-grid__cell[data-element]";
+/** A control in the element of an extension cell leaves the tab order. */
+function tameOne(el: Element): void {
+  if (!(el instanceof HTMLElement) || !el.matches(CELL_WIDGETS) || el.matches("[data-column]"))
+    return;
+  if (el.parentElement?.closest(ELEMENT_CELL) && el.tabIndex !== -1) el.tabIndex = -1;
+}
+function tameElements(root: ParentNode | null): void {
+  for (const el of root?.querySelectorAll(`${ELEMENT_CELL} :is(${CELL_WIDGETS})`) ?? [])
+    tameOne(el);
+}
+let mutations: MutationObserver | undefined;
+function onMutations(records: MutationRecord[]): void {
+  for (const record of records) {
+    if (record.type === "attributes") tameOne(record.target as Element);
+    for (const node of record.addedNodes) {
+      if (!(node instanceof Element)) continue;
+      tameOne(node);
+      for (const el of node.querySelectorAll(CELL_WIDGETS)) tameOne(el);
+    }
+  }
+}
+function observeElements(): void {
+  mutations?.disconnect();
+  mutations = undefined;
+  if (!extended.value || !grid.value || typeof MutationObserver === "undefined") return;
+  mutations = new MutationObserver(onMutations);
+  mutations.observe(grid.value, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["tabindex", "href", "contenteditable"],
+  });
+}
+onMounted(observeElements);
+watch(extended, observeElements, { flush: "post" });
+onBeforeUnmount(() => mutations?.disconnect());
 onMounted(() => {
   virtual.readEstimate();
   measureHead();
@@ -1081,6 +1153,7 @@ onBeforeUnmount(() => observer?.disconnect());
               :data-align="column.align"
               :data-priority="priority(column)"
               :data-width="column.width ?? 'md'"
+              :data-element="column.element ? 'true' : undefined"
               :data-state="stateOf(part.row.node, column)"
               :data-editing="isEditing(part.row.key, column.id) ? 'true' : undefined"
               :aria-colindex="colIndex(column)"
@@ -1135,9 +1208,16 @@ onBeforeUnmount(() => observer?.disconnect());
               </div>
               <template v-else>
                 <span class="k-tree-grid__value"
-                  ><NoValue v-if="cellOf(part.row.node, column) === null" /><template v-else>{{
-                    cellOf(part.row.node, column)
-                  }}</template></span
+                  ><ExtensionCell
+                    v-if="column.element"
+                    :key="part.row.key"
+                    :tag="column.element"
+                    :row="part.row.node"
+                    :extra="extraOf(part.row.node, column)"
+                  /><NoValue v-else-if="cellOf(part.row.node, column) === null" /><template
+                    v-else
+                    >{{ cellOf(part.row.node, column) }}</template
+                  ></span
                 >
                 <Icon
                   v-if="stateOf(part.row.node, column) === 'pending'"
@@ -1403,6 +1483,13 @@ onBeforeUnmount(() => observer?.disconnect());
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* The element of an extension may hold a control: its focus ring drawn past the clip,
+   * as in `DataGrid`. */
+  .k-tree-grid__cell[data-element] > .k-tree-grid__value {
+    overflow: clip;
+    overflow-clip-margin: var(--k-space-2);
   }
 
   /* The key of a node keeps its room: the label gives way first. */

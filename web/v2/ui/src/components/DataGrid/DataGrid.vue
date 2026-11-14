@@ -46,7 +46,6 @@
 // the header is a strip of controls. Still a grid of rows and cells, same keys.
 import {
   computed,
-  h,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -56,7 +55,6 @@ import {
   useId,
   useSlots,
   watch,
-  type FunctionalComponent,
 } from "vue";
 import { t } from "../../i18n.ts";
 import Checkbox from "../Checkbox/Checkbox.vue";
@@ -68,6 +66,7 @@ import NoValue from "../NoValue/NoValue.vue";
 import CellError from "./CellError.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
+import { CELL_WIDGETS, ExtensionCell } from "../internal/extensionCell.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
@@ -171,7 +170,9 @@ const props = withDefaults(
     /** The columns take a width from the keyboard and the pointer (`columnWidths`). */
     resizable?: boolean;
     /** The properties of the elements of the extension columns, beside `row`. */
-    elementProps?: ((row: R, column: GridColumn) => Record<string, unknown>) | undefined;
+    /** `undefined` for a row: no element in that cell (as `TreeGrid`). */
+    elementProps?:
+      ((row: R, column: GridColumn) => Record<string, unknown> | undefined) | undefined;
   }>(),
   {
     selectable: false,
@@ -622,7 +623,7 @@ function onFocusin(event: FocusEvent): void {
 }
 
 /** The widgets inside a cell (a link, a copy button): out of the tab order, reached by keys. */
-const WIDGETS = "a[href], button, input, select, textarea, [tabindex], [contenteditable]";
+const WIDGETS = CELL_WIDGETS;
 function widgetsOf(cell: HTMLElement): HTMLElement[] {
   return [...cell.querySelectorAll<HTMLElement>(WIDGETS)].filter(
     (el) => !el.closest(".k-data-grid__editor"),
@@ -870,18 +871,6 @@ function onHandleUp(event: PointerEvent): void {
     void setWidth(drag.column, nextPresetWidth(drag.width, presets()));
   drag = null;
 }
-
-/** The custom element of an extension column, its properties set as such (not attributes). */
-const ExtensionCell: FunctionalComponent<{
-  tag: string;
-  row: unknown;
-  extra?: Record<string, unknown> | undefined;
-}> = (p) =>
-  h(p.tag, {
-    ".row": p.row,
-    ...Object.fromEntries(Object.entries(p.extra ?? {}).map(([k, v]) => [`.${k}`, v])),
-  });
-ExtensionCell.props = ["tag", "row", "extra"];
 
 // ——— Keys ———
 
@@ -1319,7 +1308,11 @@ onBeforeUnmount(() => observer?.disconnect());
                     v-if="column.element"
                     :tag="column.element"
                     :row="part.row"
-                    :extra="props.elementProps?.(part.row, column)"
+                    :extra="
+                      props.elementProps
+                        ? (props.elementProps(part.row, column) ?? null)
+                        : undefined
+                    "
                   />
                   <slot
                     v-else
