@@ -355,6 +355,7 @@ rbac.resolution
 http.read-object
 http.read-past (après http.read-object)
 http.filtered-page
+http.resolved-batch
 http.subtree
 http.unitary-changeset
 http.labels

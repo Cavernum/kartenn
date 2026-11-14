@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use axum::Extension;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use kartenn_core::audit::rfc3339;
@@ -24,7 +24,7 @@ use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::expected::suggest;
 use kartenn_service::operations::RawInput;
-use kartenn_service::reads::{objects_read, read_object, sensitive_disclosed};
+use kartenn_service::reads::{objects_read, read_object, resolved_many, sensitive_disclosed};
 use kartenn_store_pg::anomalies::{self, Anomaly, AnomalyFilter};
 use kartenn_store_pg::explain::explain;
 use kartenn_store_pg::list::Kind;
@@ -35,7 +35,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::router::{OpenApiRouter, UtoipaMethodRouter};
 use utoipa_axum::routes;
 use uuid::Uuid;
 
@@ -45,6 +45,10 @@ use crate::dated::{Dates, DatesParams, ETag, Moment, respond};
 use crate::objects::{Api, Target, audited, bad, instant, store};
 use crate::openapi::{documented, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
+use crate::quota::{Charge, ids_weight};
+
+/// Most objects of a read of the resolved values of several objects (REQ-006-40).
+pub const BATCH_MAX: usize = 200;
 
 /// The routes of the properties.
 pub fn routes() -> OpenApiRouter<Api> {
@@ -66,9 +70,11 @@ pub(crate) fn object_routes(mut router: OpenApiRouter<Api>, target: Target) -> O
     let object = format!("The {}.", target.as_str());
     let mut schemas = Vec::new();
     schemas_of::<Resolved>(&mut schemas);
+    schemas_of::<ResolvedBatch>(&mut schemas);
     schemas_of::<ExplanationDto>(&mut schemas);
     schemas_of::<SuggestionDto>(&mut schemas);
     router = router
+        .routes(batch_route(target))
         .routes(documented(
             &format!("/{name}/{{id}}/properties"),
             vec![(
@@ -147,6 +153,49 @@ pub(crate) fn object_routes(mut router: OpenApiRouter<Api>, target: Target) -> O
             ),
         ));
     router
+}
+
+/// The resolved values of several objects of `target` (REQ-006-40): a static segment,
+/// matched before the identifier of `/{name}/{id}` (task 006-31).
+fn batch_route(target: Target) -> UtoipaMethodRouter<Api> {
+    let description = format!(
+        "An object, repeated, {BATCH_MAX} at most; one that does not exist at the dates, of \
+         another collection or that the caller may not read is left out."
+    );
+    documented(
+        &format!("/{}/properties", target.collection()),
+        vec![(
+            HttpMethod::Get,
+            op(
+                &format!("{}_properties_batch", target.operation_name()),
+                "properties",
+                "The resolved values of the properties of several objects (REQ-006-40).",
+            )
+            .repeated("id", &description, true, true)
+            .repeated(
+                "key",
+                "A property, repeated: those only; every one declared by default.",
+                false,
+                false,
+            )
+            .params::<DatesParams>()
+            .answers(
+                "200",
+                "The resolved values of each object, in the order of `id`.",
+                "ResolvedBatch",
+            )
+            .build(),
+        )],
+        Vec::new(),
+        get(
+            move |state: State<Api>,
+                  context: Extension<RequestContext>,
+                  charge: Option<Extension<Charge>>,
+                  query: RawQuery| {
+                resolved_batch(target, state, context, charge, query)
+            },
+        ),
+    )
 }
 
 /// `body` as a dated read, with the weak tag of its content.
@@ -510,6 +559,254 @@ async fn resolved(
         },
     };
     Ok(respond_json(&headers, &moment, &body))
+}
+
+// ---------------------------------------------------------------- several objects
+
+/// The resolved values of the properties of one object of a batch: those of the read of
+/// the object, its links aside, and its identifier (REQ-006-40).
+#[derive(Debug, Serialize, ToSchema)]
+struct ResolvedItem {
+    /// The object.
+    id: Uuid,
+    /// The values by key; `null`: « no value » explicitly.
+    #[schema(value_type = BTreeMap<String, Object>)]
+    properties: BTreeMap<String, Option<Value>>,
+    /// Where each value of `properties` comes from, by the same keys; a key of `masked`
+    /// has none.
+    sources: BTreeMap<String, SourceDto>,
+    /// The keys of the values the caller may not see (REQ-005-21).
+    masked: BTreeSet<String>,
+}
+
+/// The resolved values of the properties of several objects (REQ-006-40).
+#[derive(Debug, Serialize, ToSchema)]
+struct ResolvedBatch {
+    /// One per object read, in the order of the parameters `id`.
+    items: Vec<ResolvedItem>,
+}
+
+/// What a read of several objects asks for.
+#[derive(Debug, PartialEq, Eq)]
+struct BatchQuery {
+    /// The objects, once each, in the order given.
+    ids: Vec<Uuid>,
+    /// How many `id` were given: the weight of the read.
+    given: usize,
+    /// The properties asked for, once each; empty: all of them.
+    keys: Vec<String>,
+    /// Its dates.
+    dates: Dates,
+}
+
+/// `id` (1 to [`BATCH_MAX`]), `key`, `valid_at` and `as_of` of `query`; anything else, a
+/// malformed identifier or date → 400 that names the parameter.
+fn batch_query(query: &str) -> Result<BatchQuery, Problem> {
+    let dates = Dates::from_query(query)?;
+    let (mut ids, mut keys, mut given) = (Vec::new(), Vec::new(), 0);
+    for (name, value) in form_urlencoded::parse(query.as_bytes()) {
+        match name.as_ref() {
+            "id" => {
+                given += 1;
+                let id = value
+                    .parse::<Uuid>()
+                    .map_err(|_| bad("id must be a UUID"))?;
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+            "key" => {
+                if !keys.iter().any(|k: &String| *k == value) {
+                    keys.push(value.into_owned());
+                }
+            }
+            "valid_at" | "as_of" => {}
+            other => return Err(bad(format!("unknown parameter {other}"))),
+        }
+    }
+    if given == 0 {
+        return Err(bad("id is required, once per object"));
+    }
+    if given > BATCH_MAX {
+        return Err(bad(format!(
+            "id is given {given} times, {BATCH_MAX} at most"
+        )));
+    }
+    Ok(BatchQuery {
+        ids,
+        given,
+        keys,
+        dates,
+    })
+}
+
+/// `GET /v1/<collection>/properties?id=…&id=…&key=…`: the resolved values of several
+/// objects, each item equal to what `GET /v1/<collection>/{id}/properties` answers at the
+/// same dates, its links aside (REQ-006-40). An object that does not exist at the dates,
+/// of another collection or that the caller may not read now is left out, alike: no
+/// refusal is recorded, as for a list (005: invisible is absent). One `data.objects.read`
+/// for the batch, naming the objects read; one `data.sensitive.read` per value disclosed,
+/// as the read of one object. It weighs one read per hundred identifiers begun. No `ETag`
+/// (H23).
+async fn resolved_batch(
+    kind: Target,
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    charge: Option<Extension<Charge>>,
+    RawQuery(query): RawQuery,
+) -> Response {
+    let asked = match batch_query(query.as_deref().unwrap_or_default()) {
+        Ok(asked) => asked,
+        Err(problem) => return problem.into_response(),
+    };
+    if let Some(Extension(charge)) = charge
+        && let Err(refused) = charge.weigh(ids_weight(asked.given))
+    {
+        return refused.into_response();
+    }
+    batch(&api, &context, kind, asked)
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+/// The body of [`resolved_batch`] once its parameters are read and weighed.
+async fn batch(
+    api: &Api,
+    context: &RequestContext,
+    kind: Target,
+    asked: BatchQuery,
+) -> Result<Response, Problem> {
+    let BatchQuery {
+        mut ids,
+        keys: asked_keys,
+        dates,
+        ..
+    } = asked;
+    let moment = moment_of(api, dates).await?;
+    // Of the collection at the dates, then readable now: an absent object and an
+    // unreadable one take the same path, the same queries, without a trace of refusal.
+    let kinds = property_read::kind_names(&api.pool, &ids, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?;
+    ids.retain(|id| kinds.get(id).map(String::as_str) == Some(kind.as_str()));
+    if let Some(subject) = context.subject() {
+        let denied: BTreeSet<Uuid> = api
+            .authorizer()
+            .authorize_many(&subject, &kind.read_permission(), &ids)
+            .await?
+            .into_iter()
+            .collect();
+        ids.retain(|id| !denied.contains(id));
+    }
+    let keys = if asked_keys.is_empty() {
+        let all = property_read::DeclarationFilter::default();
+        property_read::declarations(
+            &api.pool,
+            moment.valid_at,
+            moment.as_of,
+            all,
+            None,
+            i64::MAX,
+        )
+        .await
+        .map_err(|e| store(&e))?
+        .into_iter()
+        .map(|d| d.key)
+        .collect()
+    } else {
+        asked_keys.clone()
+    };
+    let rows = resolved_many(
+        &PgStore::new(api.pool.clone()),
+        &api.authorizer(),
+        &api.journal,
+        context,
+        &ids,
+        &keys,
+        instant(moment.valid_at),
+        moment.as_of.map(instant),
+    )
+    .await?;
+    let criteria = json!({
+        "collection": kind.collection(),
+        "keys": (!asked_keys.is_empty()).then_some(&asked_keys),
+        "valid_at": rfc3339(instant(moment.valid_at)),
+        "as_of": moment.as_of.map(|at| rfc3339(instant(at))),
+    });
+    let event = objects_read(context, "object", &ids, criteria, api.audit).map_err(audited)?;
+    api.journal
+        .record(&event)
+        .await
+        .map_err(RequestError::Audit)?;
+    // The holders of the values shown, named when the caller may read them.
+    let holders: Vec<Uuid> = rows
+        .iter()
+        .filter(|r| !r.masked)
+        .filter_map(|r| r.origin.filter(|origin| *origin != r.object))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let nodes = visible_nodes(api, context, &holders, &moment).await?;
+    let items = items_of(kind, &ids, rows, &nodes);
+    let bytes = serde_json::to_vec(&ResolvedBatch { items }).expect("JSON values serialise");
+    Ok((
+        [
+            (CONTENT_TYPE, "application/json"),
+            (CACHE_CONTROL, moment.cache_control()),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
+/// The item of each of `ids` from the resolved `rows`, as [`resolved`] shows one object:
+/// a value that applies with its source, its holder among `nodes` or the object itself;
+/// a masked one by its key only; nothing for a property that does not apply.
+fn items_of(
+    kind: Target,
+    ids: &[Uuid],
+    rows: Vec<kartenn_service::port::Resolved>,
+    nodes: &BTreeMap<Uuid, Node>,
+) -> Vec<ResolvedItem> {
+    let mut items: Vec<ResolvedItem> = ids
+        .iter()
+        .map(|id| ResolvedItem {
+            id: *id,
+            properties: BTreeMap::new(),
+            sources: BTreeMap::new(),
+            masked: BTreeSet::new(),
+        })
+        .collect();
+    let place: BTreeMap<Uuid, usize> = ids.iter().enumerate().map(|(i, id)| (*id, i)).collect();
+    for row in rows {
+        let (Some(origin), Some(&i)) = (row.origin, place.get(&row.object)) else {
+            continue;
+        };
+        let item = &mut items[i];
+        if row.masked {
+            item.masked.insert(row.property);
+            continue;
+        }
+        let shown = if origin == row.object {
+            Some(Node {
+                kind: kind.as_str(),
+                id: origin,
+                href: kind.href(origin),
+            })
+        } else {
+            nodes.get(&origin).cloned()
+        };
+        item.sources.insert(
+            row.property.clone(),
+            SourceDto {
+                origin: shown,
+                inherited: origin != row.object,
+                provenance: row.provenance,
+            },
+        );
+        item.properties.insert(row.property, row.value);
+    }
+    items
 }
 
 /// 404 unless the object `id` of `kind` exists at the dates of `moment` and the caller

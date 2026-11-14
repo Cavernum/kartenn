@@ -553,6 +553,40 @@ impl Op {
         )
     }
 
+    /// A parameter of the query string given once per value (`id=…&id=…`, the form style
+    /// exploded, the default of OpenAPI for the query): an array of UUIDs or of strings.
+    #[must_use]
+    pub fn repeated(self, name: &str, description: &str, uuid: bool, required: bool) -> Self {
+        let item: RefOr<Schema> = if uuid {
+            utoipa::openapi::ObjectBuilder::new()
+                .schema_type(utoipa::openapi::schema::Type::String)
+                .format(Some(utoipa::openapi::SchemaFormat::KnownFormat(
+                    utoipa::openapi::KnownFormat::Uuid,
+                )))
+                .into()
+        } else {
+            String::schema()
+        };
+        let schema: RefOr<Schema> = utoipa::openapi::schema::ArrayBuilder::new()
+            .items(item)
+            .into();
+        Self(
+            self.0.parameter(
+                ParameterBuilder::new()
+                    .name(name)
+                    .parameter_in(ParameterIn::Query)
+                    .required(if required {
+                        Required::True
+                    } else {
+                        Required::False
+                    })
+                    .description(Some(description))
+                    .schema(Some(schema))
+                    .build(),
+            ),
+        )
+    }
+
     /// A filter of the query string of a list, of schema `schema`; `client`, when given,
     /// is its extension `x-kartenn` (`collection`: the list its values come from).
     #[must_use]

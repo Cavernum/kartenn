@@ -221,8 +221,10 @@ pub async fn shown_object<A: Authorizer, J: AuditJournal>(
 /// asserted at `as_of`, in one call (REQ-016-1), read by `context` under the rights of its
 /// subject: an object it may not read is left out without error (REQ-005-24); the value
 /// of a sensitive property needs `prop.<key>.read`, or it is masked (REQ-005-21), and
-/// each one shown is recorded as `data.sensitive.read` (REQ-012-18). A read without a
-/// subject (the system) sees everything.
+/// each one shown is recorded as `data.sensitive.read` (REQ-012-18). As in
+/// [`read_object`], a sensitive property that applies is masked even when it applies as
+/// "no value": whether it is set is not disclosed (task 006-31). A read without a subject
+/// (the system) sees everything.
 ///
 /// # Errors
 ///
@@ -260,7 +262,7 @@ pub async fn resolved_many<R: Reader, A: Authorizer, J: AuditJournal>(
     found.retain(|r| !unreadable.contains(&r.object));
     let mut sensitive: std::collections::BTreeMap<String, BTreeSet<Uuid>> =
         std::collections::BTreeMap::new();
-    for r in found.iter().filter(|r| r.sensitive && r.value.is_some()) {
+    for r in found.iter().filter(|r| r.sensitive && r.origin.is_some()) {
         sensitive
             .entry(r.property.clone())
             .or_default()
@@ -271,7 +273,7 @@ pub async fn resolved_many<R: Reader, A: Authorizer, J: AuditJournal>(
         let shown = sensitive_disclosed(authorizer, journal, context, &key, &ids).await?;
         for r in found
             .iter_mut()
-            .filter(|r| r.property == key && r.value.is_some() && !shown.contains(&r.object))
+            .filter(|r| r.property == key && r.origin.is_some() && !shown.contains(&r.object))
         {
             r.value = None;
             r.masked = true;

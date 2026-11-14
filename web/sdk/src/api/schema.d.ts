@@ -56,6 +56,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/addresses/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["address_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/addresses/{id}": {
     parameters: {
       query?: never;
@@ -172,6 +189,23 @@ export interface paths {
     put?: never;
     /** Creates in admissibility-conditions (policy.condition.create). */
     post: operations["create_admissibility_conditions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admissibility-conditions/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_condition_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -655,6 +689,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/clusters/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["machines_cluster_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/clusters/{id}": {
     parameters: {
       query?: never;
@@ -771,6 +822,23 @@ export interface paths {
     put?: never;
     /** Creates a domain. */
     post: operations["create_domain"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/domains/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["domain_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1030,6 +1098,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/entities/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["entity_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/entities/{id}": {
     parameters: {
       query?: never;
@@ -1222,6 +1307,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/flow-types/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_flow_type_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/flow-types/{id}": {
     parameters: {
       query?: never;
@@ -1321,6 +1423,23 @@ export interface paths {
     put?: never;
     /** Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`). */
     post: operations["request_flow"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/flows/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["flow_flow_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1756,6 +1875,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/inference-rules/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_inference_rule_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/inference-rules/{id}": {
     parameters: {
       query?: never;
@@ -1852,6 +1988,23 @@ export interface paths {
     };
     /** The ingresses the caller may read (REQ-019-38), by name. */
     get: operations["list_kube_ingresses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ingresses/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_ingress_properties_batch"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1957,6 +2110,23 @@ export interface paths {
     put?: never;
     /** Creates a interface. */
     post: operations["create_interface"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/interfaces/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["machines_interface_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2123,6 +2293,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-admitted-values/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_admitted_values_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-admitted-values/{id}/history": {
     parameters: {
       query?: never;
@@ -2203,6 +2390,23 @@ export interface paths {
     put?: never;
     /** Declares a cluster (REQ-019-5): its slug, owner, pod and service domains are required; the ranges cited lie in the domains it designates. */
     post: operations["create_kube_cluster"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-clusters/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_cluster_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2314,6 +2518,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-label-mappings/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_label_mapping_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-label-mappings/{id}/history": {
     parameters: {
       query?: never;
@@ -2391,6 +2612,23 @@ export interface paths {
     };
     /** The namespaces the caller may read (REQ-019-38), by name. */
     get: operations["list_kube_namespaces"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-namespaces/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_namespace_properties_batch"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2501,6 +2739,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-nodes/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_node_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-nodes/{id}": {
     parameters: {
       query?: never;
@@ -2603,6 +2858,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-services/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_service_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-services/{id}": {
     parameters: {
       query?: never;
@@ -2680,6 +2952,23 @@ export interface paths {
     };
     /** The value the source of a property expects for the object (REQ-003-23). */
     get: operations["kube_service_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/kube-tracked-labels/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_tracked_label_properties_batch"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2807,6 +3096,23 @@ export interface paths {
     put?: never;
     /** Creates a machine. */
     post: operations["create_machine"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/machines/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["machines_machine_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3003,6 +3309,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-axes/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_axis_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/policy-axes/{id}": {
     parameters: {
       query?: never;
@@ -3102,6 +3425,23 @@ export interface paths {
     put?: never;
     /** Creates in policy-exempt-roles (policy.exempt_role.create). */
     post: operations["create_policy_exempt_roles"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-exempt-roles/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_exempt_role_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3240,6 +3580,23 @@ export interface paths {
     put?: never;
     /** Creates in policy-patterns (policy.pattern.create). */
     post: operations["create_policy_patterns"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policy-patterns/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_pattern_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3403,6 +3760,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-rules/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_rule_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/policy-rules/{id}": {
     parameters: {
       query?: never;
@@ -3508,6 +3882,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policy-values/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_value_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/policy-values/{id}": {
     parameters: {
       query?: never;
@@ -3605,6 +3996,23 @@ export interface paths {
     put?: never;
     /** Creates a prefix. */
     post: operations["create_prefix"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/prefixes/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["prefix_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3901,6 +4309,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/ranges/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["range_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/ranges/{id}": {
     parameters: {
       query?: never;
@@ -4000,6 +4425,23 @@ export interface paths {
     put?: never;
     /** Creates in risk-signals (policy.signal.create). */
     post: operations["create_risk_signals"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/risk-signals/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_signal_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -4243,6 +4685,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/services/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["policy_service_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/services/{id}": {
     parameters: {
       query?: never;
@@ -4342,6 +4801,23 @@ export interface paths {
     put?: never;
     /** Creates a site. */
     post: operations["create_site"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sites/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["site_properties_batch"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -4487,6 +4963,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/vlan-groups/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["vlan_group_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/vlan-groups/{id}": {
     parameters: {
       query?: never;
@@ -4626,6 +5119,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/vlans/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["vlan_properties_batch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/vlans/{id}": {
     parameters: {
       query?: never;
@@ -4739,6 +5249,23 @@ export interface paths {
     };
     /** The workloads the caller may read (REQ-019-38), by name. */
     get: operations["list_kube_workloads"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workloads/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of several objects (REQ-006-40). */
+    get: operations["kube_workload_properties_batch"];
     put?: never;
     post?: never;
     delete?: never;
@@ -9588,6 +10115,35 @@ export interface components {
         [key: string]: components["schemas"]["ValueSource"];
       };
     };
+    /** @description The resolved values of the properties of several objects (REQ-006-40). */
+    ResolvedBatch: {
+      /** @description One per object read, in the order of the parameters `id`. */
+      items: components["schemas"]["ResolvedItem"][];
+    };
+    /**
+     * @description The resolved values of the properties of one object of a batch: those of the read of
+     *     the object, its links aside, and its identifier (REQ-006-40).
+     */
+    ResolvedItem: {
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      id: string;
+      /** @description The keys of the values the caller may not see (REQ-005-21). */
+      masked: string[];
+      /** @description The values by key; `null`: « no value » explicitly. */
+      properties: {
+        [key: string]: Record<string, never>;
+      };
+      /**
+       * @description Where each value of `properties` comes from, by the same keys; a key of `masked`
+       *     has none.
+       */
+      sources: {
+        [key: string]: components["schemas"]["ValueSource"];
+      };
+    };
     /** @description The links of the resolved values of an object. */
     ResolvedLinks: {
       /** @description The object. */
@@ -10585,6 +11141,47 @@ export interface operations {
       };
     };
   };
+  address_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_address: {
     parameters: {
       query?: {
@@ -11042,6 +11639,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_condition_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -12382,6 +13020,47 @@ export interface operations {
       };
     };
   };
+  machines_cluster_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_cluster: {
     parameters: {
       query?: {
@@ -12839,6 +13518,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  domain_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -13886,6 +14606,47 @@ export interface operations {
       };
     };
   };
+  entity_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_entity: {
     parameters: {
       query?: {
@@ -14717,6 +15478,47 @@ export interface operations {
       };
     };
   };
+  policy_flow_type_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_flow_types: {
     parameters: {
       query?: {
@@ -15158,6 +15960,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  flow_flow_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -16657,6 +17500,47 @@ export interface operations {
       };
     };
   };
+  policy_inference_rule_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_inference_rules: {
     parameters: {
       query?: {
@@ -17024,6 +17908,47 @@ export interface operations {
       };
     };
   };
+  kube_ingress_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_kube_ingress: {
     parameters: {
       query?: {
@@ -17337,6 +18262,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_interface_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -17982,6 +18948,47 @@ export interface operations {
       };
     };
   };
+  kube_admitted_values_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_admitted_values_history: {
     parameters: {
       query?: {
@@ -18243,6 +19250,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_cluster_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -18672,6 +19720,47 @@ export interface operations {
       };
     };
   };
+  kube_label_mapping_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   kube_label_mapping_history: {
     parameters: {
       query?: {
@@ -18878,6 +19967,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_KubeNamespace"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_namespace_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -19137,6 +20267,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_KubeNode"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_node_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -19411,6 +20582,47 @@ export interface operations {
       };
     };
   };
+  kube_service_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_kube_service: {
     parameters: {
       query?: {
@@ -19606,6 +20818,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_tracked_label_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -19994,6 +21247,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  machines_machine_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -20630,6 +21924,47 @@ export interface operations {
       };
     };
   };
+  policy_axis_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_policy_axes: {
     parameters: {
       query?: {
@@ -21037,6 +22372,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_exempt_role_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -21500,6 +22876,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_pattern_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -22100,6 +23517,47 @@ export interface operations {
       };
     };
   };
+  policy_rule_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_policy_rules: {
     parameters: {
       query?: {
@@ -22520,6 +23978,47 @@ export interface operations {
       };
     };
   };
+  policy_value_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_policy_values: {
     parameters: {
       query?: {
@@ -22833,6 +24332,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  prefix_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -23667,6 +25207,47 @@ export interface operations {
       };
     };
   };
+  range_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_range: {
     parameters: {
       query?: {
@@ -24080,6 +25661,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  policy_signal_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -24994,6 +26616,47 @@ export interface operations {
       };
     };
   };
+  policy_service_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_services: {
     parameters: {
       query?: {
@@ -25405,6 +27068,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  site_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -25936,6 +27640,47 @@ export interface operations {
       };
     };
   };
+  vlan_group_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_vlan_group: {
     parameters: {
       query?: {
@@ -26452,6 +28197,47 @@ export interface operations {
       };
     };
   };
+  vlan_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   show_vlan: {
     parameters: {
       query?: {
@@ -26859,6 +28645,47 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_KubeWorkload"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_workload_properties_batch: {
+    parameters: {
+      query: {
+        /** @description An object, repeated, 200 at most; one that does not exist at the dates, of another collection or that the caller may not read is left out. */
+        id: string[];
+        /** @description A property, repeated: those only; every one declared by default. */
+        key?: string[];
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values of each object, in the order of `id`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolvedBatch"];
         };
       };
       /** @description A problem (RFC 9457). */

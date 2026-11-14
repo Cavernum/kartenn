@@ -34,6 +34,7 @@ use kartenn_auth::oidc::{LoggedIn, Oidc, Session};
 use kartenn_auth::secrets::FailureLimiter;
 use kartenn_auth::tokens::{KeySource, TokenError, TokenVerifier};
 use kartenn_core::objects::AddressUsage;
+use kartenn_core::values::Cardinality;
 use kartenn_rest::authn::Authn;
 use kartenn_rest::health::Readiness;
 use kartenn_rest::quota::{Quotas, Rates};
@@ -43,10 +44,12 @@ use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authn::{Identities, StateCache};
 use kartenn_service::authz::{Authorizer, Subject};
 use kartenn_service::expected::Sources;
+use kartenn_service::operations::{DeclarationInput, TypeInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
+use kartenn_store_pg::explain::resolved_many;
 use kartenn_store_pg::filter::{Condition, filter_in};
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::read::object;
@@ -64,10 +67,10 @@ use time::format_description::well_known::Rfc3339;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 
-use crate::core_budgets::{Prepared, prepare_with};
+use crate::core_budgets::{Prepared, prepare_with, unitary};
 use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
-use crate::props::{p95, progress};
+use crate::props::{SINCE, copy, p95, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
 use crate::template::Reuse;
 use crate::{Dataset, Nature};
@@ -75,6 +78,7 @@ use crate::{Dataset, Nature};
 const READ: &str = "http.read-object";
 const READ_PAST: &str = "http.read-past";
 const FILTERED_PAGE: &str = "http.filtered-page";
+const BATCH: &str = "http.resolved-batch";
 const SUBTREE: &str = "http.subtree";
 const UNITARY: &str = "http.unitary-changeset";
 const LABELS: &str = "http.labels";
@@ -88,6 +92,7 @@ pub(crate) static BENCH: Bench = Bench {
         Measure::new(READ),
         Measure::new(READ_PAST).after(&[READ]),
         Measure::new(FILTERED_PAGE),
+        Measure::new(BATCH),
         Measure::new(SUBTREE),
         Measure::new(UNITARY),
         Measure::new(LABELS),
@@ -96,6 +101,17 @@ pub(crate) static BENCH: Bench = Bench {
 };
 
 const USERS: usize = 200;
+/// The integer properties of the addresses a batch reads besides `custom.rack`: six keys
+/// in all (REQ-006-40).
+const BATCH_KEYS: [&str; 5] = [
+    "custom.b1",
+    "custom.b2",
+    "custom.b3",
+    "custom.b4",
+    "custom.b5",
+];
+/// The objects of a batch, at most (REQ-006-40).
+const BATCH_SIZE: usize = 200;
 /// Users who also write once a second during the load: 55 offered, 50 at least applied.
 const WRITERS: usize = 55;
 const LOAD: Duration = Duration::from_secs(30);
@@ -470,6 +486,61 @@ impl Pair {
     }
 }
 
+/// Declares [`BATCH_KEYS`] on the addresses and gives each a value on 20 % of them, as
+/// `custom.rack` (`bench-core`), for the reads of [`BATCH_SIZE`] objects × 6 keys.
+async fn batch_keys(pool: &PgPool, author: Uuid, data: &Dataset, seed: u64) -> anyhow::Result<()> {
+    let store = PgStore::new(pool.clone());
+    let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
+    let mut rows = String::new();
+    for key in BATCH_KEYS {
+        let declaration = DeclarationInput {
+            key: key.into(),
+            value_type: TypeInput::Int {
+                min: 0,
+                max: 1_000_000,
+            },
+            cardinality: Cardinality::Single,
+            carriers: vec!["address".into()],
+            inherit: None,
+            module: None,
+            obligations: Vec::new(),
+            expected: None,
+            labels: None,
+        };
+        unitary(
+            &store,
+            author,
+            Operation::DeclareProperty {
+                local: None,
+                declaration,
+            },
+        )
+        .await?;
+        let property: Uuid =
+            sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = $1")
+                .bind(key)
+                .fetch_one(pool)
+                .await?;
+        for a in &data.addresses {
+            if rng.random_range(0..100) < 20 {
+                writeln!(
+                    rows,
+                    "{}\taddress\t{property}\tvalue\t{}\tinput\t{SINCE}\t{}",
+                    a.id,
+                    rng.random_range(0..1_000_000),
+                    Uuid::nil()
+                )?;
+            }
+        }
+    }
+    copy(
+        pool,
+        "COPY property_assignment (object_id, object_type, property_id, kind, v_int, provenance, valid_period, changeset_id) FROM STDIN",
+        rows,
+    )
+    .await
+}
+
 fn rfc3339(at: OffsetDateTime) -> anyhow::Result<String> {
     Ok(at.format(&Rfc3339)?)
 }
@@ -586,7 +657,7 @@ pub async fn run(
             mut report,
         },
         _,
-    ) = prepare_with(database, data, seed, reuse, async |pool, _, _| {
+    ) = prepare_with(database, data, seed, reuse, async |pool, ids, _| {
         let store = PgStore::new(pool.clone());
         // The first user is the person of `bench-rbac`, with its own bindings.
         let first = person(&store, 0).await?;
@@ -595,6 +666,8 @@ pub async fn run(
         }
         bind(pool, data, first, seed).await?;
         progress(&format!("bindings, users: {:?}", started.elapsed()));
+        batch_keys(pool, ids.author, data, seed).await?;
+        progress(&format!("keys of the batches: {:?}", started.elapsed()));
         anyhow::Ok(())
     })
     .await?;
@@ -768,6 +841,53 @@ pub async fn run(
             .await?;
         }
         pairs.push(page);
+    }
+
+    // The properties of a window of the shell (REQ-006-40): 200 addresses × 6 keys at
+    // once, under the budget of a page.
+    if selection.runs(BATCH) {
+        let keys: Vec<String> = std::iter::once("custom.rack")
+            .chain(BATCH_KEYS)
+            .map(str::to_owned)
+            .collect();
+        let mut batch = Pair::new(
+            BATCH,
+            "properties of 200 objects × 6 keys",
+            Duration::from_millis(150),
+        );
+        for i in 0..100 {
+            let objects: Vec<Uuid> = (0..BATCH_SIZE)
+                .map(|_| data.addresses[rng.random_range(0..data.addresses.len())].id)
+                .collect();
+            let mut path = String::from("/v1/addresses/properties?");
+            for id in &objects {
+                write!(path, "id={id}&")?;
+            }
+            path.push_str(
+                &keys
+                    .iter()
+                    .map(|k| format!("key={k}"))
+                    .collect::<Vec<_>>()
+                    .join("&"),
+            );
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            batch
+                .measure(
+                    i,
+                    async || {
+                        authorizer
+                            .authorize_many(&subject, "core.address.read", &objects)
+                            .await
+                            .map_err(|e| anyhow!(e.0))?;
+                        resolved_many(&pool, &objects, &keys, now, None).await?;
+                        Ok(())
+                    },
+                    async || user.timed("GET", &path, None, StatusCode::OK).await,
+                )
+                .await?;
+        }
+        pairs.push(batch);
     }
 
     // Subtree (a page of the direct content) and occupancy, now and in the past.

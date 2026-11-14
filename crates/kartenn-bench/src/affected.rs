@@ -181,6 +181,7 @@ pub static PATHS: &[(&str, &[&[&str]])] = &[
     ("http.read-object", &[CORE, RBAC, HTTP]),
     ("http.read-past", &[CORE, RBAC, HTTP]),
     ("http.filtered-page", &[CORE, RBAC, HTTP]),
+    ("http.resolved-batch", &[CORE, RBAC, HTTP]),
     ("http.subtree", &[CORE, RBAC, HTTP]),
     ("http.unitary-changeset", &[CORE, RBAC, HTTP]),
     ("http.labels", &[CORE, RBAC, HTTP]),
