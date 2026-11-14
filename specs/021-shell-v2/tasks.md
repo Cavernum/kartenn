@@ -1836,15 +1836,55 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       propertyColumns.ts` (import), `anomalies/AnomalyGrid.vue`, `anomalies/GapList.vue`,
       `record/PropertyValue.vue`
     - dépend de : 11p11
-  - [ ] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
+  - [x] 11p10-b. Un 429 ou un 503 de délestage relu après `Retry-After` (borné : trois
     essais, cinq secondes au plus), au lieu de l'état d'erreur ; aucun autre 4xx relu —
     verify : Vitest du cache du SDK, un 429 `Retry-After: 1` puis 200 : la donnée vient
-    sans erreur montrée, un 403 n'est pas relu (échoue sur main : aucun 4xx relu) ; un
-    parcours au `[http.rate]` par défaut : dix pages défilées sans avis ni erreur
+    sans erreur montrée, un 403 n'est pas relu (échoue sur main : aucun 4xx relu) ; le
+    parcours au `[http.rate]` par défaut sort dans la 11p10-b2
     - où : `web/v2/sdk/src/data/cache.ts` (`retry`, `retryDelay`, vers la ligne 236),
       `sdk/src/api/problem.ts` (`Retry-After` porté par le problème), le test du cache du
-      SDK, `web/v2/e2e/kartenn.toml` et `serve.sh` (une instance au quota par défaut)
+      SDK
     - dépend de : 11p9
+    - fait le 2026-11-14 : `ApiProblem.retryAfter` (`sdk/src/api/problem.ts`, les
+      delay-seconds de `Retry-After`, `1*DIGIT` seul, `null` sans l'en-tête, `NaN` pour
+      toute autre forme, jamais attendue) ; `retry` et `retryDelay` du cache
+      (`sdk/src/data/cache.ts`) : un 429, ou un 503 portant `Retry-After`, relu après ce
+      délai plus une gigue de 0 à 50 % (jamais moins), s'il vaut cinq secondes au plus,
+      trois essais en tout ; 401, 403, 404, 412,
+      422 jamais relus, ni un refus qui demande plus ; 5xx et réseau comme avant (1 s puis
+      2 s) ; une lecture annulée s'arrête (le retryer s'arrête à son annulation) ; les
+      écritures ne sont pas des requêtes du cache. Pendant l'attente la lecture reste
+      `pending`, sans erreur. Tests : `sdk/test/cache.test.ts`, « refusals by load » (429
+      et 503 `Retry-After: 1` puis 200, chaque statut refusé, les formes de `Retry-After`
+      autres que `1*DIGIT`, la gigue par un aléa injecté, trois essais au plus, lecture
+      annulée pendant l'attente ; le 429 échoue sur main) ; `shell/test/views.test.ts`
+      (la liste relue refusée en 429 `Retry-After: 1`, horloge simulée : trois essais, la
+      grille et ses lignes gardées sans alerte pendant l'attente, puis l'alerte).
+      Vérification : `k-web2-check --base main` (1 262 tests, 2 741 captures sur 2 741 :
+      tout, `problem.ts` étant tiré par l'entrée du shell).
+    - choix : un `Retry-After` en date HTTP n'est pas lu (`NaN`, refus non relu) : kartenn
+      n'envoie que des secondes ; la borne de cinq secondes vaut pour chaque attente ; un
+      503 qui demande plus de cinq secondes n'est plus relu (avant : relu après 1 s), ni
+      un 500, 502 ou 504 portant `Retry-After` (avant : relus après 1 s puis 2 s) ; la
+      gigue ne vaut que pour l'attente d'un `Retry-After` (les 1 s puis 2 s du réseau et
+      des 5xx inchangés : `moves.test.ts` attend leurs trois essais en 5 s) ; le
+      `?? String(status)` mort de
+      `ApiProblem.from` retiré (`statusText` est toujours une chaîne).
+    - reste : le démontage seul (l'observateur lâché sans annulation explicite) et le
+      changement de clé pendant l'attente ne sont pas testés.
+  - [ ] 11p10-b2. Le parcours au quota de lecture par défaut (sorti de la 11p10-b) : une
+    seconde instance de kartenn-server à `[http.rate]` par défaut, à côté de celle des
+    parcours (dont le quota de lecture est relevé, 11p9) ; une liste de dix pages défilée
+    jusqu'au bout sans avis de page suivante ni état d'erreur, les 429 attendus par le
+    cache — verify : le parcours vert sous Chromium et Firefox, journal de la seconde
+    instance avec au moins un 429 servi (le quota bien atteint) ; `k-web2-e2e` complet
+    - où : `web/v2/e2e/serve.sh` (un cas pour la seconde instance : son port, sa base),
+      une configuration à côté de `web/v2/e2e/kartenn.toml` (`listen`, `public_origin`,
+      `redirect_uri`, sans `[http.rate]`), l'émetteur de `web/e2e/serve.sh idp` (la
+      `redirect_uri` de la seconde instance acceptée), `web/v2/e2e/journeys.config.ts`
+      (une entrée `webServer`), `e2e/fixtures/journeys.ts` (`loginIn` paramétré par
+      l'origine), un jeu de dix pages écrit avant le parcours, `web/v2/e2e/journeys/`
+    - dépend de : 11p10-b
   - [ ] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
     l'utilisateur le 2026-11-14) : les lectures de propriétés résolues demandées dans une
     même fenêtre de quelques millisecondes, pour une même collection et les mêmes dates,
