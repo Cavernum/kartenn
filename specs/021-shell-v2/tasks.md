@@ -7397,6 +7397,21 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     ligne) ; l'arbre de 10⁴ lignes, 23,49 % de trames perdues et 1 tâche longue de 56 ms
     (budget 2 % et 0 ; 22e, dont la cause nommée par la 22e-c, les SVG des lignes et le
     survol, attend un arbitrage B1, B2, B3 ou C).
+  - quatrième passe réduite, de référence (session principale, le 2026-11-15, `bench-web
+    small`, main 2129cac3 après les 22f-c, 22f-d, 22r, 11p10-a, 11p10-b et 11p10-c, les
+    quatre verrous libres, aucun agent en compilation, charge 5,5 au départ : moins calme
+    que la troisième) : shell initial 238,9 Ko tenu (la 22r) ; premier écran 851,6 ms tenu
+    (697 à la troisième passe : l'écart, 155 ms, est à attribuer avant de conclure, la 22r
+    charge désormais les composants des écrans avec le premier écran et la charge de
+    départ n'était pas la même) ; navigation en cache, p75 88,7 ms, médiane 82,7, pire
+    152,5, tenu : la fenêtre de 10 ms du regroupeur ne s'y voit pas ; flèche bas dans une
+    grille, p75 29,1 ms ; flèche dans l'arbre 12,9 ms ; INP des cinq gestes 40 à 96 ms ;
+    tas 26,0 Mo ; A40 tenu (19 pour 19). Restent en échec : la page de 100 lignes, p95
+    179,4 ms, médiane 89,3, pire 617,5 (budget 100 ; 256,7 à la troisième passe : le lot
+    de propriétés a rendu 77 ms au p95 et la médiane passe sous le budget, mais la queue
+    reste, à attribuer : les noms d'objets cellule par cellule de la 11p10-d sont le
+    premier suspect) ; l'arbre de 10⁴ lignes, 22,04 % de trames perdues, aucune tâche
+    longue (budget 2 % ; inchangé, aucune tâche fusionnée ne le visait ; 22e-d).
 - [x] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
   11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
   échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
