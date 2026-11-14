@@ -192,6 +192,7 @@
     "loaded": "Loaded",
     "loadingOf": "Loading {name}",
     "failedIn": "“{name}” could not be shown; the rest of the screen stays usable.",
+    "failedCell": "Extension failed",
     "reason": {
       "incompatible": "incompatible version of the SDK, of the components or of Vue",
       "load-failed": "file missing or invalid digest",

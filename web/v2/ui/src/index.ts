@@ -118,6 +118,7 @@ export { default as MatrixGrid } from "./components/MatrixGrid/MatrixGrid.vue";
 export type { MatrixAxis, MatrixCell, MatrixCellState } from "./components/MatrixGrid/matrix.ts";
 export { moveInGrid } from "./components/internal/gridKeys.ts";
 export type { GridPosition } from "./components/internal/gridKeys.ts";
+export type { ExtensionSlotProps } from "./components/internal/extensionCell.ts";
 export { default as TreeGrid } from "./components/TreeGrid/TreeGrid.vue";
 export { default as Tree } from "./components/Tree/Tree.vue";
 export { flatten, indexNodes, misplaced } from "./components/TreeGrid/tree.ts";

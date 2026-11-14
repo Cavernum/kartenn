@@ -8,8 +8,8 @@ import { apiCall, DATA, expect, expectAccessible, test } from "../fixtures/journ
 // definePlugin) are set aside; the digest of `forged` is forged here. Ported from
 // web/e2e/journeys/plugins.spec.ts. The tile of the home page, the tab and the panel of a
 // prefix and the column of the addresses are placed by the screens of task 11, the column
-// of the prefixes on the tree of the topography by task 11o; the actions on the type
-// `changeset` by its record (task 14).
+// of the prefixes on the tree of the topography by task 11o, an error of its element kept in
+// its cell by task 11o2; the actions on the type `changeset` by its record (task 14).
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 const about = (page: Page, name: string) =>
@@ -248,6 +248,42 @@ test("the topography places the column of the prefixes: an element in a prefix's
   expect(given.row).toMatchObject({ kind: "prefix", value: DATA.prefix });
   expect(given.object?.id).toBe(given.row?.id);
   expect(given.object?.href).toContain(`/v1/prefixes/${given.row?.id}`);
+  await expectAccessible(page);
+});
+
+test("a column of a plugin that throws in a row: its code in that cell, a list and the topography usable", async ({
+  page,
+  login,
+}) => {
+  // The column `flag` of `notes` throws in the row of the prefix (task 11o2).
+  await page.addInitScript((prefix) => {
+    localStorage.setItem("kartenn-e2e:notes-flag-throws", prefix);
+  }, DATA.prefix);
+  await login("bob");
+  await page.goto("/prefixes");
+  const grid = page.getByRole("grid", { name: "Préfixes" });
+  const flagIn = (row: ReturnType<Page["locator"]>) =>
+    row.locator("[role='gridcell'][data-column='x.notes.flag']");
+  const bad = grid
+    .getByRole("row")
+    .filter({ has: page.getByRole("link", { name: DATA.prefix, exact: true }) });
+  await expect(flagIn(bad)).toContainText("Extension en erreur");
+  await expect(flagIn(bad)).toContainText("plugin.element");
+  await expect(bad.locator("notes-flag")).toHaveCount(0);
+  // The other cells of its row, and the column in the other rows, as they were.
+  await expect(bad.getByRole("link", { name: DATA.prefix, exact: true })).toBeVisible();
+  await expect(grid.locator("notes-flag").first()).toHaveText("•");
+  await expectAccessible(page);
+
+  await page.goto("/topology");
+  const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${DATA.domain}` });
+  const node = tree.locator("[role='row'][data-node]").filter({
+    has: page.getByText(DATA.prefix, { exact: true }),
+  });
+  await expect(flagIn(node)).toContainText("Extension en erreur");
+  await expect(flagIn(node)).toContainText("plugin.element");
+  await expect(node.locator("notes-flag")).toHaveCount(0);
+  await expect(node.getByText(DATA.prefix, { exact: true })).toBeVisible();
   await expectAccessible(page);
 });
 

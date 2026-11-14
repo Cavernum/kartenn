@@ -76,7 +76,8 @@ import {
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay, useStatus } from "./edit/say.ts";
-import { gridColumns, objectRef, useExtensions } from "../plugins/slots.ts";
+import ExtensionElement from "../plugins/ExtensionElement.vue";
+import { cellExtension, gridColumns, stableObjectRefs, useExtensions } from "../plugins/slots.ts";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
@@ -483,10 +484,12 @@ const columns = computed<GridColumn[]>(() => [
   { id: "detail", label: t("views.record.nature"), width: "sm", priority: 2 },
   ...gridColumns(extensions.value, (key) => t(key)),
 ]);
+// The same `object` from one render to the next, as in the lists (`ExtensionElement`).
+const objectRef = stableObjectRefs();
 const elementProps = (node: TreeNode) => {
   const read = nodeById(node.id);
   return read?.kind === "prefix"
-    ? { object: objectRef("prefix", read.id, read.href), row: read }
+    ? { object: objectRef(read, "prefix", read.id, read.href), row: read }
     : undefined;
 };
 
@@ -854,7 +857,12 @@ onBeforeUnmount(() => stopIntent());
             @activate="onActivate"
             @add="addIn"
             @commit="onCommit"
-          />
+          >
+            <!-- A column of a plugin: its element hosted, an error kept in its cell. -->
+            <template #extension="given">
+              <ExtensionElement cell v-bind="cellExtension(extensions, given)" />
+            </template>
+          </TreeGrid>
         </div>
         <span class="k-visually-hidden" role="status">{{ said }}</span>
         <!-- Once a cell has had the focus: what Enter does there, or why it has no editor. -->

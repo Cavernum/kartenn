@@ -1,7 +1,8 @@
 // Test plugin of the journeys of the new shell (spec 021, task 16): one extension of each
 // point, the tile of the home page included, written without a framework against the SDK
 // the shell maps (@kartenn/sdk 1.0). Its view `broken` throws when connected: its error
-// stays in its place. Its views propose `g n` (free) and `g p` (the shell's, refused).
+// stays in its place; its column `flag` too, in the row a journey names (`FLAG_THROWS`).
+// Its views propose `g n` (free) and `g p` (the shell's, refused).
 import { definePlugin } from "@kartenn/sdk";
 
 let plugin;
@@ -55,8 +56,19 @@ class Summary extends HTMLElement {
   }
 }
 
+/**
+ * The address or the prefix of a journey that wants this column to throw in one row
+ * (`localStorage`, set by the journey before the page loads): its error stays in its cell.
+ */
+const FLAG_THROWS = "kartenn-e2e:notes-flag-throws";
+
 class Flag extends HTMLElement {
   connectedCallback() {
+    const throwsIn = localStorage.getItem(FLAG_THROWS);
+    const row = this.row ?? {};
+    if (throwsIn && [row.prefix, row.address, row.value].includes(throwsIn)) {
+      throw new Error("e2e plugin column throws when connected");
+    }
     this.textContent = "•";
   }
 }

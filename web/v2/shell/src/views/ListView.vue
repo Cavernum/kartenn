@@ -30,7 +30,8 @@ import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useSettings } from "../frame/settings.ts";
-import { gridColumns, objectRef, useExtensions } from "../plugins/slots.ts";
+import ExtensionElement from "../plugins/ExtensionElement.vue";
+import { cellExtension, gridColumns, stableObjectRefs, useExtensions } from "../plugins/slots.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
@@ -111,8 +112,12 @@ const columns = computed<GridColumn[]>(() => {
     ...cells.columns.value,
   ];
 });
+// The same `object` for a row from one render to the next: an element is not created again
+// as the focus moves (`ExtensionElement` creates it again for another row).
+const objectRef = stableObjectRefs();
 const elementProps = (row: Item) => ({
   object: objectRef(
+    row,
     props.collection.kind,
     String(row.id),
     String((row.links as { self?: unknown } | undefined)?.self ?? ""),
@@ -428,6 +433,10 @@ function clearFilters(): void {
         }}</template>
         <NoValue v-else-if="fieldText(value) === null" />
         <template v-else>{{ fieldText(value) }}</template>
+      </template>
+      <!-- A column of a plugin: its element hosted by the shell, an error kept in its cell. -->
+      <template #extension="given">
+        <ExtensionElement cell v-bind="cellExtension(extensions, given)" />
       </template>
     </DataGrid>
     <template #footer>
