@@ -30,7 +30,7 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useSession } from "../../rights/index.ts";
-import { refusalWords, useTime, useWrites } from "../../time/index.ts";
+import { rankedRefusal, refusalWords, useTime, useWrites } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
 import { useDeclarationsOf } from "../data.ts";
 import { editRight } from "../edit/fields.ts";
@@ -116,34 +116,37 @@ const gateWhy = computed(() =>
   time.value.present ? refusalWords(writes.value, t) : t("edit.why.past"),
 );
 /**
- * Why a write of the property is refused, if it is: the rights (`extra`, those of the VLAN
- * created too), the date and the width, the declaration unread (the server stays the judge).
+ * Why a write of the property is refused, if it is, by the rank of every refusal
+ * (`rankedRefusal`): the rights (`extra`, those of the VLAN created too), then the state —
+ * the declaration unread, then `state` of the caller —, then the date and the width (the
+ * server stays the judge).
  */
-function writeBlocked(extra: readonly string[] = []): { forbidden?: string; reason?: string } {
+function writeBlocked(
+  extra: readonly string[] = [],
+  state?: string,
+): { forbidden?: string; reason?: string } {
   const missing = [...extra, ...NETWORK_VLAN_EDITS].find((p) => !session.value.rights.has(p));
-  if (missing) return { forbidden: missing };
-  if (gateWhy.value) return { reason: gateWhy.value };
-  if (!property.value) {
-    return {
-      reason: declared.failed.value
-        ? t("views.vlan.declarationFailed", { property: VLAN_PROPERTY })
-        : t("views.vlan.declarationPending", { property: VLAN_PROPERTY }),
-    };
-  }
-  return {};
+  const declaration = property.value
+    ? undefined
+    : declared.failed.value
+      ? t("views.vlan.declarationFailed", { property: VLAN_PROPERTY })
+      : t("views.vlan.declarationPending", { property: VLAN_PROPERTY });
+  const reason = (text: string | undefined) => (text ? { reason: text } : null);
+  return (
+    rankedRefusal<{ forbidden?: string; reason?: string }>({
+      lasting: missing ? { forbidden: missing } : null,
+      state: reason(declaration ?? state),
+      gate: reason(gateWhy.value ?? undefined),
+    }) ?? {}
+  );
 }
 // « Retirer le VLAN »: refused too once the removal is in the draft.
-const removeBlocked = computed(() => {
-  const blocked = writeBlocked();
-  if (Object.keys(blocked).length > 0) return blocked;
-  return drafted.value ? { reason: t("views.vlan.removalDrafted") } : {};
-});
+const removeBlocked = computed(() =>
+  writeBlocked([], drafted.value ? t("views.vlan.removalDrafted") : undefined),
+);
 // « Créer un VLAN pour ce réseau », « Poser le VLAN »: refused too once a setting is drafted.
-const setBlocked = (extra: readonly string[] = []) => {
-  const blocked = writeBlocked(extra);
-  if (Object.keys(blocked).length > 0) return blocked;
-  return settingDrafted.value ? { reason: t("views.vlan.settingDrafted") } : {};
-};
+const setBlocked = (extra: readonly string[] = []) =>
+  writeBlocked(extra, settingDrafted.value ? t("views.vlan.settingDrafted") : undefined);
 const createBlocked = computed(() => setBlocked([editRight("core.vlan")]));
 const poseBlocked = computed(() => setBlocked());
 const refusal = ref<Refusal | null>(null);

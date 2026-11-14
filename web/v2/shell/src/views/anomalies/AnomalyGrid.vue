@@ -8,7 +8,7 @@ import { Button, DataGrid, KeyLabel, type GridColumn, type GridWindow } from "@k
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
-import { refusalWords, useTime, useWrites } from "../../time/index.ts";
+import { rankedRefusal, refusalWords, useTime, useWrites } from "../../time/index.ts";
 import { useKeyLabel } from "../data.ts";
 import ObjectName from "../record/ObjectName.vue";
 import AcknowledgeDialog from "./AcknowledgeDialog.vue";
@@ -42,12 +42,12 @@ const gateWhy = computed(() =>
   time.value.present ? refusalWords(writes.value, t) : t("views.anomalies.notPresent"),
 );
 // The permission missing first, the durable reason; the date or the width then.
-const refusal = computed(() =>
-  !session.value.rights.has(ACKNOWLEDGE)
-    ? { forbidden: ACKNOWLEDGE }
-    : gateWhy.value
-      ? { reason: gateWhy.value }
-      : {},
+const refusal = computed(
+  () =>
+    rankedRefusal<{ forbidden: string } | { reason: string }>({
+      lasting: session.value.rights.has(ACKNOWLEDGE) ? null : { forbidden: ACKNOWLEDGE },
+      gate: gateWhy.value ? { reason: gateWhy.value } : null,
+    }) ?? {},
 );
 
 const columns = computed<GridColumn[]>(() => [

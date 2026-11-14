@@ -453,9 +453,9 @@ describe("actions of the view", () => {
     // Without the right: its permission said, the key taken, nothing run.
     expect(play("edit", present, t)).toBe(true);
     expect(said).toEqual(["Lecture seule : il faut core.prefix.edit"]);
-    // Under `as_of`: off the present before the right (as the cells say it).
+    // Under `as_of`: the right before the past (as the cells say it, task 021-21h).
     expect(play("edit", writesAt({ as_of }), t)).toBe(true);
-    expect(said.at(-1)).toBe("<edit.why.past>");
+    expect(said.at(-1)).toBe("Lecture seule : il faut core.prefix.edit");
     // Nothing to act on (no row, no node): nothing said, the key let go, at any date.
     why = undefined;
     expect(play("edit", present, t)).toBe(false);
@@ -476,7 +476,7 @@ describe("actions of the view", () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  it("says the lasting reason of a `lasting` action before the gate (task 021-21e)", () => {
+  it("says the view's reason before the gate, for every action (task 021-21h)", () => {
     const said: string[] = [];
     const t = (key: string) => `<${key}>`;
     let allowed = false;
@@ -488,7 +488,6 @@ describe("actions of the view", () => {
         allowed: () => allowed,
         why: () => "Il faut core.rbac.admin",
         say: (text) => said.push(text),
-        lasting: true,
       }),
     );
     const narrow = writesOf(timeOf({}), "narrow");
@@ -546,10 +545,10 @@ describe("actions of the view", () => {
     // The past before the width: widening would not open a date gone.
     expect(play("edit", asOf, t)).toBe(true);
     expect(said.at(-1)).toBe("<edit.why.past>");
-    // Without the right too, the width first, as the cells say it.
+    // Without the right, the right first, as the cells say it (task 021-21h).
     allowed = false;
     expect(play("edit", narrow, t)).toBe(true);
-    expect(said.at(-1)).toBe("<edit.why.narrow>");
+    expect(said.at(-1)).toBe("Lecture seule : il faut core.prefix.edit");
     // The palette: the command kept under the width alone, its run says why; none without
     // the right, nor under `as_of` (as before).
     const now = timeOf({});

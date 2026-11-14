@@ -3,7 +3,7 @@ import { injectToasts, type SplitAction } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
-import { useWrites } from "../../time/index.ts";
+import { rankedRefusal, useWrites } from "../../time/index.ts";
 import { CONFLICT_RULE } from "./close.ts";
 import { lackingRight } from "./fields.ts";
 import type { Refusal } from "./inline.ts";
@@ -79,11 +79,14 @@ export function useWriteAction(options: WriteActionOptions) {
       { id: "draft", label: t(options.words.draft), icon: "draft" as const },
       { id: "apply", label: t(options.words.apply), icon: "circle-check" as const },
     ].map((a) => {
-      if (narrow.value) return { ...a, disabled: true, reason: t("edit.why.narrow") };
+      // The permission lacking before the width and the date (`rankedRefusal`).
       const permission = lacking(a.id);
-      if (permission) return { ...a, forbidden: permission };
-      const reason = datedReason(a.id);
-      return reason ? { ...a, disabled: true, reason } : a;
+      const reason = narrow.value ? t("edit.why.narrow") : datedReason(a.id);
+      const refused = rankedRefusal<{ forbidden: string } | { disabled: true; reason: string }>({
+        lasting: permission ? { forbidden: permission } : null,
+        gate: reason ? { disabled: true, reason } : null,
+      });
+      return refused ? { ...a, ...refused } : a;
     }),
   );
   /** « Appliquer » chosen and permitted: the motive is asked. */
@@ -133,20 +136,22 @@ export function useWriteAction(options: WriteActionOptions) {
    */
   function begin(id: string): boolean {
     if (busy.value) return false;
-    if (narrow.value) {
-      refusal.value = null;
-      tell(t("edit.why.narrow"));
-      return false;
-    }
+    // The permission lacking, then the gate — the width, the past, the date — as its button
+    // says it (`rankedRefusal`).
     const missing = lacking(id);
-    if (missing !== null) {
-      tell(t("edit.unsent", { permission: missing }));
-      return false;
-    }
-    const off = !writes.value.draft ? t(options.words.past) : datedReason(id);
-    if (off !== null) {
-      refusal.value = null;
-      tell(off);
+    const gate = narrow.value
+      ? t("edit.why.narrow")
+      : !writes.value.draft
+        ? t(options.words.past)
+        : datedReason(id);
+    const said = rankedRefusal({
+      lasting: missing === null ? null : t("edit.unsent", { permission: missing }),
+      gate,
+    });
+    if (said !== undefined) {
+      // A refusal of the server is kept beside the permission, as before; the gate clears it.
+      if (missing === null) refusal.value = null;
+      tell(said);
       return false;
     }
     notice.value = null;

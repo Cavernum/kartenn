@@ -397,10 +397,11 @@ export function useInlineEdit({
   /** Why the field `name` of an object of `of` offers no editor, or `null` when it does. */
   function whyField(of: Collection, name: string | undefined): NotEditable | null {
     if (name === undefined) return { kind: "none" };
-    const editable = editability(rights.value, writes.value, of, name);
-    if (!editable.editable) return editable.why;
-    // A column this list cannot write yet (a property): no editor rather than a lost input.
-    return modificationField(of.id, name) ? null : { kind: "none" };
+    // A column this list cannot write yet (a property): no editor rather than a lost input,
+    // said after the right and before the gate (`rankedRefusal`).
+    const own = modificationField(of.id, name) ? null : ({ kind: "none" } as const);
+    const editable = editability(rights.value, writes.value, of, name, own);
+    return editable.editable ? null : editable.why;
   }
   /** Why the cell of `column` (of `row`, when the rows mix kinds) offers no editor. */
   const why = (column: string, row?: Item): NotEditable | null =>

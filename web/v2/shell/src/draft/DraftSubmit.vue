@@ -36,6 +36,7 @@ import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
 import { keepMotive, typedMotive } from "./motive.ts";
 import { useProblems } from "../problems/index.ts";
+import { rankedRefusal } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
@@ -65,9 +66,13 @@ const {
 const gateWhy = computed(() => draftWhy(refused.value, t));
 
 // The dates of effect, kept with the draft (`draftPeriods`); fixed while a submission
-// without an answer awaits its retry, which replays them as sent.
-const periodWhy = computed(
-  () => gateWhy.value ?? (awaiting.value ? t("drafts.period.frozen") : undefined),
+// without an answer awaits its retry, which replays them as sent: said before the gate
+// (`rankedRefusal`), widening the window does not unfreeze them.
+const periodWhy = computed(() =>
+  rankedRefusal({
+    state: awaiting.value ? t("drafts.period.frozen") : undefined,
+    gate: gateWhy.value,
+  }),
 );
 const validFrom = computed<string | null>({
   get: () => period.value.valid_from ?? null,
@@ -125,8 +130,11 @@ const effect = computed(() => {
 // of its reason, comes. Read only under `as_of` and under 1024 px (the gate), and while a
 // submission awaits its retry: the replay sends what was sent, a motive changed meanwhile
 // would not go with it.
-const motiveWhy = computed(
-  () => gateWhy.value ?? (awaiting.value ? t("drafts.motiveFrozen") : undefined),
+const motiveWhy = computed(() =>
+  rankedRefusal({
+    state: awaiting.value ? t("drafts.motiveFrozen") : undefined,
+    gate: gateWhy.value,
+  }),
 );
 // The motive: one typed and not sent yet, kept outside the form (`motive.ts`: the panel's
 // other tab, the page of the draft show it again), else the one kept with the draft; a

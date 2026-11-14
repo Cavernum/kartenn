@@ -44,7 +44,7 @@ import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { refusalWords, useTime, useWrites } from "../time/index.ts";
+import { rankedRefusal, refusalWords, useTime, useWrites } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
 import { whyWords } from "./edit/inline.ts";
 import { moveEntryRefusal } from "./edit/moves.ts";
@@ -183,28 +183,37 @@ const session = useSession();
 const editPermission = computed(() => editRight(props.collection.type));
 const mayEdit = computed(() => session.value.rights.has(editPermission.value));
 // The durable reason first, the permission missing, then the gate (`as_of`, under 1024 px):
-// widening the window or coming back to the present would not give the right.
-const blockedBy = (permission: string) =>
-  !session.value.rights.has(permission)
-    ? { forbidden: permission }
-    : gateWhy.value
-      ? { reason: gateWhy.value }
-      : {};
+// widening the window or coming back to the present would not give the right
+// (`rankedRefusal`).
+type Blocked = { forbidden: string } | { reason: string };
+const blockedBy = (permission: string): Blocked | Record<string, never> =>
+  rankedRefusal<Blocked>({
+    lasting: session.value.rights.has(permission) ? null : { forbidden: permission },
+    gate: gateWhy.value ? { reason: gateWhy.value } : null,
+  }) ?? {};
 const editBlocked = computed(() => blockedBy(editPermission.value));
 /**
- * The gate read again as it acts, not only as the button was drawn: refused, its reason
- * said by the status of the record, no panel opened.
+ * The refusal read again as it acts, not only as the button was drawn — the window may have
+ * narrowed since —: refused, its reason, the permission before the gate, said by the status
+ * of the record, no panel opened.
  */
 function gateOpen(): boolean {
-  if (gateWhy.value) status(gateWhy.value);
-  return gateWhy.value === null;
+  const blocked = editBlocked.value;
+  const words =
+    "forbidden" in blocked
+      ? whyWords({ kind: "forbidden", permission: blocked.forbidden }, t)
+      : "reason" in blocked
+        ? blocked.reason
+        : undefined;
+  if (words) status(words);
+  return words === undefined;
 }
 function modify(): void {
   if (!gateOpen()) return;
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
-// Refused, `e` says why by the status of the record, as « Modifier » says it on its button
-// (`view.ts` says the gate before the permission, `blockedBy` the reverse: task 21h).
+// Refused, `e` says why by the status of the record, as « Modifier » says it on its button:
+// the permission before the gate, in `view.ts` as in `blockedBy` (`rankedRefusal`).
 const { said, status, clear: clearSaid } = useStatus();
 // Another object shown by the same view: what was said of the last one no longer holds.
 watch(() => props.id, clearSaid);

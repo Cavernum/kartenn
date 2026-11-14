@@ -9,6 +9,8 @@ import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import AnomalyGrid from "../src/views/anomalies/AnomalyGrid.vue";
+import { offered, play } from "../src/shortcuts/view.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 import { closeEdit, editRequest } from "../src/views/edit/panel.ts";
 import { NETWORK_VLAN_EDITS } from "../src/views/edit/vlan.ts";
 import NetworkVlanTab from "../src/views/record/NetworkVlanTab.vue";
@@ -198,6 +200,56 @@ describe("the « + » of the Topography under 1024 px (task 021-21f)", () => {
     expect(described(plus(root)!)).toContain("core.address.edit");
     expect(described(plus(root)!)).not.toContain(NARROW);
   });
+
+  // One rank on one screen (task 021-21h): the « + », the cell of a node, `c` and its
+  // command of the palette say the same reason — the permission lacking whatever the width,
+  // else the width —, the palette keeping the command the width alone holds.
+  const WRITER = ["core.prefix.read", "core.prefix.edit", "core.address.edit", "core.range.edit"];
+  const CASES = [
+    { name: "the right lacking alone", permissions: ["core.prefix.read"], width: "wide" },
+    { name: "the width alone", permissions: WRITER, width: "narrow" },
+    { name: "both", permissions: ["core.prefix.read"], width: "narrow" },
+    { name: "neither", permissions: WRITER, width: "wide" },
+  ] as const;
+  const fr = (key: string) => createShellI18n("fr").global.t(key);
+  for (const c of CASES) {
+    it(`the « + », the cell, \`c\` and the palette say the same, ${c.name}`, async () => {
+      const { root, writes } = await mounted("/topology", [...c.permissions], tree);
+      await expect.poll(() => plus(root)).not.toBeNull();
+      setFrameWidth(c.width);
+      await nextTick();
+      const lacks = c.permissions.length === 1;
+      const status = () =>
+        [...root.querySelectorAll('[role="status"]')].map((s) => s.textContent).join(" ");
+      const cell = root.querySelector<HTMLElement>(
+        `[data-k-tree] [data-row="${PREFIX}"][data-column="detail"]:not([data-k-skeleton])`,
+      )!;
+      const writesNow = writesOf(timeOf({}), c.width);
+      const command = offered("create", timeOf({}), c.width, fr);
+      if (lacks) {
+        // The permission, never the width: the « + » and the cell, `c`; no command.
+        expect(described(plus(root)!)).toContain("core.address.edit");
+        expect(described(cell)).toBe("Lecture seule : il faut core.prefix.edit");
+        expect(play("create", writesNow, fr)).toBe(true);
+        await expect.poll(status).toContain("core.prefix.edit");
+        expect(`${described(plus(root)!)} ${described(cell)} ${status()}`).not.toContain(NARROW);
+        expect(command).toBeNull();
+      } else if (c.width === "narrow") {
+        expect(described(plus(root)!)).toContain(NARROW);
+        expect(described(cell)).toBe(NARROW);
+        expect(play("create", writesNow, fr)).toBe(true);
+        await expect.poll(status).toContain(NARROW);
+        // Kept in the palette, its run says the width, opens nothing.
+        expect(command?.label()).toBeTruthy();
+        expect(editRequest().value).toBeNull();
+      } else {
+        expect(plus(root)!.getAttribute("aria-disabled")).not.toBe("true");
+        expect(cell.getAttribute("aria-describedby")).toBeNull();
+        expect(command).not.toBeNull();
+      }
+      expect(writes()).toEqual([]);
+    });
+  }
 });
 
 describe("« Acquitter » of an anomaly under 1024 px (task 021-21f)", () => {

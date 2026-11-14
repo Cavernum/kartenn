@@ -4,6 +4,7 @@ import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, ref, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import { setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { useWriteAction, type PanelOutcome } from "../src/views/edit/action.ts";
@@ -157,6 +158,24 @@ describe("the write action of a panel", () => {
     // A write in flight: a second run waits for it.
     writing.busy.value = true;
     expect(writing.begin("draft")).toBe(false);
+  });
+
+  it("under 1024 px, says the permission lacking before the width (task 021-21h)", async () => {
+    const { writing } = await mounted(["core.address.edit"]);
+    setFrameWidth("narrow");
+    try {
+      await nextTick();
+      const [draft, apply] = writing.actions.value;
+      // « Appliquer » without `.approval.self`: the permission, not the width; the draft the width.
+      expect(apply).toMatchObject({ forbidden: "core.address.approval.self" });
+      expect(draft).toMatchObject({ disabled: true, reason: expect.stringContaining("1024 px") });
+      expect(writing.begin("apply")).toBe(false);
+      expect(writing.notice.value).toContain("il faut core.address.approval.self");
+      expect(writing.begin("draft")).toBe(false);
+      expect(writing.notice.value).toContain("1024 px");
+    } finally {
+      setFrameWidth("wide");
+    }
   });
 
   it("writes nothing under as_of, the draft included, and says so", async () => {

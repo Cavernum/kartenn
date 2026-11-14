@@ -12,7 +12,7 @@ import { computed, ref, shallowReactive, toValue, type MaybeRefOrGetter } from "
 import { lacking } from "../changesets/model.ts";
 import { useQuery } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
-import { useTime, useWrites, type Time, type WriteRefusal } from "../time/index.ts";
+import { rankedRefusal, useTime, useWrites, type Time, type WriteRefusal } from "../time/index.ts";
 
 // A draft of the server as its tab and its page read it (REQ-021-6, 11; spec 024 § A; design
 // 021 « Cadre » : pied de l'onglet Brouillon): the draft by its identifier, its simulation —
@@ -120,6 +120,51 @@ export async function submitDraft(
   return outcome;
 }
 
+/** Why the actions of a draft are refused now, by tier (`RankedReasons`), in words. */
+export interface DraftReasons {
+  /** The permission `approval.self` lacking (« Appliquer » only). */
+  forbidden: string | undefined;
+  /** The state of the draft: empty, a simulation still to come, failed or with errors. */
+  state: string | undefined;
+  /** The gate of writes (`draftWhy`). */
+  gate: string | undefined;
+}
+
+/**
+ * The actions of the split button of a draft: « Appliquer » refused by the permission, the
+ * state or the gate, « Soumettre » by the state or the gate, « Enregistrer » by the gate —
+ * each saying the first by the rank of every refusal (`rankedRefusal`, task 021-21h).
+ */
+export function draftActions(words: (key: string) => string, reasons: DraftReasons): SplitAction[] {
+  const as = (reason: string | undefined) => (reason ? { disabled: true as const, reason } : null);
+  const refusedBy = (forbidden: string | undefined, state: string | undefined) =>
+    rankedRefusal<{ disabled: true; forbidden: string } | { disabled: true; reason: string }>({
+      lasting: forbidden ? { disabled: true, forbidden } : null,
+      state: as(state),
+      gate: as(reasons.gate),
+    }) ?? {};
+  return [
+    {
+      id: "apply",
+      label: words("drafts.action.apply"),
+      icon: "circle-check",
+      ...refusedBy(reasons.forbidden, reasons.state),
+    },
+    {
+      id: "review",
+      label: words("drafts.action.review"),
+      icon: "send",
+      ...refusedBy(undefined, reasons.state),
+    },
+    {
+      id: "save",
+      label: words("drafts.action.save"),
+      icon: "draft",
+      ...refusedBy(undefined, undefined),
+    },
+  ];
+}
+
 export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
   const session = useSession();
   const time = useTime();
@@ -186,8 +231,9 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
   );
 
   /**
-   * The actions of the split button, each with why it is impossible now: an empty draft,
-   * a simulation still to come or with errors, a permission lacking (« Appliquer »), the
+   * The actions of the split button, each with why it is impossible now, by the rank of
+   * every refusal (`rankedRefusal`, task 021-21h): a permission lacking (« Appliquer »), then
+   * the state of the draft (empty, a simulation still to come or with errors), then the
    * gate of writes (a state known at a past date, `as_of`, or a window under 1024 px:
    * nothing written, the draft not saved either).
    */
@@ -195,9 +241,8 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
     words: (key: string, values?: Record<string, unknown>) => string,
   ): SplitAction[] {
     const gate = draftWhy(refused.value, words);
-    const blocked = gate
-      ? gate
-      : operations.value.length === 0
+    const state =
+      operations.value.length === 0
         ? words("drafts.why.empty")
         : simulating.value
           ? words("drafts.why.simulating")
@@ -206,22 +251,7 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
             : errors.value > 0
               ? words("drafts.why.violations", { n: errors.value })
               : undefined;
-    const refusedBy = (reason: string | undefined, forbidden?: string) =>
-      forbidden && !reason
-        ? { disabled: true, forbidden }
-        : reason
-          ? { disabled: true, reason }
-          : {};
-    return [
-      {
-        id: "apply",
-        label: words("drafts.action.apply"),
-        icon: "circle-check",
-        ...refusedBy(blocked, applyLacking.value),
-      },
-      { id: "review", label: words("drafts.action.review"), icon: "send", ...refusedBy(blocked) },
-      { id: "save", label: words("drafts.action.save"), icon: "draft", ...refusedBy(gate) },
-    ];
+    return draftActions(words, { forbidden: applyLacking.value, state, gate });
   }
 
   /**

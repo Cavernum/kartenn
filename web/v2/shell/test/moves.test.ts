@@ -195,9 +195,25 @@ describe("moves in a tree whose parent is declared", () => {
       expect(outcome).toEqual({ kind: "refused", check: narrow });
       expect(moves().moveState(node(2))).toBeUndefined();
       expect(writes(seen)).toEqual([]);
+      // A lasting reason before the width (task 021-21h): a cycle, the right lacking; still
+      // refused, the node still unmarked.
+      expect(moves().canMove(node(3), node(3))).toMatchObject({
+        ok: false,
+        code: "core.anchor.cycle",
+      });
+      expect((await moves().move({ node: node(3), target: node(3) })).kind).toBe("refused");
+      expect(moves().moveState(node(3))).toBeUndefined();
+      expect(writes(seen)).toEqual([]);
       setFrameWidth("standard");
       expect(moves().canMove(node(2), node(3))).toEqual({ ok: true });
       expect(moves().moveState(node(2))).toBeUndefined();
+      // Without the right, narrow again: the permission, not the width.
+      setFrameWidth("narrow");
+      const reader = await mounted(["core.entity.read"], () => ({ status: 200, body: {} }));
+      expect(reader.moves().canMove(node(2), node(3))).toEqual({
+        ok: false,
+        reason: "Droit manquant : il faut core.entity.edit.",
+      });
     } finally {
       setFrameWidth("wide");
     }
@@ -491,11 +507,12 @@ describe("« Changer de parent… » of a record by the date read (task 021-12c)
     });
   });
 
-  it("is refused in a frame under 1024 px by the width, before a permission (task 021-21c)", () => {
+  it("is refused in a frame under 1024 px by the width, after a permission (task 021-21h)", () => {
     const narrow = writesOf(timeOf({}), "narrow");
     const refused = { disabled: true, reason: t("edit.why.narrow") };
     expect(moveEntryRefusal({}, narrow, words)).toEqual(refused);
-    expect(moveEntryRefusal({ forbidden: "core.entity.edit" }, narrow, words)).toEqual(refused);
+    const forbidden = { forbidden: "core.entity.edit" };
+    expect(moveEntryRefusal(forbidden, narrow, words)).toBe(forbidden);
     // At 1024 px, the record's own again.
     expect(moveEntryRefusal({}, writesOf(timeOf({}), "standard"), words)).toEqual({});
   });

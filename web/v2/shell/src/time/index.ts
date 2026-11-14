@@ -179,6 +179,29 @@ export function refusalWords(writes: Writes, t: (key: string) => string): string
   return writes.refused === null ? null : t(REFUSAL_KEYS[writes.refused]);
 }
 
+/**
+ * The reasons a write is refused for, by rank (task 021-21h, REQ-021-37): `lasting`, what
+ * neither a date nor a width changes — a permission lacking, an object delivered, a scope
+ * wider, nothing for it to act in —; `state`, what the object or the draft holds now —
+ * already in the draft, its author only, held by a policy, a draft empty or in error —;
+ * `gate`, the gate of writes (`writesOf`: the past before the width).
+ */
+export interface RankedReasons<T> {
+  lasting?: T | null | undefined;
+  state?: T | null | undefined;
+  gate?: T | null | undefined;
+}
+
+/**
+ * The one rank of every refusal of a write, wherever it is said — a button, a cell, a key,
+ * a command, a dialog: the most lasting reason first, so that the user reads what widening
+ * the window or coming back to the present would not change. Only the sentence depends on
+ * it: the action is refused whenever any of the reasons is given, whatever their order.
+ */
+export function rankedRefusal<T>(reasons: RankedReasons<T>): T | undefined {
+  return reasons.lasting ?? reasons.state ?? reasons.gate ?? undefined;
+}
+
 /** The refusal of a date by the API (a 400): the field it is about, and its problem. */
 export interface PeriodRefusal {
   field: keyof Period;

@@ -171,7 +171,6 @@ useViewAction("edit", {
   allowed: () => !!role.value && !lasting.value.edit,
   why: () => refusalSentence(lasting.value.edit, t),
   say: status,
-  lasting: true,
 });
 async function remove(): Promise<void> {
   await draft.add(

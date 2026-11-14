@@ -530,11 +530,15 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     if (!typedInPlace(declaration)) return fixed("typed");
     const of = deps.collection();
     if (!PROPERTIES_PATCHED[of.id]) return fixed("unpatched");
-    const editable = editability(rights.value, writes.value, of, `prop.${key}`);
-    if (!editable.editable) return editable.why;
     // A value not read (a row of a list): never typed over blind; its read refused, said so.
-    if (!read) return fixed(deps.unreadable?.(id) ? "unreadable" : "unread");
-    return explained.get(cellKey(id, key))?.kind === "computed" ? fixed("computed") : null;
+    // Said after the right and before the gate (`rankedRefusal`), as a computed value.
+    const own = !read
+      ? fixed(deps.unreadable?.(id) ? "unreadable" : "unread")
+      : explained.get(cellKey(id, key))?.kind === "computed"
+        ? fixed("computed")
+        : null;
+    const editable = editability(rights.value, writes.value, of, `prop.${key}`, own);
+    return editable.editable ? null : editable.why;
   }
   /** The permission Ctrl+Enter needs: the approval of the property's own (024). */
   const applyRight = (key: string) => approvalOf(propertyRight(key));

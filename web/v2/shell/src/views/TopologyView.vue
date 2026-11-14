@@ -62,7 +62,7 @@ import { useProblems } from "../problems/index.ts";
 import { childrenIntent } from "../prefetch/tree.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { refusalWords, useTime, useWrites } from "../time/index.ts";
+import { rankedRefusal, refusalWords, useTime, useWrites } from "../time/index.ts";
 import { collectionById, pageOfObject, type Item } from "./collections.ts";
 import { editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
@@ -596,14 +596,26 @@ const gateWhy = computed(() => refusalWords(writes.value, t));
 /**
  * Why adding in `node` (the first level without one) is refused: without the right to
  * write any kind it may hold — the first one named, as served, the durable reason first —
- * then by the gate of writes.
+ * then by the gate of writes (`rankedRefusal`; `gate: null`, the lasting reason only).
  */
-function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: string } | null {
+function addRefusal(
+  node: Shown | undefined,
+  gate: string | null = gateWhy.value,
+): { forbidden: string } | { reason: string } | null {
   const types = kindsIn(node).map((id) => collectionById(id)!.type);
-  if (!types.some((type) => session.value.rights.has(editRight(type)))) {
-    return { forbidden: editRight(types[0]!) };
-  }
-  return gateWhy.value ? { reason: gateWhy.value } : null;
+  const may = types.some((type) => session.value.rights.has(editRight(type)));
+  return (
+    rankedRefusal<{ forbidden: string } | { reason: string }>({
+      lasting: may ? null : { forbidden: editRight(types[0]!) },
+      gate: gate ? { reason: gate } : null,
+    }) ?? null
+  );
+}
+/** The words of a refusal of an addition, as `c` and the status say it. */
+function addWords(refusal: { forbidden: string } | { reason: string }): string | undefined {
+  return "forbidden" in refusal
+    ? whyWords({ kind: "forbidden", permission: refusal.forbidden }, t)
+    : refusal.reason;
 }
 // The « + » of every prefix; refused, it stays visible and says why (REQ-021-37).
 /** The names of the « + », by label, made once per language: asked of each row at each render. */
@@ -620,10 +632,18 @@ function addLabel(node: TreeNode): string | undefined {
 }
 const addBlocked = (node: TreeNode) => addRefusal(nodeById(node.id)) ?? undefined;
 function addIn(id: string | undefined): void {
-  // The gate read again as it acts: the window narrowed since the « + » was drawn.
-  if (gateWhy.value) return status(gateWhy.value);
   const node = nodeById(id) ?? chosen.value;
   const inside = node?.kind === "prefix" ? node : undefined;
+  // The refusal read again as it acts (the window narrowed since the « + » was drawn), the
+  // permission before the gate: of the node its caller judged (the « + » of `id`, `c` and
+  // « Ajouter dans » theirs, the first level without one), nothing refused that it let by.
+  const judged = id === undefined ? undefined : node?.id === id ? node : undefined;
+  const refusal = addRefusal(judged?.kind === "prefix" ? judged : undefined);
+  if (refusal) {
+    const words = addWords(refusal);
+    if (words) status(words);
+    return;
+  }
   const kinds = kindsIn(inside);
   openEdit({
     mode: "create",
@@ -641,21 +661,19 @@ useViewAction("create", {
     targetPrefix.value
       ? t("edit.addIn", { within: valueOf(targetPrefix.value) })
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
-  allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
+  // The lasting reasons only (the right, a domain): the gate is the frame's (`view.ts`),
+  // said after them, as the « + » says it; held by the gate alone, the palette keeps it.
+  allowed: () => addRefusal(targetPrefix.value, null) === null && domain.value !== undefined,
   // Refused, `c` says why by the status of the view: no domain to add in, once the domains
-  // are read; else what the « + » says. `view.ts` says the gate first, the « + » the
-  // permission first (task 21h).
+  // are read; else what the « + » says.
   why: () => {
     if (domain.value === undefined) {
       return domains.isSuccess.value && domainItems.value.length === 0
         ? t("views.topology.addNoDomain")
         : undefined;
     }
-    const refusal = addRefusal(targetPrefix.value);
-    if (!refusal) return undefined;
-    return "forbidden" in refusal
-      ? whyWords({ kind: "forbidden", permission: refusal.forbidden }, t)
-      : refusal.reason;
+    const refusal = addRefusal(targetPrefix.value, null);
+    return refusal ? addWords(refusal) : undefined;
   },
   say: say.status,
   run: () => addIn(targetPrefix.value?.id),
