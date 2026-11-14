@@ -331,6 +331,44 @@ describe("next page of a list", () => {
     scope.stop();
   });
 
+  it("reads nothing more when the first page is dropped, until the window comes near the end", async () => {
+    // Past `MAX_PAGES` (task 021-22f): the page read lands and the cache drops the first;
+    // the window was last given among the rows before, at their end. Read as it stands, a
+    // page more at once, which lands under the rows in view, a page further dropped.
+    const page = () => ({ data: { items: Array.from({ length: 100 }), links: {} }, etag: null });
+    const params = (from: number) => Array.from({ length: 10 }, (_, i) => `c${from + i}`);
+    const fetchNextPage = vi.fn(async () => {});
+    const isFetching = ref(false);
+    const data = shallowRef({ pages: Array.from({ length: 10 }, page), pageParams: params(1) });
+    const list: PagedList = {
+      data,
+      hasNextPage: ref(true),
+      isFetching,
+      isFetchNextPageError: ref(false),
+      fetchNextPage,
+    };
+    const view = ref({ end: 1000, size: 17 });
+    const scope = effectScope();
+    scope.run(() => useNextPage(list, view));
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    isFetching.value = true;
+    await nextTick();
+    // The eleventh page in, the first out: the window ends a page before the end now.
+    data.value = { pages: Array.from({ length: 10 }, page), pageParams: params(2) };
+    isFetching.value = false;
+    await nextTick();
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    // The grid gives its window among the rows kept: the same rows, a page up.
+    view.value = { end: 900, size: 17 };
+    await nextTick();
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    // Scrolled on to the end of the new page: the next one.
+    view.value = { end: 990, size: 17 };
+    await nextTick();
+    expect(fetchNextPage).toHaveBeenCalledTimes(2);
+    scope.stop();
+  });
+
   it("follows the link to the next page of a list of the cache", async () => {
     const seen = serve((url) =>
       url.includes("cursor=")
