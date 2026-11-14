@@ -1301,7 +1301,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (ADR 0038 § 4 : DOM léger) ; anneau de focus d'un contrôle de cellule jamais capturé ;
     effet sur le défilement à mesurer par la passe `bench-web` (élément recréé par ligne
     recyclée, seulement avec une colonne d'extension).
-- [ ] 11o2. Erreur d'un plugin confinée à sa cellule (relevé de la revue de la 11o, le
+- [x] 11o2. Erreur d'un plugin confinée à sa cellule (relevé de la revue de la 11o, le
   2026-11-14) : l'élément d'une colonne d'extension qui lève laisse aujourd'hui une
   cellule vide et muette, dans le `TreeGrid` comme dans la `DataGrid`, alors que la même
   extension en onglet de fiche montre son encart ; les deux grilles offrent une fente de
@@ -1322,6 +1322,41 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     plugin de test `web/v2/e2e/plugins/notes`
   - dépend de : 11o ; avant la bascule (27) ; le recyclage des lignes de la 22e ne doit
     rien y perdre (passe réduite `bench-web` par la session principale)
+  - fait le 2026-11-14 — emplacement `extension` des deux grilles (`ExtensionSlotProps` :
+    la ligne telle que l'élément la recevrait, la colonne, les autres propriétés de
+    `elementProps`), passé par `ExtensionCell` (son emplacement par défaut, sinon l'élément
+    brut) : aucun appel sur une ligne que `elementProps` écarte, la clé de ligne du `TreeGrid`
+    inchangée (un contenu recréé sur une ligne recyclée), rien de plus sans colonne
+    d'extension ; `tameControl` et `useExtensionControls` (l'observateur) sortis dans
+    `internal/extensionCell.ts`. Shell : `ExtensionElement` prend `cell` (élément en ligne ;
+    erreur dite courte, « Extension en erreur » et `CodeBadge` `plugin.element`, comme
+    `NetworkVlan`), `cellExtension` (slots.ts) lui donne balise, plugin, libellé, ligne et
+    `object` ; `ListView.vue` et `TopologyView.vue` remplissent l'emplacement ;
+    `stableObjectRefs` : un même `object` par objet d'un rendu à l'autre. Plugin de test
+    `notes` : sa colonne `flag` lève à la connexion dans la ligne qu'un parcours nomme
+    (`localStorage`). Vitest `shell/test/plugin-cells.test.ts` (élément qui lève à la
+    construction et à la connexion, dans une liste et dans l'arbre ; `elementProps` sans
+    rien dans la `DataGrid` ; ligne recyclée), `ui/test/components-data.test.ts` et
+    `ui/test/trees.test.ts` (« …slot `extension`… »), `ui/test/trees-mounted.test.ts`
+    (contenu recréé sur une ligne recyclée) ; parcours `plugins` (« a column of a plugin
+    that throws in a row… », liste des préfixes et Topographie).
+  - choix : erreur dans une cellule sans région vivante (un plugin qui lève lève sur toutes
+    les lignes ; l'en-tête de colonne nomme l'extension), le motif long réservé aux encarts
+    (onglet, vue), sur une ligne, le code rétréci le premier (sa bulle le dit entier) ;
+    `status` non passé dans une cellule (les colonnes ne viennent que des plugins chargés,
+    `extensionsOf`), un plugin en chargement y aurait un squelette de cellule ; l'élément d'une cellule est recréé quand sa ligne
+    change d'objet (`ExtensionElement`, comme un onglet), donc aussi quand `shownRows` de la
+    liste recopie ses lignes (colonnes de propriétés choisies, saisie en place) ; prop
+    d'emplacement par l'emplacement par défaut d'`ExtensionCell` (typé, inféré par vue-tsc),
+    pas une prop `slot` ; pas d'état de catalogue nouveau (l'emplacement est celui de l'hôte,
+    l'état `extension` montre toujours l'élément brut).
+  - reste : à mesurer par la passe `bench-web` (session principale) : avec une colonne
+    d'extension, un composant `ExtensionElement` par cellule (montage, observateurs, un
+    élément ajouté après le rendu) au lieu d'un nœud brut, recréé à chaque ligne recyclée ou
+    qui entre dans la fenêtre ; rien sans colonne d'extension. Relectures (mineurs) : une
+    annonce polie, une fois par grille, quand une cellule d'extension tombe en erreur après
+    le chargement (4.1.3, l'événement `failed` existe) ; hauteur de la ligne en erreur
+    jamais capturée.
 - [x] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
   **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
   au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;

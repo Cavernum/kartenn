@@ -192,6 +192,7 @@
     "loaded": "Chargé",
     "loadingOf": "Chargement de {name}",
     "failedIn": "« {name} » n'a pas pu s'afficher ; le reste de l'écran reste utilisable.",
+    "failedCell": "Extension en erreur",
     "reason": {
       "incompatible": "version du SDK, des composants ou de Vue incompatible",
       "load-failed": "fichier introuvable ou empreinte invalide",

@@ -4,9 +4,12 @@
 // confines an error of the plugin to its place — an encart with its code (`plugin.<motif>`),
 // the rest of the screen usable. A plugin still loading has a skeleton of fixed size (a
 // tile of the home page), one set aside its reason. `kartenn-close` from the element is
-// passed on as `close` (an action in its dialog).
+// passed on as `close` (an action in its dialog). In a cell of a grid (`cell`, a column,
+// the slot `extension` of `DataGrid` and `TreeGrid`), the element is inline and its error
+// said short in the cell with its code, as a cell says a read refused: no alert per row
+// (a plugin that fails fails in every row), the column's header naming the extension.
 import type { ObjectRef } from "@kartenn/sdk";
-import { InlineAlert, Skeleton, Stack } from "@kartenn/ui";
+import { CodeBadge, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
 import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { routerKey } from "vue-router";
@@ -24,8 +27,10 @@ const props = withDefaults(
     row?: Record<string, unknown> | undefined;
     /** Where the plugin stands; loaded when unset (the hosts of loaded plugins only). */
     status?: Status | undefined;
+    /** In a cell of a grid: inline, an error said short (the columns of loaded plugins). */
+    cell?: boolean;
   }>(),
-  { object: undefined, row: undefined, status: undefined },
+  { object: undefined, row: undefined, status: undefined, cell: false },
 );
 /**
  * `close`: the element asked it (`kartenn-close`); `followed`: a link of the element was
@@ -137,27 +142,45 @@ onBeforeUnmount(unmount);
 </script>
 
 <template>
-  <Stack v-if="state.state === 'loading'" gap="2" aria-busy="true" class="k-extension">
+  <Skeleton v-if="state.state === 'loading' && props.cell" variant="cell" />
+  <Stack v-else-if="state.state === 'loading'" gap="2" aria-busy="true" class="k-extension">
     <span class="k-visually-hidden">{{ t("plugins.loadingOf", { name: props.label }) }}</span>
     <Skeleton variant="text" :rows="3" />
   </Stack>
+  <span v-else-if="reason !== null && props.cell" class="k-extension" data-failed
+    >{{ t("plugins.failedCell") }} <CodeBadge :code="reasonCode(reason)"
+  /></span>
   <InlineAlert
     v-else-if="reason !== null"
     tone="ko"
     :title="t('plugins.failedIn', { name: props.label })"
     :items="[{ message: t(`plugins.reason.${reason}`), code: reasonCode(reason) }]"
   />
-  <div
+  <component
+    :is="props.cell ? 'span' : 'div'"
     v-show="reason === null && state.state === 'loaded'"
     ref="container"
     class="k-extension"
     @click="onClick"
-  ></div>
+  ></component>
 </template>
 
 <style>
 @layer components {
   .k-extension {
+    min-inline-size: 0;
+  }
+
+  /* In a cell: one line of the row, the code shrinking first (its bubble says it whole). */
+  .k-extension[data-failed] {
+    display: inline-flex;
+    gap: var(--k-space-1);
+    align-items: center;
+    max-inline-size: 100%;
+    white-space: nowrap;
+  }
+
+  .k-extension[data-failed] > .k-code-badge {
     min-inline-size: 0;
   }
 }
