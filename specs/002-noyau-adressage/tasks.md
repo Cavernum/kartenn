@@ -124,6 +124,45 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   complété), textes resynchronisés, contre-audit sans écart ; ce qui reste est différé
   et listé ci-dessous
 
+## P7 — Intégrité des références (amendement du 2026-11-14 à REQ-002-12)
+
+- [ ] 29. Toute référence d'une écriture est lue avant d'être écrite : à la résolution, une
+  référence par identifiant (`Ref::Id`) est lue dans la transaction de l'écriture, à sa
+  date de validité, avec le type attendu ; absente, d'un autre type ou close, l'écriture
+  est refusée par la règle nouvelle `core.reference.unknown` (erreur, 422, champ nommé),
+  comme l'est déjà une référence par nom introuvable ; une référence vers un objet créé
+  plus tôt dans le même changeset reste acceptée. Recensement : toutes les opérations
+  d'écriture du noyau et leurs références (domaine, parent, VLAN, groupe, interface,
+  machine, entité…), et une requête qui compte les orphelins déjà en base, par table.
+  Vérifier aussi qu'aucun droit porté par domaine ne se contourne par un domaine
+  inconnu — REQ-002-12 (amendée), REQ-002-37 — verify : test d'intégration rouge
+  d'abord (préfixe, plage, adresse créés sur un domaine inconnu, puis sur l'identifiant
+  d'un objet d'un autre type : 422 `core.reference.unknown`, rien d'écrit) ; test qui
+  parcourt le catalogue des opérations avec une référence fausse pour chacune ; la règle
+  au catalogue (`docs/spec/regles-noyau.md`, `code_labels.rs`) ; `k-check` ; la requête
+  des orphelins et son résultat sur la base de dev dans la note de clôture
+  où : `crates/kartenn-service/src/pipeline.rs` (résolution des références, vers les
+  lignes 471-494, 1079-1082, 1198-1200), `global.rs` (121, 451) ;
+  `crates/kartenn-core/src/rules.rs` (modèle : `RBAC_UNKNOWN_ROLE`, `GROUP_UNKNOWN`) et
+  `code_labels.rs` ; `crates/kartenn-rest/src/operation.rs` (36-43, 673-689) ;
+  `crates/kartenn-store-pg/src/write.rs` (vers 1334) ; `docs/spec/regles-noyau.md`
+- [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
+  une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
+  validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
+  commençant par `prefix.domain_id`, `range.domain_id` et `address.domain_id` ; une
+  migration nouvelle (jamais une migration existante réécrite), précédée du contrôle des
+  orphelins : elle échoue avec leur liste plutôt que de les supprimer. À établir avant
+  d'écrire la migration : compatibilité avec le modèle bitemporel (la période de validité
+  seule entre dans la clé, pas le temps de transaction), contrainte d'exclusion ou clé
+  `WITHOUT OVERLAPS` requise sur la table visée, coût sur le banc `bench-core` (seuils
+  D14), clôture d'un domaine qui porte encore des objets — un ADR si le modèle doit
+  bouger — REQ-002-12 (amendée) — verify : test d'intégration (une insertion directe en
+  base, hors service, d'un préfixe sur un domaine inconnu ou clos est refusée par la
+  contrainte) ; `k-check` ; `bench-core` réduit sous ses seuils
+  où : `crates/kartenn-store-pg/migrations/` (`0004_core_objects.sql:44-61` pour la forme
+  des tables) ; `docs/spec/data.md` ; ADR 0014 et 0015 ; `docs/practices/`
+  dépend de : 29
+
 ## Différé à d'autres specs (constaté à la synchronisation)
 
 - Restitution de la classification IANA de chaque objet (REQ-002-33) : calculée par

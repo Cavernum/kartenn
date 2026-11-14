@@ -135,6 +135,27 @@ Acceptation :
 - Modifier le domaine d'un préfixe existant est refusé ; le déplacement se fait par
   clôture puis création.
 
+*Amendement du 2026-11-14 (validé par l'utilisateur, tâches 29 et 30).* Constat : une
+écriture qui désigne son domaine par identifiant était appliquée sans que l'identifiant
+soit lu ; un préfixe, une plage ou une adresse pouvait ainsi appartenir à un domaine qui
+n'existe pas, ou à un objet d'un autre type. La règle vaut pour toute référence portée
+par une écriture du noyau, pas seulement le domaine :
+
+kartenn doit refuser toute écriture dont une référence, donnée par nom ou par
+identifiant, ne désigne pas un objet du type attendu en vigueur à la date de validité
+de l'écriture.
+
+Acceptation :
+- Créer un préfixe, une plage ou une adresse avec un identifiant de domaine inconnu est
+  refusé (422, règle `core.reference.unknown`, le champ fautif nommé) ; rien n'est écrit.
+- La même écriture avec l'identifiant d'un objet d'un autre type, ou d'un domaine clos à
+  la date de validité, est refusée par la même règle.
+- La règle s'applique à chaque opération d'écriture du noyau et à chacune de ses
+  références ; un test parcourt le catalogue des opérations pour le prouver.
+- Une référence vers un objet créé plus tôt dans le même changeset est acceptée.
+- La base tient la même garantie par une contrainte (clé étrangère temporelle), pour
+  les chemins d'écriture qui ne passent pas par le service (tâche 30).
+
 ### D. Préfixes
 
 #### REQ-002-13 — Nature du préfixe
