@@ -6,8 +6,8 @@
 // out: the fonts (their own budget, `size.ts`), the chunks of the screens, read when a
 // route opens (the components of @kartenn/ui only they use among them, task 22r), and the
 // entries of the import map no file of the shell imports (`vue`, `@kartenn/sdk`,
-// `@kartenn/ui`: a plugin loads them, with itself). 1 Ko = 1 000 bytes. Prints `PASS|FAIL initial shell …`; exits 1
-// above the budget. `node web/v2/shell/scripts/shell-size.ts [dist]` after
+// `@kartenn/ui`: a plugin loads them, with itself). 1 Ko = 1 000 bytes. Prints
+// `PASS|FAIL initial shell …`; exits 1 above the budget. `node web/v2/shell/scripts/shell-size.ts [dist]` after
 // `pnpm -C web/v2 --filter @kartenn/shell build`; `dist` defaults to web/v2/dist/shell.
 
 import { readFileSync } from "node:fs";

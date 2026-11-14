@@ -741,7 +741,8 @@ function toggleSidebar(): boolean {
 const helpOpen = ref(false);
 const loadHelp = () => import("../shortcuts/ShortcutHelp.vue");
 const ShortcutHelp = defineAsyncComponent({ loader: loadHelp, loadingComponent: Skeleton });
-onMounted(() => whenIdle(() => void loadHelp()));
+// A preload lost is read again when the help opens.
+onMounted(() => whenIdle(() => void loadHelp().catch(() => {})));
 
 // The shortcuts (REQ-021-7, 8): the shell's, then those of the plugin's view (the keys of
 // the shell refused to them since `main.ts`). One listener on the document.

@@ -7212,7 +7212,13 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     branche) : premier écran main 672, 965, 1 238 ms ; branche 706, 1 105, 1 771, 815 ms ;
     navigation en cache p75 main 222,8, 280,2, 199,0 ms ; branche 292,8, 340,3, 149,4 ms
     (déjà en échec sur main à cette charge) : écarts dans le bruit, aucune dégradation
-    tranchée ; la passe de référence, machine seule, revient à la session principale.
+    tranchée ; **chiffres pris sous charge, qui ne valent pas mesure** : la passe de
+    référence, machine seule, revient à la session principale.
+  - corrections après revue : `test/build.test.ts`, « keeps every sheet of @kartenn/ui in
+    its one sheet » (le chunk `ui.screens` sans `css` au manifeste, la feuille de
+    @kartenn/ui avec `.k-data-grid-frame`, sur les deux builds), vu rouge avec le motif des
+    feuilles retiré de `uiFirst` (`ui.screens` portant sa propre feuille), puis vert ; le
+    préchargement de l'aide en temps mort sans rejet non traité (`.catch`).
   - choix : la liste des composants du cadre (`FRAME_COMPONENTS`) plutôt que celle des
     écrans : un composant nouveau va par défaut au chunk des écrans, un composant que le
     cadre se met à utiliser sans y être nommé ramène `ui.screens` au premier lot et le
@@ -7224,7 +7230,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     arbitrage) ; `DateTimeField` (4,2 Ko) au premier lot par `DatePill` ; la passe de
     référence des budgets du premier écran et de la navigation, machine seule ; l'aide
     des raccourcis sans `errorComponent` (lot perdu : dialogue au corps vide, Échap et
-    Fermer restent).
+    Fermer restent) ; un nom de `FRAME_COMPONENTS` que le cadre n'utilise plus n'est
+    signalé par rien (il garde ce composant au premier lot) ; un visiteur sans session
+    télécharge `ui.screens` avec la page de connexion (préchargement de l'aide en temps
+    mort, et `loadRouteLocation` de la première adresse quand elle est un écran).
 - [x] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,

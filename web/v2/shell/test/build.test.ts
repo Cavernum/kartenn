@@ -279,6 +279,23 @@ describe("builds of the shell", () => {
     expect(initial).not.toContain(entry);
   });
 
+  it("keeps every sheet of @kartenn/ui in its one sheet, none with the screens' chunk", () => {
+    // The sheets of the components of the screens stay with the frame's (task 22r,
+    // `uiFirst`): split with their scripts, the rules of a same layer would come in the
+    // order of the split sheets (see « links the critical sheet first »).
+    for (const { outDir, manifest, html } of [production, catalogue]) {
+      const screens = Object.values(manifest).find(({ file }) =>
+        file.startsWith("assets/ui.screens-"),
+      );
+      expect(screens, "chunk of the components of the screens").toBeDefined();
+      expect(screens!.css ?? []).toEqual([]);
+      const sheet = /href="\/(assets\/ui-[^"]+\.css)"[^>]*data-kartenn-sheet=/.exec(html)?.[1];
+      expect(sheet, "sheet of @kartenn/ui").toBeDefined();
+      // A rule of a component only the screens use: the frame of the DataGrid.
+      expect(readFileSync(join(outDir, sheet!), "utf8")).toContain(".k-data-grid-frame");
+    }
+  });
+
   it("serves the runtime build of vue: nothing evaluated under the CSP", () => {
     for (const { js } of [production, catalogue]) {
       expect(js).not.toMatch(/new Function\(|\beval\(/);
