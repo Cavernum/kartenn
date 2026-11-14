@@ -146,6 +146,116 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `crates/kartenn-core/src/rules.rs` (modèle : `RBAC_UNKNOWN_ROLE`, `GROUP_UNKNOWN`) et
   `code_labels.rs` ; `crates/kartenn-rest/src/operation.rs` (36-43, 673-689) ;
   `crates/kartenn-store-pg/src/write.rs` (vers 1334) ; `docs/spec/regles-noyau.md`
+  - découpée le 2026-11-14 (relevé par l'agent de la tâche, avant tout code) en 29a à 29d :
+    le recensement nomme aussi les références des opérations de modules (VLAN, groupe,
+    interface, machine), que chaque module résout par la fonction sans type que le
+    pipeline passe à `ModuleHandler::plan` (`pipeline.rs` vers 1165) ; y donner le type
+    attendu change le contrat des modules (ADR 0026) dans six crates.
+- [x] 29a. Références des opérations du noyau : chaque `Ref::Id` que rend `references()`
+  (`pipeline.rs` vers 366) pour une opération du noyau, demandée ou ajoutée par le plan
+  d'un module, est relevée là où `plan()` la résout, puis lue en un seul lot par date de
+  validité après les verrous ; absente, d'un autre type ou close au début de la période de
+  l'opération : `core.reference.unknown` ; `Restore` hors du contrôle (sa cible peut être
+  close). Les droits d'abord (INV-63) : un utilisateur lié au seul domaine A reçoit le même
+  refus de ses droits pour un domaine inconnu, d'un autre type, clos ou hors de sa portée ;
+  seul qui aurait le droit de lire l'objet désigné apprend `core.reference.unknown`, un
+  `Bind` sur un domaine inventé compris. Requête des orphelins
+  par table (domaines des préfixes, plages, adresses et objets de modules, parents
+  d'entité et de site) — REQ-002-12 (amendée), REQ-002-37 — verify : test d'intégration
+  rouge d'abord (`tests/it/reference_integrity.rs`) ; test qui parcourt le catalogue des
+  opérations du noyau (un exemple par variante d'`Operation`, chaque `Ref::Id` de son JSON
+  rendu par `references()` et refusé par la règle) ; la règle au catalogue ; `k-check`
+  où : `crates/kartenn-service/src/pipeline.rs` (`plan`, `stages` après `lock_targets`),
+  `port.rs` (`WriteTx`), `crates/kartenn-store-pg/src/write.rs` (modèle :
+  `object_kind_covering`, vers 2612), `crates/kartenn-core/src/rules.rs`,
+  `code_labels.rs`, `docs/spec/regles-noyau.md` ; tests voisins `tests/it/pipeline.rs`,
+  `anchors.rs`
+  - fait le 2026-11-14 : `references()` rend le champ de chaque référence (`Reference`),
+    et aussi les portées et domaines d'une politique d'approbation et la portée d'une
+    obligation ajoutée ; `plan()` relève chaque `Ref::Id` (`Designation`), y compris celles
+    des opérations du noyau qu'ajoute le plan d'un module, hors celles d'un objet que le
+    changeset crée (identifiant tiré par `plan`) ou que le plan d'un module écrit (ainsi
+    l'affectation d'un flux dont le même changeset prolonge la période) ;
+    `check_designations` les lit
+    après `lock_targets` par `WriteTx::kinds_in_force` (une requête par date de début, sur
+    `addressing_object`, entités, sites, groupes de VLAN, VLAN, déclarations, valeurs de
+    liste fermée, objets de modules) ; règle `core.reference.unknown` (catalogue,
+    `code_labels.rs`, `regles-noyau.md`), violation qui nomme l'opération, le champ
+    (`detail.field`, chemin JSON dans l'opération : `domain`, `scope.id`, `scopes[].id`,
+    `domains[]`, `id`) et l'objet. Correction après revue, les droits d'abord (INV-63) :
+    une désignation inconnue n'est refusée tout de suite que si l'auteur peut lire un objet
+    de son type à cet identifiant (`read_permission` ; sur un identifiant qui ne nomme rien,
+    le RBAC ne l'accorde que par une liaison globale, ou sur cet identifiant même ; les
+    déclarations se lisent par tous) ; sinon le changeset suit son cours et ses droits le
+    refusent comme pour un objet hors de portée, `core.reference.unknown` ne venant qu'une
+    fois tous les droits accordés. Tests `tests/it/reference_integrity.rs` (domaine inconnu,
+    d'un autre type, clos ; référence locale ; écritures datées dans le passé et le futur ;
+    catalogue : chaque étiquette d'opération a un exemple ou figure dans `NO_REFERENCE`,
+    chaque `Ref::Id` du JSON d'un exemple est refusé) et
+    `rbac::no_right_reaches_through_an_unknown_domain` (même refus `core.object.forbidden`,
+    règle, message, opération, pour un domaine inconnu, une entité, un domaine clos et un
+    domaine en vigueur hors de portée ; `core.reference.unknown` pour l'administrateur de
+    tout, `Bind` compris). Règle attendue changée dans six
+    tests (une cible ou une référence qui ne désigne rien du type attendu au début de la
+    période, jusqu'ici refusée en aval par `changeset.operation.no_version` ou
+    `prop.declaration.invalid`) : `pipeline.rs`, `module_pipeline.rs`, `anchors.rs`,
+    `resolution.rs`, `declarations.rs` ; jeux de données corrigés là où une référence était
+    fausse : `audit.rs` et `portion.rs` (préfixe daté avant son domaine), `import.rs`
+    (liaison externe d'un objet inexistant), `kartenn-rest` `placements.rs` (préfixe daté
+    d'une heure dans un domaine créé à l'instant). Requête des orphelins, sur toutes les
+    versions (ligne sans aucune ligne visée, quelle qu'en soit la période) :
+    `SELECT 'prefix.domain_id', count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM
+    addressing_domain d WHERE d.id = t.domain_id)), count(*) FROM prefix t`, de même pour
+    `ip_range` et `address`, pour `module_object.domain_id` non nul, et pour
+    `entity.parent_id` et `site.parent_id` non nuls (`FROM entity p WHERE p.id =
+    t.parent_id`). Sur la base de dev : 0 partout, mais la base est vide (0 ligne dans
+    chacune de ces tables) : ce zéro ne prouve rien
+  - choix : « en vigueur » = au début de la période de l'opération (maintenant si elle
+    n'en a pas), la couverture de toute la période restant à la tâche 30 ; `Restore` hors
+    du contrôle ; cible absente au début = `core.reference.unknown`, absente sur une partie
+    de la période = `changeset.operation.no_version` comme avant ; contrôle après les
+    verrous, révélé après les droits (ci-dessus) ; hors du contrôle, sous une autre règle :
+    les valeurs de type référence d'une affectation (`prop.assignment.dangling_reference`),
+    la cible d'un `Restore` (`check_restored`, `global.rs`), la portée d'une obligation dans
+    une déclaration et celle d'un retrait d'obligation (une obligation peut viser un
+    domaine clos depuis) ; les identifiants nus du RBAC (appartenance, liaison, identité,
+    compte) restent à ses règles
+  - reste : rejouer la requête des orphelins sur une base peuplée (une copie de
+    production ou le jeu du banc) avant la migration de la tâche 30
+- [ ] 29b. Contrat de `ModuleHandler::plan` avec le type attendu — **arbitré le
+  2026-11-14 : la résolution d'un module reçoit le type attendu** ; la tâche commence par
+  écrire l'amendement de l'ADR 0026 (contrat du plan d'un module) — la fonction de
+  résolution qu'un module
+  reçoit prend le type attendu (`Fn(Ref, ObjectKind) -> Option<Uuid>`) et chaque
+  `Ref::Id` qui la traverse entre dans le contrôle de la 29a ; VLAN et groupes de VLAN du
+  cœur, modules de test. À reprendre de la 29a : `plan()` met `module_plan.object` dans
+  `created` pour tout plan de module, création, mise à jour ou clôture, ce qui exempte du
+  contrôle toute référence à cet objet dans le changeset ; la 29b décide si une mise à
+  jour ou une clôture doit au contraire désigner un objet en vigueur — REQ-002-12
+  (amendée) — verify : un groupe de VLAN ancré sur un
+  identifiant inconnu ou d'un autre type, un VLAN d'un groupe inconnu : 422
+  `core.reference.unknown` ; test qui parcourt les types d'opérations des modules du
+  build ; `k-check`
+  où : `crates/kartenn-service/src/module.rs` (`ModuleHandler::plan`, vers 525),
+  `pipeline.rs` (vers 1165), `crates/kartenn-service/src/vlan.rs` (398-540),
+  `crates/kartenn-store-pg/src/vlan.rs` (753), `tests/it/support/dummy_module.rs`,
+  `kit_module.rs` ; ADR 0026
+  dépend de : 29a
+- [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
+  machine ou grappe, `member_of`, machine, interface, adresse) — contrat de la 29b —
+  REQ-002-12 (amendée) — verify : une
+  interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
+  `core.reference.unknown` ; `k-check -p kartenn-machines`
+  où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
+  `crates/kartenn-machines/tests/it/machines.rs`
+  dépend de : 29b
+- [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`
+  — contrat de la 29b — REQ-002-12 (amendée) —
+  verify : une référence inconnue par module : 422 `core.reference.unknown` ; `k-check`
+  où : `crates/kartenn-kube/src/handler.rs`, `settings.rs` ;
+  `crates/kartenn-flow/src/handler.rs` ; `crates/kartenn-policy/src/handler.rs`,
+  `matrix.rs`, `infer.rs`
+  dépend de : 29b
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
@@ -155,10 +265,19 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   d'écrire la migration : compatibilité avec le modèle bitemporel (la période de validité
   seule entre dans la clé, pas le temps de transaction), contrainte d'exclusion ou clé
   `WITHOUT OVERLAPS` requise sur la table visée, coût sur le banc `bench-core` (seuils
-  D14), clôture d'un domaine qui porte encore des objets — un ADR si le modèle doit
-  bouger — REQ-002-12 (amendée) — verify : test d'intégration (une insertion directe en
+  D14), clôture d'un domaine qui porte encore des objets (acceptée aujourd'hui : le test
+  `audit.rs` ferme un domaine qui porte un préfixe) — un ADR si le modèle doit
+  bouger. Course que la 29a laisse ouverte : son contrôle lit les références après les
+  verrous du changeset, mais seuls un domaine, les arbres d'entités et de sites et un objet
+  d'adressage sont verrouillés par qui les ferme ; une clôture concurrente d'une propriété,
+  d'une valeur de liste fermée, de la portée d'une liaison ou d'une politique, d'un objet
+  lié à un identifiant externe ou d'un objet de module, validée entre la lecture et la
+  validation du changeset, laisse une référence vers un objet clos ; de même une clôture
+  d'un domaine qui porte encore des préfixes, que rien ne refuse — REQ-002-12 (amendée) —
+  verify : test d'intégration (une insertion directe en
   base, hors service, d'un préfixe sur un domaine inconnu ou clos est refusée par la
-  contrainte) ; `k-check` ; `bench-core` réduit sous ses seuils
+  contrainte ; deux transactions, une clôture validée pendant l'écriture d'une référence
+  vers l'objet clos, la seconde refusée) ; `k-check` ; `bench-core` réduit sous ses seuils
   où : `crates/kartenn-store-pg/migrations/` (`0004_core_objects.sql:44-61` pour la forme
   des tables) ; `docs/spec/data.md` ; ADR 0014 et 0015 ; `docs/practices/`
   dépend de : 29

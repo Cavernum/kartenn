@@ -659,7 +659,8 @@ async fn module_object_has_etag_and_history(pool: PgPool) {
     )
     .await
     .unwrap();
-    assert_eq!(rules(&outcome), ["changeset.operation.no_version"]);
+    // An object nothing bears is designated by none (REQ-002-12, amendment of 2026-11-14).
+    assert_eq!(rules(&outcome), ["core.reference.unknown"]);
 }
 
 #[kartenn_testing::pg_test]

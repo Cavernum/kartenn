@@ -411,6 +411,10 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "An operation targets an object only over a period where it exists.",
     ),
     (
+        "core.reference.unknown",
+        "A reference by identifier designates an object of the expected kind, in force at the start of the period of the operation; a local reference, an object created earlier in the same changeset.",
+    ),
+    (
         "changeset.operation.conflict",
         "An operation that gives the expected version of an object fails if the current version differs.",
     ),

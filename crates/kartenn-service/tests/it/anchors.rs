@@ -195,12 +195,13 @@ async fn trees_refuse_cycles_and_missing_parents(pool: PgPool) {
         .await,
         vec!["core.anchor.cycle"]
     );
-    // A parent must exist: a closed entity cannot receive children.
+    // A parent must exist: a closed entity cannot receive children (REQ-002-12, amendment
+    // of 2026-11-14).
     f.applied(vec![close(ObjectKind::Entity, team)]).await;
     assert_eq!(
         f.refused(vec![entity(1, "late", Some(Ref::Id(team)))])
             .await,
-        vec!["changeset.operation.no_version"]
+        vec!["core.reference.unknown"]
     );
 }
 

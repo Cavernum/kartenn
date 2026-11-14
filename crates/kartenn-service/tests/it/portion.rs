@@ -580,6 +580,8 @@ async fn an_operation_may_have_its_own_period(pool: PgPool) {
         .unwrap();
     assert!(!retroactive, "2030 is in the future");
     let now = i64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap();
+    // A domain: the domain of the fixture is in force from 2030 only, which a prefix of
+    // yesterday cannot name (REQ-002-12, amendment of 2026-11-14).
     let past = f
         .applied(
             vec![Operation::Within {
@@ -587,7 +589,10 @@ async fn an_operation_may_have_its_own_period(pool: PgPool) {
                     start: now - DAY,
                     end: None,
                 },
-                operation: Box::new(f.prefix("10.9.0.0/16", Nature::Container)),
+                operation: Box::new(Operation::CreateDomain {
+                    local: None,
+                    slug: "archive".into(),
+                }),
             }],
             10,
             None,

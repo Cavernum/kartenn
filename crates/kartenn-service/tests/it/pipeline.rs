@@ -315,7 +315,8 @@ async fn closing_ends_the_object_and_refuses_a_missing_one(pool: PgPool) {
     let Outcome::Refused { violations, .. } = outcome else {
         panic!("{outcome:?}")
     };
-    assert_eq!(violations[0].rule.id, "changeset.operation.no_version");
+    // An object nothing bears is designated by none (REQ-002-12, amendment of 2026-11-14).
+    assert_eq!(violations[0].rule.id, "core.reference.unknown");
 }
 
 #[kartenn_testing::pg_test]

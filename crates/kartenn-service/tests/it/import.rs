@@ -246,7 +246,24 @@ async fn an_import_needs_identifiers_and_known_references(pool: PgPool) {
     .await
     .unwrap();
     assert!(matches!(created, Outcome::Applied { .. }), "{created:?}");
-    let other = Uuid::now_v7();
+    // Another domain, in force: the identifier of nothing is refused before the duplicate
+    // (REQ-002-12, amendment of 2026-11-14).
+    let created = submit(
+        &store,
+        &Unrestricted,
+        &request(vec![Operation::CreateDomain {
+            local: None,
+            slug: "other".into(),
+        }]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(created, Outcome::Applied { .. }), "{created:?}");
+    let other: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'other'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     match submit(
         &store,
         &Unrestricted,

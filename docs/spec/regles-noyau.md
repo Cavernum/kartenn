@@ -63,6 +63,7 @@ Sévérités fixées par la spécification (002/A4).
 | `prop.assignment.provenance` | erreur | Seule une opération qu'ajoute le plan d'un module porte une provenance de module, `module:<module>#<motif>`, du nom de ce module. | REQ-003-14, REQ-003-22 | 019/Q-019-34 |
 | `prop.resolution.expected_mismatch` | avertissement | La valeur résolue diffère de la valeur attendue par la source configurée. | REQ-003-24 | D23 |
 | `changeset.operation.no_version` | erreur | Une opération ne vise un objet que sur une période où il existe. | REQ-004-14, REQ-004-15 | 004/design |
+| `core.reference.unknown` | erreur | Une référence par identifiant désigne un objet du type attendu, en vigueur au début de la période de l'opération ; une référence locale, un objet créé plus tôt dans le même changeset. | REQ-002-12, REQ-004-4 | 002/amendement du 2026-11-14 |
 | `changeset.operation.conflict` | erreur | Une opération qui précise la version attendue d'un objet échoue si la version courante diffère. | REQ-004-11 | 004/design |
 | `changeset.state.not_pending` | erreur | Seul un changeset en attente peut être validé, rejeté ou retiré. | REQ-004-19, REQ-004-24 | 004/design |
 | `changeset.state.not_author` | erreur | Seul l'auteur retire son changeset en attente. | REQ-004-23 | 004/design |

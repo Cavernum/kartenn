@@ -1288,6 +1288,17 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
+    /// The kind of each of `ids` that names an object of the core or of a module in force
+    /// at `at` (transaction time when `None`): a domain, prefix, range, address, entity,
+    /// site, group of VLAN, VLAN, property, closed-list value or object of a module
+    /// (REQ-002-12, amendment of 2026-11-14). An identifier absent from the result names
+    /// nothing in force then.
+    fn kinds_in_force(
+        &mut self,
+        ids: &[Uuid],
+        at: Option<kartenn_core::period::Instant>,
+    ) -> impl Future<Output = Result<Vec<(Uuid, ObjectKind)>, StoreError>> + Send;
+
     /// Kind of an object of the addressing tree that exists over the whole of `period`.
     fn object_kind_covering(
         &mut self,

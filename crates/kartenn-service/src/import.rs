@@ -117,7 +117,7 @@ fn uses(op: &Operation) -> Vec<u32> {
     }
     references(op)
         .into_iter()
-        .filter_map(|(r, _)| match r {
+        .filter_map(|r| match r.to {
             Ref::Local(local) => Some(local),
             Ref::Id(_) => None,
         })

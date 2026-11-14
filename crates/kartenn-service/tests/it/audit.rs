@@ -52,16 +52,24 @@ async fn audit_is_searchable_by_author_state_object_and_retroactivity(pool: PgPo
         .fetch_one(&pool)
         .await
         .unwrap();
+    // A prefix dated before `prod` exists names a domain in force then (REQ-002-12,
+    // amendment of 2026-11-14): one created with it, retroactive too.
     let mut past = request(
         bob,
-        vec![Operation::CreatePrefix {
-            local: None,
-            domain: Ref::Id(d),
-            prefix: "10.0.0.0/8".into(),
-            nature: Nature::Container,
-            point_to_point: false,
-            anycast: false,
-        }],
+        vec![
+            Operation::CreateDomain {
+                local: Some(1),
+                slug: "archive".into(),
+            },
+            Operation::CreatePrefix {
+                local: None,
+                domain: Ref::Local(1),
+                prefix: "10.0.0.0/8".into(),
+                nature: Nature::Container,
+                point_to_point: false,
+                anycast: false,
+            },
+        ],
     );
     past.period = Some(PeriodSpec {
         start: 1_735_689_600_000_000,

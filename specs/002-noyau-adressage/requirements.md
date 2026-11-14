@@ -156,6 +156,13 @@ Acceptation :
 - La base tient la même garantie par une contrainte (clé étrangère temporelle), pour
   les chemins d'écriture qui ne passent pas par le service (tâche 30).
 
+Conséquences (précisées à la tâche 29a, 2026-11-14) : on n'antidate pas un objet avant le
+début de l'objet qu'il désigne, sauf si celui-ci est créé dans le même changeset ou est
+lui-même antidaté jusque-là. Les droits passent avant les références (INV-63) : un auteur
+qui n'a pas le droit de lire l'objet désigné reçoit le refus de ses droits, le même que
+pour un objet qui existe hors de sa portée ; seul qui l'aurait apprend
+`core.reference.unknown`.
+
 ### D. Préfixes
 
 #### REQ-002-13 — Nature du préfixe

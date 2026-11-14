@@ -292,12 +292,12 @@ async fn assignments_respect_carriers_types_and_existence(pool: PgPool) {
             .await),
         vec!["prop.assignment.invalid_value"]
     );
-    // The object must exist over the whole period, with the kind given.
+    // The object must exist with the kind given (REQ-002-12, amendment of 2026-11-14).
     assert_eq!(
         ids(f
             .submit(vec![f.assign(root, ObjectKind::Address, "a")], 1, None)
             .await),
-        vec!["changeset.operation.no_version"]
+        vec!["core.reference.unknown"]
     );
     // REQ-003-4: a property not carried by the kind.
     f.applied(

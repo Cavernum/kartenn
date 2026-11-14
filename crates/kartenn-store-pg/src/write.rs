@@ -2609,6 +2609,38 @@ impl WriteTx for PgTx {
         .map_err(store_err)
     }
 
+    async fn kinds_in_force(
+        &mut self,
+        ids: &[Uuid],
+        at: Option<kartenn_core::period::Instant>,
+    ) -> Result<Vec<(Uuid, ObjectKind)>, StoreError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let at = at.map(instant).transpose()?;
+        let rows: Vec<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, kind FROM (
+                 SELECT id, kind, valid_period FROM addressing_object
+                 UNION ALL SELECT id, 'entity', valid_period FROM entity
+                 UNION ALL SELECT id, 'site', valid_period FROM site
+                 UNION ALL SELECT id, 'vlan_group', valid_period FROM vlan_group
+                 UNION ALL SELECT id, 'vlan', valid_period FROM vlan
+                 UNION ALL SELECT id, 'property', valid_period FROM property_declaration
+                 UNION ALL SELECT id, 'enum_value', valid_period FROM property_enum_value
+                 UNION ALL SELECT id, kind, valid_period FROM module_object) o
+             WHERE id = ANY($1) AND valid_period @> coalesce($2::timestamptz, now())",
+        )
+        .bind(ids)
+        .bind(at)
+        .fetch_all(&mut *self.tx)
+        .await
+        .map_err(store_err)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, kind)| ObjectKind::from_name(&kind).map(|kind| (id, kind)))
+            .collect())
+    }
+
     async fn object_kind_covering(
         &mut self,
         id: Uuid,
