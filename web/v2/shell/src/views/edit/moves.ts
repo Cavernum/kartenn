@@ -19,7 +19,7 @@ import { shallowReactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { useTime, useWrites, type Writes } from "../../time/index.ts";
 
 // Moves in the trees whose parent is declared (REQ-021-32, 33; design 021 « Déplacements
 // dans les arbres »): the `canMove` of the shell — the SDK's check (cycle, parent admitted
@@ -123,14 +123,18 @@ const INCOMPATIBLE = { ok: false, refusal: "incompatible" } as const;
 /**
  * « Changer de parent… » of a record (its menu of actions): the refusal of the record's
  * writes (`refused`, a permission or `as_of`), or, a move being checked and written at the
- * present only, `dated` off it — under `valid_at` alone too (REQ-021-5).
+ * present only, `dated` off it — under `valid_at` alone too (REQ-021-5); in a frame under
+ * 1024 px, `narrow` (the gate's refusal, before a permission, as the cells say it).
  */
 export function moveEntryRefusal<R extends object>(
   refused: R,
-  writes: { quickEdit: boolean },
-  dated: string,
+  writes: Pick<Writes, "quickEdit" | "refused">,
+  words: { dated: string; narrow: string },
 ): R | { disabled: true; reason: string } {
-  return "forbidden" in refused || writes.quickEdit ? refused : { disabled: true, reason: dated };
+  if (writes.refused === "narrow") return { disabled: true, reason: words.narrow };
+  return "forbidden" in refused || writes.quickEdit
+    ? refused
+    : { disabled: true, reason: words.dated };
 }
 
 export function useMoves(model: MoveModel) {
@@ -138,6 +142,7 @@ export function useMoves(model: MoveModel) {
   const problems = useProblems();
   const session = useSession();
   const time = useTime();
+  const writes = useWrites();
   /** The moves in flight or refused, by node; the nodes moved in the draft. */
   const states = shallowReactive(new Map<string, MoveState>());
   const drafted = shallowReactive(new Set<string>());
@@ -163,8 +168,12 @@ export function useMoves(model: MoveModel) {
     return { ok: false, reason, ...(verdict.code ? { code: verdict.code } : {}) };
   }
 
-  /** `canMove` of the tree: for each target hovered or listed, synchronous. */
+  /**
+   * `canMove` of the tree: for each target hovered or listed, synchronous. In a frame under
+   * 1024 px, every target is refused by the width (REQ-021-29), whatever the node.
+   */
   function canMove(node: TreeNode, target: TreeNode | null): MoveCheck {
+    if (writes.value.refused === "narrow") return { ok: false, reason: t("edit.why.narrow") };
     const subject = model.subject(node);
     const to = target ? model.subject(target) : null;
     if (!subject || (target && !to)) return refusedFor(INCOMPATIBLE, target);

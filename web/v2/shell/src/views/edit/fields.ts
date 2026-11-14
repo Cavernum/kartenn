@@ -494,6 +494,8 @@ export type NotEditable =
   | { kind: "forbidden"; permission: string }
   /** The view is read as known at a past time (`as_of`): nothing is written. */
   | { kind: "past" }
+  /** The frame is narrower than 1024 px: nothing is written (REQ-021-29, Q-021-12). */
+  | { kind: "narrow" }
   /** The view is at a validity date alone: the change goes by the edit panel, to the dated draft. */
   | { kind: "dated" }
   /** The field never changes by an edit. */
@@ -506,7 +508,8 @@ export type Editability = { editable: true } | { editable: false; why: NotEditab
 /**
  * Whether the cell `column` of an object of `collection` may be edited in place: the field
  * is one of its patch (or a property of a `prop.<key>` column), the view at the present
- * (`writes.quickEdit`; under `valid_at` alone, the dated draft by the edit panel only), and
+ * and the frame wide enough (`writes.quickEdit`, `useWrites`; under `valid_at` alone, the
+ * dated draft by the edit panel only), and
  * the user holds `X.edit` of the type for a field, `prop.<key>.edit` for a property (design
  * « Édition en place »: the assignment asks the property's permission, apart from the
  * right to modify the object, REQ-003-17). The server stays the judge (a 403 is still
@@ -525,9 +528,10 @@ export function editability(
   if (!property && !edit.modification.some((field) => field.name === column)) {
     return { editable: false, why: { kind: "none" } };
   }
-  // Under `as_of` nothing is written, whatever the rights; the dated draft (`valid_at`
-  // alone) is said only to whom may write it, a missing right named first.
-  if (!writes.draft) return { editable: false, why: { kind: "past" } };
+  // Under `as_of` or in a narrow frame nothing is written, whatever the rights (the gate's
+  // refusal); the dated draft (`valid_at` alone) is said only to whom may write it, a
+  // missing right named first.
+  if (!writes.draft) return { editable: false, why: { kind: writes.refused ?? "past" } };
   const permission = property ? propertyRight(property) : editRight(collection.type);
   if (!rights.has(permission)) return { editable: false, why: { kind: "forbidden", permission } };
   if (!writes.quickEdit) return { editable: false, why: { kind: "dated" } };

@@ -2,7 +2,8 @@
 // What the keys do in the cell of the focus of a grid edited in place, or why it has no
 // editor (REQ-021-15, 37; design 021 « Édition en place »): Enter to the draft, Ctrl+Enter
 // applied with a motive (or the permission it lacks), Escape, after why the cell is held in
-// review when it is; else « Lecture seule » and the permission missing, copyable. At the
+// review when it is; else « Lecture seule » and the permission missing, copyable, or the
+// gate's refusal (the past, a frame under 1024 px). At the
 // foot of a list, of the tree, of the content.
 import { CodeBadge, Kbd } from "@kartenn/ui";
 import { useI18n } from "vue-i18n";
@@ -41,7 +42,9 @@ const { t } = useI18n();
     <template v-if="props.why.kind === 'forbidden'">
       {{ t("edit.why.forbidden") }} <CodeBadge :code="props.why.permission" />
     </template>
-    <template v-else-if="props.why.kind === 'past'">{{ t("edit.why.past") }}</template>
+    <template v-else-if="props.why.kind === 'past' || props.why.kind === 'narrow'">
+      {{ t(`edit.why.${props.why.kind}`) }}
+    </template>
     <template v-else-if="props.why.kind === 'dated'">
       {{ props.dated ?? t("edit.why.inPlaceDated") }}
     </template>

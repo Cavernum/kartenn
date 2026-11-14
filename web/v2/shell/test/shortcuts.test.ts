@@ -30,8 +30,11 @@ import {
   shellShortcuts,
   type ShellActions,
 } from "../src/shortcuts/shell.ts";
-import { play, runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
-import { timeOf } from "../src/time/index.ts";
+import { offered, play, runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
+import { timeOf as periodOf, writesOf } from "../src/time/index.ts";
+
+/** The gate of writes at the period of `query`, in a wide frame (what `play` and `runnable` take). */
+const timeOf = (query: Record<string, string>) => writesOf(periodOf(query), "wide");
 
 // The shortcuts of the shell (REQ-021-3, 7, 8; design « Raccourcis »): the registry and its
 // conflicts, the one listener (sequences, fields, consumers of characters, layers,
@@ -483,6 +486,56 @@ describe("actions of the view", () => {
     expect(runnable("edit", present)).toBe(second);
     removeSecond();
     expect(runnable("edit", present)).toBeNull();
+  });
+
+  it("refuses `c` and `e` in a frame under 1024 px, the width said, the palette keeping the command (task 021-21c)", () => {
+    const said: string[] = [];
+    const t = (key: string) => `<${key}>`;
+    const run = vi.fn();
+    let allowed = true;
+    const scope = effectScope();
+    scope.run(() => {
+      useViewAction("edit", {
+        label: () => "Modifier",
+        run,
+        allowed: () => allowed,
+        why: () => "Lecture seule : il faut core.prefix.edit",
+        say: (text) => said.push(text),
+        dated: true,
+      });
+      useViewAction("filter", { label: () => "Filtrer", run });
+    });
+    const narrow = writesOf(periodOf({}), "narrow");
+    const compact = writesOf(periodOf({ valid_at: "2026-01-01T00:00:00Z" }), "compact");
+    const asOf = writesOf(periodOf({ as_of: "2026-06-30T12:00:00Z" }), "narrow");
+    // The key: taken, the width said, nothing run; `/` still filters.
+    expect(play("edit", narrow, t)).toBe(true);
+    expect(play("edit", compact, t)).toBe(true);
+    expect(said).toEqual(["<edit.why.narrow>", "<edit.why.narrow>"]);
+    expect(run).not.toHaveBeenCalled();
+    expect(runnable("edit", narrow)).toBeNull();
+    expect(play("filter", narrow, t)).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
+    // The past before the width: widening would not open a date gone.
+    expect(play("edit", asOf, t)).toBe(true);
+    expect(said.at(-1)).toBe("<edit.why.past>");
+    // Without the right too, the width first, as the cells say it.
+    allowed = false;
+    expect(play("edit", narrow, t)).toBe(true);
+    expect(said.at(-1)).toBe("<edit.why.narrow>");
+    // The palette: the command kept under the width alone, its run says why; none without
+    // the right, nor under `as_of` (as before).
+    expect(offered("edit", narrow, t)).toBeNull();
+    allowed = true;
+    const command = offered("edit", narrow, t);
+    expect(command?.label()).toBe("Modifier");
+    command!.run();
+    expect(said.at(-1)).toBe("<edit.why.narrow>");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(offered("edit", asOf, t)).toBeNull();
+    // At 1024 px, the action again.
+    expect(offered("edit", writesOf(periodOf({}), "standard"), t)?.run).toBe(run);
+    scope.stop();
   });
 });
 

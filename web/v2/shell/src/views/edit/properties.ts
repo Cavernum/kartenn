@@ -14,7 +14,7 @@ import type { CellState, GridColumn, GridCommit, ListOption, RowState } from "@k
 import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from "vue";
 import { useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
-import { useTime, writesOf } from "../../time/index.ts";
+import { useTime, useWrites } from "../../time/index.ts";
 import {
   collectionById,
   collectionOfKind,
@@ -393,6 +393,10 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
   const session = useSession();
   const time = useTime();
   const present = computed(() => time.value.present);
+  /** The gate: the period and the width of the frame (REQ-021-29). */
+  const writes = useWrites();
+  /** Under 1024 px, the sentence that refuses the text of an editor still open. */
+  const narrowed = () => (writes.value.refused === "narrow" ? t("edit.why.narrow") : undefined);
   const rights = computed(() => session.value.rights);
   const dates = () => ({ validAt: time.value.validAt, asOf: time.value.asOf });
   const objectById = computed(() => new Map(deps.objects().map((o) => [o.id, o])));
@@ -526,7 +530,7 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     if (!typedInPlace(declaration)) return fixed("typed");
     const of = deps.collection();
     if (!PROPERTIES_PATCHED[of.id]) return fixed("unpatched");
-    const editable = editability(rights.value, writesOf(time.value), of, `prop.${key}`);
+    const editable = editability(rights.value, writes.value, of, `prop.${key}`);
     if (!editable.editable) return editable.why;
     // A value not read (a row of a list): never typed over blind; its read refused, said so.
     if (!read) return fixed(deps.unreadable?.(id) ? "unreadable" : "unread");
@@ -739,6 +743,12 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     const ask = asking.value;
     if (!ask || ask.busy) return false;
     const { object: id, key } = ask;
+    // The frame narrowed meanwhile: the line and its motive kept, the width said.
+    const width = narrowed();
+    if (width) {
+      deps.say.status(width);
+      return false;
+    }
     const declaration = deps.declaration(key);
     if (!declaration || why(id, key) !== null || !mayApply(key)) {
       cancel();
@@ -805,7 +815,8 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     heldOf,
     rowState,
     rowReasons,
-    validate: refusalOf,
+    // An editor open when the frame narrowed: kept with its text, the width said (`inline.ts`).
+    validate: (id: string, key: string, text: string) => narrowed() ?? refusalOf(id, key, text),
     choices: choicesOf,
     why,
     noteOf,

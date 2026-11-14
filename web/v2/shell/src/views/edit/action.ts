@@ -3,7 +3,7 @@ import { injectToasts, type SplitAction } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
-import { useTime, writesOf } from "../../time/index.ts";
+import { useWrites } from "../../time/index.ts";
 import { CONFLICT_RULE } from "./close.ts";
 import { lackingRight } from "./fields.ts";
 import type { Refusal } from "./inline.ts";
@@ -52,7 +52,6 @@ export const failed = (error: unknown): Refusal => ({
 export function useWriteAction(options: WriteActionOptions) {
   const { t } = useI18n();
   const session = useSession();
-  const time = useTime();
   const toasts = injectToasts();
   const say = useSay((text) => toasts?.show({ tone: "ok", title: text }));
 
@@ -65,8 +64,13 @@ export function useWriteAction(options: WriteActionOptions) {
    * Under a validity date alone (REQ-021-5, 007/W9): the dated draft only, nothing applied at
    * once — what a write applies takes effect now, not at the date read.
    */
-  const writes = computed(() => writesOf(time.value));
+  const writes = useWrites();
   const dated = computed(() => writes.value.draft && !writes.value.quickEdit);
+  /**
+   * A frame narrower than 1024 px (REQ-021-29): both actions refused with the width, the
+   * panel kept open with its input (a panel opened wider, the window narrowed since).
+   */
+  const narrow = computed(() => writes.value.refused === "narrow");
   /** Why `id` is impossible at the date read, if it is: « Appliquer » under `valid_at`. */
   const datedReason = (id: string) => (id === "apply" && dated.value ? t("edit.why.dated") : null);
   const canApply = computed(() => lacking("apply") === null && !dated.value);
@@ -75,6 +79,7 @@ export function useWriteAction(options: WriteActionOptions) {
       { id: "draft", label: t(options.words.draft), icon: "draft" as const },
       { id: "apply", label: t(options.words.apply), icon: "circle-check" as const },
     ].map((a) => {
+      if (narrow.value) return { ...a, disabled: true, reason: t("edit.why.narrow") };
       const permission = lacking(a.id);
       if (permission) return { ...a, forbidden: permission };
       const reason = datedReason(a.id);
@@ -128,6 +133,11 @@ export function useWriteAction(options: WriteActionOptions) {
    */
   function begin(id: string): boolean {
     if (busy.value) return false;
+    if (narrow.value) {
+      refusal.value = null;
+      tell(t("edit.why.narrow"));
+      return false;
+    }
     const missing = lacking(id);
     if (missing !== null) {
       tell(t("edit.unsent", { permission: missing }));

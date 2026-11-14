@@ -150,7 +150,10 @@ const actions = computed<MenuItem[]>(() => {
     ...editBlocked.value,
   };
   // A change of parent at the present only (`moves.ts`): under `valid_at` alone too.
-  const moveRefused = moveEntryRefusal(refused, writes.value, t("edit.move.dated"));
+  const moveRefused = moveEntryRefusal(refused, writes.value, {
+    dated: t("edit.move.dated"),
+    narrow: t("edit.why.narrow"),
+  });
   const own: MenuItem[] = movable.value
     ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...moveRefused }]
     : [];

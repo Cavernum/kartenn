@@ -444,27 +444,38 @@ describe("moves in a tree whose parent is declared", () => {
 });
 
 describe("« Changer de parent… » of a record by the date read (task 021-12c)", () => {
-  const dated = createShellI18n("fr").global.t("edit.move.dated");
+  const { t } = createShellI18n("fr").global;
+  const dated = t("edit.move.dated");
+  const words = { dated, narrow: t("edit.why.narrow") };
 
   it("is refused under a validity date alone with edit.move.dated, the record's refusal kept otherwise", () => {
     expect(dated).toBe("Lecture datée : revenez au présent pour changer de parent.");
     const at = (query: Record<string, string>) => writesOf(timeOf(query));
     // Under `valid_at` alone the record's other writes open (to the dated draft), not the move.
-    expect(moveEntryRefusal({}, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+    expect(moveEntryRefusal({}, at({ valid_at: "2026-01-01T00:00:00Z" }), words)).toEqual({
       disabled: true,
       reason: dated,
     });
     // At the present, the record's own (nothing, or its permission).
-    expect(moveEntryRefusal({}, at({}), dated)).toEqual({});
+    expect(moveEntryRefusal({}, at({}), words)).toEqual({});
     const forbidden = { forbidden: "core.entity.edit" };
-    expect(moveEntryRefusal(forbidden, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toBe(
+    expect(moveEntryRefusal(forbidden, at({ valid_at: "2026-01-01T00:00:00Z" }), words)).toBe(
       forbidden,
     );
     // Under `as_of`, refused too, by the date.
-    expect(moveEntryRefusal({}, at({ as_of: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+    expect(moveEntryRefusal({}, at({ as_of: "2026-01-01T00:00:00Z" }), words)).toEqual({
       disabled: true,
       reason: dated,
     });
+  });
+
+  it("is refused in a frame under 1024 px by the width, before a permission (task 021-21c)", () => {
+    const narrow = writesOf(timeOf({}), "narrow");
+    const refused = { disabled: true, reason: t("edit.why.narrow") };
+    expect(moveEntryRefusal({}, narrow, words)).toEqual(refused);
+    expect(moveEntryRefusal({ forbidden: "core.entity.edit" }, narrow, words)).toEqual(refused);
+    // At 1024 px, the record's own again.
+    expect(moveEntryRefusal({}, writesOf(timeOf({}), "standard"), words)).toEqual({});
   });
 });
 

@@ -1,5 +1,6 @@
 import { api, ApiProblem } from "@kartenn/sdk";
 import { setContext } from "@kartenn/sdk/host";
+import type { WidthClass } from "@kartenn/ui";
 import { computed, type ComputedRef } from "vue";
 import {
   useRoute,
@@ -8,6 +9,7 @@ import {
   type RouteLocationRaw,
   type Router,
 } from "vue-router";
+import { frameWidth } from "../frame/width.ts";
 
 // The dated context (REQ-021-5, 007/W9; repris de web/shell/src/time): `valid_at` and
 // `as_of` live in the query of the URL, so that a link shows what its author saw; the
@@ -117,18 +119,54 @@ export function useTime(): ComputedRef<Time> {
   return computed(() => timeOf(route.query));
 }
 
-/** What may be written at a date: at once (in place, applied), to the draft. */
+/**
+ * Why nothing at all may be written: the view read as known at a past time (`as_of`), or a
+ * frame narrower than 1024 px (`narrow`, REQ-021-29, Q-021-12). Its sentence is
+ * `edit.why.<refusal>` (`refusalWords`).
+ */
+export type WriteRefusal = "past" | "narrow";
+
+/**
+ * What may be written: at once (in place, applied), to the draft; and when neither, why
+ * (`null` when the draft is open: under `valid_at` alone, it is the only way).
+ */
 export interface Writes {
   quickEdit: boolean;
   draft: boolean;
+  refused: WriteRefusal | null;
+}
+
+/** The width classes under 1024 px, which read but do not write (Q-021-12). */
+const READING_ONLY: ReadonlySet<WidthClass> = new Set(["compact", "narrow"]);
+
+/**
+ * The gate of writes (REQ-021-5, 007/W9; REQ-021-29, Q-021-12): nothing under `as_of`, the
+ * draft included; nothing under 1024 px either (`width`, the class of the frame), said
+ * after the past (widening the window would not open a date gone); a `valid_at` off the
+ * present leaves the draft only (its changes take effect at that date). Without `width`,
+ * the period alone: what a read that a write follows asks (the simulation of a closure); a
+ * surface that writes passes it, by `useWrites`.
+ */
+export function writesOf(time: Time, width?: WidthClass): Writes {
+  if (time.asOf !== null) return { quickEdit: false, draft: false, refused: "past" };
+  if (width !== undefined && READING_ONLY.has(width)) {
+    return { quickEdit: false, draft: false, refused: "narrow" };
+  }
+  return { quickEdit: time.present, draft: true, refused: null };
+}
+
+/** The gate of writes at the period of the route and the width of the frame, reactive. */
+export function useWrites(): ComputedRef<Writes> {
+  const time = useTime();
+  return computed(() => writesOf(time.value, frameWidth.value));
 }
 
 /**
- * What may be written (REQ-021-5, 007/W9): nothing under `as_of`, the draft included; a
- * `valid_at` off the present leaves the draft only (its changes take effect at that date).
+ * The sentence of a refusal of the gate (`edit.why.past`, `edit.why.narrow`), the one a
+ * cell, a key, a command or a panel says; `null` when the draft is open.
  */
-export function writesOf(time: Time): Writes {
-  return { quickEdit: time.present, draft: time.asOf === null };
+export function refusalWords(writes: Writes, t: (key: string) => string): string | null {
+  return writes.refused === null ? null : t(`edit.why.${writes.refused}`);
 }
 
 /** The refusal of a date by the API (a 400): the field it is about, and its problem. */

@@ -51,19 +51,16 @@ import {
   SidebarNav,
   TimeBand,
   ToastRegion,
-  WIDTH_CLASSES,
   createToasts,
   provideLink,
   providePortalTarget,
   provideToasts,
   t as uiT,
-  widthQuery,
   type DraftSummary,
   type MenuItem,
   type PaletteGroup,
   type Shortcut,
   type TabItem,
-  type WidthClass,
 } from "@kartenn/ui";
 import {
   computed,
@@ -95,6 +92,7 @@ import {
   timeOf,
   toPresent,
   useTime,
+  useWrites,
   type Period,
 } from "../time/index.ts";
 import { problemOf, useProblems } from "../problems/index.ts";
@@ -110,7 +108,7 @@ import { createKeyListener, createShortcutRegistry } from "../shortcuts/registry
 import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
-import { play, runnable } from "../shortcuts/view.ts";
+import { offered, play } from "../shortcuts/view.ts";
 import { dropMotive, typedMotive } from "../draft/motive.ts";
 import { closeEditWithPage, editRequest, guardEdit, lineToReturn } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
@@ -118,6 +116,7 @@ import { detailRequests } from "./detail.ts";
 import { editModified, panelModified, reportModified } from "./modified.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
+import { followWindow, frameWidth } from "./width.ts";
 
 provideLink(KLink);
 providePortalTarget("#k-layers");
@@ -131,6 +130,8 @@ const router = useRouter();
 const session = useSession();
 const settings = useSettings();
 const time = useTime();
+/** What may be written: the period and the width of the frame (`c`, `e`, their commands). */
+const writes = useWrites();
 
 /** The zone the dates are shown and typed in: the browser's (design 007 « Temps »). */
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -217,18 +218,10 @@ onBeforeUnmount(() => {
   surfacePages?.disconnect();
 });
 
-// The width class of the window, from the same queries as the sheet.
-const queries =
-  typeof window === "undefined"
-    ? []
-    : WIDTH_CLASSES.map((c) => ({ id: c.id, list: window.matchMedia(widthQuery(c.id)) }));
-const readWidth = (): WidthClass => queries.find((q) => q.list.matches)?.id ?? "wide";
-const width = ref<WidthClass>(readWidth());
-const onQuery = () => (width.value = readWidth());
-for (const q of queries) q.list.addEventListener("change", onQuery);
-onBeforeUnmount(() => {
-  for (const q of queries) q.list.removeEventListener("change", onQuery);
-});
+// The width class of the window, from the same queries as the sheet, published for the
+// gate of writes (`frame/width.ts`).
+onBeforeUnmount(followWindow());
+const width = frameWidth;
 
 /** Narrow: the sidebar is a rail whatever is kept; wider, it takes the state kept again. */
 const collapsed = computed({
@@ -544,7 +537,7 @@ const pluginCommands = shallowRef(commandRegistry.list());
 onBeforeUnmount(commandRegistry.subscribe(() => (pluginCommands.value = commandRegistry.list())));
 const commands = computed<PaletteEntry[]>(() => {
   const list: PaletteEntry[] = [];
-  const create = runnable("create", time.value);
+  const create = offered("create", writes.value, t);
   if (create)
     list.push({
       id: "cmd:create",
@@ -553,7 +546,7 @@ const commands = computed<PaletteEntry[]>(() => {
       ...hint(["c"]),
       run: create.run,
     });
-  const edit = runnable("edit", time.value);
+  const edit = offered("edit", writes.value, t);
   if (edit)
     list.push({
       id: "cmd:edit",
@@ -768,7 +761,7 @@ for (const shortcut of shellShortcuts({
  * `false` when it has none, or nothing to say.
  */
 function playView(id: "filter" | "create" | "edit"): boolean {
-  return play(id, time.value, t);
+  return play(id, writes.value, t);
 }
 const shellList = shallowRef(registry.list());
 onBeforeUnmount(registry.subscribe(() => (shellList.value = registry.list())));
