@@ -6928,19 +6928,79 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     confirmation avant d'être refusées si la fenêtre rétrécit dialogue ouvert (toast après
     fermeture) ; une entrée de menu désactivée avec sa raison (`Menu`, Reka) à écouter au
     lecteur d'écran
-- [ ] 21e. Édition réservée aux largeurs ≥ 1024 px, administration : le motif `narrow`
-  de la 21c sur chaque action d'écriture de l'administration — REQ-021-29 — verify :
-  Vitest de `admin/access.ts` (`globalRefusal`) et `admin/model.ts` ; parcours
-  `accessibility` à 768 px : « Créer » d'un écran d'administration refusé avec le motif
-  - où : `web/v2/shell/src/admin/access.ts` (`globalRefusal`, vers la ligne 54),
-    `admin/model.ts` (vers les lignes 337, 351, 389 et 398), `admin/AccountsView.vue`,
-    `AccountDetail.vue`, `GroupsView.vue`, `GroupDetail.vue`, `RolesView.vue`,
-    `RoleDetail.vue`, `IssuersView.vue`, `IdentityDetail.vue`, `ImportDetail.vue` (chacun
-    passe `edit.why.past` à l'un des deux ; `RolesView.vue` vers la ligne 110,
-    `GroupsView.vue` 79, `GroupDetail.vue` 116, `AccountDetail.vue` 61, `ImportDetail.vue`
-    89) ; chaque fichier repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`,
+- [x] 21e. Édition réservée aux largeurs ≥ 1024 px, administration, groupes et rôles : le
+  motif `narrow` de la 21c sur chaque action d'écriture des groupes et des rôles —
+  REQ-021-29 — verify : Vitest de `admin/model.ts` (`groupRefusals`, `roleRefusals`) ;
+  parcours `accessibility` à 768 px : « Créer » des groupes refusé avec le motif
+  - où : `admin/model.ts` (vers les lignes 337, 351, 389 et 398), `GroupsView.vue` (79),
+    `GroupDetail.vue` (116), `RolesView.vue` (110), `RoleDetail.vue`, leurs dialogues ;
+    chaque fichier repris quitte `PERIOD_ONLY` (`web/v2/shell/test/writes.test.ts`,
     entrées `21e`)
   - dépend de : 21c
+  - découpée le 2026-11-14 : onze fichiers et leurs dialogues débordaient un contexte ;
+    les comptes, identités, émetteurs et imports passent en 21e2
+  - fait le 2026-11-14 — la porte de l'administration : `useAdminGate()` (`admin/gate.ts`)
+    lit `useWrites()` et rend `refused` (`past` hors du présent, `valid_at` seul compris :
+    l'administration écrit au présent seulement ; sinon la porte, donc `narrow` sous
+    1024 px) et sa phrase (`edit.why.past`, `edit.why.narrow`, sans clé nouvelle).
+    `groupRefusals` et `roleRefusals` prennent `refused` au lieu de `present` et les mots
+    `narrow` à côté de `past` (`GateWords`). Dite là où `past` l'est : « Créer » des groupes
+    et des rôles, « Modifier », « Clore… », « Dupliquer », « Supprimer… », les membres,
+    les rôles sur périmètres, les permissions et leurs « Ajouter » ; l'action d'une ligne
+    que marque le brouillon (« Annuler le retrait », l'ajout retiré) prend la porte seule
+    (elle écrit le brouillon). `c` et `e` disent le motif par un statut poli
+    (`useStatus`, `say`, `why` : `refusalSentence`). La porte relue à l'envoi :
+    `useAdminDraft` (`add`, `drop`, `replace`) n'envoie rien quand elle refuse et le dit
+    par un toast (la clôture et la suppression, fermées par leur confirmation) ; les
+    dialogues (`GroupForm`, `RoleForm`, `MemberDialog`, `BindingDialog`, « Ajouter une
+    permission » de `RoleDetail`) restent ouverts, leur saisie gardée, la raison dans le
+    dialogue (`InlineAlert`) et sur leur bouton. Les cinq fichiers repris ont quitté
+    `PERIOD_ONLY`. Tests : `admin.test.ts` (`narrow` après le droit manquant ; sous la
+    porte, aucune action offerte que la porte ouverte refuse, le droit manquant restant la
+    raison), `admin-gate.test.ts` (monté : « Créer » refusé à l'étroit puis rendu ; le
+    droit manquant gardé comme raison ; le dialogue de création ouvert puis rétréci, saisie
+    gardée, rien envoyé, élargi puis envoyé) ; parcours `accessibility` à 768 px
+    (« Créer » refusé, atteint et pressé au clavier, `c` dit le motif, aucun dialogue ;
+    revenu à 1024 px, le dialogue s'ouvre)
+  - choix : dans l'administration la porte reste APRÈS le droit manquant, à la place
+    qu'y tenait déjà `past` (« refuses by the permission first, then by the past », testé
+    depuis la 15a) : la largeur prend exactement le rang du passé, sans changer celui-ci ;
+    la porte n'ajoute que des refus (ouverte, `refused: null`, mêmes actions qu'avant) ;
+    l'avis « Lecture seule » d'un groupe livré ou plus large reste à la porte ouverte (comme
+    sous `past`, pas d'avis de la largeur) ; la simulation d'escalade est demandée à
+    l'étroit aussi (une lecture, prête une fois la fenêtre élargie), pas hors du présent ;
+    un dialogue ouvert puis rétréci dit la raison dès le rétrécissement (`InlineAlert`
+    warn, `role="status"`) plutôt qu'à Entrée : son bouton refusé n'envoie pas le
+    formulaire, Entrée dans un champ ne fait donc rien ; l'action d'une ligne marquée
+    refusée aussi hors du présent (elle écrit le brouillon, comme « Retirer » de la 21d)
+  - passe de relecture (`ui-reviewer`, `a11y-auditor`) : rien de bloquant ; la span de
+    statut dans le `Stack` du détail ne prend pas d'écart (absolue, `gap` du flex)
+  - reste : 21e2 ; d'ici là, les écrans des comptes, identités et émetteurs qui passent
+    par `useAdminDraft` montrent leurs actions offertes sous 1024 px et ne les refusent
+    qu'à l'envoi (toast, rien d'écrit) ; « Clore… » d'un groupe et « Supprimer… » d'un
+    rôle, confirmation ouverte quand la fenêtre rétrécit, se ferment puis disent le refus
+    par un toast (comme la suppression et l'annulation de la 21d : `AlertDialog` n'a ni
+    raison ni maintien ouvert) ; Entrée refusée dans un dialogue ne redit pas la raison
+    (dite une fois au rétrécissement, et par le bouton)
+- [ ] 21e2. Édition réservée aux largeurs ≥ 1024 px, administration, comptes, identités,
+  émetteurs et imports : le motif `narrow` de la 21e sur leurs écritures — REQ-021-29 —
+  verify : Vitest de `admin/access.ts` (`globalRefusal` : `narrow` après le droit
+  manquant ; `refused: null`, mêmes refus qu'avant) ; un test monté sur le modèle de
+  `test/admin-gate.test.ts` (un dialogue ouvert puis rétréci : saisie gardée, rien
+  envoyé) ; parcours `accessibility` à 768 px : « Créer » des comptes de service refusé
+  avec le motif
+  - où : `web/v2/shell/src/admin/access.ts` (`globalRefusal`, vers la ligne 54 : `present`
+    → `refused`, mots `GateWords` de `model.ts`), `AccountsView.vue` (vers la ligne 91),
+    `AccountDetail.vue` (58), `IdentityDetail.vue` (95, 107 ; `pseudonymise` vers la
+    ligne 184, un `api.post` direct : la porte relue à l'envoi, refus dit dans son
+    dialogue), `IssuersView.vue` (89 ; `attach` vers la ligne 179 et son dialogue),
+    `ImportDetail.vue` (`pastRefusal` vers la ligne 89, `steer` vers la ligne 108, appel
+    direct), `SecretDialog.vue` et `secret.ts` (`run`, vers la ligne 49, POST direct) ;
+    modèle : `useAdminGate` (`admin/gate.ts`), `GroupForm.vue` (`held`, `InlineAlert`,
+    bouton à raison), `GroupsView.vue` (`say` de `c`) ; `useAdminDraft` relit déjà la porte
+    à l'envoi. Chaque fichier repris quitte `PERIOD_ONLY` (entrées `21e` restantes de
+    `web/v2/shell/test/writes.test.ts`)
+  - dépend de : 21e
 - [ ] 21f. Édition réservée aux largeurs ≥ 1024 px, fiche, anomalies et topographie : le
   motif `narrow` de la 21c sur les actions de la fiche (« Modifier », « Actions »), son
   onglet VLAN et son avis des trous, les anomalies et l'arbre de la topographie —
