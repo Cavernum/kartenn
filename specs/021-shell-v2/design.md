@@ -512,6 +512,18 @@ sequenceDiagram
   collection : site, entité, domaine, environnement). Les propriétés déclarées
   (`GET /v1/property-declarations`) s'y ajoutent à l'exécution, avec leurs listes fermées
   (016). `FilterPicker` (020) reçoit ce modèle ; les suggestions passent par le cache.
+  *(Précisé par la 11p7, Q-021-27 : le shell ne lit jamais le catalogue entier pour un
+  écran. Une liste, ses colonnes et l'onglet Propriétés d'une fiche lisent les
+  déclarations de leur sorte, `carrier=<sorte>` (`useDeclarations`, `views/data.ts`),
+  toutes leurs pages gardées, sans plafond ; la route d'une liste les précharge, et le
+  préchargement d'un lien filtré les lit sous la même clé. Une clé isolée (valeur héritée
+  d'un objet d'une autre sorte, qu'un héritier non porteur montre, 003 ; lacune ; `core.vlan`
+  de l'onglet VLAN) se lit par `q=<clé>`, la déclaration de cette clé gardée
+  (`useDeclarationsOf`). Les suggestions de clé (filtre `property` des lacunes) passent par
+  `q`, préfixe de la clé ou d'un libellé (11p3) : un texte sans point demande aussi
+  `q=core.<texte>`, faute de quoi « site » ne trouverait `core.site` que par un libellé
+  commençant par « Site ». L'écran des propriétés déclarées lit le catalogue page à page,
+  comme les autres listes.)*
 - **Libellés** (spec 018) : les objets ne portent que des clés ; le dictionnaire
   `GET /v1/labels?lang=<langue>` (paramètre prioritaire sur `Accept-Language`, 018) est une
   requête du cache à clé `['v1', 'labels', langue]`, jamais périmée (`staleTime` infini),

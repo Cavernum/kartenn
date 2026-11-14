@@ -1604,7 +1604,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     les autres inchangés). Reste ouvert (antérieur, relecture) : à 390 px la colonne
     Source d'E2 est coupée (« Masquée » illisible), et à 768 px l'historique d'E2 ne montre
     que « Version » et « Valide », le reste par défilement horizontal.
-- [ ] 11p7. Déclarations lues par filtre : `useDeclarations` lit
+- [x] 11p7. Déclarations lues par filtre : `useDeclarations` lit
   `GET /v1/property-declarations?carrier=<sorte>` (filtres typés d'une liste) et `q=`
   (suggestions de clé), au lieu de dix pages au plus — REQ-021-18 — verify : Vitest des
   vues (une lecture filtrée, plus de plafond), parcours `records` : l'acceptation amendée
@@ -1615,6 +1615,34 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`list.ts`, `ListView.vue`, `PropertiesView.vue`, `anomalies/GapList.vue`,
     `record/PropertiesTab.vue`, `record/NetworkVlanTab.vue`)
   - dépend de : 11p3
+  - fait le 2026-11-14 — `useDeclarations(carrier)` lit `carrier=<sorte>` (la sorte d'une
+    collection du shell, `carrierOf`, `null` pour une liste sans sorte : rien lu), toutes
+    les pages suivies et gardées (`maxPages: Infinity` sur cette lecture seule, le cache
+    en garderait dix et lâcherait les premières), sans `placeholderData` (les déclarations
+    d'une autre sorte ne tiennent jamais lieu) ; la liste, ses colonnes et l'onglet
+    Propriétés partagent cette clé (`carriedRead`), que la route d'une liste précharge et
+    que `prefetchFilters` lit. `useDeclarationsOf(keys)` lit une déclaration par sa clé
+    (`q=<clé>`, la clé exacte gardée ; requête `["shell", "declaration", clé]` au-dessus de
+    `cacheSuggest`) : lacunes (`GapList`, `GapsNotice`, qui ne reçoit plus les
+    déclarations de l'onglet), `core.vlan` de l'onglet VLAN, valeurs héritées d'une autre
+    sorte dans l'onglet Propriétés (demandées une fois celles de la sorte lues, pour les
+    clés qui leur manquent). Suggestions du filtre `property` des lacunes par `q`
+    (`keySuggest`). L'écran des propriétés déclarées lit le catalogue page à page à la
+    fenêtre de la grille (`useNextPage`), `NextPageAlert` sur une page refusée, au lieu de
+    l'encart « Liste incomplète » (clés `countPartial`, `partialTitle`, `partial` ôtées).
+    Vitest des vues (lecture filtrée par `carrier=address`, douze pages suivies sans perte,
+    clé inconnue après toutes les pages, suggestions `q`), parcours `records` (lectures
+    des déclarations toutes en `?carrier=prefix`, dans les deux sessions).
+  - choix : un texte sans point demande aussi `q=core.<texte>` (« site » → `core.site`),
+    deux lectures fusionnées sans doublon ; une clé d'un autre espace (`ttl` pour
+    `dns.ttl`) ne se trouve que par son espace ou un libellé. Le libellé d'une suggestion
+    vient du dictionnaire (`property`), seul : il est fait des `labels` des déclarations
+    (11p3), un repli sur les `labels` de l'item serait la même donnée (relecture). La
+    requête par clé est hors des clés par chemin du SDK : un changeset ne l'invalide pas,
+    elle se relit périmée après 30 s (`FRESHNESS.list`). La sorte se tire de `COLLECTIONS`
+    du shell (le SDK n'exporte pas `typeOfCollection`, et `cache.ts`/l'index du SDK sont
+    chargés sur toutes les pages). `:row-count` passé à la grille des propriétés une fois
+    complète, comme les autres listes (relecture).
 - [x] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
