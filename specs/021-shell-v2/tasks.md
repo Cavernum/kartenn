@@ -6464,6 +6464,46 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   page de 100 lignes ≤ 100 ms au p95
   - où : `DataGrid` de `web/v2/ui/src/components/`, `MAX_PAGES` de `web/v2/sdk/src`
   - dépend de : 22a
+  - code et Vitest faits le 2026-11-14 ; mesure à la session principale (passe réduite
+    commune aux 22e, 22f, 22g et 22m), case à cocher après elle. Deux causes, par lecture
+    du code et une mesure de `DataGrid` seul (happy-dom, profil V8). (1) Passé dix pages,
+    le partage structurel du cache comparait chaque page à celle de sa place : la première
+    lâchée, toutes montaient d'une place, et chaque ligne gardée devenait une copie, égale
+    mais un autre objet ; la grille rendait toutes ses lignes à nouveau et
+    `ExtensionElement` recréait l'élément de chaque cellule d'extension (une application
+    Vue par cellule pour `machines`) : les pages 11 à 20 du banc, son p95. `sharePages`
+    (`sdk/src/data/cache.ts`, `structuralSharing` de `pages`) compare par curseur : les
+    pages gardées restent les mêmes objets. (2) Sans compensation, la fenêtre restait au
+    même décalage et montrait les lignes d'une page plus loin, à monter en entier.
+    `useVirtualRows` (option `anchor`, `DataGrid` seul) passe `anchorTo: "end"` au
+    virtualiseur quand des lignes partent ou viennent en tête seulement (`headShift`) :
+    il ancre la ligne du haut de la fenêtre dès le rendu, sans trame fausse ; un tri ou un
+    filtre garde le décalage. `overflow-anchor: none` sur la grille virtualisée, comme
+    `DiffList`. (3) Coûts en O(n) de chaque page : les clés des lignes lues une fois par
+    changement (`rowKeyList`, au lieu d'un `keyOf` par les props pour chaque appel du
+    virtualiseur, de l'index, des marques), `isEditing` sans lire la clé hors de la colonne
+    éditée, `tameWidgets` sans les cellules, `shownRows` de `inline.ts` sans parcourir les
+    lignes quand rien n'est écrit ni au brouillon. Sur `DataGrid` seul (happy-dom, 1 000 à 7 000
+    lignes, ancrage compris), l'arrivée d'une page passe de 7 à 17 ms, croissant avec les
+    lignes, à 7 à 8 ms, constant. Vérification
+    : `ui/test/data-grid-mounted.test.ts` (défilé vers le bas, vers le haut, page revenue
+    en tête, tri, focus et éditeur gardés ; échoue sans l'ancrage),
+    `sdk/test/cache.test.ts` (objets gardés après la onzième page) ;
+    `components/data-grid.spec.ts` 15 passés ; `k-web2-check --base main` (1104 tests,
+    2738 captures sur 2738 : tout, `cache.ts` étant tiré par l'entrée du shell).
+  - choix : l'ancrage du virtualiseur plutôt qu'une écriture du défilement après le rendu
+    (une trame aux mauvaises lignes, deux rendus) ; ancré sur la ligne du haut de la
+    fenêtre, non sur celle du pointeur (le même décalage pour toutes les lignes en vue) ;
+    `anchor` réservé à `DataGrid` (les arbres inchangés).
+  - reste : la passe réduite doit montrer un p95 proche de la médiane des pages 2 à 10 ; s'il
+    reste au-dessus de 100 ms, le poste suivant est le rendu de toutes les lignes de la
+    fenêtre à chaque page (lignes en composants, comme la 22e-b pour `TreeGrid`) et le
+    montage d'une application `machines` par cellule des dix lignes de débord ; le
+    commentaire du banc (`budgets.spec.ts` vers la ligne 357, de la 22g) dit encore que les
+    lignes montent d'une page sous la fenêtre ; les arbres (`TreeGrid`, `Tree`) n'ancrent
+    pas une tête de liste lâchée (`roots` passé `CHILDREN_PAGES`) ; aucun relecteur
+    d'interface lancé (rien de visible ne change) ; l'ancrage n'est vu que dans happy-dom,
+    pas dans un navigateur.
 
 - [ ] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
