@@ -1,7 +1,9 @@
 import { onUnauthorized, reserveKeys, setFetch } from "@kartenn/sdk/host";
 import { createApp, watch } from "vue";
-import { createRouter, createWebHistory } from "vue-router";
-import "./shared/ui.ts";
+import { createRouter, createWebHistory, loadRouteLocation } from "vue-router";
+// The sheet of @kartenn/ui, not its entry of the import map (`shared/ui.ts`), which imports
+// every component of the library and is read by the plugins alone (task 22r).
+import "@kartenn/ui/style.css";
 import App from "./App.vue";
 import { installData } from "./data/query.ts";
 import { installSession } from "./frame/session.ts";
@@ -38,6 +40,11 @@ async function start(): Promise<void> {
   useSettings();
   const i18n = createShellI18n();
   const router = createRouter({ history: createWebHistory(), routes: await shellRoutes() });
+  // The modules of the first page from the start, beside `GET /v1/me` that its guard awaits
+  // (task 22r): its screen's chunk, with the components of @kartenn/ui only the screens use,
+  // would wait for the session otherwise. A lost read is read again by the navigation.
+  const { pathname, search, hash } = window.location;
+  loadRouteLocation(router.resolve(pathname + search + hash)).catch(() => {});
   installSession(router);
   installTime(router);
   installPrefetch(router);

@@ -7254,6 +7254,80 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     ligne) ; l'arbre de 10⁴ lignes, 23,49 % de trames perdues et 1 tâche longue de 56 ms
     (budget 2 % et 0 ; 22e, dont la cause nommée par la 22e-c, les SVG des lignes et le
     survol, attend un arbitrage B1, B2, B3 ou C).
+- [x] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
+  11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
+  échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
+  premier écran — d'abord l'inventaire (le premier lot module par module, en octets gzip,
+  classé par poids, sans dépendance nouvelle), puis sortir à la demande ce que le premier
+  écran n'utilise pas (modèle : la 22n) ; le test du budget imprime la marge et échoue avec
+  les cinq plus gros modules — verify : `test/build.test.ts` et
+  `web/v2/shell/scripts/shell-size.ts` ≤ 292 Ko ; `k-web2-check --base main`,
+  `k-web2-e2e` ; passe filtrée `bench-web small` (premier écran, navigation en cache) par
+  la session principale, verrou `bench` libre
+  - où : `web/v2/shell/vite.config.ts` (`sharedModules`, groupes de `codeSplitting`),
+    `web/v2/shell/src/main.ts` et ses imports statiques, `src/shared/ui.ts` (entrée de
+    l'import map), `src/frame/{ShellFrame.vue,routes.ts}`, `test/build.test.ts`
+    (« weighs its initial shell within the budget ») ; sans toucher
+    `ui/src/components/DataGrid/*`, `shell/src/views/propertyColumns.ts`,
+    `shell/src/data/queries.ts`, `shell/src/views/edit/inline.ts`, `sdk/src/data/cache.ts`,
+    `sdk/src/api/problem.ts` (trois tâches en cours)
+  - dépend de : 22n
+  - fait le 2026-11-14 (main 1e90109a, 297,1 Ko là ; 299,9 Ko sur la 11p10-b) : **237,7 Ko
+    après les composants des écrans sortis, 238,0 avec la lecture de la première page**
+    (−59,1 Ko). Inventaire (octets gzip par module, chaque module seul, sortie de rolldown
+    lue par `generateBundle`) : @kartenn/ui 132,7 Ko d'un seul chunk, son barrel atteint
+    par l'entrée tirant toute la bibliothèque (`DataGrid` 9,8, `@tanstack/virtual-core`
+    10,9, `TreeGrid` 8,0 + `TreeGridRow` 3,4, `FilterPicker` 5,8, `Tree` 5,6,
+    `MatrixGrid`, `BarChart`, `DiffList`…) ; vue (runtime) 43,8 ; entrée du shell 33,0 ;
+    SDK et query-core 25,3 ; vue-i18n 17,3 (dont le compilateur de messages 7,3) ; feuille
+    de @kartenn/ui 16,6 ; vue-router 9,0. Sorti : @kartenn/ui en deux chunks
+    (`vite.config.ts`) : `ui`, les composants que montre le cadre (`FRAME_COMPONENTS`,
+    `FRAME_SCRIPTS`) avec leurs dépendances et **toutes les feuilles de la bibliothèque**
+    (feuille d'empreinte inchangée, une seule, dans l'ordre de ses sources) ;
+    `ui.screens` (≈ 63 Ko), les scripts des autres composants, lu avec le premier écran qui
+    en use ; le barrel seul en dernier groupe (le cadre y lit `UI_VERSION`). Ce qui les
+    tirait au premier lot : `main.ts` importait l'entrée de l'import map
+    (`shared/ui.ts`, réexport de tout) pour sa feuille, il importe la feuille ;
+    `ShortcutHelp` (un `DataGrid`) dans le cadre, chargé à la demande
+    (`defineAsyncComponent`, lu en temps mort après le montage, `Skeleton` s'il est demandé
+    avant) ; `/help/shortcuts` à la demande (`worded`). `writeBundle` liste les modules du
+    bundle final (le chunk vidé d'un essai sans JS n'est plus nommé par l'intégrité).
+    `test/build.test.ts` : le budget dit sa marge (sortie de Vitest, `--silent=false`) et,
+    au-delà, échoue avec les cinq plus gros modules du premier lot ; « loads the
+    components of the screens with the first screen » : ni `ui.screens` ni l'entrée de
+    l'import map au premier lot, `DataGrid` dans `ui.screens`. Le premier écran attendait
+    alors `GET /v1/me` avant de lire son chunk et `ui.screens` (premier écran 1 309 et
+    1 347 ms contre 672 sur main, sous charge) : `main.ts` lit les composants de la
+    première adresse dès le routeur fait (`loadRouteLocation`). Vérification :
+    `k-web2-check --base main` (1234 tests, 2741 captures sur 2741 : tout, `routes.ts`
+    tiré par l'entrée), `k-web2-e2e` 285 passés.
+  - bancs (passe filtrée `bench-web small`, premier écran et navigation en cache, verrou
+    `bench` libre mais machine chargée, charge 10 à 22, deux paires alternées main /
+    branche) : premier écran main 672, 965, 1 238 ms ; branche 706, 1 105, 1 771, 815 ms ;
+    navigation en cache p75 main 222,8, 280,2, 199,0 ms ; branche 292,8, 340,3, 149,4 ms
+    (déjà en échec sur main à cette charge) : écarts dans le bruit, aucune dégradation
+    tranchée ; **chiffres pris sous charge, qui ne valent pas mesure** : la passe de
+    référence, machine seule, revient à la session principale.
+  - corrections après revue : `test/build.test.ts`, « keeps every sheet of @kartenn/ui in
+    its one sheet » (le chunk `ui.screens` sans `css` au manifeste, la feuille de
+    @kartenn/ui avec `.k-data-grid-frame`, sur les deux builds), vu rouge avec le motif des
+    feuilles retiré de `uiFirst` (`ui.screens` portant sa propre feuille), puis vert ; le
+    préchargement de l'aide en temps mort sans rejet non traité (`.catch`).
+  - choix : la liste des composants du cadre (`FRAME_COMPONENTS`) plutôt que celle des
+    écrans : un composant nouveau va par défaut au chunk des écrans, un composant que le
+    cadre se met à utiliser sans y être nommé ramène `ui.screens` au premier lot et le
+    test le dit ; les feuilles des composants des écrans restent au premier lot (16,6 Ko,
+    comme avant) pour garder une seule feuille ordonnée ; un seul chunk `ui.screens`
+    plutôt que par écran (`entriesAware`), moins de requêtes à la navigation ; l'aide des
+    raccourcis lue en temps mort (`whenIdle` du chargeur des plugins).
+  - reste : le compilateur de messages de vue-i18n (7,3 Ko, catalogues précompilés : 9,
+    arbitrage) ; `DateTimeField` (4,2 Ko) au premier lot par `DatePill` ; la passe de
+    référence des budgets du premier écran et de la navigation, machine seule ; l'aide
+    des raccourcis sans `errorComponent` (lot perdu : dialogue au corps vide, Échap et
+    Fermer restent) ; un nom de `FRAME_COMPONENTS` que le cadre n'utilise plus n'est
+    signalé par rien (il garde ce composant au premier lot) ; un visiteur sans session
+    télécharge `ui.screens` avec la page de connexion (préchargement de l'aide en temps
+    mort, et `loadRouteLocation` de la première adresse quand elle est un écran).
 - [x] 22o. Rendu d'une fiche ouverte depuis le cache : p75 à 126,5 ms et médiane à
   120,5 ms sous CPU ×4 (budget 100 ms), toutes lectures de la route déjà fraîches
   (relevé par la 22g) ; profil du montage de la fiche (onglets, panneau des propriétés,
