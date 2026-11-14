@@ -246,6 +246,47 @@ describe("reads (REQ-021-21, ADR 0037)", () => {
     expect(again.pages[3]!.data.items[0]).toBe(after.pages[3]!.data.items[0]);
   });
 
+  it("keep the unchanged rows of a list read again under new cursors, never a changed one (task 021-22f)", async () => {
+    // Each read of the first page gives cursors of its own (`as_of` frozen at the read):
+    // the list read again comes back page by page under cursors the cache never saw.
+    let reading = 0;
+    let renamed = false;
+    const { queryClient, reads } = fakeCache((request) => {
+      const cursor = new URL(request.url, "http://x").searchParams.get("cursor");
+      if (cursor === null) reading++;
+      const n = Number((cursor ?? "0.0").split(".")[0]);
+      const items = [0, 1].map((j) => ({
+        id: `i${n}-${j}`,
+        name: renamed && (n === 0 || n === 3) && j === 1 ? "renommée" : `ligne ${n}-${j}`,
+        links: { self: `/v1/prefixes/i${n}-${j}` },
+      }));
+      return json({ items, links: { next: `/v1/prefixes?cursor=${n + 1}.${reading}` } });
+    });
+    const observer = new InfiniteQueryObserver(queryClient, reads.list("/v1/prefixes", null, null));
+    const stop = observer.subscribe(() => undefined);
+    await observer.refetch();
+    for (let page = 1; page < MAX_PAGES; page++) await observer.fetchNextPage();
+    const before = observer.getCurrentResult().data!;
+    renamed = true;
+    await observer.refetch();
+    stop();
+    const after = observer.getCurrentResult().data!;
+    expect(after.pageParams[1]).not.toBe(before.pageParams[1]);
+    // The first page changed, its renamed row a new object, its other row kept.
+    expect(after.pages[0]).not.toBe(before.pages[0]);
+    expect(after.pages[0]!.data.items[0]).toBe(before.pages[0]!.data.items[0]);
+    expect(after.pages[0]!.data.items[1]).not.toBe(before.pages[0]!.data.items[1]);
+    expect(after.pages[0]!.data.items[1]).toMatchObject({ name: "renommée" });
+    // Every unchanged row of the other pages kept, whatever their new cursors; the renamed
+    // one of the fourth page new, though its id is the same.
+    for (let i = 1; i < MAX_PAGES; i++)
+      after.pages[i]!.data.items.forEach((item, j) => {
+        if (i === 3 && j === 1) expect(item).not.toBe(before.pages[i]!.data.items[j]);
+        else expect(item, `${i}-${j}`).toBe(before.pages[i]!.data.items[j]);
+      });
+    expect(after.pages[3]!.data.items[1]).toMatchObject({ name: "renommée" });
+  });
+
   it("share the pages by cursor: an unchanged page kept, another one new, plain data by value", () => {
     const page = (id: string) => ({ data: { items: [{ id }] }, etag: null });
     const before = { pages: [page("a"), page("b")], pageParams: [null, "c1"] };
