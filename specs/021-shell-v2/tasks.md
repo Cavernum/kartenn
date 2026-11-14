@@ -6607,6 +6607,30 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     totaux, un écran ; `KEPT` dit copie de `MAX_PAGES`) et `a11y-auditor`
     (`aria-rowindex` et `aria-rowcount` vérifiés après chaque page lâchée ; minuteur de la
     démo arrêté au démontage), corrigés.
+  - corrections de la revue (2026-11-14) : (1) les lignes de `Tree` sont rendues dans
+    l'emplacement de `TreeRoot` (Reka), que Vue rend à nouveau sans `Tree` : son
+    `onUpdated` ne partant pas, les lignes entrées restaient non mesurées. La file de
+    `measure` se vide après la passe qui l'a remplie (`nextTick`, une fois par passe), quel
+    que soit le composant rendu, et toujours dans `commit` pour l'hôte ; nœuds détachés
+    écartés. Preuve : `components/tree.spec.ts` « each row that comes into the window
+    measured… » (lignes de 8 px sous l'estimation de 28 : la vue reste pleine en défilant ;
+    échoue sans la correction). (2) La cause (2) prouvée sur le parcours réel :
+    `journeys/records.spec.ts` « past ten pages… » (`/prefixes?domain=production`, plus de
+    1 100 réseaux, douze pages) : la onzième lue, la dernière ligne en vue reste celle de
+    la dixième et aucune page n'est lue sans défilement ; chaque page lue a des lignes
+    montrées ; la fin atteinte. Échoue sans `droppedRows` (12 pages lues au lieu de 11),
+    Chromium et Firefox. (3) `droppedRows` testé directement (tête lâchée d'une ou deux
+    pages ; relue sous curseurs neufs, autre filtre ou tri, page lâchée en queue, tête
+    inconnue : 0) ; `given` suit les pages changées sans décalage de tête, et un hôte qui
+    ne redonne pas de fenêtre après une tête lâchée voit la sienne comptée parmi les lignes
+    gardées deux trames plus tard (`prefetch.test.ts` « reads the next page at the end
+    when no window comes… », échoue sans).
+  - choix (revue) : `nextTick` depuis `measure` plutôt que `onUpdated` d'un composant (le
+    patch fini, quel que soit le rendu) ; le repli à deux trames (la fenêtre de
+    `DataGrid` part dans la trame qui suit son rendu) plutôt qu'une fenêtre forcée à
+    chaque changement de lignes (un contrat de plus pour tous les hôtes) ; pages du
+    parcours comptées par leur première ligne (une relecture, par l'invalidation d'un
+    autre parcours, n'est pas une page lue).
 
 - [ ] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
   dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
@@ -6674,6 +6698,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`meta.queries`), `web/v2/e2e/budgets/budgets.spec.ts` (« navigations to a prefetched
     target »)
   - dépend de : 22g
+- [ ] 22p. Place des lignes d'une liste passé dix pages : le shell ne passe jamais
+  `rowOffset` à `DataGrid` ; la première page lâchée (`MAX_PAGES`), `aria-rowindex`
+  repart de 2 pour la première ligne gardée et `aria-rowcount` dit les lignes gardées
+  (`rowCount` = `rows.length` une fois la liste complète) : un lecteur d'écran annonce une
+  place fausse (WCAG 1.3.1, 4.1.2). Passer le nombre de lignes lâchées en tête (somme des
+  pages lâchées, comme `droppedRows`) et le total connu — verify : Vitest du calcul de
+  l'écart depuis les pages du cache ; parcours `records` « past ten pages… » étendu :
+  après la onzième page, la dernière ligne en vue garde son `aria-rowindex` (1 001) et
+  `aria-rowcount` reste le total
+  - où : `web/v2/shell/src/views/ListView.vue` (`:row-count`, vers la ligne 377),
+    `ChangesetsView.vue` (vers 156), `AuditView.vue` (vers 214), `ImportsView.vue`
+    (vers 91), `views/list.ts` (`rows`, `complete`), `prefetch/nextPage.ts`
+    (`droppedRows`), prop `rowOffset` de `DataGrid` (déjà là, état `paged` du catalogue)
+  - dépend de : 22f
 - [x] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
   (import statique devenu lourd, module à charger à la demande) — verify :
   `web/v2/shell/scripts/shell-size.ts` ≤ 300 Ko
