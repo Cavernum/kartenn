@@ -489,7 +489,7 @@ const objectRef = stableObjectRefs();
 const elementProps = (node: TreeNode) => {
   const read = nodeById(node.id);
   return read?.kind === "prefix"
-    ? { object: objectRef("prefix", read.id, read.href), row: read }
+    ? { object: objectRef(read, "prefix", read.id, read.href), row: read }
     : undefined;
 };
 

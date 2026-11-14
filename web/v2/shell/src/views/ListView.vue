@@ -112,11 +112,12 @@ const columns = computed<GridColumn[]>(() => {
     ...cells.columns.value,
   ];
 });
-// The same `object` from one render to the next: an element is not created again as the
-// focus moves (`ExtensionElement` creates it again for another object).
+// The same `object` for a row from one render to the next: an element is not created again
+// as the focus moves (`ExtensionElement` creates it again for another row).
 const objectRef = stableObjectRefs();
 const elementProps = (row: Item) => ({
   object: objectRef(
+    row,
     props.collection.kind,
     String(row.id),
     String((row.links as { self?: unknown } | undefined)?.self ?? ""),

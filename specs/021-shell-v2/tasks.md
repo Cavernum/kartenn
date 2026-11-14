@@ -1332,11 +1332,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     erreur dite courte, « Extension en erreur » et `CodeBadge` `plugin.element`, comme
     `NetworkVlan`), `cellExtension` (slots.ts) lui donne balise, plugin, libellé, ligne et
     `object` ; `ListView.vue` et `TopologyView.vue` remplissent l'emplacement ;
-    `stableObjectRefs` : un même `object` par objet d'un rendu à l'autre. Plugin de test
-    `notes` : sa colonne `flag` lève à la connexion dans la ligne qu'un parcours nomme
-    (`localStorage`). Vitest `shell/test/plugin-cells.test.ts` (élément qui lève à la
-    construction et à la connexion, dans une liste et dans l'arbre ; `elementProps` sans
-    rien dans la `DataGrid` ; ligne recyclée), `ui/test/components-data.test.ts` et
+    `stableObjectRefs` : un même `object` par ligne d'un rendu à l'autre, tenu par la ligne
+    (`WeakMap`, revue : aucune référence gardée pour une ligne que l'écran ne tient plus).
+    Plugin de test `notes` : sa colonne `flag` lève à la connexion dans la ligne qu'un
+    parcours nomme (`localStorage`). Vitest `shell/test/plugin-cells.test.ts` (élément qui
+    lève à la construction, à la connexion, par un setter `object` ou `row`, dans une liste
+    et dans l'arbre ; `elementProps` sans rien dans la `DataGrid` ; ligne recyclée de
+    l'arbre, ligne de la liste qui montre un autre objet ; même élément et même `object`
+    d'un rendu à l'autre ; référence libérée avec sa ligne), `ui/test/components-data.test.ts` et
     `ui/test/trees.test.ts` (« …slot `extension`… »), `ui/test/trees-mounted.test.ts`
     (contenu recréé sur une ligne recyclée) ; parcours `plugins` (« a column of a plugin
     that throws in a row… », liste des préfixes et Topographie).
@@ -1356,7 +1359,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     qui entre dans la fenêtre ; rien sans colonne d'extension. Relectures (mineurs) : une
     annonce polie, une fois par grille, quand une cellule d'extension tombe en erreur après
     le chargement (4.1.3, l'événement `failed` existe) ; hauteur de la ligne en erreur
-    jamais capturée.
+    jamais capturée ; une cellule en erreur a deux racines (`ExtensionElement` : la phrase
+    et le conteneur caché par `v-show`) ; `status` non passé à l'emplacement (voir `choix`).
 - [x] 11p. Manques du contrat du référentiel (reportés de la 11, cochée le 2026-11-13),
   **arbitrés le 2026-11-13 (Q-021-23 à 28)** : source par valeur et `object` des lacunes
   au contrat ; motif et auteur dans `Version` (auteur par référence, pseudonymisable) ;

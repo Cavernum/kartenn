@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { DataGrid, TreeGrid, type ExtensionSlotProps, type TreeNode } from "@kartenn/ui";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import v8 from "node:v8";
+import { runInNewContext } from "node:vm";
 import { createApp, h, nextTick, shallowReactive, type App, type Component } from "vue";
 import { createShellI18n } from "../src/i18n/index.ts";
 import ExtensionElement from "../src/plugins/ExtensionElement.vue";
@@ -97,7 +99,7 @@ describe("an element of a column that throws stays in its cell (REQ-021-13)", ()
       rows,
       rowKey: "id",
       elementProps: (row: { id: string }) => ({
-        object: refs("prefix", row.id, `/v1/prefixes/${row.id}`),
+        object: refs(row, "prefix", row.id, `/v1/prefixes/${row.id}`),
       }),
     });
     await nextTick();
@@ -135,6 +137,121 @@ describe("an element of a column that throws stays in its cell (REQ-021-13)", ()
     expect(failed(cell(root, "p1", "x.notes.new"))).toBe(true);
     for (const column of ["x.notes.new", "x.notes.connect", "x.notes.fine"])
       expect(cell(root, "p2", column)!.textContent!.trim(), column).toBe("");
+  });
+
+  it("in a list: the encart does not follow its row when the row shows another object", async () => {
+    const { props, root } = mount(DataGrid, {
+      label: "Préfixes",
+      columns: [{ id: "prefix", label: "Préfixe" }, ...COLUMNS],
+      rows: [
+        { id: "p1", prefix: "192.0.2.0/24" },
+        { id: "p2", prefix: BAD },
+      ],
+      rowKey: "id",
+    });
+    await nextTick();
+    await nextTick();
+    expect(failed(cell(root, "p2", "x.notes.connect"))).toBe(true);
+    // The same row keys, read again: the prefixes changed places (the cells of a key are
+    // kept by the grid, its element created again for the row it now shows).
+    props.rows = [
+      { id: "p1", prefix: BAD },
+      { id: "p2", prefix: "203.0.113.0/24" },
+    ];
+    await nextTick();
+    await nextTick();
+    expect(failed(cell(root, "p1", "x.notes.connect"))).toBe(true);
+    expect(failed(cell(root, "p2", "x.notes.connect"))).toBe(false);
+    expect(cell(root, "p2", "x.notes.connect")!.textContent).toBe("vu 203.0.113.0/24");
+  });
+
+  it("in a list: a setter of `object` or `row` that throws stays in its cell", async () => {
+    const throwing = (name: "object" | "row") =>
+      class extends HTMLElement {
+        set [name](_: unknown) {
+          throw new Error(`cells: setter ${name}`);
+        }
+      };
+    customElements.define("cells-throws-object", throwing("object"));
+    customElements.define("cells-throws-row", throwing("row"));
+    const placed: Placed[] = [
+      { point: "column", id: "object", element: "cells-throws-object", plugin: "notes" },
+      { point: "column", id: "row", element: "cells-throws-row", plugin: "notes" },
+      { point: "column", id: "fine", element: "cells-fine", plugin: "notes" },
+    ];
+    const root = document.createElement("div");
+    document.body.append(root);
+    const app = createApp({
+      render: () =>
+        h(
+          DataGrid,
+          {
+            label: "Préfixes",
+            columns: gridColumns(placed, (key) => key),
+            rows: [{ id: "p1", prefix: "192.0.2.0/24" }],
+            rowKey: "id",
+            elementProps: () => ({ object: { type: "prefix", id: "p1", href: "/v1/prefixes/p1" } }),
+          },
+          {
+            extension: (given: ExtensionSlotProps) =>
+              h(ExtensionElement, { cell: true, ...cellExtension(placed, given) }),
+          },
+        ),
+    });
+    app.use(createShellI18n("fr"));
+    apps.push(app);
+    app.mount(root);
+    await nextTick();
+    await nextTick();
+    expect(failed(cell(root, "p1", "x.notes.object"))).toBe(true);
+    expect(failed(cell(root, "p1", "x.notes.row"))).toBe(true);
+    expect(cell(root, "p1", "x.notes.fine")!.textContent).toBe("objet p1");
+  });
+
+  it("in a list: the same element and the same object while the grid renders again", async () => {
+    const refs = stableObjectRefs();
+    const rows = [{ id: "p1", prefix: "192.0.2.0/24" }];
+    const { props, root } = mount(DataGrid, {
+      label: "Préfixes",
+      columns: COLUMNS.filter((column) => column.id === "x.notes.fine"),
+      rows,
+      rowKey: "id",
+      elementProps: (row: { id: string }) => ({
+        object: refs(row, "prefix", row.id, `/v1/prefixes/${row.id}`),
+      }),
+    });
+    await nextTick();
+    await nextTick();
+    const element = root.querySelector<Fine>("cells-fine")!;
+    const object = element.object;
+    expect(object).toBeDefined();
+    // Another render of the grid (its label; the focus moving does the same).
+    props.label = "Préfixes du site";
+    await nextTick();
+    await nextTick();
+    expect(root.querySelector("cells-fine")).toBe(element);
+    expect(element.object).toBe(object);
+  });
+
+  it("keeps a reference per row, and none for a row the screen no longer holds", async () => {
+    const refs = stableObjectRefs();
+    const row = { id: "p1" };
+    const ref = refs(row, "prefix", "p1", "/v1/prefixes/p1");
+    expect(refs(row, "prefix", "p1", "/v1/prefixes/p1")).toBe(ref);
+    // The same object read again (another row object): another reference, the old one free.
+    expect(refs({ id: "p1" }, "prefix", "p1", "/v1/prefixes/p1")).not.toBe(ref);
+    // Held weakly by its row: gone with it once collected.
+    v8.setFlagsFromString("--expose-gc");
+    const gc = runInNewContext("gc") as () => void;
+    const held = (() => {
+      const gone = { id: "p2" };
+      return new WeakRef(refs(gone, "prefix", "p2", "/v1/prefixes/p2"));
+    })();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    gc();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    gc();
+    expect(held.deref()).toBeUndefined();
   });
 
   it("in the tree: its code in the cell of its node, and it does not follow a recycled row", async () => {

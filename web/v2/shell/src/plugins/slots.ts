@@ -109,16 +109,24 @@ export function objectRef(type: string, id: string, href: string): ObjectRef {
 }
 
 /**
- * `objectRef`, the same one for an object from one render to the next, for as long as the
- * screen that asks it: the element of a cell keeps its `object` while the focus moves or
- * the grid renders again, and is created again only when its object or its row changes.
+ * `objectRef`, the same one for a row from one render to the next: the element of a cell
+ * keeps its `object` while the focus moves or the grid renders again, and is created again
+ * only when its row changes (`ExtensionElement` creates it again for another row anyway).
+ * Held by the row itself (a weak map): a row the screen's data no longer holds (another
+ * domain, a filter, a page dropped by the cache) takes its reference with it. Asked only by
+ * the cells of an extension column: nothing per row without one.
  */
-export function stableObjectRefs(): (type: string, id: string, href: string) => ObjectRef {
-  const known = new Map<string, ObjectRef>();
-  return (type, id, href) => {
-    const key = `${type}\n${id}\n${href}`;
-    let ref = known.get(key);
-    if (!ref) known.set(key, (ref = objectRef(type, id, href)));
+export function stableObjectRefs(): (
+  row: object,
+  type: string,
+  id: string,
+  href: string,
+) => ObjectRef {
+  const known = new WeakMap<object, ObjectRef>();
+  return (row, type, id, href) => {
+    let ref = known.get(row);
+    if (!ref || ref.type !== type || ref.id !== id || ref.href !== href)
+      known.set(row, (ref = objectRef(type, id, href)));
     return ref;
   };
 }
