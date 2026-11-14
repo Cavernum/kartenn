@@ -59,12 +59,21 @@ export async function snap(page: Page, state: string): Promise<void> {
  * `disabled`: rules left out, each with its reason at the call.
  */
 export async function expectAccessible(page: Page, disabled: string[] = []): Promise<void> {
+  // The colours of each state, never of the passage between two (task 021-11p11): a state
+  // that changes while axe reads (the « Appliquer » of a draft enabled once its simulation
+  // comes, half a second after a load, its colours fading in 80 ms) gave a contrast of 1.2
+  // read mid-fade. The transitions are off while axe reads, by a constructed sheet (the CSP
+  // refuses a `<style>`, not the CSSOM): a state changing then takes its colours at once.
   // A layer fades in, even under reduced motion (spec 020, « Mouvement »): the finite
-  // animations and transitions end first, so that axe reads the colours of an opaque layer.
-  // A layer inserted just now (the right panel a plugin's `draft.add` opens) starts its
-  // transition only at the next frame (Vue's `<Transition>`: `-enter-from`, then
-  // `-enter-to`): two frames pass first, so that it is among the animations awaited.
+  // animations end first, so that axe reads the colours of an opaque layer. A layer
+  // inserted just now (the right panel a plugin's `draft.add` opens) starts its animation
+  // only at the next frame (Vue's `<Transition>`: `-enter-from`, then `-enter-to`): two
+  // frames pass first, so that it is among the animations awaited.
   await page.evaluate(async () => {
+    const still = new CSSStyleSheet();
+    still.replaceSync("*, *::before, *::after { transition: none !important; }");
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, still];
+    (window as unknown as { __kartennStill?: CSSStyleSheet }).__kartennStill = still;
     for (let frame = 0; frame < 2; frame += 1) {
       await new Promise<void>((done) => requestAnimationFrame(() => done()));
     }
@@ -79,7 +88,16 @@ export async function expectAccessible(page: Page, disabled: string[] = []): Pro
     .options({ preload: false })
     .disableRules(disabled)
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
+    .analyze()
+    .finally(() =>
+      page.evaluate(() => {
+        const w = window as unknown as { __kartennStill?: CSSStyleSheet };
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+          (s) => s !== w.__kartennStill,
+        );
+        delete w.__kartennStill;
+      }),
+    );
   expect(
     results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
     "axe-core violations",
