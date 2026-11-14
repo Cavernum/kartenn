@@ -7,6 +7,7 @@ import DraftOperations from "../src/draft/DraftOperations.vue";
 import DraftSubmit from "../src/draft/DraftSubmit.vue";
 import { draftPeriods, lostSubmissions } from "../src/draft/state.ts";
 import { pageCount } from "../src/frame/spaces.ts";
+import { setFrameWidth } from "../src/frame/width.ts";
 import { instantOfDay, listFilterModel } from "../src/views/filters.ts";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import {
@@ -73,7 +74,7 @@ describe("the review of a changeset", () => {
   });
 
   it("offers a reviewer validation and rejection, the withdrawal refused with its reason", () => {
-    expect(reviewActions(changeset(), { me: "alice", rights: reviewer, present: true })).toEqual([
+    expect(reviewActions(changeset(), { me: "alice", rights: reviewer, refused: null })).toEqual([
       { id: "validation" },
       { id: "rejection" },
       { id: "withdrawal", reason: "author" },
@@ -82,7 +83,7 @@ describe("the review of a changeset", () => {
 
   it("names the permission lacking (REQ-021-37): Valider and Rejeter refused, visible", () => {
     const lacking = new Rights(["core.prefix.apply"]);
-    const actions = reviewActions(changeset(), { me: "alice", rights: lacking, present: true });
+    const actions = reviewActions(changeset(), { me: "alice", rights: lacking, refused: null });
     expect(actions.slice(0, 2)).toEqual([
       { id: "validation", forbidden: "core.vlan.apply" },
       { id: "rejection", forbidden: "core.vlan.apply" },
@@ -93,13 +94,13 @@ describe("the review of a changeset", () => {
     const self = new Rights(["core.prefix.approval.self", "core.vlan.approval.self"]);
     // All of it under `approval.self`, no policy: the author applies it.
     const proposal = changeset({ kind: "proposal" });
-    expect(reviewActions(proposal, { me: "bob", rights: self, present: true })).toEqual([
+    expect(reviewActions(proposal, { me: "bob", rights: self, refused: null })).toEqual([
       { id: "validation" },
       { id: "withdrawal" },
     ]);
     // A part without `approval.self`: refused, the permission lacking named.
     const partial = new Rights(["core.prefix.approval.self"]);
-    expect(reviewActions(proposal, { me: "bob", rights: partial, present: true })).toEqual([
+    expect(reviewActions(proposal, { me: "bob", rights: partial, refused: null })).toEqual([
       { id: "validation", forbidden: "core.vlan.approval.self" },
       { id: "withdrawal" },
     ]);
@@ -108,7 +109,7 @@ describe("the review of a changeset", () => {
       changeset({ kind: "approval" }),
       changeset({ kind: "proposal", policy: "p1" }),
     ]) {
-      expect(reviewActions(policy, { me: "bob", rights: self, present: true })).toEqual([
+      expect(reviewActions(policy, { me: "bob", rights: self, refused: null })).toEqual([
         { id: "validation", reason: "held" },
         { id: "withdrawal" },
       ]);
@@ -117,17 +118,36 @@ describe("the review of a changeset", () => {
 
   it("nothing out of the present; an applied one undone; a closed one decided no more", () => {
     expect(
-      reviewActions(changeset(), { me: "alice", rights: reviewer, present: false }).every(
+      reviewActions(changeset(), { me: "alice", rights: reviewer, refused: "past" }).every(
         (a) => a.reason === "past",
       ),
     ).toBe(true);
     const applied = changeset({ state: "applied" });
-    expect(reviewActions(applied, { me: "alice", rights: reviewer, present: true })).toEqual([
+    expect(reviewActions(applied, { me: "alice", rights: reviewer, refused: null })).toEqual([
       { id: "undo", forbidden: "core.vlan.edit" },
     ]);
     expect(
-      reviewActions(changeset({ state: "rejected" }), { me: "a", rights: reviewer, present: true }),
+      reviewActions(changeset({ state: "rejected" }), { me: "a", rights: reviewer, refused: null }),
     ).toEqual([]);
+  });
+
+  it("nothing decided under 1024 px wide, the width said before the rights (task 021-21d)", () => {
+    const narrow = { rights: reviewer, refused: "narrow" as const };
+    // A reviewer: every decision refused by the width, as by the past.
+    expect(reviewActions(changeset(), { me: "alice", ...narrow })).toEqual([
+      { id: "validation", reason: "narrow" },
+      { id: "rejection", reason: "narrow" },
+      { id: "withdrawal", reason: "narrow" },
+    ]);
+    // Its author, held by a policy: the width before the policy, as before the right lacking.
+    expect(reviewActions(changeset({ kind: "approval" }), { me: "bob", ...narrow })).toEqual([
+      { id: "validation", reason: "narrow" },
+      { id: "withdrawal", reason: "narrow" },
+    ]);
+    // Applied, without `.edit`: the width, not the permission.
+    expect(reviewActions(changeset({ state: "applied" }), { me: "alice", ...narrow })).toEqual([
+      { id: "undo", reason: "narrow" },
+    ]);
   });
 
   it("shows a state by its meaning", () => {
@@ -292,6 +312,7 @@ describe("the screens of the changesets and the drafts", () => {
     for (const lost of lostSubmissions.all()) lostSubmissions.drop(lost.id);
     draftPeriods.drop(D1);
     draftHost.onAdd(null);
+    setFrameWidth("wide");
   });
 
   interface Seen {
@@ -984,6 +1005,158 @@ describe("the screens of the changesets and the drafts", () => {
     await nextTick();
     expect(document.querySelector("[role='dialog']")).toBeNull();
     expect(seen.filter((s) => s.method === "PATCH")).toHaveLength(0);
+  });
+
+  // Under 1024 px wide (task 021-21d; REQ-021-29, Q-021-12): read, each write refused at
+  // its point of action with the width, nothing typed lost; widened, the writes come back.
+  const NARROW_WRITE =
+    "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.";
+  const NARROW_DECIDE =
+    "Décision à partir de 1024 px de large : élargissez la fenêtre pour décider.";
+  const reasonOf = (element: Element) =>
+    document.getElementById(element.getAttribute("aria-describedby") ?? "")?.textContent;
+  const writesSent = (seen: Seen[]) =>
+    seen.filter((s) => s.method !== "GET" && !s.url.endsWith("/simulation"));
+  const typed = (input: HTMLInputElement, text: string) => {
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  it("under 1024 px, « Appliquer » refused with the width, the draft read, its motive kept", async () => {
+    const { seen, root } = await mounted(
+      `/drafts/${D1}`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      (call) =>
+        call.url.endsWith("/simulation") ? { body: valid } : { body: draft(OPS), etag: '"1"' },
+    );
+    await expect.poll(() => label(root), { timeout: 3000 }).toBe("Appliquer");
+    await expect.poll(() => main(root).getAttribute("aria-disabled")).toBeNull();
+    const summary = root.querySelector<HTMLInputElement>(".k-commit-form input")!;
+    summary.focus();
+    typed(summary, "Renumérotation salle B");
+    await nextTick();
+
+    // The window narrows: the chosen action stays, refused with the width.
+    setFrameWidth("narrow");
+    await nextTick();
+    expect(label(root)).toBe("Appliquer");
+    expect(main(root).getAttribute("aria-disabled")).toBe("true");
+    expect(reasonOf(main(root))).toBe(NARROW_WRITE);
+    // The draft read, its operations listed, no notice at its head; each write refused.
+    expect(root.textContent).not.toContain("Lecture seule");
+    for (const name of ["[data-k-remove]", "[data-k-modify]"]) {
+      const action = root.querySelector(name)!;
+      expect(action.getAttribute("aria-disabled")).toBe("true");
+      expect(reasonOf(action)).toBe(NARROW_WRITE);
+    }
+    expect(button(root, "Choisir les dates d'effet")!.getAttribute("aria-disabled")).toBe("true");
+    // The motive kept, read only with the width said, the focus where it was.
+    expect(summary.value).toBe("Renumérotation salle B");
+    expect(summary.readOnly).toBe(true);
+    expect(reasonOf(summary)).toContain(NARROW_WRITE);
+    expect(document.activeElement).toBe(summary);
+    main(root).click();
+    root.querySelector<HTMLButtonElement>("[data-k-remove]")!.click();
+    await nextTick();
+    expect(writesSent(seen)).toEqual([]);
+
+    // Wide again: the motive typed is sent with the draft.
+    setFrameWidth("standard");
+    await nextTick();
+    expect(summary.readOnly).toBe(false);
+    expect(main(root).getAttribute("aria-disabled")).toBeNull();
+    main(root).click();
+    await expect.poll(() => seen.some((s) => s.url.includes("/submission"))).toBe(true);
+    expect(seen.find((s) => s.method === "PATCH")?.body).toEqual({
+      reason: { summary: "Renumérotation salle B", description: null },
+    });
+  });
+
+  it("under 1024 px, « Mes brouillons » refuses creating and renaming, the title typed kept", async () => {
+    const { seen, root } = await mounted("/drafts", ["core.prefix.edit"], (call) => {
+      if (call.url === "/v1/drafts" && call.method === "GET") return { body: listed };
+      if (call.method === "PATCH") return { body: { ...draft(OPS, 2), title: "Salle B" } };
+      return { body: draft(OPS), etag: '"1"' };
+    });
+    const entries = await rowMenu(root, "Brouillon du jour");
+    entries.find((e) => e.textContent?.trim() === "Renommer…")!.click();
+    await expect.poll(() => document.querySelector("[role='dialog'] input")).not.toBeNull();
+    const dialog = document.querySelector<HTMLElement>("[role='dialog']")!;
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    typed(input, "Salle B");
+    const confirm = () =>
+      [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
+        b.textContent?.trim().startsWith("Renommer"),
+      )!;
+
+    setFrameWidth("compact");
+    await nextTick();
+    expect(button(root, "Nouveau brouillon")!.getAttribute("aria-disabled")).toBe("true");
+    expect(reasonOf(button(root, "Nouveau brouillon")!)).toBe(NARROW_WRITE);
+    // The dialog left open: its confirmation refused, by click or by Enter, the title kept.
+    expect(reasonOf(confirm())).toBe(NARROW_WRITE);
+    confirm().click();
+    dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await nextTick();
+    expect(writesSent(seen)).toEqual([]);
+    expect(document.querySelector("[role='dialog']")).not.toBeNull();
+    expect(input.value).toBe("Salle B");
+    // Said in the dialog itself (a toast lies under a modal).
+    expect(dialog.querySelector("[role='status']")?.textContent).toContain(NARROW_WRITE);
+
+    setFrameWidth("wide");
+    await nextTick();
+    confirm().click();
+    await expect
+      .poll(() => seen.find((s) => s.method === "PATCH")?.body)
+      .toEqual({
+        title: "Salle B",
+      });
+  });
+
+  it("under 1024 px, a decision refused with the width; the rejection's motive kept", async () => {
+    const { seen, root } = await mounted(
+      `/changesets/${C1}`,
+      ["core.changeset.read", "core.prefix.apply", "core.vlan.apply"],
+      (call) =>
+        call.url === `/v1/changesets/${C1}`
+          ? { body: changeset(), etag: '"pending"' }
+          : { body: { counts: [], items: [], links: {}, sections: [] } },
+    );
+    await expect.poll(() => button(root, "Rejeter")).toBeDefined();
+    button(root, "Rejeter")!.click();
+    await expect.poll(() => document.querySelector("[role='dialog'] input")).not.toBeNull();
+    const dialog = document.querySelector<HTMLElement>("[role='dialog']")!;
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    typed(input, "Le préfixe est encore attribué.");
+    const reject = () =>
+      [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((b) =>
+        b.textContent?.trim().startsWith("Rejeter"),
+      )!;
+
+    setFrameWidth("narrow");
+    await nextTick();
+    expect(reasonOf(button(root, "Valider")!)).toBe(NARROW_DECIDE);
+    expect(reasonOf(reject())).toBe(NARROW_DECIDE);
+    reject().click();
+    dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await nextTick();
+    expect(writesSent(seen)).toEqual([]);
+    expect(input.value).toBe("Le préfixe est encore attribué.");
+    expect(dialog.querySelector("[role='status']")?.textContent).toContain(NARROW_DECIDE);
+    // The width before the motive: emptied, the field says nothing missing yet.
+    typed(input, "");
+    dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await nextTick();
+    expect(dialog.textContent).not.toContain("Le motif du rejet est obligatoire.");
+    typed(input, "Le préfixe est encore attribué.");
+
+    setFrameWidth("standard");
+    await nextTick();
+    reject().click();
+    await expect
+      .poll(() => seen.find((s) => s.method === "POST")?.url)
+      .toBe(`/v1/changesets/${C1}/rejection`);
   });
 
   it("a plugin's draft.add opens the draft; the shell's own additions do not", async () => {

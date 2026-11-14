@@ -597,6 +597,53 @@ test("under 1024 px a cell, `e` and the palette say the width; at 1024 px editin
   await dropDraft(page, draft);
 });
 
+// The draft under 1024 px (task 21d; REQ-021-29): at 768 px its page is read, its
+// operations listed, « Appliquer » refused with the width, reached and pressed at the
+// keyboard without submitting anything, as the removal of an operation; at 1024 px it
+// applies again. The draft changes one of the prefixes of its own domain, dropped at the end.
+test("under 1024 px « Appliquer » of the draft says the width; at 1024 px it comes back", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes } = await ownedDomain(
+    page,
+    `zz-narrow-draft-${browserName}-${Date.now().toString(36)}`,
+  );
+  const created = await apiCall(page, "POST", "/v1/drafts", {
+    title: `étroit ${browserName} ${Date.now()}`,
+    operations: [{ op: "update_prefix", id: { id: prefixes[0]! }, nature: "container" }],
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  const id = (created.body as { id: string }).id;
+  try {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto(`/drafts/${id}`);
+    await atRest(page);
+    const main = page.getByRole("main");
+    const apply = main.locator(".k-split-button__main");
+    await expect(main.locator(".k-draft-submit__result")).toContainText("Simulation valide");
+    await expect(apply).toHaveText(/^Appliquer/);
+    await expect(apply).toHaveAttribute("aria-disabled", "true");
+    await expect(apply).toHaveAccessibleDescription(NARROW);
+    const remove = main.getByRole("button", { name: /^Retirer l'opération 1/ });
+    await expect(remove).toHaveAccessibleDescription(NARROW);
+    await expectAccessible(page);
+    // At the keyboard: reached, pressed, nothing submitted.
+    await tabTo(page, apply);
+    await page.keyboard.press("Enter");
+    await expect(apply).toBeFocused();
+    expect((await apiCall(page, "GET", `/v1/drafts/${id}`)).status).toBe(200);
+
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await expect(page.locator("[data-width='standard']")).toHaveCount(1);
+    await expect(apply).not.toHaveAttribute("aria-disabled", "true");
+  } finally {
+    await dropDraft(page, id);
+  }
+});
+
 // The guards of every journey (fixtures/journeys.ts and fixtures/index.ts): each must make
 // a journey fail.
 test.describe("guards of every journey", () => {

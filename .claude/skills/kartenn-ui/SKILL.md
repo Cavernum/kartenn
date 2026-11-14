@@ -184,7 +184,9 @@ moins 1024 px ; refusés, ils disent pourquoi par le statut poli de la vue (`why
 jamais une touche muette). Toute écriture passe par la porte `useWrites()` (`time/index.ts` :
 période et largeur du cadre publiée par `frame/width.ts`, jamais `window.innerWidth`) et dit
 son refus (`refused` : `past`, `narrow` ; `refusalWords`) au point d'action, comme le motif
-`past`, sans avis permanent.
+`past`, sans avis permanent. Un dialogue ou un formulaire ouvert quand la fenêtre passe sous
+1024 px reste ouvert, sa saisie gardée : sa confirmation est refusée avec le motif (bouton
+`reason`, et le refus redit si elle part quand même, par Entrée) ; élargie, elle repart.
 
 ## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
 

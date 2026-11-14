@@ -14,8 +14,10 @@
 // come, the focus « Réessayer » held goes to the action beside it (2.4.3), or, the foot gone
 // with its draft, to the panel. The dates are kept with the draft, from the date of its first
 // addition under `valid_at`, back at the present too (`draftPeriods`). An answer is said
-// by a toast (applied, in review with its reason), a refusal here. Under `as_of` nothing is
-// written: the fields and the actions are refused with their reason.
+// by a toast (applied, in review with its reason), a refusal here. Under `as_of`, and under
+// 1024 px wide (the gate of writes, REQ-021-29), nothing is written: the fields and the
+// actions are refused with their reason; the motive and the dates typed stay (read only
+// until the window widens, the focus where it was).
 import { drafts, type DraftSubmitOutcome } from "@kartenn/sdk";
 import {
   Button,
@@ -37,7 +39,7 @@ import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
-import { draftPeriods, submitDraft, useDraftQueries, type DraftAction } from "./state.ts";
+import { draftPeriods, draftWhy, submitDraft, useDraftQueries, type DraftAction } from "./state.ts";
 
 const props = defineProps<{ id: string | null }>();
 const { t } = useI18n();
@@ -49,6 +51,7 @@ const {
   draft,
   operations,
   writable,
+  refused,
   awaiting,
   period,
   simulated,
@@ -58,11 +61,13 @@ const {
   actions,
   preferred,
 } = useDraftQueries(() => props.id);
+/** Why nothing is written now (the gate of writes), if so. */
+const gateWhy = computed(() => draftWhy(refused.value, t));
 
 // The dates of effect, kept with the draft (`draftPeriods`); fixed while a submission
 // without an answer awaits its retry, which replays them as sent.
-const periodWhy = computed(() =>
-  !writable.value ? t("drafts.why.past") : awaiting.value ? t("drafts.period.frozen") : undefined,
+const periodWhy = computed(
+  () => gateWhy.value ?? (awaiting.value ? t("drafts.period.frozen") : undefined),
 );
 const validFrom = computed<string | null>({
   get: () => period.value.valid_from ?? null,
@@ -117,10 +122,11 @@ const effect = computed(() => {
 });
 
 // The motive, as the draft keeps it; read again when another draft, or another version
-// of its reason, comes. Read only under `as_of`, and while a submission awaits its retry:
-// the replay sends what was sent, a motive changed meanwhile would not go with it.
-const motiveWhy = computed(() =>
-  !writable.value ? t("drafts.why.past") : awaiting.value ? t("drafts.motiveFrozen") : undefined,
+// of its reason, comes. Read only under `as_of` and under 1024 px (the gate), and while a
+// submission awaits its retry: the replay sends what was sent, a motive changed meanwhile
+// would not go with it.
+const motiveWhy = computed(
+  () => gateWhy.value ?? (awaiting.value ? t("drafts.motiveFrozen") : undefined),
 );
 // The motive: one typed and not sent yet, kept outside the form (`motive.ts`: the panel's
 // other tab, the page of the draft show it again), else the one kept with the draft; a
@@ -356,7 +362,7 @@ const failedSimulation = computed(() =>
           variant="ghost"
           icon="refresh-cw"
           :loading="busy"
-          v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+          v-bind="gateWhy ? { reason: gateWhy } : {}"
           @click="retry"
           >{{ t("views.retry") }}</Button
         >

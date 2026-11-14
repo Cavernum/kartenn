@@ -206,8 +206,9 @@ test("on a narrow window, an action folded in « … » keeps its refusal and it
   browser,
   browserName,
 }) => {
-  // Task 020-31 (REQ-021-37, 024/M14): « Retirer », refused to Alice by a reason alone
-  // (only its author withdraws it), folds into « … » and stays refused there, said.
+  // Task 020-31 (REQ-021-37, 024/M14): « Retirer », refused to Alice by a reason alone,
+  // folds into « … » and stays refused there, said. Under 1024 px the reason is the width
+  // (task 021-21d, REQ-021-29), said before the author's (only its author withdraws it).
   await page.setViewportSize({ width: 420, height: 800 });
   await login("alice");
   const { slug } = await ownedDomain(page, unique(browserName));
@@ -224,7 +225,9 @@ test("on a narrow window, an action folded in « … » keeps its refusal and it
   await expect(menu).toBeVisible();
   const withdraw = menu.getByRole("menuitem", { name: "Retirer" });
   await expect(withdraw).toHaveAttribute("aria-disabled", "true");
-  await expect(withdraw).toHaveAccessibleDescription("Seul l'auteur retire son changeset.");
+  await expect(withdraw).toHaveAccessibleDescription(
+    "Décision à partir de 1024 px de large : élargissez la fenêtre pour décider.",
+  );
   // Reached by the arrows, chosen at the keyboard: the menu stays, nothing is withdrawn.
   const entries = await menu.getByRole("menuitem").count();
   for (let i = 0; i < entries; i++) {

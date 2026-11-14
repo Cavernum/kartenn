@@ -4,7 +4,10 @@
 // 50, the most recently modified first), each with its operations, its last modification
 // and its deletion announced (`expires_at`); the active one of the tab marked. Resume one
 // (the active draft of the tab), rename one (task 14f, the menu of E5), create another,
-// delete one after a confirmation. The list follows the event `draft`.
+// delete one after a confirmation. The list follows the event `draft`. Under `as_of` and
+// under 1024 px wide (the gate of writes, REQ-021-29), the list is read and resumed only:
+// creating, renaming and deleting are refused with their reason, a dialog left open keeps
+// what it holds.
 import { drafts, type DraftList } from "@kartenn/sdk";
 import {
   AlertDialog,
@@ -12,6 +15,7 @@ import {
   DataGrid,
   Dialog,
   EmptyState,
+  InlineAlert,
   Menu,
   NoValue,
   StatusBadge,
@@ -31,16 +35,16 @@ import { useChangesetWords } from "../changesets/words.ts";
 import { useQuery } from "../data/query.ts";
 import KLink from "../prefetch/KLink.vue";
 import ProblemState from "../problems/ProblemState.vue";
-import { useTime, writesOf } from "../time/index.ts";
+import { useWrites } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
+import { draftWhy } from "./state.ts";
 
 type Row = DraftList["items"][number];
 
 const { t, locale } = useI18n();
 const router = useRouter();
-const time = useTime();
 const words = useChangesetWords();
 const toasts = injectToasts();
 const copyId = useCopyId();
@@ -98,8 +102,14 @@ function onActivate(cell: CellRef): void {
   if (row) void router.push(pageOf(row));
 }
 
-/** Drafts are created and deleted but under `as_of` (REQ-021-5): `valid_at` alone keeps them. */
-const writable = computed(() => writesOf(time.value).draft);
+/**
+ * Drafts are created and deleted but under `as_of` (REQ-021-5) — `valid_at` alone keeps
+ * them — and under 1024 px wide (REQ-021-29): the gate of writes.
+ */
+const writes = useWrites();
+const writable = computed(() => writes.value.draft);
+/** Why nothing is written now (the gate of writes), if so. */
+const gateWhy = computed(() => draftWhy(writes.value.refused, t));
 const refusal = shallowRef<Refusal>();
 const menu = (row: Row): MenuItem[] => [
   {
@@ -112,7 +122,7 @@ const menu = (row: Row): MenuItem[] => [
     id: "rename",
     label: t("drafts.rename"),
     icon: "pencil",
-    ...(writable.value ? {} : { disabled: true, reason: t("drafts.why.past") }),
+    ...(gateWhy.value ? { disabled: true, reason: gateWhy.value } : {}),
   },
   { id: "copy", label: t("changesets.copyId"), icon: "copy" },
   { kind: "separator" },
@@ -121,7 +131,7 @@ const menu = (row: Row): MenuItem[] => [
     label: t("drafts.delete", { title: row.title }),
     icon: "trash",
     danger: true,
-    ...(writable.value ? {} : { disabled: true, reason: t("drafts.why.past") }),
+    ...(gateWhy.value ? { disabled: true, reason: gateWhy.value } : {}),
   },
 ];
 const deleting = shallowRef<Row | null>(null);
@@ -135,6 +145,7 @@ async function onMenu(row: Row, id: string): Promise<void> {
     newTitle.value = row.title;
     titleError.value = undefined;
     renameRefusal.value = undefined;
+    renameGate.value = undefined;
     renameOpen.value = true;
   } else if (id === "copy") await copyId(row.id);
   else if (id === "delete" && writable.value) {
@@ -145,6 +156,12 @@ async function onMenu(row: Row, id: string): Promise<void> {
 async function remove(): Promise<void> {
   const row = deleting.value;
   if (!row) return;
+  // Refused since its dialog opened (the window narrowed): the dialog closed by its
+  // confirmation, the refusal said by a toast; nothing sent.
+  if (gateWhy.value) {
+    toasts?.show({ tone: "warn", title: gateWhy.value });
+    return;
+  }
   refusal.value = undefined;
   const outcome = await drafts.remove(row.id);
   if (outcome.kind !== "removed") {
@@ -169,6 +186,14 @@ const titleError = ref<string | undefined>();
 const renameRefusal = shallowRef<Refusal>();
 const renameBusy = ref(false);
 const renameForm = useTemplateRef<HTMLFormElement>("renameForm");
+/**
+ * The refusal of the gate said in the dialog (a toast lies under a modal): the window
+ * narrowed since it opened; gone once the gate opens again.
+ */
+const renameGate = ref<string | undefined>();
+watch(gateWhy, (why) => {
+  if (!why) renameGate.value = undefined;
+});
 // The error said until the title checked changes, not past the correction (3.3.1).
 let checked: string | null = null;
 watch(newTitle, (text) => {
@@ -178,6 +203,11 @@ watch(newTitle, (text) => {
 async function rename(): Promise<void> {
   const row = renaming.value;
   if (!row || renameBusy.value) return;
+  // Refused by the gate: said in the dialog, which stays open with the title typed.
+  if (gateWhy.value) {
+    renameGate.value = gateWhy.value;
+    return;
+  }
   checked = newTitle.value;
   const text = checked.trim();
   // Counted as the server counts, by code point.
@@ -248,7 +278,7 @@ async function create(): Promise<void> {
         variant="primary"
         icon="plus"
         :loading="creating"
-        v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+        v-bind="gateWhy ? { reason: gateWhy } : {}"
         @click="create"
         >{{ t("drafts.new") }}</Button
       >
@@ -264,10 +294,15 @@ async function create(): Promise<void> {
     </ProblemState>
     <EmptyState v-else-if="list.isSuccess.value && rows.length === 0" :title="t('drafts.noneYet')">
       {{ t("drafts.noneYetText") }}
-      <template v-if="writable" #action>
-        <Button variant="ghost" icon="plus" :loading="creating" @click="create">{{
-          t("drafts.new")
-        }}</Button>
+      <template #action>
+        <Button
+          variant="ghost"
+          icon="plus"
+          :loading="creating"
+          v-bind="gateWhy ? { reason: gateWhy } : {}"
+          @click="create"
+          >{{ t("drafts.new") }}</Button
+        >
       </template>
     </EmptyState>
     <DataGrid
@@ -343,13 +378,18 @@ async function create(): Promise<void> {
         :error="titleError"
         required
       />
+      <InlineAlert v-if="renameGate" tone="warn" icon="lock" :title="renameGate" />
       <RefusalAlert v-if="renameRefusal && renameOpen" :refusal="renameRefusal" />
     </form>
     <template #actions>
       <Button variant="ghost" @click="renameOpen = false">{{ t("views.cancel") }}</Button>
-      <Button variant="primary" :loading="renameBusy" @click="rename">{{
-        t("drafts.renameConfirm")
-      }}</Button>
+      <Button
+        variant="primary"
+        :loading="renameBusy"
+        v-bind="gateWhy ? { reason: gateWhy } : {}"
+        @click="rename"
+        >{{ t("drafts.renameConfirm") }}</Button
+      >
     </template>
   </Dialog>
 </template>

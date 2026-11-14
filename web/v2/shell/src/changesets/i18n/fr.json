@@ -54,6 +54,7 @@
     "why": {
       "author": "Seul l'auteur retire son changeset.",
       "past": "Hors du présent, rien ne se décide : revenez au présent.",
+      "narrow": "Décision à partir de 1024 px de large : élargissez la fenêtre pour décider.",
       "held": "Une politique d'approbation retient ce changeset : un autre relecteur doit le valider (changeset.approval.self)."
     },
     "copyId": "Copier l'identifiant",
@@ -125,6 +126,7 @@
     "cascaded": "{n} objet fermé en cascade | {n} objets fermés en cascade",
     "why": {
       "past": "État connu à une date passée : rien ne s'écrit, revenez au présent.",
+      "narrow": "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.",
       "empty": "Le brouillon est vide.",
       "simulating": "La simulation n'est pas finie.",
       "simulationFailed": "La simulation n'a pas abouti.",

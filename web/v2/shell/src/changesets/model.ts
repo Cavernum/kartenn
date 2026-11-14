@@ -1,6 +1,7 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { DiffChange, DiffGroup, DiffKind, State } from "@kartenn/ui";
 import type { Rights } from "../rights/index.ts";
+import type { WriteRefusal } from "../time/index.ts";
 
 // The changesets in the shell (REQ-021-10; design 021 « Écrans » : Changesets; maquette E4):
 // what a state shows, which permissions the operations of a changeset or a draft ask for,
@@ -100,7 +101,7 @@ export interface ReviewAction {
   /** The permission lacking (REQ-021-37), named as served. */
   forbidden?: string;
   /** Why it is refused otherwise: its key in the catalogs. */
-  reason?: "author" | "past" | "held";
+  reason?: "author" | "held" | WriteRefusal;
 }
 
 /**
@@ -117,8 +118,12 @@ export interface ReviewContext {
   /** The identity of the reader. */
   me: string | null;
   rights: Rights;
-  /** At the present: nothing is decided under a past date. */
-  present: boolean;
+  /**
+   * Why nothing is decided now, `null` when it is: off the present (`past`: a decision
+   * applies at once, never at a date read), or under 1024 px wide (`narrow`, REQ-021-29),
+   * the past said first (widening opens no past date).
+   */
+  refused: WriteRefusal | null;
 }
 
 /**
@@ -127,16 +132,17 @@ export interface ReviewContext {
  * writes; by its author with `<type>.approval.self` on all of it when no policy holds it
  * (else refused, `held`) — its rejection (by someone else) and its withdrawal (by its
  * author only); applied, its undo (`<type>.edit`). Every action refused stays, with the
- * permission lacking or its reason (REQ-021-37).
+ * permission lacking or its reason (REQ-021-37): the gate (`refused`) first, as for a
+ * write, then the rest.
  */
 export function reviewActions(changeset: Changeset, context: ReviewContext): ReviewAction[] {
-  const { me, rights, present } = context;
+  const { me, rights, refused } = context;
   const author = me !== null && changeset.author === me;
-  const past = present ? {} : { reason: "past" as const };
+  const gate = refused === null ? null : { reason: refused };
   if (changeset.state === "pending") {
     const lack = lacking(rights, changeset.operations, author ? "approval.self" : "apply");
-    const decide = !present
-      ? past
+    const decide = gate
+      ? gate
       : author && held(changeset)
         ? { reason: "held" as const }
         : lack
@@ -146,12 +152,12 @@ export function reviewActions(changeset: Changeset, context: ReviewContext): Rev
     return [
       { id: "validation", ...decide },
       ...(author ? [] : [{ id: "rejection" as const, ...decide }]),
-      { id: "withdrawal", ...(!present ? past : author ? {} : { reason: "author" as const }) },
+      { id: "withdrawal", ...(gate ?? (author ? {} : { reason: "author" as const })) },
     ];
   }
   if (changeset.state === "applied") {
     const edit = lacking(rights, changeset.operations, "edit");
-    return [{ id: "undo", ...(!present ? past : edit ? { forbidden: edit } : {}) }];
+    return [{ id: "undo", ...(gate ?? (edit ? { forbidden: edit } : {})) }];
   }
   return [];
 }

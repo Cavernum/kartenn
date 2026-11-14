@@ -54,6 +54,7 @@
     "why": {
       "author": "Only its author withdraws a changeset.",
       "past": "Nothing is decided out of the present: go back to the present.",
+      "narrow": "Decisions from 1024 px wide: widen the window to decide.",
       "held": "An approval policy holds this changeset: another reviewer must validate it (changeset.approval.self)."
     },
     "copyId": "Copy the identifier",
@@ -125,6 +126,7 @@
     "cascaded": "{n} object closed by cascade | {n} objects closed by cascade",
     "why": {
       "past": "State known at a past date: nothing is written, go back to the present.",
+      "narrow": "Changes from 1024 px wide: widen the window to change it.",
       "empty": "The draft is empty.",
       "simulating": "The simulation is not finished.",
       "simulationFailed": "The simulation failed.",
