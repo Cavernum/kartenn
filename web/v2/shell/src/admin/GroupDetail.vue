@@ -31,6 +31,7 @@ import { useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { covers, useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { useStatus } from "../views/edit/say.ts";
@@ -63,7 +64,8 @@ const props = defineProps<{ id: string }>();
 const { t, locale } = useI18n();
 const session = useSession();
 const keyLabel = useKeyLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status of the panel.
+const draft = useAdminDraft({ say: (text) => status(text) });
 
 const read = useQuery(() => reads.read("/v1/groups/{id}", { params: { id: props.id } }));
 const group = computed(() => read.data.value?.data as GroupItem | undefined);
@@ -141,18 +143,18 @@ const probe = useQuery(() => ({
   refetchOnReconnect: false,
   retry: false,
 }));
-const refusals = computed(() =>
+/** The refusals of the group under the gate `refused` (`null`: the lasting ones only). */
+const refusalsAt = (refused: WriteRefusal | null) =>
   group.value
     ? groupRefusals({
         group: group.value,
         bindings: bindings.rows.value,
         rights: session.value.rights,
         globalAdmin: globalAdmin.value,
-        refused: draft.gate.refused.value,
+        refused,
         violations: probing.value ? (probe.data.value ?? null) : null,
         words: {
-          past: t("edit.why.past"),
-          narrow: t("edit.why.narrow"),
+          ...draft.gate.words.value,
           wider: (code) => t("admin.why.wider", { code }),
           builtin: t("admin.why.builtin"),
           builtinMembers: t("admin.why.builtinMembers"),
@@ -160,8 +162,10 @@ const refusals = computed(() =>
           builtinTitle: t("admin.why.builtinTitle"),
         },
       })
-    : { bindings: new Map<string, Refusal>() },
-);
+    : { bindings: new Map<string, Refusal>() };
+const refusals = computed(() => refusalsAt(draft.gate.refused.value));
+/** The lasting refusals (the right, a group delivered, a scope wider): what `e` says first. */
+const lasting = computed(() => refusalsAt(null));
 const drafted = computed(() => ({ reason: t("admin.why.drafted") }));
 const refusalOf = (refusal: Refusal | undefined) => refusal ?? {};
 /**
@@ -222,9 +226,12 @@ function onAction(id: string): void {
 useViewAction("edit", {
   label: () => t("admin.groups.editTitle", { group: key.value }),
   run: () => (editing.value = true),
-  allowed: () => !!group.value && !refusals.value.edit,
-  why: () => refusalSentence(refusals.value.edit, t),
+  // The lasting reason only: held by the gate alone, it stays in the palette and says the
+  // gate when run (`play`); refused for a lasting reason, `e` says it, as the button does.
+  allowed: () => !!group.value && !lasting.value.edit,
+  why: () => refusalSentence(lasting.value.edit, t),
   say: status,
+  lasting: true,
 });
 async function close(): Promise<void> {
   await draft.add(

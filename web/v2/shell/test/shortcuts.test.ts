@@ -476,6 +476,33 @@ describe("actions of the view", () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it("says the lasting reason of a `lasting` action before the gate (task 021-21e)", () => {
+    const said: string[] = [];
+    const t = (key: string) => `<${key}>`;
+    let allowed = false;
+    const scope = effectScope();
+    scope.run(() =>
+      useViewAction("edit", {
+        label: () => "Modifier",
+        run: vi.fn(),
+        allowed: () => allowed,
+        why: () => "Il faut core.rbac.admin",
+        say: (text) => said.push(text),
+        lasting: true,
+      }),
+    );
+    const narrow = writesOf(timeOf({}), "narrow");
+    // The right lacking: said at any width and date, as its button says it.
+    expect(play("edit", narrow, t)).toBe(true);
+    expect(play("edit", writesAt({ as_of: "2026-06-30T12:00:00Z" }), t)).toBe(true);
+    expect(said).toEqual(["Il faut core.rbac.admin", "Il faut core.rbac.admin"]);
+    // The right held: the gate says why.
+    allowed = true;
+    expect(play("edit", narrow, t)).toBe(true);
+    expect(said.at(-1)).toBe("<edit.why.narrow>");
+    scope.stop();
+  });
+
   it("keeps the action of the view that came after", () => {
     const first = { label: () => "a", run: vi.fn() };
     const second = { label: () => "b", run: vi.fn() };

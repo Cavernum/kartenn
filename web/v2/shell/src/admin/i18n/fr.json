@@ -29,6 +29,7 @@
     "changes": "(brouillon : −{removed}, +{added})",
     "until": "jusqu'au {date}",
     "why": {
+      "forbidden": "Il faut {permission}",
       "wider": "Périmètre plus large que le vôtre ({code}).",
       "builtin": "Groupe livré : ses rôles suivent la synchronisation (core.group.builtin).",
       "builtinMembers": "Groupe livré : ses membres se gèrent par un administrateur global (core.group.builtin).",

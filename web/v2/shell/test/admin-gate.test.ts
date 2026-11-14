@@ -4,10 +4,13 @@ import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import GroupDetail from "../src/admin/GroupDetail.vue";
 import { frameRoutes } from "../src/frame/routes.ts";
-import { setFrameWidth } from "../src/frame/width.ts";
+import { frameWidth, setFrameWidth } from "../src/frame/width.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
+import { offered, play } from "../src/shortcuts/view.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
 
 // The administration under 1024 px wide (task 021-21e; REQ-021-29, Q-021-12): read, each
 // write refused at its point of action with the width, after the permission; a dialog left
@@ -15,6 +18,16 @@ import { loadSession, type Me } from "../src/rights/index.ts";
 // widened, the write goes.
 
 const NARROW = "Modification à partir de 1024 px de large : élargissez la fenêtre pour modifier.";
+
+const GROUP = {
+  id: "g",
+  href: "/v1/groups/g",
+  key: "supervision",
+  labels: { fr: "Équipe supervision" },
+  builtin: false,
+  members: 0,
+  bindings: 0,
+};
 
 interface Seen {
   method: string;
@@ -48,7 +61,9 @@ describe("the administration under 1024 px", () => {
       const body =
         call.method === "POST"
           ? { id: "d1", title: "", operations: [], created_at: "2026-01-01T00:00:00Z" }
-          : { items: [], links: {} };
+          : call.url.split("?")[0] === "/v1/groups/g"
+            ? GROUP
+            : { items: [], links: {} };
       return new Response(JSON.stringify(body), {
         status: call.method === "POST" ? 201 : 200,
         headers: { "Content-Type": "application/json", ETag: '"1"' },
@@ -66,7 +81,11 @@ describe("the administration under 1024 px", () => {
     );
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: "/", component: RouterView, children: frameRoutes }],
+      routes: [
+        // The Détail tab of the right panel, as the frame fills it (`meta.detail`).
+        { path: "/detail/:id", component: GroupDetail, props: true },
+        { path: "/", component: RouterView, children: frameRoutes },
+      ],
     });
     await router.push(at);
     const root = document.createElement("div");
@@ -76,7 +95,7 @@ describe("the administration under 1024 px", () => {
     app.mount(root);
     await router.isReady();
     await nextTick();
-    return { seen, root };
+    return { seen, root, router };
   }
 
   const button = (within: ParentNode, name: string) =>
@@ -140,5 +159,87 @@ describe("the administration under 1024 px", () => {
     expect(dialog.querySelector("[role='status']")?.textContent ?? "").not.toContain(NARROW);
     send().click();
     await expect.poll(() => writesSent(seen).map((s) => s.method)).toContain("POST");
+  });
+
+  // The lasting reason first (the permission lacking), then the gate: the key and the
+  // palette say what the button says (review of 21e), in the four cases.
+  const ADMIN = ["core.rbac.admin", "core.rbac.read"];
+  const READER = ["core.rbac.read"];
+  const LACKING = "Il faut core.rbac.admin";
+  const CASES = [
+    { name: "nothing refused", permissions: ADMIN, width: "wide", says: null },
+    { name: "the right alone", permissions: READER, width: "wide", says: LACKING },
+    { name: "the width alone", permissions: ADMIN, width: "narrow", says: NARROW },
+    { name: "both", permissions: READER, width: "narrow", says: LACKING },
+  ] as const;
+  const t = (key: string) => createShellI18n("fr").global.t(key);
+  const writesNow = () => writesOf(timeOf({}), frameWidth.value);
+  const statusOf = (root: HTMLElement) =>
+    root.querySelector("span.k-visually-hidden[role='status']")?.textContent ?? "";
+
+  for (const c of CASES) {
+    it(`« Créer » and \`c\` of the groups say the same, ${c.name}`, async () => {
+      const { root } = await mounted("/admin/groups", [...c.permissions]);
+      await expect.poll(() => button(root, "Créer")).toBeDefined();
+      setFrameWidth(c.width);
+      await nextTick();
+      const create = button(root, "Créer")!;
+      expect(play("create", writesNow(), t)).toBe(true);
+      await nextTick();
+      await nextTick();
+      if (c.says === null) {
+        expect(create.getAttribute("aria-disabled")).toBeNull();
+        await expect.poll(() => document.querySelector("[role='dialog']")).not.toBeNull();
+      } else {
+        expect(reasonOf(create)).toContain(c.says);
+        expect(statusOf(root)).toBe(c.says);
+        expect(document.querySelector("[role='dialog']")).toBeNull();
+      }
+    });
+
+    it(`« Modifier » and \`e\` of a group say the same, ${c.name}`, async () => {
+      const { root, router } = await mounted("/admin/groups", [...c.permissions]);
+      await expect.poll(() => button(root, "Créer")).toBeDefined();
+      await router.push("/detail/g");
+      await expect.poll(() => button(root, "Modifier")).toBeDefined();
+      setFrameWidth(c.width);
+      await nextTick();
+      const edit = button(root, "Modifier")!;
+      expect(play("edit", writesNow(), t)).toBe(true);
+      await nextTick();
+      await nextTick();
+      if (c.says === null) {
+        expect(edit.getAttribute("aria-disabled")).toBeNull();
+        await expect.poll(() => document.querySelector("[role='dialog']")).not.toBeNull();
+      } else {
+        expect(reasonOf(edit)).toContain(c.says);
+        expect(statusOf(root)).toBe(c.says);
+        expect(document.querySelector("[role='dialog']")).toBeNull();
+      }
+    });
+  }
+
+  it("keeps « Modifier le groupe » in the palette when the width alone holds it", async () => {
+    const { root, router } = await mounted("/admin/groups", ADMIN);
+    await expect.poll(() => button(root, "Créer")).toBeDefined();
+    await router.push("/detail/g");
+    await expect.poll(() => button(root, "Modifier")).toBeDefined();
+    const command = offered("edit", timeOf({}), "narrow", t);
+    expect(command?.label()).toBe("Modifier le groupe supervision");
+    command!.run();
+    await nextTick();
+    await nextTick();
+    expect(statusOf(root)).toBe(NARROW);
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    expect(offered("edit", timeOf({}), "wide", t)?.label()).toBe("Modifier le groupe supervision");
+  });
+
+  it("takes « Modifier le groupe » out of the palette when the right lacks", async () => {
+    const { root, router } = await mounted("/admin/groups", READER);
+    await expect.poll(() => button(root, "Créer")).toBeDefined();
+    await router.push("/detail/g");
+    await expect.poll(() => button(root, "Modifier")).toBeDefined();
+    expect(offered("edit", timeOf({}), "narrow", t)).toBeNull();
+    expect(offered("edit", timeOf({}), "wide", t)).toBeNull();
   });
 });

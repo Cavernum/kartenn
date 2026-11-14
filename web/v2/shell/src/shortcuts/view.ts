@@ -29,6 +29,12 @@ export interface ViewAction {
   say?: (text: string) => void;
   /** It writes to the draft, which may be dated: it runs under `valid_at` alone too. */
   dated?: boolean;
+  /**
+   * Its `why` is a lasting reason (a permission lacking, an object delivered, a scope
+   * wider), said before the gate of writes, as its button says it (the administration,
+   * task 021-21e); without it, the gate is said first.
+   */
+  lasting?: boolean;
 }
 
 export type ViewActions = Partial<Record<ViewActionId, ViewAction>>;
@@ -101,8 +107,8 @@ export function offered(
 /**
  * The key of the action `id` pressed under `writes`: the action runs, or, refused, the
  * view's status says why — the gate first (`edit.why.past` off the present, `edit.why.narrow`
- * under 1024 px; before a permission missing, as the cells say it), else the view's `why` —
- * and the key is taken. `false` (the key let go) when the view has no such action, no
+ * under 1024 px; before a permission missing, as the cells say it), else the view's `why`;
+ * a `lasting` action says its `why` first — and the key is taken. `false` (the key let go) when the view has no such action, no
  * status, or nothing to say (no object to act on).
  */
 export function play(id: ViewActionId, writes: Writes, t: (key: string) => string): boolean {
@@ -118,7 +124,10 @@ export function play(id: ViewActionId, writes: Writes, t: (key: string) => strin
   // Nothing to act on (no row, no node chosen): nothing to say, at any date or width.
   if (!may && why === undefined) return false;
   // Under `valid_at` alone, an action that is not `dated` waits for the present.
-  const words = fits ? why : (refusalWords(writes, t) ?? t("edit.why.past"));
+  const words =
+    fits || (action.lasting && why !== undefined)
+      ? why
+      : (refusalWords(writes, t) ?? t("edit.why.past"));
   if (!words || !action.say) return false;
   action.say(words);
   return true;

@@ -14,7 +14,12 @@ import { useAdminGate } from "./gate.ts";
 // A refusal of the server is kept for the panel to say it (`RefusalAlert`). Nothing goes in
 // when the gate of writes refuses at the moment of sending (`useAdminGate`).
 
-export function useAdminDraft() {
+export function useAdminDraft(
+  options: {
+    /** The polite status of the view, which says a refusal of the gate without toasts. */
+    say?: (text: string) => void;
+  } = {},
+) {
   const { t } = useI18n();
   const toasts = injectToasts();
   const active = ref<string | null>(drafts.active());
@@ -33,13 +38,15 @@ export function useAdminDraft() {
 
   /**
    * Whether the gate of writes refuses now, read when sending (the window may have narrowed
-   * since the action was offered): said by a toast, nothing sent. A dialog says it in itself
-   * before calling (a toast lies under a modal layer).
+   * since the action was offered): said by a toast — without toasts, by the view's status —
+   * nothing sent. A dialog says it in itself before calling (a toast lies under a modal).
    */
   function gated(): boolean {
     const why = gate.why.value;
-    if (why) toasts?.show({ tone: "warn", title: why });
-    return why !== undefined;
+    if (why === undefined) return false;
+    if (toasts) toasts.show({ tone: "warn", title: why });
+    else options.say?.(why);
+    return true;
   }
 
   /** Adds `ops` to the draft; `what` names them in the toast. Whether they went in. */

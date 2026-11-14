@@ -34,6 +34,7 @@ import { useLabel, useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
+import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { useStatus } from "../views/edit/say.ts";
@@ -56,7 +57,8 @@ const { t, locale } = useI18n();
 const session = useSession();
 const keyLabel = useKeyLabel();
 const label = useLabel();
-const draft = useAdminDraft();
+// A refusal of the gate at sending, without toasts: said by the status of the panel.
+const draft = useAdminDraft({ say: (text) => status(text) });
 /** The form of « Ajouter une permission », which the button of its actions submits. */
 const formId = useId();
 
@@ -95,22 +97,24 @@ const entryLabel = (entry: string) => {
   return found === entry ? null : found;
 };
 
-const refusals = computed(() =>
+/** The refusals of the role under the gate `refused` (`null`: the lasting ones only). */
+const refusalsAt = (refused: WriteRefusal | null) =>
   role.value
     ? roleRefusals({
         role: role.value,
         rights: session.value.rights,
-        refused: draft.gate.refused.value,
+        refused,
         bound: boundGroups.value,
         words: {
-          past: t("edit.why.past"),
-          narrow: t("edit.why.narrow"),
+          ...draft.gate.words.value,
           builtin: t("admin.why.roleBuiltin"),
           bound: (n) => t("admin.why.bound", { n }, n),
         },
       })
-    : {},
-);
+    : {};
+const refusals = computed(() => refusalsAt(draft.gate.refused.value));
+/** The lasting refusals (the right, a role delivered): what `e` says first. */
+const lasting = computed(() => refusalsAt(null));
 const refusalOf = (refusal: Refusal | undefined) => refusal ?? {};
 /**
  * The gate alone, for the action of a row the draft marks (its permission put back or taken
@@ -162,9 +166,12 @@ function onAction(id: string): void {
 useViewAction("edit", {
   label: () => t("admin.roles.editTitle", { role: props.id }),
   run: () => onAction("edit"),
-  allowed: () => !!role.value && !refusals.value.edit,
-  why: () => refusalSentence(refusals.value.edit, t),
+  // The lasting reason only: held by the gate alone, it stays in the palette and says the
+  // gate when run (`play`); refused for a lasting reason, `e` says it, as the button does.
+  allowed: () => !!role.value && !lasting.value.edit,
+  why: () => refusalSentence(lasting.value.edit, t),
   say: status,
+  lasting: true,
 });
 async function remove(): Promise<void> {
   await draft.add(

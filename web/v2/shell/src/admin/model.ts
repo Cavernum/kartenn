@@ -388,6 +388,21 @@ export function groupRefusals(input: {
   return refusals;
 }
 
+/**
+ * The refusal of « Créer » of a list of the administration: the permission it takes, then
+ * the gate of writes (the lasting reason first, as every refusal of the administration).
+ */
+export function createRefusal(input: {
+  rights: Rights;
+  permission: string;
+  /** Why the gate of writes refuses every write; `null` when open. */
+  refused: WriteRefusal | null;
+  words: GateWords;
+}): Refusal | undefined {
+  if (!input.rights.has(input.permission)) return { forbidden: input.permission };
+  return input.refused ? { reason: input.words[input.refused] } : undefined;
+}
+
 /** The refusals of the actions of a role. */
 export function roleRefusals(input: {
   role: RoleItem;

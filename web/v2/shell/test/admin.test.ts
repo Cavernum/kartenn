@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   bindingRows,
   bindOp,
+  createRefusal,
   currentCount,
   draftChanges,
   draftedRole,
@@ -320,6 +321,21 @@ describe("roles", () => {
       remove: { reason: "intégré" },
     });
     expect(refusal({ rights: new Rights([]) }).create).toEqual({ forbidden: "core.role.admin" });
+  });
+
+  it("refuses « Créer » by the permission, then by the gate (task 021-21e)", () => {
+    const create = (rights: string[], refused: "past" | "narrow" | null) =>
+      createRefusal({
+        rights: new Rights(rights),
+        permission: "core.role.admin",
+        refused,
+        words: { past: "passé", narrow: "étroit" },
+      });
+    expect(create(["core.role.admin"], null)).toBeUndefined();
+    expect(create(["core.role.admin"], "narrow")).toEqual({ reason: "étroit" });
+    expect(create(["core.role.admin"], "past")).toEqual({ reason: "passé" });
+    expect(create([], "narrow")).toEqual({ forbidden: "core.role.admin" });
+    expect(create([], null)).toEqual({ forbidden: "core.role.admin" });
   });
 
   it("reads the entries typed, the keys the server takes, the labels of one language", () => {
