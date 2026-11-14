@@ -39,13 +39,10 @@ afterEach(() => setFrameWidth("wide"));
 const PERIOD_ONLY: Readonly<Record<string, "21d" | "21e" | "21f" | "kept">> = {
   // `offered`: the period beside the width (a command held by the width alone is kept).
   "shortcuts/view.ts": "kept",
-  "views/RecordView.vue": "21f",
-  "views/TopologyView.vue": "21f",
-  "views/anomalies/AnomalyGrid.vue": "21f",
   // The simulation of a closure, a read; its writes go through `action.ts`.
   "views/edit/ClosePanel.vue": "kept",
-  "views/record/GapsNotice.vue": "21f",
-  "views/record/NetworkVlanTab.vue": "21f",
+  // A read: the gaps are those of the present, not read away from it; it writes nothing.
+  "views/record/GapsNotice.vue": "kept",
 };
 
 /** A source without its comments (`//` to the end of the line, `/* … *\/`, `<!-- … -->`). */

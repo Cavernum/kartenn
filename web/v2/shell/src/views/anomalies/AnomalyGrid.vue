@@ -2,13 +2,13 @@
 // Open anomalies in a grid (REQ-021-9; design 021 « Catalogue des écrans » : Anomalies et
 // lacunes): the rule (its label, its code always shown), the message (it wraps), the object
 // (a link to its record), when it opened, and « Acquitter… » — refused, visible, with its
-// reason, out of the present or without `core.anomaly.acknowledge` (024/M14). The page
-// around it reads the rows.
+// reason, without `core.anomaly.acknowledge`, out of the present or under 1024 px wide
+// (024/M14, REQ-021-29). The page around it reads the rows.
 import { Button, DataGrid, KeyLabel, type GridColumn, type GridWindow } from "@kartenn/ui";
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { refusalWords, useTime, useWrites } from "../../time/index.ts";
 import { useKeyLabel } from "../data.ts";
 import ObjectName from "../record/ObjectName.vue";
 import AcknowledgeDialog from "./AcknowledgeDialog.vue";
@@ -32,12 +32,22 @@ const session = useSession();
 const keyLabel = useKeyLabel();
 
 const ACKNOWLEDGE = "core.anomaly.acknowledge";
+const writes = useWrites();
+/**
+ * Why nothing is acknowledged now, if so: off the present (an acknowledgement applies at
+ * once, `valid_at` alone included), then under 1024 px wide (the gate of writes,
+ * REQ-021-29). Read again by the dialog as it sends.
+ */
+const gateWhy = computed(() =>
+  time.value.present ? refusalWords(writes.value, t) : t("views.anomalies.notPresent"),
+);
+// The permission missing first, the durable reason; the date or the width then.
 const refusal = computed(() =>
-  !time.value.present
-    ? { reason: t("views.anomalies.notPresent") }
-    : session.value.rights.has(ACKNOWLEDGE)
-      ? {}
-      : { forbidden: ACKNOWLEDGE },
+  !session.value.rights.has(ACKNOWLEDGE)
+    ? { forbidden: ACKNOWLEDGE }
+    : gateWhy.value
+      ? { reason: gateWhy.value }
+      : {},
 );
 
 const columns = computed<GridColumn[]>(() => [
@@ -138,6 +148,7 @@ watch(
     :id="chosen?.id ?? null"
     v-model:open="open"
     :rule="chosen?.rule ?? ''"
+    :refused="gateWhy"
     @done="acknowledged"
   />
 </template>

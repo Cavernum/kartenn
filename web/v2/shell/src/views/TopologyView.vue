@@ -15,7 +15,8 @@
 // content of the node chosen (`ContentTab`, its line under its own grid). Enter on a node
 // opens its record, Tab goes into its « + » (the tree's keys), `c` adds in the node of the
 // focus (021/A20); a refused « + », and the « Ajouter » of the chosen node, stay visible
-// and say their permission (REQ-021-37). The preview of the active draft (task 24b,
+// and say their permission (REQ-021-37), or the gate of writes (`as_of`, under 1024 px
+// wide, REQ-021-29). The preview of the active draft (task 24b,
 // 021/A12): the places its simulation gives laid over the tree served (`topology.ts`).
 import { drafts, queryClient, reads, type components, type TimeArg } from "@kartenn/sdk";
 import {
@@ -61,7 +62,7 @@ import { useProblems } from "../problems/index.ts";
 import { childrenIntent } from "../prefetch/tree.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime, writesOf } from "../time/index.ts";
+import { refusalWords, useTime, useWrites } from "../time/index.ts";
 import { collectionById, pageOfObject, type Item } from "./collections.ts";
 import { editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
@@ -587,14 +588,22 @@ function onActivate(id: string): void {
 // else in the chosen one (021/A20).
 const session = useSession();
 /**
- * Why adding in `node` (the first level without one) is refused: under `as_of`, or
- * without the right to write any kind it may hold — the first one named, as served.
+ * The gate of writes (REQ-021-29), read once for the view, never by row: why nothing is
+ * added now (`as_of`, under 1024 px), in its words, if so.
+ */
+const writes = useWrites();
+const gateWhy = computed(() => refusalWords(writes.value, t));
+/**
+ * Why adding in `node` (the first level without one) is refused: without the right to
+ * write any kind it may hold — the first one named, as served, the durable reason first —
+ * then by the gate of writes.
  */
 function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: string } | null {
-  if (!writesOf(time.value).draft) return { reason: t("edit.why.past") };
   const types = kindsIn(node).map((id) => collectionById(id)!.type);
-  if (types.some((type) => session.value.rights.has(editRight(type)))) return null;
-  return { forbidden: editRight(types[0]!) };
+  if (!types.some((type) => session.value.rights.has(editRight(type)))) {
+    return { forbidden: editRight(types[0]!) };
+  }
+  return gateWhy.value ? { reason: gateWhy.value } : null;
 }
 // The « + » of every prefix; refused, it stays visible and says why (REQ-021-37).
 /** The names of the « + », by label, made once per language: asked of each row at each render. */
@@ -611,6 +620,8 @@ function addLabel(node: TreeNode): string | undefined {
 }
 const addBlocked = (node: TreeNode) => addRefusal(nodeById(node.id)) ?? undefined;
 function addIn(id: string | undefined): void {
+  // The gate read again as it acts: the window narrowed since the « + » was drawn.
+  if (gateWhy.value) return status(gateWhy.value);
   const node = nodeById(id) ?? chosen.value;
   const inside = node?.kind === "prefix" ? node : undefined;
   const kinds = kindsIn(inside);
@@ -631,7 +642,8 @@ useViewAction("create", {
       ? t("edit.addIn", { within: valueOf(targetPrefix.value) })
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
   allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
-  // Refused, `c` says why by the status of the view (off the present first, `view.ts`): no
+  // Refused, `c` says why by the status of the view (the gate first, `view.ts`; the « + »
+  // says the permission first: task 21h): no
   // domain to add in, once the domains are read; else what the « + » says.
   why: () => {
     if (domain.value === undefined) {
