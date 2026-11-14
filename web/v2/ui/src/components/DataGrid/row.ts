@@ -8,12 +8,31 @@
 // moves, a press on a link, an editor that opens elsewhere, another row's state. What
 // a row reads of the grid's shared state (the focus, the editor, the open error, the
 // selection) it reads through its own key (`stopIn`, `editingIn`…): the rows whose answer
-// changes render again, never the others.
+// changes render again, never the others. What the host says of a row and its cells the grid
+// keeps for the row (`RowFacts`, task 021-22f-c, as `TreeGrid`'s `factsOf`).
 
 import type { ComponentPublicInstance, ComputedRef, Ref } from "vue";
 import type { IconName } from "../../icons/index.ts";
 import type { ListOption } from "../Select/select.ts";
-import type { GridColumn, RowState } from "./grid.ts";
+import type { CellState, GridColumn, RowState } from "./grid.ts";
+
+/** What the host says of a cell, asked once per row and kept (`DataGrid`, `factsOf`). */
+export interface CellFacts {
+  /** The host's state (`cellState`). */
+  given: CellState | undefined;
+  /** `pending`, `draft`, `review` or `error`. */
+  state: string | undefined;
+  /** It has an editor (`editable`, never in an extension's cell). */
+  editable: boolean;
+  /** Its row's reason (first cell), its state's, then why no editor, each once. */
+  notes: string[];
+}
+
+/** What the host says of a row: its state, and its cells by column. */
+export interface RowFacts {
+  state: RowState | undefined;
+  cells: Map<string, CellFacts>;
+}
 
 /** The error a cell shows: its editor's (the host's check), else the host's. */
 export interface CellMessage {
@@ -72,11 +91,12 @@ export interface DataGridRowContext<R> {
   isSelected(key: string): boolean;
   /** The row just joined a draft: its background fades once. */
   isFresh(key: string): boolean;
-  rowState(row: R): RowState | undefined;
+  /** What the host says of the row and its cells, kept while what it read holds. */
+  factsOf(row: R): RowFacts;
   /** The icon of a row with a state, and its hidden word (in the language of now). */
   markOf(state: RowState): { icon: IconName; word: string };
-  /** The cells of a row, each state of the host asked once. */
-  cellsOf(row: R, index: number, at: RowAt, state: RowState | undefined): CellView[];
+  /** The cells of a row, from its facts. */
+  cellsOf(row: R, index: number, at: RowAt): CellView[];
   /** The host gave the slot `name` (`editor`, `extension`). */
   has(name: "editor" | "extension"): boolean;
   /** The editor of the cell being edited: its list, if any, and its text. */

@@ -55,6 +55,7 @@ import {
   useId,
   useSlots,
   watch,
+  type ComputedRef,
 } from "vue";
 import { t } from "../../i18n.ts";
 import Checkbox from "../Checkbox/Checkbox.vue";
@@ -63,7 +64,7 @@ import ColumnChooser from "../internal/ColumnChooser.vue";
 import type { ListOption } from "../Select/select.ts";
 import NoValue from "../NoValue/NoValue.vue";
 import DataGridRow from "./DataGridRow.vue";
-import type { CellView, DataGridRowContext, RowAt } from "./row.ts";
+import type { CellFacts, CellView, DataGridRowContext, RowAt, RowFacts } from "./row.ts";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { notesOfTexts, useCellReasons } from "../internal/cellReasons.ts";
 import { CELL_WIDGETS, tameControl, useExtensionControls } from "../internal/extensionCell.ts";
@@ -311,19 +312,14 @@ const isEditing = (row: R, column: GridColumn) => {
   const cell = editing.value;
   return cell !== undefined && cell.column === column.id && cell.row === keyOf(row);
 };
-const canEdit = (row: R, column: GridColumn) => !column.element && !!props.editable?.(row, column);
-
-function stateOf(row: R, column: GridColumn): string | undefined {
-  const state = props.cellState?.(row, column);
-  return state === undefined ? undefined : typeof state === "string" ? state : "error";
-}
+const canEdit = (row: R, column: GridColumn) => factsOf(row, column).editable;
 const WORDS = { pending: "pending", draft: "inDraft", review: "inReview" } as const;
 /** A state said in words, for assistive technologies (never colour alone). */
 const wordOf = (state: string | undefined): string | undefined =>
   state && state in WORDS ? t(WORDS[state as keyof typeof WORDS]) : undefined;
 function errorOf(row: R, column: GridColumn): { error: string; code?: string } | undefined {
-  const state = props.cellState?.(row, column);
-  return typeof state === "object" ? state : undefined;
+  const given = factsOf(row, column).given;
+  return typeof given === "object" ? given : undefined;
 }
 
 // ——— Virtualisation ———
@@ -436,38 +432,70 @@ function rowTexts(row: R, column: GridColumn, state: RowState | undefined): read
   const said = props.rowReason(row);
   return typeof said === "string" ? [said] : (said ?? []);
 }
-/**
- * The sentences of a cell whose states are known (its row's, its own, whether it has an
- * editor): its row's reason, its state's (none for an error, which its message says), then
- * why no editor.
- */
-const notesKnown = (
-  row: R,
-  column: GridColumn,
-  rowState: RowState | undefined,
-  state: string | undefined,
-  editable: boolean,
-): string[] =>
-  notesOfTexts([
-    ...rowTexts(row, column, rowState),
-    props.stateReason && state !== undefined && state !== "error"
-      ? props.stateReason(row, column)
-      : undefined,
-    props.editable && props.readonlyReason && !editable
-      ? props.readonlyReason(row, column)
-      : undefined,
-  ]);
 /** Some reason may be said: a hidden sentence per text, and the tooltip. */
 const hasReasons = computed(
   () => !!(props.editable && props.readonlyReason) || !!props.stateReason || !!props.rowReason,
 );
 /**
+ * What the host says of a cell: its state, whether it has an editor, and its sentences —
+ * its row's reason, its state's (none for an error, which its message says), then why no
+ * editor.
+ */
+function factsOfCell(row: R, column: GridColumn, rowState: RowState | undefined): CellFacts {
+  const given = props.cellState?.(row, column);
+  const state = typeof given === "string" ? given : given && "error";
+  const editable = !column.element && !!props.editable?.(row, column);
+  return {
+    given,
+    state,
+    editable,
+    notes: hasReasons.value
+      ? notesOfTexts([
+          ...rowTexts(row, column, rowState),
+          props.stateReason && state && state !== "error"
+            ? props.stateReason(row, column)
+            : undefined,
+          props.editable && props.readonlyReason && !editable
+            ? props.readonlyReason(row, column)
+            : undefined,
+        ])
+      : [],
+  };
+}
+/**
+ * What the host says of a row and of its cells, asked once per row and kept in a computed
+ * of the row object while what the host read holds (task 021-22f-c, as `TreeGrid`'s
+ * `factsOf`): its row, the table of the hidden sentences, the tooltip, the editor read the
+ * same; a state changed for a cell asks the host again of its row alone. The host's
+ * functions read reactive state, as a computed does (a change it makes elsewhere is not
+ * seen). `data-fresh` reads `rowState` apart, for every row (`fresh`), without the cells.
+ */
+const factsCache = new WeakMap<R, ComputedRef<RowFacts>>();
+function rowFacts(row: R): RowFacts {
+  let facts = factsCache.get(row);
+  if (!facts) {
+    facts = computed(() => {
+      const state = props.rowState?.(row);
+      return {
+        state,
+        cells: new Map(shown.value.map((c) => [c.id, factsOfCell(row, c, state)] as const)),
+      };
+    });
+    factsCache.set(row, facts);
+  }
+  return facts.value;
+}
+/** A cell's facts; a column not rendered (none asks it but a key that names it): at once. */
+function factsOf(row: R, column: GridColumn): CellFacts {
+  const facts = rowFacts(row);
+  return facts.cells.get(column.id) ?? factsOfCell(row, column, facts.state);
+}
+/**
  * The sentences a cell says of itself besides its value: its row's reason (first cell),
  * its state's reason, then why not, each once (the same text twice is one sentence, one
  * description, one tooltip line).
  */
-const notesOf = (row: R, column: GridColumn): string[] =>
-  notesKnown(row, column, props.rowState?.(row), stateOf(row, column), canEdit(row, column));
+const notesOf = (row: R, column: GridColumn): string[] => factsOf(row, column).notes;
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
 function errorAt(k: string): boolean {
@@ -562,7 +590,7 @@ const commits = useCommitWatch(
   (cell) => {
     const row = rowOf(cell.row);
     const column = columnOf(cell.column);
-    return row && column ? props.cellState?.(row, column) : undefined;
+    return row && column ? factsOf(row, column).given : undefined;
   },
   (cell) => (rowOf(cell.row) ? textOf(cell) : undefined),
   (cell, error) => {
@@ -767,27 +795,19 @@ function onDblclick(event: MouseEvent): void {
 // ——— Rows ———
 
 /**
- * The cells of a row (`DataGridRow`): each state of the host asked once per cell — its
- * state, whether it has an editor, its reasons —, the row's state once per row; the grid's
- * shared state as it stands in the row (`at`).
+ * The cells of a row (`DataGridRow`): what the host says of each, from the row's facts
+ * (`rowFacts`) — its state, whether it has an editor, its reasons —; the grid's shared state
+ * as it stands in the row (`at`).
  */
-function cellsOf(row: R, index: number, at: RowAt, rowState: RowState | undefined): CellView[] {
+function cellsOf(row: R, index: number, at: RowAt): CellView[] {
   return shown.value.map((column, c): CellView => {
     const editingHere = at.editing === column.id;
-    const given = props.cellState?.(row, column);
-    const state = given === undefined ? undefined : typeof given === "string" ? given : "error";
+    const { state, editable, notes: texts } = factsOf(row, column);
     const message =
-      editingHere && draftError.value
-        ? { error: draftError.value }
-        : typeof given === "object"
-          ? given
-          : undefined;
-    const editable = canEdit(row, column);
+      editingHere && draftError.value ? { error: draftError.value } : errorOf(row, column);
     const errorOpen = !!message && (editingHere || at.error === column.id);
     const id = message ? errorId(index, c) : undefined;
-    const notes = hasReasons.value
-      ? notesKnown(row, column, rowState, state, editable).map(reasonId)
-      : [];
+    const notes = texts.map(reasonId);
     return {
       column,
       c,
@@ -837,7 +857,7 @@ const rowContext: DataGridRowContext<R> = {
   },
   isSelected: (key) => selectedSet.value.has(key),
   isFresh: (key) => fresh.value.has(key),
-  rowState: (row) => props.rowState?.(row),
+  factsOf: rowFacts,
   markOf,
   cellsOf,
   has: (name) => !!slots[name],

@@ -99,8 +99,12 @@ async function mounted() {
   app.use(createShellI18n("fr")).use(router);
   app.mount(root);
   await router.isReady();
+  // The list's first read and render take 0.4 to 0.7 s alone: more under a loaded full run
+  // (the default second of `poll` ran out, task 021-22f-c). A count of renders, not a time.
   await expect
-    .poll(() => root.querySelectorAll("[role='gridcell'][data-column='usage']").length)
+    .poll(() => root.querySelectorAll("[role='gridcell'][data-column='usage']").length, {
+      timeout: 10_000,
+    })
     .toBe(ROWS);
   return root;
 }

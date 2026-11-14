@@ -7,7 +7,7 @@ import { createApp, h, nextTick, ref, shallowReactive, type App } from "vue";
 import { afterEach, describe, expect, it } from "vitest";
 import GridRowsHost from "./fixtures/GridRowsHost.vue";
 import type { CellRef, CellState, GridColumn, RowState } from "../src/components/DataGrid/grid.ts";
-import { setLocale } from "../src/i18n.ts";
+import { currentLocale, setLocale } from "../src/i18n.ts";
 
 // The rows of `DataGrid` are components of their own (task 021-22o-b): when the grid renders
 // — the roving focus moves, a press on a link of a cell focuses it, an editor opens, the
@@ -43,6 +43,9 @@ function mounted() {
   const held = shallowReactive<Record<string, string>>({});
   const gate = ref<"open" | "past">("open");
   const asked = new Map<string, number>();
+  /** What `editable` and `readonlyReason` were asked, by row (task 021-22f-c). */
+  const editables = new Map<string, number>();
+  const readonlies = new Map<string, number>();
   const slotted = new Map<string, number>();
   const count = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
   // The same functions at each render, as a host's (a new one is a new prop).
@@ -51,11 +54,20 @@ function mounted() {
     return states[`${row.id}/${column.id}`];
   };
   const rowState = (row: { id: string }) => rowStates[row.id];
-  const editable = (_: unknown, column: GridColumn) =>
-    gate.value === "open" && column.id === "label";
-  const readonlyReason = (_: unknown, column: GridColumn) =>
-    gate.value === "past" ? "Lu à une date passée" : column.id === "id" ? "Clé figée" : undefined;
+  const editable = (row: { id: string }, column: GridColumn) => {
+    count(editables, row.id);
+    return gate.value === "open" && column.id === "label";
+  };
+  // A sentence in the language of now, as a host's (read through the locale).
+  const readonlyReason = (row: { id: string }, column: GridColumn) => {
+    count(readonlies, row.id);
+    if (gate.value === "past")
+      return currentLocale() === "en" ? "Read at a past date" : "Lu à une date passée";
+    return column.id === "id" ? "Clé figée" : undefined;
+  };
   const stateReason = (row: { id: string }, column: GridColumn) => held[`${row.id}/${column.id}`];
+  // The rows mounted (task 021-22f-c: a row that stays follows its states without it).
+  const mounts = { rows: 0 };
   // The slot `cell` compiled, as a screen's (a slot of a render function is new at each
   // render of its host, and renders the rows again with the grid, as Vue does any child).
   const seen = (row: string) => {
@@ -91,12 +103,24 @@ function mounted() {
   app.config.errorHandler = (error) => {
     throw error;
   };
+  app.mixin({
+    mounted() {
+      if (this.$options.__name === "DataGridRow") mounts.rows += 1;
+    },
+  });
   apps.push(app);
   app.mount(root);
   const reset = () => {
     asked.clear();
+    editables.clear();
+    readonlies.clear();
     slotted.clear();
+    mounts.rows = 0;
   };
+  /** The rows the host was asked of, by any of its functions of a cell. */
+  const askedRows = () => [
+    ...new Set([...asked.keys(), ...editables.keys(), ...readonlies.keys()]),
+  ];
   const cell = (row: string, column: string) =>
     root.querySelector<HTMLElement>(
       `[role='gridcell'][data-row="${row}"][data-column="${column}"]`,
@@ -106,17 +130,36 @@ function mounted() {
       .split(" ")
       .filter(Boolean)
       .map((id) => document.getElementById(id)?.textContent ?? `(${id} absent)`);
-  return { props, states, rowStates, held, gate, asked, slotted, reset, cell, described, root };
+  return {
+    props,
+    states,
+    rowStates,
+    held,
+    gate,
+    asked,
+    editables,
+    readonlies,
+    askedRows,
+    mounts,
+    slotted,
+    reset,
+    cell,
+    described,
+    root,
+  };
 }
 
 describe("DataGrid: a row renders again only when what it shows changes (task 021-22o-b)", () => {
   it("asks each state once per cell, and a row no more when the grid alone renders", async () => {
     const grid = mounted();
     await nextTick();
-    // Once by its row, once by the table of the hidden sentences (`useCellReasons`), which
-    // reads again only when a state changes (before: four and five times by cell).
+    // Once per cell, kept for its row and the table of the hidden sentences (task 021-22f-c;
+    // before: twice, before the task 021-22o-b: four and five times by cell).
     expect(grid.asked.size).toBe(ROWS.length);
-    for (const [row, n] of grid.asked) expect(n, row).toBe(2 * columns.length);
+    for (const [row, n] of grid.asked) expect(n, row).toBe(columns.length);
+    for (const [row, n] of grid.editables) expect(n, row).toBe(columns.length);
+    // Why not, for the cell without an editor (the key).
+    for (const [row, n] of grid.readonlies) expect(n, row).toBe(1);
     expect(grid.slotted.size).toBe(ROWS.length);
     grid.reset();
     // The grid renders again (its name): no row asks, nor renders its cells.
@@ -141,8 +184,9 @@ describe("DataGrid: a row renders again only when what it shows changes (task 02
       .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     await nextTick();
     await nextTick();
-    expect([...grid.asked.keys()].sort()).toEqual(["r3", "r4"]);
+    // The two rows render; the host is asked nothing, its states kept (task 021-22f-c).
     expect([...grid.slotted.keys()].sort()).toEqual(["r3", "r4"]);
+    expect(grid.askedRows()).toEqual([]);
     expect(grid.cell("r4", "label").tabIndex).toBe(0);
     expect(grid.cell("r3", "label").tabIndex).toBe(-1);
     expect(document.activeElement).toBe(grid.cell("r4", "label"));
@@ -151,7 +195,8 @@ describe("DataGrid: a row renders again only when what it shows changes (task 02
     // A press on the link of a cell focuses it (`focusin`): its row and the row of the stop.
     grid.cell("r20", "id").querySelector("a")!.focus();
     await nextTick();
-    expect([...grid.asked.keys()].sort()).toEqual(["r20", "r4"]);
+    expect([...grid.slotted.keys()].sort()).toEqual(["r20", "r4"]);
+    expect(grid.askedRows()).toEqual([]);
     expect(grid.props.active).toEqual({ row: "r20", column: "id" });
     expect(grid.cell("r20", "id").tabIndex).toBe(0);
     expect(grid.cell("r4", "label").tabIndex).toBe(-1);
@@ -179,25 +224,59 @@ describe("DataGrid: a row renders again only when what it shows changes (task 02
     grid.props.editing = { row: "r7", column: "label" };
     await nextTick();
     expect([...grid.slotted.keys()]).toEqual(["r7"]);
-    expect([...grid.asked.keys()]).toEqual(["r7"]);
+    expect(grid.askedRows()).toEqual([]);
     expect(grid.cell("r7", "label").dataset.editing).toBe("true");
     expect(grid.cell("r7", "label").querySelector("input")?.value).toBe("Ligne 7");
     grid.props.editing = undefined;
     await nextTick();
     expect(grid.cell("r7", "label").querySelector("input")).toBeNull();
     grid.reset();
-    // An error comes to a cell: its row alone renders, said by the cell (the table of the
-    // hidden sentences reads every cell again: a state changed).
+    // An error comes to a cell: its row alone renders and is asked again (the table of the
+    // hidden sentences reads the other rows' kept states, task 021-22f-c), said by the cell.
     grid.states["r8/label"] = { error: "Valeur refusée", code: "field.invalid" };
     await nextTick();
     expect([...grid.slotted.keys()]).toEqual(["r8"]);
+    expect(grid.askedRows()).toEqual(["r8"]);
     expect(grid.cell("r8", "label").getAttribute("aria-invalid")).toBe("true");
     expect(grid.described(grid.cell("r8", "label")).join(" ")).toContain("Valeur refusée");
+  });
+
+  // Before the task 021-22f-c, the table of the hidden sentences asked the host of every
+  // cell of the rows rendered, five times each, at each state changed: rows × columns.
+  it("a state of the host changed for one cell asks the host of its row alone", async () => {
+    const grid = mounted();
+    await nextTick();
+    const steps: [string, () => void][] = [
+      ["r12", () => (grid.states["r12/label"] = "review")],
+      ["r12", () => (grid.held["r12/label"] = "Tenue par une politique")],
+      ["r13", () => (grid.rowStates["r13"] = "draft")],
+      ["r14", () => (grid.states["r14/id"] = { error: "Clé refusée" })],
+      ["r12", () => delete grid.states["r12/label"]],
+    ];
+    for (const [row, change] of steps) {
+      grid.reset();
+      change();
+      await nextTick();
+      expect(grid.askedRows(), row).toEqual([row]);
+      // Once per cell, whatever reads it (its row, the hidden sentences, the tooltip).
+      expect(grid.asked.get(row), row).toBe(columns.length);
+      expect(grid.editables.get(row), row).toBe(columns.length);
+      expect(grid.readonlies.get(row), row).toBe(1);
+      expect([...grid.slotted.keys()], row).toEqual([row]);
+      expect(grid.mounts.rows, row).toBe(0);
+    }
+    expect(grid.described(grid.cell("r12", "label"))).toEqual([]);
+    expect(grid.cell("r13", "id").textContent).toContain("(en brouillon)");
+    expect(grid.cell("r14", "id").getAttribute("aria-invalid")).toBe("true");
   });
 
   it("a row not rendered again shows the marks, reasons, gate and language of now", async () => {
     const grid = mounted();
     await nextTick();
+    // The rows stay mounted throughout: their states follow without a new row (22f-c).
+    const element = (key: string) => grid.cell(key, "id").closest("[role='row']")!;
+    const kept = [element("r2"), element("r9")];
+    grid.reset();
     // A draft mark and a state held in review, with its reason.
     grid.rowStates["r2"] = "draft";
     grid.states["r2/label"] = "review";
@@ -226,11 +305,27 @@ describe("DataGrid: a row renders again only when what it shows changes (task 02
     await nextTick();
     expect(grid.cell("r9", "label").getAttribute("aria-readonly")).toBeNull();
     expect(grid.described(grid.cell("r9", "id"))).toEqual(["Clé figée"]);
-    // The language: the hidden words of the rows that did not render since.
+    // A cell's state turns to draft: its word.
+    grid.states["r2/label"] = "draft";
+    await nextTick();
+    expect(grid.cell("r2", "label").textContent).toContain("(en brouillon)");
+    // The language: the hidden words of the rows that did not render since, and the host's
+    // sentences, read in the language of now, asked again.
+    grid.gate.value = "past";
+    await nextTick();
     setLocale("en");
     await nextTick();
     expect(grid.cell("r2", "id").textContent).toContain("(in draft)");
+    expect(grid.cell("r2", "label").textContent).toContain("(in draft)");
     expect(grid.cell("r2", "id").querySelector("a")).not.toBeNull();
+    expect(grid.described(grid.cell("r9", "label"))).toEqual(["Read at a past date"]);
+    grid.gate.value = "open";
+    await nextTick();
+    expect(grid.cell("r9", "label").getAttribute("aria-readonly")).toBeNull();
+    expect(grid.described(grid.cell("r9", "id"))).toEqual(["Clé figée"]);
+    expect(element("r2")).toBe(kept[0]);
+    expect(element("r9")).toBe(kept[1]);
+    expect(grid.mounts.rows).toBe(0);
   });
 
   it("keeps the ids of the reasons to the sentences said now", async () => {

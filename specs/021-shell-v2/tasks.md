@@ -6985,6 +6985,42 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `DataGrid/row.ts`, `DataGridRow.vue`, `internal/cellReasons.ts` ; modèle :
       `TreeGrid.vue` (`factsOf`, tâche 22e-c) ; `ui/test/data-grid-rows-mounted.test.ts`
     - dépend de : 22o-b
+    - code et Vitest faits le 2026-11-14 (branche `tache-021-22f-c`) ; case laissée à la
+      session principale (avec 22f). `rowFacts` (`DataGrid.vue`) : un `computed` par objet de
+      ligne (`WeakMap`, comme `TreeGrid`) garde l'état de la ligne et, par colonne rendue,
+      l'état de la cellule, son éditeur et ses phrases (`CellFacts`, `RowFacts` de `row.ts`) ;
+      `factsOf` en lit une cellule (une colonne non rendue : demandée aussitôt). La ligne
+      (`DataGridRow` : `state`, `cellsOf`), la table des raisons cachées et l'infobulle
+      (`notesOf`), `canEdit`, `errorOf` et le suivi des `commit` lisent le même ;
+      `notesKnown` et `stateOf` fondus dans `factsOfCell`. Preuve :
+      `data-grid-rows-mounted.test.ts` : une fois par cellule au montage (deux sur main) ; un
+      état de cellule, une raison, un état de ligne, une erreur changés : `cellState`,
+      `editable` et `readonlyReason` rappelés pour cette ligne seule, aucune ligne montée
+      (échoue sur main : les 30 lignes) ; un pas de focus, un éditeur ouvert ne demandent
+      plus rien à l'hôte ; fraîcheur (porte fermée puis rouverte, brouillon de ligne et de
+      cellule, langue relue par une phrase de l'hôte) sur des lignes restées montées, le
+      même élément. `k-web2-check --base main` : 1234 tests, ciblé : 2303 captures sur 2741.
+      Poids du shell initial mesuré (`shell/test/build.test.ts`) : main 299 940 octets
+      (60 de marge, non 3 Ko), d'abord 300 044 avec la tâche, 299 998 après resserrement
+      (`cellsOf` sans paramètre de faits, phrases écrites dans `factsOfCell`). Passes
+      réduites filtrées (`bench-web small -g "100 rows"`, machine chargée, charge 15 à 18) :
+      20 pages dessinées sur 20 chaque fois ; p95 438,7 et 591,8 ms, médianes 251,2 et
+      241,5, pires 472,1 et 708,2 : budget dépassé, indicatif, sans passe de main sous la
+      même charge pour comparer.
+    - choix : faits par ligne (une `Map` des colonnes rendues dans un `computed`) plutôt que
+      par cellule, comme `TreeGrid` ; `data-fresh` lit toujours `rowState` à part pour toutes
+      les lignes (par les faits, chaque ligne chargée bâtirait ses cellules) ; un état vide
+      (`""`) ne compte plus comme un état (`given && "error"`, `CellState` n'en a pas) ;
+      `shell/test/list-grid-work.test.ts` : attente du montage portée à 10 s (0,4 à 0,7 s
+      seule, sur main comme ici ; la seconde par défaut expirait deux fois de suite sous
+      le passage complet chargé).
+    - relectures : `a11y-auditor` et `ui-reviewer` sur le code (rien de visible ne change),
+      aucun écart réel ; corrigé : le contrat « les fonctions de l'hôte lisent de l'état
+      réactif » et `data-fresh` à part dits dans le commentaire de `rowFacts`, l'inventaire
+      et le skill.
+    - reste : la marge du shell initial (2 octets) ; le p95 à remesurer par la session
+      principale sur machine calme, main et branche, avec 22f et 22f-d ; aucun test du
+      sélecteur de colonnes ni d'une colonne non rendue pour les faits (relecture a11y).
   - [ ] 22f-d. Colonnes de propriété : une réponse ne recrée que sa ligne (`shownRows` par
     ligne, objets gardés), les résultats de `useQueries` posés une fois par passe,
     `drafted` hors du chemin d'une page. Diagnostic de fond du 2026-11-14 : chaque
