@@ -7748,7 +7748,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       ce seul test, et `pageSpans`) ; la variante « au calme », la trace V8 du
       ramasse-miettes et l'essai `VIRTUAL_ROWS` retirés (relevés ici) ; les passes de la
       sonde lancées par l'agent, exception accordée par la session principale.
-  - [ ] 22f-f. `DataGrid` : une liste paginée virtualisée dès sa première page, sans
+  - [x] 22f-f. `DataGrid` : une liste paginée virtualisée dès sa première page, sans
     monter d'un coup les 100 lignes de la deuxième ni franchir le seuil de 200 à la
     troisième (22f-e : 149 à 155 ms puis 106 à 111 ms au calme, le p95 d'une passe) —
     verify : Vitest, une `DataGrid` de 100 lignes annoncée paginée ne monte que sa fenêtre
@@ -7761,16 +7761,45 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       les autres vues qui passent `row-count` ; test voisin
       `ui/test/data-grid-rows-mounted.test.ts` ; design 020, ligne 20 de l'inventaire
       (« virtualisée au-delà de 200 lignes »)
-    - à trancher avant : le contrat de `@kartenn/ui` et la ligne du design changent. (A)
-      une liste qui annonce une page suivante est virtualisée dès sa première ligne, signal
-      à choisir (`rowCount` à `-1` tant qu'elle n'est pas complète, ce que dit déjà
-      `aria-rowcount`, ou une propriété nouvelle) : mesuré par l'essai de la 22f-e ; (B) le
-      seuil abaissé à 100 pour toutes les grilles : le franchissement passe à la première
-      page suivante, déduit sans gain ; (C) seuil gardé, lignes hors fenêtre montées par
-      tranches sous 200 : plus de code, non mesuré. Recommandé : (A) ; la recherche du
-      navigateur (Ctrl+F) ne trouve plus alors les lignes hors fenêtre d'une liste paginée,
-      ce qu'elle ne faisait déjà plus au-delà de 200.
+    - arbitré (2026-11-15, par l'utilisateur) : (A), une liste qui annonce une page
+      suivante est virtualisée dès sa première ligne ; écartées : (B) le seuil abaissé à 100
+      pour toutes les grilles (le franchissement passe à la page suivante, sans gain), (C)
+      les lignes hors fenêtre montées par tranches sous 200 (plus de code, non mesuré).
+      Contrepartie acceptée : la recherche du navigateur dans la page (Ctrl+F) ne trouve
+      que les lignes montées d'une liste paginée tant qu'une page suivante est annoncée,
+      comme au-delà de 200 lignes ; une liste sans page suivante garde le seuil de 200.
     - dépend de : 22f-e
+    - choix : le signal est `rowCount` à `-1` (ce que dit déjà `aria-rowcount`, et ce que
+      les grilles du plugin `machines` passaient déjà), aucune propriété nouvelle :
+      `paged` de `VirtualRowsHost` (`virtualRows.ts`), lu par la `DataGrid`
+      (`props.rowCount === -1`), virtualisée dès qu'elle a une ligne ; les six vues du
+      shell qui passaient `undefined` tant que la liste n'était pas lue entière
+      (`ListView`, `PropertiesView`, `AuditView`, `ImportsView`, `ChangesetsView`,
+      `ProposalsView`) passent `-1` (leur `aria-rowcount` dit désormais « inconnu » au
+      lieu du nombre de lignes chargées plus un) ; lue entière, une liste de 200 lignes au
+      plus redevient entière (seuil de 200, tel qu'arbitré : à sa dernière page, une liste
+      de 101 à 200 lignes monte d'un coup les lignes hors fenêtre) ; le test dans
+      `ui/test/data-grid-mounted.test.ts` (son banc de hauteurs) plutôt que dans
+      `data-grid-rows-mounted.test.ts` (sans hauteurs, où une grille virtualisée ne montre
+      aucune ligne) ; les tests sans mise en page dont la liste annonce une page suivante
+      (`shell/test/views.test.ts`, « the routes of the referential » ;
+      `plugins/machines/test/interfaces-view.test.ts`) donnent 600 px à la boîte de la
+      grille (`clientHeight`), sans quoi la fenêtre est vide ; la grille virtualisée, son
+      propre défileur, porte `tabindex="-1"` : le parcours au clavier
+      (`e2e/journeys/accessibility.spec.ts`, la liste des adresses, désormais virtualisée
+      dès sa première page) a montré que Firefox fait d'un défileur un arrêt de tabulation
+      avant celui de la cellule (défaut déjà là au-delà de 200 lignes, jamais testé) ; le
+      script clavier de la grille de 10 000 lignes le vérifie (`data-grid.spec.ts`).
+    - reste : la passe filtrée du banc (`bench-web small -g "page of 100 rows"`, trois
+      fois, pages 1 et 2 sous 100 ms, p95 ≤ 100 ; attendu vers 78 ms) par la session
+      principale sur le résultat fusionné, non lancée par l'agent (d'autres agents
+      tournaient). À trancher (relecture `ui-reviewer`) : virtualisée dès sa première page,
+      une liste principale paginée défile dans sa grille, plafonnée à `--k-size-list-max`
+      (480 px) quelle que soit la hauteur de la fenêtre, comme au-delà de 200 lignes : une
+      hauteur liée à la fenêtre, posée par l'hôte de l'écran de liste (le commentaire de
+      `.k-data-grid[data-virtual]` le prévoit), serait une tâche à part ; de même les grilles
+      du plugin `machines` dans les onglets d'une fiche (défileurs imbriqués, non vu en
+      rendu).
   - [x] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
     des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
     ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
