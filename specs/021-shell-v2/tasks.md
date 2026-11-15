@@ -7243,7 +7243,37 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       d'interface (rien de rendu ne change).
     - banc : non lancé par l'agent ; les deux passes filtrées du verify reviennent à la
       session principale, sur le résultat fusionné.
-    - reste : la 22e-g (B1) n'a plus d'objet tant que le protocole reste à 500 lignes/s.
+    - banc, session principale (`6cf6a991`, machine libre, charge de 1 à 4) : le budget
+      n'est PAS tenu. Deux passes : 3,20 % et 2,11 % de trames perdues, et chaque fois une
+      tâche longue, une seule, de 270 et 280 ms, dans le premier défilement. Le second
+      défilement de la même page (écrivain en arrière-plan, bench-a40) : 1,27 % et 1,19 %,
+      aucune tâche longue. Une tâche de 270 ms vaut à elle seule 1,35 % de la fenêtre de
+      20 s : sans elle, les deux passes seraient à 1,85 % et 0,76 %. Les reprises à
+      500 lignes/s de la sonde 22e-d et de la 22e-e (0,65 à 1,27 %, aucune tâche longue)
+      étaient des défilements suivants de la page, donc déjà chauds : la tâche longue du
+      premier défilement n'y paraissait pas. Reste du banc sur la même passe : shell
+      initial 239,0 Ko, premier écran 720,6 ms, Flèche bas dans l'arbre p75 12,7 ms,
+      dans une grille p75 15,3 ms, navigation en cache médiane 70,7 ms : tenus.
+    - reste : la 22e-g (B1) n'a plus d'objet tant que le protocole reste à 500 lignes/s ;
+      la tâche longue du premier défilement à la 22e-i.
+  - [ ] 22e-i. Tâche longue du premier défilement de l'arbre : une tâche de 270 à 280 ms,
+    une seule, au premier défilement scénarisé de 10⁴ lignes (deux passes sur
+    `6cf6a991`), absente du second défilement de la même page ; elle fait à elle seule
+    échouer le budget (aucune tâche longue, 2 % de trames). Sonde d'abord, aucune
+    correction : dire ce qu'est cette tâche (trace CDP du premier défilement : script,
+    style, mise en page, ramasse-miettes ; code froid du recyclage des lignes, première
+    pose de `data-scrolling` de la 22e-e et son recalcul de style sur le corps, plugin
+    encore en montage comme à la 22f-g, première mesure de `useVirtualRows`), si un
+    utilisateur la subit (premier coup de molette sur un grand conteneur) ou si le banc
+    seul la provoque (saut de `scrollTop` d'un coup), puis les corrections possibles
+    avec leur coût — verify : la tâche attribuée par une trace, reproduite deux fois ;
+    un essai de contrôle qui la retire ; les corrections inscrites en sous-tâches avec
+    `où :` et `verify`
+    - où : `web/v2/e2e/budgets/budgets.spec.ts` (test de l'arbre, vers 897 ; `scrollRows`,
+      `K_BENCH_TREE_AB`), `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (écouteur
+      `scroll`, `data-scrolling`), `ui/src/components/internal/virtualRows.ts` ; méthode
+      de la 22e-d et de la 22f-e (lignes `INFO` par échantillon, essai de contrôle)
+    - dépend de : 22e-f
   - [ ] 22e-g. (B1, à arbitrer) Le « + » monté sur la seule ligne active (focus,
     sélection, survol) au lieu d'un bouton transparent sur chaque ligne (ce que
     l'utilisateur perd : en mode navigation, le lecteur d'écran ne lit plus le « + » des
@@ -7824,6 +7854,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       plafonnée à `--k-size-list-max` (480 px) quelle que soit la hauteur de la fenêtre,
       comme au-delà de 200 lignes, et les grilles du plugin `machines` dans les onglets
       d'une fiche peuvent imbriquer deux défileurs (non vu en rendu).
+    - banc, session principale (`6cf6a991`, après la 22f-h, machine libre, trois
+      passes) : budget tenu, de peu. p95 86,4 ms, 98,7 ms et 95,1 ms (budget 100) ;
+      médianes 75,2, 80,0 et 82,1 ms ; pires échantillons 86,9, 120,5 et 106,9 ms.
+      L'attente de 78 ms (essai de contrôle de la 22f-e) n'est pas atteinte : la marge
+      est de 1 à 14 ms, une passe sous charge peut la perdre.
   - [x] 22f-h. Hauteur d'une grille virtualisée : sur un écran de liste du shell, la grille
     prend la hauteur restante de la fenêtre et porte le seul défilement de l'écran (plus
     de boîte de 480 px dans une page qui défile elle aussi) ; avant la bascule et avant
