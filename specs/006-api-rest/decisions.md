@@ -30,6 +30,9 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
 - H22 libellés et suggestions (spec 018) : corps neutres en langue (`labels`), seul
   `GET /v1/labels` varie selon la langue ; `q` sur les listes citables, `/values`
   datées, `GET /v1/rules`.
+- H23 lectures par fenêtre : propriétés par lots, filtre `id`, résumé complet de toute
+  référence, `{id, label, href}` (et `slug` là où il existe), `{id}` seul pour un lié
+  illisible.
 
 ## H1 — Périmètre
 - Décision : **conventions transverses et toute la surface existante** : erreurs,
@@ -559,6 +562,18 @@ briques des specs 002 à 005 et 012 ; ce que la 005 laisse à la couche HTTP (fi
   protègent le serveur) ; un ETag sur le lot (empreinte de 200 objets, aucun client ne
   la rejoue).
 - Décidé par : l'utilisateur (2026-11-14), sur proposition ; forme du contrat : Claude
+- Précision (2026-11-15, tâche 33b) : forme de la clé naturelle d'un résumé. Un membre
+  `label`, une chaîne, uniforme pour tous les types (clé simple, clé composée, type d'un
+  module) ; `slug` reste là où il existe déjà. `label` : le slug (domaine, entité, site,
+  groupe de VLAN), la valeur canonique (préfixe, adresse), `<première> – <dernière>`
+  (plage), `<vid> · <nom>` (VLAN), la clé que donne le module pour ses types
+  (`ModuleHandler::keys`) ; les formes que le shell montre déjà. Le `label` ne dit rien
+  d'un autre objet que l'appelant ne lit peut-être pas : ni le domaine d'un préfixe, ni
+  le groupe d'un VLAN, ce qui le garde aussi simple qu'une seule lecture. Un lié
+  illisible, inconnu ou absent aux dates rend `{id}` seul, sans `label` (forme de la
+  33a). Rejeté : un membre par part de la clé composée (`domain` et `value`, groupe et
+  `vid`), qui varierait d'un type à l'autre et dirait le lié du lié. Décidé par :
+  l'utilisateur (2026-11-15) ; compositions : Claude.
 
 ## Fin de l'entretien
 Plus aucune question ne change les exigences. Restes de la 005 (attributs des cookies,

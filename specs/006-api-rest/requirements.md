@@ -522,10 +522,21 @@ kartenn doit rendre toute référence à un objet, dans tout corps, sous la form
 de REQ-006-2 ; si l'objet visé n'est pas lisible par l'appelant, alors kartenn ne doit
 rendre que son identifiant. [H23, 005]
 
+*Précision du 2026-11-15 (H23, tâche 33b)* : la clé naturelle d'un résumé se lit dans un
+membre `label`, une chaîne, le même pour tous les types ; `slug` reste, à côté, sur les
+résumés des types qui en ont un. `label` est la clé telle qu'un humain la lit : le slug
+d'un domaine, d'une entité, d'un site ou d'un groupe de VLAN ; la valeur canonique d'un
+préfixe (CIDR) ou d'une adresse ; les bornes d'une plage, `<première> – <dernière>` ;
+`<vid> · <nom>` pour un VLAN ; pour un type d'un module, la clé que donne le module. Il
+ne dit rien d'un autre objet : ni le domaine d'un préfixe, d'une plage ou d'une
+adresse, ni le groupe d'un VLAN.
+
 Acceptation :
 - L'objet d'une anomalie et d'un écart, l'ancre et le groupe d'un VLAN, et la valeur
-  d'une propriété de type référence portent `{id, <clé naturelle>, href}`.
-- Pour un objet illisible par l'appelant : `{id}` seul, identique pour un objet inconnu.
+  d'une propriété de type référence portent `{id, label, href}` (et `slug` pour un type
+  à slug) ; une valeur à plusieurs références, un tableau de tels résumés.
+- Pour un objet illisible par l'appelant : `{id}` seul, identique pour un objet inconnu
+  ou absent aux dates de la lecture ; `label`, `slug` et `href` sont omis ensemble.
 - L'ETag composite (H19) change quand la clé naturelle d'un objet lié change.
 
 ## Non-objectifs
