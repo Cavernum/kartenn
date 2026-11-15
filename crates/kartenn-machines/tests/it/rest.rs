@@ -1544,3 +1544,262 @@ async fn hypervisor_follows_hosting(pool: PgPool) {
     let (status, _, body) = call(&admin, "GET", "/v1/machines?hypervisor=yes", None, &[]).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 }
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let request = Request::builder()
+        .uri(uri)
+        .header(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer test"),
+        )
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// `QUERY /v1/{collection}` filtered by the values `values` of `field`.
+async fn query_values(
+    app: &Router,
+    collection: &str,
+    field: &str,
+    values: &[Uuid],
+) -> (StatusCode, Value) {
+    let values: Vec<String> = values.iter().map(Uuid::to_string).collect();
+    let query = json!({"filters": [{"field": field, "value": values}]});
+    let (status, _, body) = call(
+        app,
+        "QUERY",
+        &format!("/v1/{collection}"),
+        Some(("application/json", query)),
+        &[],
+    )
+    .await;
+    (status, body)
+}
+
+/// The filter `id` of the clusters, the machines and the interfaces (REQ-006-41, task
+/// 006-32b): the objects among the identifiers that the caller may read, in conjunction with
+/// the other filters, in one page without a next one; an unreadable one is absent as an
+/// unknown one, headers and bytes included.
+#[kartenn_testing::pg_test]
+async fn clusters_machines_and_interfaces_filtered_by_identifier(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    env.applied(vec![
+        op(
+            "create_cluster",
+            json!({"slug": "c1", "owner": {"id": acme}}),
+        ),
+        op(
+            "create_cluster",
+            json!({"slug": "c2", "owner": {"id": other}}),
+        ),
+    ])
+    .await;
+    let cluster = "SELECT id FROM machines.cluster WHERE slug = $1 AND valid_period @> now()";
+    let (c1, c2) = (env.id(cluster, "c1").await, env.id(cluster, "c2").await);
+    let (web1, eth1) = env.machine("web1", acme).await;
+    let (web2, eth2) = env.machine("web2", acme).await;
+    let (webx, ethx) = env.machine("webx", other).await;
+    let reader = env
+        .person(
+            &[
+                "machines.cluster.read",
+                "machines.read",
+                "machines.interface.read",
+            ],
+            Some(acme),
+        )
+        .await;
+    let app = env.app(reader);
+    let unknown = Uuid::now_v7();
+    for (uri, field, expected) in [
+        (format!("clusters?id={c2}&id={c1}"), "id", vec![c1]),
+        (
+            format!("clusters?id={unknown}&id={c1}&slug=c1"),
+            "id",
+            vec![c1],
+        ),
+        (format!("clusters?id={c1}&slug=c2"), "id", vec![]),
+        (
+            format!("machines?id={webx}&id={web2}&id={web1}&id={web1}"),
+            "id",
+            vec![web1, web2],
+        ),
+        (
+            format!("machines?id={web1}&id={web2}&name=web2"),
+            "id",
+            vec![web2],
+        ),
+        (format!("interfaces?id={ethx}&id={eth1}"), "id", vec![eth1]),
+        (
+            format!("interfaces?id={eth1}&id={eth2}&machine={web2}"),
+            "id",
+            vec![eth2],
+        ),
+    ] {
+        let (status, _, body) = call(&app, "GET", &format!("/v1/{uri}"), None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        let expected: Vec<String> = expected.iter().map(Uuid::to_string).collect();
+        assert_eq!(ids(&body, field), expected, "{uri}");
+    }
+    // The unreadable object leaves the answer of an unknown identifier, in one page.
+    for (collection, unreadable, known) in [
+        ("clusters", c2, c1),
+        ("machines", webx, web1),
+        ("interfaces", ethx, eth1),
+    ] {
+        let mut answers = Vec::new();
+        for absent in [unknown, unreadable] {
+            let uri = format!("/v1/{collection}?id={absent}&id={known}");
+            answers.push(answer(&app, &uri).await);
+        }
+        assert_eq!(
+            answers[0], answers[1],
+            "{collection}: unknown and unreadable"
+        );
+        assert_eq!(answers[0].0, StatusCode::OK, "{collection}");
+        assert!(answers[0].1.get("link").is_none(), "{collection}");
+    }
+    // Past the default size of a page, one page without a next one.
+    let many: Vec<Operation> = (0..101)
+        .map(|n| {
+            op(
+                "create_machine",
+                json!({"name": format!("m{n:03}"), "kind": "physical", "owner": {"id": acme}}),
+            )
+        })
+        .collect();
+    env.applied(many).await;
+    let wanted: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM machines.machine WHERE name LIKE 'm%' AND valid_period @> now()",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let (status, body) = query_values(&app, "machines", "id", &wanted).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["items"].as_array().unwrap().len(), 101);
+    assert!(body["links"]["next"].is_null(), "{}", body["links"]);
+    // `page_size` or a cursor beside `id`, or an identifier that is not one → 400 naming it.
+    let (_, _, first) = call(&app, "GET", "/v1/machines?page_size=1", None, &[]).await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (format!("/v1/clusters?id={c1}&page_size=5"), "page_size"),
+        (format!("/v1/machines?id={web1}&page_size=5"), "page_size"),
+        (format!("/v1/interfaces?id={eth1}&page_size=5"), "page_size"),
+        (format!("{next}&id={web1}"), "id"),
+        ("/v1/clusters?id=c1".to_owned(), "id"),
+    ] {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert!(body["detail"].to_string().contains(named), "{uri}: {body}");
+    }
+}
+
+/// The filter `address`, repeated, of the interfaces (REQ-006-41, task 006-32b): the
+/// interfaces that hold one of the addresses, a shared one on each of its interfaces, in
+/// conjunction with the other filters, in one page without a next one; a thousand
+/// addresses at most.
+#[kartenn_testing::pg_test]
+async fn interfaces_filtered_by_several_addresses(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (_, eth1) = env.machine("web1", acme).await;
+    let (web2, eth2) = env.machine("web2", acme).await;
+    let (_, eth3) = env.machine("web3", acme).await;
+    let (first, second) = (
+        env.address("10.0.0.10").await,
+        env.address("10.0.0.20").await,
+    );
+    let third = env.address("10.0.0.30").await;
+    env.applied(vec![Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(env.domain().await),
+        address: "10.0.0.40".into(),
+        usage: AddressUsage::Vip,
+    }])
+    .await;
+    let shared = env
+        .id(
+            "SELECT id FROM address WHERE address = $1::inet AND valid_period @> now()",
+            "10.0.0.40",
+        )
+        .await;
+    env.applied(vec![
+        attach(eth1, first),
+        attach(eth2, second),
+        attach(eth3, third),
+        attach(eth1, shared),
+        attach(eth3, shared),
+    ])
+    .await;
+    let app = env.app(env.admin().await);
+    let unknown = Uuid::now_v7();
+    let sorted = |mut found: Vec<String>| {
+        found.sort();
+        found
+    };
+    let set = |wanted: &[Uuid]| sorted(wanted.iter().map(Uuid::to_string).collect());
+    for (uri, expected) in [
+        (
+            format!("address={first}&address={second}"),
+            set(&[eth1, eth2]),
+        ),
+        (format!("address={unknown}&address={first}"), set(&[eth1])),
+        (format!("address={shared}"), set(&[eth1, eth3])),
+        (
+            format!("address={first}&address={second}&machine={web2}"),
+            set(&[eth2]),
+        ),
+        (
+            format!("address={first}&address={second}&id={eth1}&id={eth3}"),
+            set(&[eth1]),
+        ),
+    ] {
+        let uri = format!("/v1/interfaces?{uri}");
+        let (status, headers, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        assert_eq!(sorted(ids(&body, "id")), expected, "{uri}");
+        assert!(headers.get("link").is_none(), "{uri}");
+        assert!(body["links"]["next"].is_null(), "{uri}");
+    }
+    // A thousand addresses at most, read through a `QUERY`.
+    let mut wanted: Vec<Uuid> = (0..999).map(|_| Uuid::now_v7()).collect();
+    wanted.push(second);
+    let (status, body) = query_values(&app, "interfaces", "address", &wanted).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body, "id"), [eth2.to_string()]);
+    wanted.push(Uuid::now_v7());
+    let (status, body) = query_values(&app, "interfaces", "address", &wanted).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["detail"]
+            .to_string()
+            .contains("address is given more than 1000 times"),
+        "{body}"
+    );
+    // `page_size` or a cursor beside `address`, or a value that is not an identifier → 400
+    // naming it.
+    let (_, _, page) = call(&app, "GET", "/v1/interfaces?page_size=1", None, &[]).await;
+    let next = page["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (
+            format!("/v1/interfaces?address={first}&page_size=5"),
+            "page_size",
+        ),
+        (format!("{next}&address={first}"), "address"),
+        ("/v1/interfaces?address=10.0.0.10".to_owned(), "address"),
+    ] {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert!(body["detail"].to_string().contains(named), "{uri}: {body}");
+    }
+}

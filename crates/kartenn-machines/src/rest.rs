@@ -17,6 +17,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::routing::{delete, get, post};
 use kartenn_rest::ModuleRouter;
+use kartenn_rest::cursor::MAX_SIZE;
 use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
     ProblemKind, documented, listing_of, next_href, op, queryable, respond_page, schemas_of,
@@ -577,21 +578,90 @@ fn interface_dto(row: InterfaceRow) -> InterfaceDto {
     }
 }
 
-/// The filters of a list, each given once, among `names`.
-fn filters<'a>(
-    page: &'a Page,
-    names: &[&str],
-) -> Result<std::collections::BTreeMap<&'a str, &'a str>, Problem> {
+/// The filters of a list by name, the identifiers of its filter `id`, and the addresses of
+/// its filter `address` when it is one of its names.
+type Filters<'a> = (
+    std::collections::BTreeMap<&'a str, &'a str>,
+    Vec<Uuid>,
+    Vec<Uuid>,
+);
+
+/// The filters of a list, each given once, among `names`; `id` (H23, REQ-006-41) and
+/// `address` (of the interfaces) given once per value, each value read once, [`MAX_SIZE`]
+/// values at most (see [`kartenn_rest::filter::ids`]).
+fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
     let mut found = std::collections::BTreeMap::new();
+    let (mut ids, mut addresses) = (Vec::new(), Vec::new());
     for (name, value) in &page.filters {
+        if name == "id" {
+            kartenn_rest::filter::push_id(&mut ids, value)?;
+            continue;
+        }
         if !names.contains(&name.as_str()) {
             return Err(kit::bad(format!("unknown parameter {name}")));
+        }
+        if name == "address" {
+            if addresses.len() == usize::from(MAX_SIZE) {
+                return Err(kit::bad(format!(
+                    "address is given more than {MAX_SIZE} times"
+                )));
+            }
+            addresses.push(uuid(name, value)?);
+            continue;
         }
         if found.insert(name.as_str(), value.as_str()).is_some() {
             return Err(kit::bad(format!("{name} is given more than once")));
         }
     }
-    Ok(found)
+    for values in [&mut ids, &mut addresses] {
+        values.sort_unstable();
+        values.dedup();
+    }
+    Ok((found, ids, addresses))
+}
+
+/// The rows a list filtered by the identifiers `ids` and the addresses `addresses` reads,
+/// and the size past which it offers a next page: those of
+/// [`kartenn_rest::filter::window`] for `id`. Filtered by `address` (task 006-32b), a list
+/// is one page as well, without a next one, so that no cursor carries the addresses: a
+/// shared address (`vip`, `anycast`) being held by several interfaces, it reads the largest
+/// page and one more row, the one [`one_page`] refuses.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `page_size` or `cursor` beside `id` or `address`.
+fn window(page: &Page, ids: &[Uuid], addresses: &[Uuid]) -> Result<(i64, usize), Problem> {
+    let window = kartenn_rest::filter::window(page, ids)?;
+    if addresses.is_empty() || !ids.is_empty() {
+        return Ok(window);
+    }
+    if page.after().is_some() {
+        return Err(kit::bad(
+            "cursor does not go with address: a list filtered by address is one page",
+        ));
+    }
+    if page.sized() {
+        return Err(kit::bad(
+            "page_size does not go with address: a list filtered by address is one page",
+        ));
+    }
+    Ok((i64::from(MAX_SIZE) + 1, usize::MAX))
+}
+
+/// `rows`, read by [`window`] for the addresses `addresses`, if they fit in one page.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `address`: these addresses are held by more interfaces than
+/// the largest page.
+fn one_page<T>(rows: Vec<T>, addresses: &[Uuid]) -> Result<Vec<T>, Problem> {
+    if !addresses.is_empty() && rows.len() > usize::from(MAX_SIZE) {
+        return Err(kit::bad(format!(
+            "address: these addresses are held by more than {MAX_SIZE} interfaces, the \
+             largest page"
+        )));
+    }
+    Ok(rows)
 }
 
 fn uuid(name: &str, text: &str) -> Result<Uuid, Problem> {
@@ -650,7 +720,8 @@ async fn list_clusters(
 ) -> Result<Response, Problem> {
     const NAME: &str = "clusters";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(&page, &["slug", "q"])?;
+    let (wanted, ids, _) = filters(&page, &["slug", "q"])?;
+    let (limit, size) = window(&page, &ids, &[])?;
     let after = after::<(String, Uuid)>(&page)?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let sql = format!(
@@ -660,6 +731,7 @@ async fn list_clusters(
           WHERE ($4::text IS NULL OR x.slug = $4)
             AND ($5::text IS NULL OR (x.slug, x.id) > ($5, $6::uuid))
             AND ($8::text IS NULL OR x.slug LIKE $8)
+            AND (cardinality($9::uuid[]) = 0 OR x.id = ANY($9))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $7",
@@ -677,12 +749,12 @@ async fn list_clusters(
         .bind(wanted.get("slug").copied())
         .bind(after.as_ref().map(|(slug, _)| slug.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
+        .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -727,10 +799,13 @@ struct MachineFilter<'a> {
     site: Option<Uuid>,
     /// Holding an address of this network.
     network: Option<Uuid>,
+    /// Among these machines (H23, REQ-006-41); empty: no such filter.
+    ids: &'a [Uuid],
 }
 
 /// A page of the machines of `filter` the caller may read, by name, answered under the
 /// path `path` (`machines`, `machines/{id}/hosted`, `clusters/{id}/machines`).
+#[allow(clippy::too_many_lines)] // a list, its filters, its query and the reads it journals
 async fn machines_page(
     api: &Api,
     principal: &Principal,
@@ -740,6 +815,7 @@ async fn machines_page(
     path: &str,
     filter: &MachineFilter<'_>,
 ) -> Result<Response, Problem> {
+    let (limit, size) = window(page, filter.ids, &[])?;
     let after = after::<(String, Uuid)>(page)?;
     let (moment, scope) = reading(api, principal, page).await?;
     // Correlated in `LATERAL` joins from the network down: the generic plan the pool's
@@ -812,6 +888,7 @@ async fn machines_page(
             AND ($11::text IS NULL OR (x.name, x.id) > ($11, $12::uuid))
             AND ($13::uuid IS NULL OR {network})
             AND ($15::text IS NULL OR x.name LIKE $15)
+            AND (cardinality($16::uuid[]) = 0 OR x.id = ANY($16))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.name, x.id
           LIMIT $14",
@@ -836,12 +913,12 @@ async fn machines_page(
         .bind(after.as_ref().map(|(name, _)| name.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(filter.network)
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(filter.suggestion)
+        .bind(filter.ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -893,7 +970,7 @@ async fn list_machines(
 ) -> Result<Response, Problem> {
     const NAME: &str = "machines";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(
+    let (wanted, ids, _) = filters(
         &page,
         &[
             "q",
@@ -928,6 +1005,7 @@ async fn list_machines(
         owner: optional_uuid(&wanted, "owner")?,
         site: optional_uuid(&wanted, "site")?,
         network: optional_uuid(&wanted, "network")?,
+        ids: &ids,
     };
     machines_page(&api, &principal, &context, &headers, &page, NAME, &filter).await
 }
@@ -1062,11 +1140,12 @@ fn network_addresses() -> String {
     )
 }
 
-/// `GET`/`QUERY /v1/interfaces`: by machine then name, filtered by `machine`, `name`,
-/// `mac`, `address` (the interface that holds it at the date) and `vlan` (access, native
-/// or tagged), `media` (the key of its `machines.interface_media`, REQ-009-26) and
-/// `network` (holding an address of the network the caller may read; each interface then
-/// carries those addresses, 021/A28), in conjunction (REQ-009-15).
+/// `GET`/`QUERY /v1/interfaces`: by machine then name, filtered by `id`, `machine`, `name`,
+/// `mac`, `address` (repeated: the interfaces that hold one of them at the date, one page,
+/// REQ-006-41) and `vlan` (access, native or tagged), `media` (the key of its
+/// `machines.interface_media`, REQ-009-26) and `network` (holding an address of the network
+/// the caller may read; each interface then carries those addresses, 021/A28), in
+/// conjunction (REQ-009-15).
 #[allow(clippy::too_many_lines)] // a list, its filters, its query and the reads it journals
 async fn list_interfaces(
     State(api): State<Api>,
@@ -1077,14 +1156,14 @@ async fn list_interfaces(
 ) -> Result<Response, Problem> {
     const NAME: &str = "interfaces";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(
+    let (wanted, ids, holding) = filters(
         &page,
         &[
             "machine", "name", "mac", "address", "vlan", "media", "network", "q",
         ],
     )?;
+    let (limit, size) = window(&page, &ids, &holding)?;
     let machine = optional_uuid(&wanted, "machine")?;
-    let address = optional_uuid(&wanted, "address")?;
     let vlan = optional_uuid(&wanted, "vlan")?;
     let network = optional_uuid(&wanted, "network")?;
     let mac = wanted
@@ -1109,14 +1188,16 @@ async fn list_interfaces(
           WHERE ($4::uuid IS NULL OR x.machine_id = $4)
             AND ($5::text IS NULL OR x.name = $5)
             AND ($6::macaddr IS NULL OR x.mac = $6::macaddr)
-            AND ($7::uuid IS NULL OR EXISTS (
-                     SELECT 1 FROM {} a WHERE a.interface_id = x.id AND a.address_id = $7))
+            AND (cardinality($7::uuid[]) = 0 OR EXISTS (
+                     SELECT 1 FROM {} a
+                      WHERE a.interface_id = x.id AND a.address_id = ANY($7)))
             AND ($8::uuid IS NULL OR x.access_vlan_id = $8 OR x.native_vlan_id = $8
                  OR $8 = ANY(x.tagged_vlan_ids))
             AND ($9::uuid IS NULL OR (x.machine_id, x.name, x.id) > ($9, $10::text, $11::uuid))
             AND ($13::text IS NULL OR lower(x.name) LIKE $13)
             AND ($14::text IS NULL OR {media})
             AND ($15::uuid IS NULL OR {in_network})
+            AND (cardinality($16::uuid[]) = 0 OR x.id = ANY($16))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.machine_id, x.name, x.id
           LIMIT $12) x
@@ -1131,7 +1212,7 @@ async fn list_interfaces(
     );
     // The rows of the page and their versions are read in one snapshot (task 021-11c).
     let mut snapshot = kit::snapshot(&api).await?;
-    let mut rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+    let rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
         .bind(moment.valid_at)
@@ -1140,19 +1221,20 @@ async fn list_interfaces(
         .bind(machine)
         .bind(wanted.get("name").copied())
         .bind(mac.as_deref())
-        .bind(address)
+        .bind(&holding)
         .bind(vlan)
         .bind(after.as_ref().map(|a| a.0))
         .bind(after.as_ref().map(|a| a.1.as_str()))
         .bind(after.as_ref().map(|a| a.2))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
         .bind(wanted.get("media").copied())
         .bind(network)
+        .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
+    let mut rows = one_page(rows, &holding)?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -1492,10 +1574,13 @@ fn collection_routes(
         &format!("list_{name}"),
         "machines",
         &format!("The {name} the caller may read."),
-    );
+    )
+    .ids();
     for (filter, description) in filters {
         list_op = if *filter == "q" {
             list_op.suggestion(description)
+        } else if *filter == "address" {
+            list_op.repeated(filter, description, true, false)
         } else if filter.ends_with(":exists") || *filter == HYPERVISOR {
             list_op.filter(filter, description, bool::schema(), None)
         } else {
@@ -1757,7 +1842,13 @@ pub fn routes() -> ModuleRouter {
             ("machine", "Of this machine."),
             ("name", "Equal to."),
             ("mac", "This EUI-48, any usual notation."),
-            ("address", "Holding this address at the date."),
+            (
+                "address",
+                "Holding this address at the date (repeated: one of), 1000 at most: one \
+                 page holds them all, without a next page, and goes with neither page_size \
+                 nor a cursor; more than 1000 interfaces holding them (shared addresses) \
+                 is refused.",
+            ),
             ("vlan", "Carrying this VLAN, access, native or tagged."),
             (
                 "media",
@@ -1871,4 +1962,23 @@ pub fn routes() -> ModuleRouter {
             Vec::new(),
             delete(detach),
         ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_list_by_address_holds_the_largest_page_at_most() {
+        let largest = usize::from(MAX_SIZE);
+        let address = [Uuid::nil()];
+        assert_eq!(
+            one_page(vec![(); largest], &address).unwrap().len(),
+            largest
+        );
+        let refused = one_page(vec![(); largest + 1], &address).unwrap_err();
+        assert!(format!("{refused:?}").contains("address"), "{refused:?}");
+        // Without `address`, the rows are those of a page and its one more row.
+        assert!(one_page(vec![(); largest + 1], &[]).is_ok());
+    }
 }

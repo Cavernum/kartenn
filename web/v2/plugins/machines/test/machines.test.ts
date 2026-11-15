@@ -248,7 +248,7 @@ describe("the machines plugin", () => {
         const query = () =>
           queryClient
             .getQueryCache()
-            .find({ queryKey: reads.list("/v1/interfaces", { address: ADDRESS }).queryKey });
+            .find({ queryKey: reads.list("/v1/interfaces", { address: [ADDRESS] }).queryKey });
         expect(held).toBe(1);
         expect(query()?.getObserversCount()).toBe(1);
         // Moved: let go at its disconnection, followed again at its connection.

@@ -744,7 +744,7 @@ routeur complet, sauf mention « vrai TCP ».
   `QUERY` ; `prefetchFilters` (`web/v2/shell/src/views/routes.ts`, vers la ligne 66) lit
   le modèle du SDK, sans `LEFT_OUT` : une URL portant `id` (ou `q`) serait préchargée
   sous une autre clé que celle que la vue lit (le shell n'écrit pas `id` dans une URL).
-- [ ] 32b. Listes des machines : `id` sur les grappes, machines et interfaces ; `address`
+- [x] 32b. Listes des machines : `id` sur les grappes, machines et interfaces ; `address`
   répété sur les interfaces (un parmi) — verify : `k-check -p kartenn-machines` (deux
   identifiants dont un illisible : un seul rendu ; conjonction ; deux adresses : leurs
   deux interfaces ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400,
@@ -753,6 +753,37 @@ routeur complet, sauf mention « vrai TCP ».
     `list_interfaces` vers les lignes 644, 887, 1071 ; `optional_uuid` de `address` →
     `uuid[]`)
   - dépend de : 32a
+  fait : `crates/kartenn-machines/src/rest.rs` (`filters` lit `id` par
+  `filter::push_id` et `address` répété dans le même parcours, chacun dédoublonné, 1000
+  au plus ; `window` : celle de `filter::window` pour `id`, et pour `address` seul une
+  page sans suite qui lit la plus grande page et une ligne de plus ; `one_page` refuse
+  au-delà ; `cardinality($n::uuid[]) = 0 OR x.id = ANY($n)` sous le prédicat de lecture
+  dans les trois listes, `a.address_id = ANY($7)` dans la jointure des rattachements ;
+  `MachineFilter.ids`, vide pour les machines hébergées et celles d'une grappe ; contrat :
+  `Op::ids` en tête de chaque liste, `address` par `Op::repeated`, tableau d'UUID) ;
+  contrat et types des deux SDK régénérés (`schema.d.ts`, `filters.ts`). Tests :
+  `machines/tests/it/rest.rs` `clusters_machines_and_interfaces_filtered_by_identifier`
+  (illisible = inconnu, statut, en-têtes hors `request-id` et octets ; conjonction avec
+  `slug`, `name`, `machine` ; 101 machines par `QUERY`, au-delà de la page par défaut :
+  une page sans suite ; `page_size` ou curseur avec `id` → 400 qui le nomme ; UUID mal
+  formé → 400), `interfaces_filtered_by_several_addresses` (deux adresses : leurs deux
+  interfaces ; une adresse partagée `vip` : ses deux interfaces ; conjonction avec
+  `machine` et `id` ; une page sans suite ; 1000 adresses → 200, 1001 → 400 ;
+  `page_size` ou curseur → 400 qui le nomme) ; test unitaire de `one_page`.
+  Côté web : `address` passe de `string` à `array` dans `FILTERS`, et reste dans la barre
+  du shell (le type `array` y tombe sur le texte, comme avant) ; le greffon machines de
+  `web/v2` l'envoie en tableau d'un élément (`MachineColumn.vue`, `InterfacesTab.vue`,
+  `InterfaceSearch.vue`, clé attendue de `test/machines.test.ts`), sans `page_size`.
+  choix : `address`, donné une fois ou plus, suit la règle d'`id` (une page sans suite,
+  `page_size` ou curseur → 400, 1000 valeurs au plus) : un curseur ne porte pas mille
+  adresses ; une adresse partagée (`vip`, `anycast`) tenant plusieurs interfaces, la page
+  lit la plus grande page (1000) et refuse par un 400 qui nomme `address` au-delà, plutôt
+  que de tronquer ; avec `id`, la borne est celle d'`id` ; doublons lus une fois.
+  reste : `address=<uuid>` répond sur une adresse que l'appelant ne lit pas (l'interface
+  lisible qui la tient est rendue) : oracle d'existence et de rattachement, antérieur,
+  voisin de la 35 ; une adresse partagée par plus de 1000 interfaces ne se liste plus par
+  `address` (400) ; le refus au-delà de 1000 interfaces n'est couvert que par le test
+  unitaire de `one_page`.
 - [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
   `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
   conjonction ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400, par

@@ -89,6 +89,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "section", type: "string" },
   ],
   "/v1/clusters": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "q", type: "string" },
   ],
@@ -161,10 +162,11 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/ingresses/{id}/history": [],
   "/v1/interfaces": [
+    { name: "id", type: "array" },
     { name: "machine", type: "string" },
     { name: "name", type: "string" },
     { name: "mac", type: "string" },
-    { name: "address", type: "string" },
+    { name: "address", type: "array" },
     { name: "vlan", type: "string" },
     { name: "media", type: "string" },
     { name: "network", type: "string" },
@@ -215,6 +217,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/kube-services/{id}/history": [],
   "/v1/kube-tracked-labels/{id}/history": [],
   "/v1/machines": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "name_prefix", type: "string" },
     { name: "q", type: "string" },

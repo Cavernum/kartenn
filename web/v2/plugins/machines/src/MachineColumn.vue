@@ -35,7 +35,7 @@ const address = computed(() => {
 /** The address whose turn came: its interfaces are followed from then on. */
 const turn = shallowRef<string | null>(null);
 const list = useList<Interface, never>(() =>
-  turn.value ? (reads.list("/v1/interfaces", { address: turn.value }) as never) : null,
+  turn.value ? (reads.list("/v1/interfaces", { address: [turn.value] }) as never) : null,
 );
 
 let live = true;
