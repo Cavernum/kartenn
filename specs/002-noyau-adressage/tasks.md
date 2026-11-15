@@ -449,13 +449,31 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       des droits reste inchangé ailleurs ; A généralisée n'est pas retenue pour la v0.2
       (`machines.read`, `machines.cluster.read` sur l'hôte et la grappe, extension de M16)
       comme décision de la spec 009
-- [ ] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
+- [x] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
   vigueur au début de sa période (son objet existant, lu par la complétion, reste hors du
   contrôle, 29b2) — REQ-002-12 (amendée) — verify : test d'intégration rouge d'abord
   (`kartenn-kube`) ; `k-check -p kartenn-kube`
   où : `crates/kartenn-kube/src/handler.rs` (complétion des observations), tests
   `crates/kartenn-kube/tests/it/`
   dépend de : 29b1
+  - fait le 2026-11-15 : aucun code changé, aucun test rouge trouvé. La complétion
+    (`Kube::prepare`) et le contrôle des désignations lisent à la même date, le début de
+    la période propre de l'opération (`pipeline::prepare_operation` et
+    `unknown_designations`, `own.or(period)`), et chaque lecture de la complétion
+    (`pg::named`, `namespaced`, `namespaced_closed`, `pod_domain`, domaines, sélection,
+    adresses) prend cette date. Test `clusters::an_antedated_batch_reaches_nothing_not_yet_in_force`
+    (lot du connecteur dans un `Within` qui commence après la grappe et son espace de
+    noms, avant le reste) : clôture et absence d'un nœud, clôture d'une charge, d'un
+    service, d'une entrée créés après ce début : `kube.operation.invalid` (rien à clore) ;
+    leur `upsert` crée un autre objet, refusé par `kube.{node,workload,service,ingress}.duplicate`
+    (le nom est pris sur la période) ; la machine d'un nœud créée après :
+    `core.reference.unknown` (`detail.field` `machine`) ; une grappe créée après :
+    `kube.operation.invalid` ; chaque fois, aucune ligne changée (versions des tables du
+    module, `module_object`, préfixes, adresses, affectations)
+  - reste : une grappe absente au début de la période (créée plus tard, inconnue ou
+    close) est refusée par le module (`kube.operation.invalid`, « is not a living
+    cluster », `plan_sync` sans domaine de pods), avant les droits et avant le contrôle
+    des désignations, et non par `core.reference.unknown` (amendement 17) : à la 29d
 - [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`,
   typées par la 29b1 : tests de refus et cas particuliers (champs de `Fields` dans
   `kartenn-policy`) — REQ-002-12 (amendée) —
@@ -464,6 +482,12 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   `crates/kartenn-flow/src/handler.rs` ; `crates/kartenn-policy/src/handler.rs`,
   `matrix.rs`, `objects.rs`, `infer.rs`
   dépend de : 29b1
+  - constat de la 29c3 : la grappe d'un `sync` absente au début de sa période (inconnue,
+    close ou créée plus tard) est refusée par `plan_sync` (`kube.operation.invalid`,
+    « is not a living cluster », la complétion n'ayant pas trouvé son domaine de pods),
+    à la planification, avant les droits et le contrôle des désignations ; l'amener à
+    `core.reference.unknown` sans dire l'absence à qui ne lit pas la grappe (INV-63)
+    touche l'ordre du pipeline, comme les options de la 29c2
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
