@@ -1054,7 +1054,7 @@ routeur complet, sauf mention « vrai TCP ».
     et `parent`), `crates/kartenn-rest/src/filter.rs` ;
     `crates/kartenn-machines/src/rest.rs` (`holds_requested`, sous `address_visible`, à
     imiter)
-- [ ] 36. Page des flux coupée avant le filtre de lecture (sécurité, antérieur à la 32c,
+- [x] 36. Page des flux coupée avant le filtre de lecture (sécurité, antérieur à la 32c,
   relevé par sa revue) : sans `id`, `/v1/flows` (et `/{collection}/{id}/flows`) lit la
   page et une ligne de plus, coupe la page et calcule son curseur sur les lignes brutes,
   puis seulement écarte les flux que l'appelant ne lit pas (`flows_seen`,
@@ -1077,3 +1077,30 @@ routeur complet, sauf mention « vrai TCP ».
     filtres, à imiter) ; tests `flow/tests/it/rest.rs`
     (`pending_requests_are_paged_after_the_applied_flows`, à imiter)
   - dépend de : —
+  fait : `crates/kartenn-flow/src/read.rs` (`Reader` : l'appelant, sa portée en JSON de
+  `kartenn_scopes`, la condition SQL de lecture d'un flux `f` à `$1` sous `s`, les
+  entités de ses demandes en attente ; `FlowFilter::reader` ; `applied` matérialise `s`
+  et garde, avant `ORDER BY … LIMIT`, ses propres demandes ou la condition ; `pending`
+  écarte les demandes illisibles dans le même passage que `passes`, avant la coupe ;
+  `of_object` prend le lecteur) ; `crates/kartenn-flow/src/rest.rs` (`reader_of` : la
+  condition du noyau sur l'entité (`flow_readable`, partagée avec `visible`) ou, `flow.read`
+  tenu ailleurs et tout objet filtré lu, une extrémité lue (`endpoint_readable`) ;
+  `page_of` coupe la page et calcule son curseur sur les seules lignes lues, plus de
+  filtrage après coup ; `reviews_seen` retiré). Test : `flow/tests/it/rest.rs`
+  `a_page_of_flows_is_cut_on_the_rows_the_caller_reads` (rouge avant : page vide avec une
+  suite) — deux auteurs en alternance, flux appliqués et demandes en attente, un lecteur
+  de tout : les pages de l'auteur sont celles du lecteur privées des lignes de l'autre,
+  aucune page courte avec une suite, aucun curseur ne nomme une ligne de l'autre, sur
+  `/v1/flows` (avec et sans `requested`) et `/v1/addresses/{id}/flows`.
+  choix : le lecteur porte une condition SQL construite par les routes (`readable` vit
+  dans `kartenn-store-pg`, dépendance optionnelle de la crate, absente de `read.rs`) ; la
+  requête lit le demandeur dans `flow.flow` courant, comme `visible` ; les demandes en
+  attente gardent leur filtrage en mémoire, déjà fait avant la coupe sur toutes les lignes
+  lues, désormais avec le lecteur (mêmes règles que `reviews_seen`) ; `flow.review` lu
+  seulement si la liste lit les demandes en attente ; alias du résumé `s` renommé `sm`
+  (le CTE des portées s'appelle `s`) ; anneau de clés partagé par les instances de test
+  pour lire les curseurs servis.
+  reste : `GET /v1/flow-nonconformities` coupe encore sa page avant le filtre des droits
+  (« The key of the last row read, before the filter of the rights (design 011) ») : même
+  défaut (pages courtes, curseur portant la clé d'une non-conformité illisible), à
+  traiter par sa propre tâche ; coût du prédicat dans la requête non mesuré (aucun banc).

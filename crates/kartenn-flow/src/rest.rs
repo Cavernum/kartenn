@@ -44,7 +44,7 @@ use crate::model::EndpointKind;
 use crate::module::{FLOW, flow_type};
 use crate::read::{
     self, AxisValue, Cursor, Dates, EvaluationView, FlowFilter, FlowView, Nonconformity,
-    NonconformityFilter, Review,
+    NonconformityFilter, Reader,
 };
 use crate::state::FlowState;
 
@@ -653,14 +653,7 @@ async fn visible(
           WHERE $2::jsonb IS NULL OR {}
              OR EXISTS (SELECT 1 FROM flow.flow f
                          WHERE f.id = x.id AND f.requester_id = $4)",
-        readable(
-            "x.id",
-            &format!("'{FLOW}'"),
-            "(SELECT m.domain_id FROM module_object m
-               WHERE m.id = x.id AND m.valid_period @> $1::timestamptz LIMIT 1)",
-            "NULL::inet",
-            "$1",
-        )
+        flow_readable("x.id")
     );
     let rows: Vec<(Uuid,)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(at)
@@ -671,6 +664,21 @@ async fn visible(
         .await
         .map_err(|e| kit::store(&e))?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// The condition that the flow `id` is readable at `$1` under the scope `s` by the
+/// predicate of the core on its entity (ADR 0021, 0026), as the authorizer reads it.
+fn flow_readable(id: &str) -> String {
+    readable(
+        id,
+        &format!("'{FLOW}'"),
+        &format!(
+            "(SELECT m.domain_id FROM module_object m
+               WHERE m.id = {id} AND m.valid_period @> $1::timestamptz LIMIT 1)"
+        ),
+        "NULL::inet",
+        "$1",
+    )
 }
 
 /// The condition that the endpoint `x` (`x.kind`, `x.id`) is readable at `$1` under the
@@ -881,6 +889,60 @@ async fn through_endpoints(
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
+/// The caller of a list of flows as its query reads it (task 006-36): the rows it reads
+/// are kept before the page is cut, as [`flows_seen`] keeps them from a set. An applied
+/// flow under `flow.read` on its entity or as its requester (REQ-011-17), or, holding
+/// `flow.read` elsewhere, through one of its endpoints (REQ-027-1), unless the caller does
+/// not read every object of `objects`, those a filter names (REQ-027-3); a request pending
+/// a review under `flow.read` or `flow.review` on its entity, or as its requester (F19).
+/// `pending`: whether the list reads the requests pending a review.
+async fn reader_of(
+    api: &Api,
+    scope: &ReadScope,
+    principal: &Principal,
+    at: OffsetDateTime,
+    objects: &[Endpoint],
+    pending: bool,
+) -> Result<Reader, Problem> {
+    let through = scope.reads(FLOW) && {
+        let read = endpoints_read(api, scope, at, objects).await?;
+        objects.iter().all(|o| read.contains(o))
+    };
+    let mut condition = flow_readable("f.id");
+    if through {
+        condition = format!(
+            "({condition} OR EXISTS (
+                SELECT 1 FROM (VALUES (f.source_kind, f.source_id),
+                                      (f.destination_kind, f.destination_id)) AS x(kind, id)
+                 WHERE {}))",
+            endpoint_readable()
+        );
+    }
+    // The entities whose requests pending a review it reads: `flow.read`, as
+    // [`readable_entities`] reads it, then `flow.review`.
+    let (mut every_review, mut review_entities) = match scope.kinds() {
+        None => (true, Vec::new()),
+        Some(kinds) => kinds
+            .get(FLOW)
+            .map_or((false, Vec::new()), |v| (v.global, v.entities.clone())),
+    };
+    if pending && !every_review {
+        let reviewer = api
+            .authorizer()
+            .visibility(&principal.subject(), REVIEW, at)
+            .await?;
+        every_review = reviewer.global;
+        review_entities.extend(reviewer.entities);
+    }
+    Ok(Reader {
+        identity: principal.identity,
+        scope: scope.to_json(),
+        condition,
+        every_review,
+        review_entities,
+    })
+}
+
 /// The moment and the read scope of a request of `principal` (the scope of
 /// `flow.read`).
 async fn reading(
@@ -914,8 +976,10 @@ fn ids_of(page: &Page) -> Result<Vec<Uuid>, Problem> {
     Ok(ids)
 }
 
-/// A page of flows read by `fetch` after the cursor, kept to those the caller reads.
-/// `fetch` is given the identifiers of the filter `id`, which only a route that names it
+/// A page of flows the caller reads, read by `fetch` after the cursor. `fetch` is given
+/// the read scope of the caller, for the [`Reader`] its query keeps the rows by before it
+/// cuts the page (task 006-36): the page and its cursor are made of readable rows only.
+/// It is given too the identifiers of the filter `id`, which only a route that names it
 /// among its filters accepts (see [`wanted`]): filtered by them, the page is one, without
 /// a next one ([`kartenn_rest::filter::window`]).
 #[allow(clippy::too_many_arguments)] // the request, then what the route reads
@@ -930,10 +994,8 @@ async fn page_of<F, Fut>(
     fetch: F,
 ) -> Result<Response, Problem>
 where
-    F: FnOnce(Dates, Option<Cursor>, i64, Vec<Uuid>, Page) -> Fut,
-    Fut: std::future::Future<
-            Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>, kit::Snapshot), Problem>,
-        >,
+    F: FnOnce(Dates, Option<Cursor>, i64, Vec<Uuid>, Page, ReadScope) -> Fut,
+    Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page, kit::Snapshot), Problem>>,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
     let ids = ids_of(&page)?;
@@ -943,8 +1005,8 @@ where
     // The rows of the page and the versions of its flows in force are read in one
     // snapshot, which `fetch` begins once its filters are valid, reads in and gives
     // back (task 021-11c).
-    let (mut rows, page, objects, mut snapshot) =
-        fetch(dates(&moment), after, limit, ids, page).await?;
+    let (mut rows, page, mut snapshot) =
+        fetch(dates(&moment), after, limit, ids, page, scope).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let cursor = page.next(
@@ -955,37 +1017,22 @@ where
         );
         next_href(path, &cursor)
     });
-    let flows: Vec<(Uuid, Sides<Endpoint>)> = rows
+    let current: Vec<Uuid> = rows
         .iter()
         .filter(|r| r.review.is_none())
-        .filter_map(|r| Some((r.id?, endpoints_of(&r.flow))))
+        .filter_map(|r| r.id)
         .collect();
-    let current: Vec<Uuid> = flows.iter().map(|(id, _)| *id).collect();
     let versions = kit::versions(&mut *snapshot, &moment, &current).await?;
     kit::release(snapshot);
-    let seen = flows_seen(api, &scope, principal, moment.valid_at, &flows, &objects).await?;
-    let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
     // A flow under review shows the state proposed, not its own version: only the flows
     // in force carry `version` (006/H19).
-    let mut kept: Vec<(FlowView, bool)> = Vec::with_capacity(rows.len());
     let (mut ids, mut changesets) = (Vec::new(), Vec::new());
-    for row in rows {
-        match (row.id, &row.review) {
-            (id, Some(review)) => {
-                if reviews.contains(&(review.changeset, review.ordinal)) {
-                    changesets.push(review.changeset);
-                    ids.extend(id);
-                    kept.push((row, false));
-                }
-            }
-            (Some(id), None) if seen.contains(&id) => {
-                ids.push(id);
-                kept.push((row, true));
-            }
-            _ => {}
-        }
+    for row in &rows {
+        ids.extend(row.id);
+        changesets.extend(row.review.as_ref().map(|r| r.changeset));
     }
-    let (views, in_force): (Vec<FlowView>, Vec<bool>) = kept.into_iter().unzip();
+    let in_force: Vec<bool> = rows.iter().map(|r| r.review.is_none()).collect();
+    let views = rows;
     let items: Vec<(FlowDto, bool)> = served(api, moment.valid_at, views)
         .await?
         .into_iter()
@@ -1049,37 +1096,6 @@ fn cursor_of(key: &Value) -> Result<Cursor, Problem> {
         .map_err(|_| Problem::new(ProblemKind::InvalidCursor))
 }
 
-/// The requests pending a review among `rows` the caller reads, by proposal and rank (F19,
-/// REQ-011-17): under `flow.read` or `flow.review` on the entity of the request, or as its
-/// requester; each served whole (REQ-027-2).
-async fn reviews_seen(
-    api: &Api,
-    scope: &ReadScope,
-    principal: &Principal,
-    at: OffsetDateTime,
-    rows: &[FlowView],
-) -> Result<HashSet<(Uuid, i32)>, Problem> {
-    let reviews: Vec<&Review> = rows.iter().filter_map(|r| r.review.as_ref()).collect();
-    if reviews.is_empty() {
-        return Ok(HashSet::new());
-    }
-    let entities: Vec<Uuid> = reviews.iter().filter_map(|r| r.entity).collect();
-    let readable = readable_entities(api, scope, at, &entities).await?;
-    let reviewer = api
-        .authorizer()
-        .visibility(&principal.subject(), REVIEW, at)
-        .await?;
-    Ok(reviews
-        .into_iter()
-        .filter_map(|r| {
-            let full = r.entity.is_some_and(|e| {
-                readable.contains(&e) || reviewer.global || reviewer.entities.contains(&e)
-            });
-            (full || r.requester == principal.identity).then_some((r.changeset, r.ordinal))
-        })
-        .collect())
-}
-
 /// `filter` kept to the flows `ids` (REQ-006-41), when there are any: applied flows, read
 /// by their identifier. A request pending a review has none yet, and the review of a flow
 /// pending is not read by its identifier: a filter that reads them (`review`, `changeset`,
@@ -1126,7 +1142,7 @@ async fn list(
     let names: Vec<&str> = std::iter::once("id")
         .chain(FILTERS.iter().map(|(n, _)| *n))
         .collect();
-    let pool = api.pool.clone();
+    let (caller, who) = (&api, &principal);
     page_of(
         &api,
         &principal,
@@ -1135,8 +1151,8 @@ async fn list(
         &query,
         COLLECTION,
         "/v1/flows",
-        |dates, after, limit, ids, page| async move {
-            let filter = among(filter_of(&wanted(&page, &names)?)?, ids)?;
+        |dates, after, limit, ids, page, scope| async move {
+            let mut filter = among(filter_of(&wanted(&page, &names)?)?, ids)?;
             let objects: Vec<Endpoint> = filter
                 .endpoint
                 .map(|(kind, id)| (crate::pg::kind_name(kind).to_owned(), id))
@@ -1144,9 +1160,12 @@ async fn list(
                 .chain(filter.within_prefix.map(|id| ("prefix".to_owned(), id)))
                 .chain(filter.machine.map(|id| ("machine".to_owned(), id)))
                 .collect();
-            let mut snapshot = snapshot(&pool).await?;
+            let pending = filter.wants_pending();
+            let reader = reader_of(caller, &scope, who, dates.valid_at, &objects, pending).await?;
+            filter.reader = Some(reader);
+            let mut snapshot = snapshot(&caller.pool).await?;
             let rows = read::flows(&mut snapshot, dates, &filter, after, limit).await?;
-            Ok((rows, page, objects, snapshot))
+            Ok((rows, page, snapshot))
         },
     )
     .await
@@ -1164,7 +1183,7 @@ async fn of_object(
     collection: &'static str,
     id: Uuid,
 ) -> Result<Response, Problem> {
-    let pool = api.pool.clone();
+    let (caller, who) = (&api, &principal);
     let path = format!("/v1/{collection}/{id}/flows");
     let name = format!("{collection}-flows");
     page_of(
@@ -1175,7 +1194,7 @@ async fn of_object(
         query.as_deref().unwrap_or_default(),
         &name,
         &path,
-        |dates, after, limit, ids, page| async move {
+        |dates, after, limit, ids, page, scope| async move {
             if !ids.is_empty() {
                 return Err(kit::bad(
                     "id does not go with the flows of an object: /v1/flows is filtered by id",
@@ -1189,14 +1208,13 @@ async fn of_object(
                     return Err(Problem::new(ProblemKind::InvalidCursor));
                 }
             };
-            let mut snapshot = snapshot(&pool).await?;
-            let rows = read::of_object(&mut snapshot, dates, kind, id, after, limit).await?;
-            Ok((
-                rows,
-                page,
-                vec![(crate::pg::kind_name(kind).to_owned(), id)],
-                snapshot,
-            ))
+            let object = [(crate::pg::kind_name(kind).to_owned(), id)];
+            let reader = reader_of(caller, &scope, who, dates.valid_at, &object, false).await?;
+            let mut snapshot = snapshot(&caller.pool).await?;
+            let rows =
+                read::of_object(&mut snapshot, dates, (kind, id), Some(reader), after, limit)
+                    .await?;
+            Ok((rows, page, snapshot))
         },
     )
     .await

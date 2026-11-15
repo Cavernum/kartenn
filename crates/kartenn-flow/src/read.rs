@@ -4,9 +4,10 @@
 //! recomputing, and the non-conformities. On request, the list adds the requests pending a
 //! review at `as_of`, read in their proposals with their triage (task 011-12, F19).
 //!
-//! The rights are the routes' (task 011-9): these reads filter nothing by the reader,
-//! except the non-conformities, which [`NonconformityFilter::requester`] narrows to the
-//! requests of one requester (REQ-011-25).
+//! The rights are the routes' (task 011-9): these reads filter by the reader only what the
+//! routes give them — the [`Reader`] of a list of flows, whose predicate the query carries
+//! before it cuts the page (task 006-36), and the requester the non-conformities are
+//! narrowed to ([`NonconformityFilter::requester`], REQ-011-25).
 
 use std::collections::HashMap;
 
@@ -87,6 +88,41 @@ pub struct FlowFilter {
     pub axis: Option<AxisValue>,
     /// Only these applied flows (the test of a connection, REQ-011-26).
     pub ids: Option<Vec<Uuid>>,
+    /// Only the rows this caller reads, kept before the page is cut (task 006-36); `None`:
+    /// every row, for a read already gated or kartenn's own.
+    pub reader: Option<Reader>,
+}
+
+/// Who reads a list of flows (REQ-011-17, REQ-027-1; task 006-36): the query keeps the
+/// rows it reads before it cuts the page, so that a page and its cursor are made of those
+/// rows only, an unreadable row answered as an absent one.
+#[derive(Debug, Clone)]
+pub struct Reader {
+    /// The caller: it reads the flows and the requests it made (REQ-011-17).
+    pub identity: Uuid,
+    /// Its read scope, the JSON argument of `kartenn_scopes`, which the query materialises
+    /// as `s`; `None`: it reads every applied flow.
+    pub scope: Option<Value>,
+    /// The condition, beside its requester, that the applied flow `f` is readable at `$1`
+    /// under the scopes `s`: SQL text built by the routes from the predicate of the core,
+    /// which cites no value of the request (every value is bound).
+    pub condition: String,
+    /// Whether it reads every request pending a review named by its entity, under
+    /// `flow.read` or `flow.review` (F19); otherwise, those of `review_entities`.
+    pub every_review: bool,
+    /// The entities whose requests pending a review it reads.
+    pub review_entities: Vec<Uuid>,
+}
+
+impl Reader {
+    /// Whether it reads a request pending `review` (F19, REQ-011-17): as its requester, or
+    /// by the entity the request names.
+    fn reads(&self, review: &Review) -> bool {
+        review.requester == self.identity
+            || review
+                .entity
+                .is_some_and(|e| self.every_review || self.review_entities.contains(&e))
+    }
 }
 
 impl FlowFilter {
@@ -450,7 +486,13 @@ async fn pending(
         } else {
             pending_view(changeset, ordinal, &body, requester, submitted, state)
         };
-        if !filter.passes(&row, services.as_deref()) {
+        // The rows the caller does not read are left out before the page is cut, as an
+        // absent one (task 006-36).
+        let unread = filter
+            .reader
+            .as_ref()
+            .is_some_and(|r| row.review.as_ref().is_none_or(|v| !r.reads(v)));
+        if unread || !filter.passes(&row, services.as_deref()) {
             continue;
         }
         out.push(row);
@@ -625,10 +667,20 @@ async fn applied(
         "flow_evaluation",
         "t.flow_id, t.decisive_id, t.valid_period",
     );
-    let mut q = dated_query(
-        dates,
-        &format!(", f AS (SELECT DISTINCT ON (t.id) t.* FROM {flow} t WHERE TRUE"),
-    );
+    let mut q = dated_query(dates, "");
+    // The scopes of the reader, materialised once for the query (migration 0033).
+    let reader = filter
+        .reader
+        .as_ref()
+        .and_then(|r| r.scope.as_ref().map(|scope| (r, scope)));
+    if let Some((_, scope)) = reader {
+        q.push(", s AS MATERIALIZED (SELECT * FROM kartenn_scopes(");
+        q.push_bind(scope.clone());
+        q.push("::jsonb))");
+    }
+    q.push(format!(
+        ", f AS (SELECT DISTINCT ON (t.id) t.* FROM {flow} t WHERE TRUE"
+    ));
     // The flows of which a version has the entity, the service or the requester filtered,
     // through their indexes; the filters below then hold on their last version (task
     // 011-10). An array, not `IN`: the arms of `{flow}` carry a condition, so a semi-join
@@ -653,7 +705,7 @@ async fn applied(
         " ORDER BY t.id, upper(t.valid_period) DESC NULLS FIRST)
              SELECT to_jsonb(f) - 'valid_period' AS flow, f.id,
                     lower(f.valid_period) AS start, upper(f.valid_period) AS end_,
-                    s.summary, s.outcome,
+                    sm.summary, sm.outcome,
                     EXISTS (SELECT 1 FROM {waiver} w WHERE w.flow_id = f.id
                              AND w.valid_period @> $1::timestamptz) AS waived,
                     (upper(f.valid_period) IS NOT NULL AND EXISTS (
@@ -662,9 +714,9 @@ async fn applied(
                                 OR upper(h.valid_period) > upper(f.valid_period))))
                         AS closed_early
                FROM f
-               LEFT JOIN LATERAL (SELECT s.summary, s.outcome FROM {summary} s
-                                  WHERE s.flow_id = f.id AND s.valid_period @> $1::timestamptz
-                                  LIMIT 1) s ON TRUE
+               LEFT JOIN LATERAL (SELECT y.summary, y.outcome FROM {summary} y
+                                  WHERE y.flow_id = f.id AND y.valid_period @> $1::timestamptz
+                                  LIMIT 1) sm ON TRUE
               WHERE TRUE"
     ));
     if let Some((kind, id)) = filter.endpoint {
@@ -761,11 +813,11 @@ async fn applied(
         q.push_bind(kind.clone());
     }
     if let Some(summary) = &filter.summary {
-        q.push(" AND s.summary = ");
+        q.push(" AND sm.summary = ");
         q.push_bind(summary.clone());
     }
     if let Some(outcome) = &filter.outcome {
-        q.push(" AND s.outcome = ");
+        q.push(" AND sm.outcome = ");
         q.push_bind(outcome.clone());
     }
     if let Some(decisive) = filter.decisive {
@@ -830,6 +882,16 @@ async fn applied(
         q.push(" AND f.id = ANY(");
         q.push_bind(ids.clone());
         q.push(")");
+    }
+    // The flows the caller reads, before the page is cut (task 006-36): its own requests
+    // (REQ-011-17), or under the condition of its scopes.
+    if let Some((reader, _)) = reader {
+        q.push(
+            " AND (EXISTS (SELECT 1 FROM flow.flow r
+                            WHERE r.id = f.id AND r.requester_id = ",
+        );
+        q.push_bind(reader.identity);
+        q.push(format!(") OR {})", reader.condition));
     }
     if let Some(after) = after {
         q.push(" AND f.id > ");
@@ -897,7 +959,7 @@ fn summary_of(name: &str) -> Summary {
 
 /// The flows of an object at `dates` (REQ-011-15): those it is an endpoint of, or whose
 /// endpoint it contains — an address in a prefix's subtree, an interface or an address of
-/// a machine.
+/// a machine. Those `reader` reads, when given ([`FlowFilter::reader`]).
 ///
 /// # Errors
 ///
@@ -905,22 +967,25 @@ fn summary_of(name: &str) -> Summary {
 pub async fn of_object(
     conn: &mut PgConnection,
     dates: Dates,
-    kind: EndpointKind,
-    id: Uuid,
+    (kind, id): (EndpointKind, Uuid),
+    reader: Option<Reader>,
     after: Option<Uuid>,
     limit: i64,
 ) -> Result<Vec<FlowView>, StoreError> {
     let filter = match kind {
         EndpointKind::Prefix => FlowFilter {
             within_prefix: Some(id),
+            reader,
             ..FlowFilter::default()
         },
         EndpointKind::Machine => FlowFilter {
             machine: Some(id),
+            reader,
             ..FlowFilter::default()
         },
         other => FlowFilter {
             endpoint: Some((other, id)),
+            reader,
             ..FlowFilter::default()
         },
     };
