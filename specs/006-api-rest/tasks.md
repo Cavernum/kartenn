@@ -1105,7 +1105,7 @@ routeur complet, sauf mention « vrai TCP ».
   défaut (pages courtes, curseur portant la clé d'une non-conformité illisible), à
   traiter par sa propre tâche (37) ; coût du prédicat dans la requête non mesuré (aucun
   banc).
-- [ ] 37. Page des non-conformités coupée avant le filtre des droits (sécurité, antérieur,
+- [x] 37. Page des non-conformités coupée avant le filtre des droits (sécurité, antérieur,
   relevé par la 36) : `GET /v1/flow-nonconformities` lit sa page, la coupe et calcule son
   curseur sur les lignes brutes (« The key of the last row read, before the filter of the
   rights (design 011) »), puis écarte ce que l'appelant ne lit pas. Les pages sont courtes
@@ -1122,3 +1122,24 @@ routeur complet, sauf mention « vrai TCP ».
     `a_page_of_flows_is_cut_on_the_rows_the_caller_reads` ;
     `specs/011-registre-flux/design.md` (pagination des non-conformités)
   - dépend de : 36
+  fait : `crates/kartenn-flow/src/read.rs` (`NonconformityFilter::reader` ; la requête
+  matérialise les portées `s` et garde, avant `ORDER BY … LIMIT`, les lignes de ses
+  demandes ou la condition du lecteur ; alias `x` → `n`, `s` du résumé → `sm`) ;
+  `crates/kartenn-flow/src/rest.rs` (`nonconformity_reader` : `flow.read` sur l'entité de
+  la ligne, comme `readable_entities`, ou, `flow.read` tenu ailleurs, une extrémité lue du
+  flux à l'une de ses versions, comme `through_endpoints` ; la route coupe la page et son
+  curseur sur les seules lignes lues ; `readable_entities` et `through_endpoints`
+  retirés) ; `specs/011-registre-flux/design.md` (décisions, pagination des
+  non-conformités). Test : `flow/tests/it/rest.rs`
+  `a_page_of_nonconformities_is_cut_on_the_rows_the_caller_reads` (rouge avant : page vide
+  avec une suite) — demandes rejetées de deux demandeurs sur deux entités en alternance ;
+  un lecteur d'une entité, et un demandeur lecteur de l'autre, en pages de 1 à 3 : leurs
+  pages sont celles d'un lecteur de tout privées de ce qu'ils ne lisent pas, aucune page
+  courte avec une suite, aucun curseur ne nomme une ligne illisible.
+  choix : `read::Reader` réemployé tel quel, sa condition nommant la ligne `n` (doc
+  élargie ; `every_review` et `review_entities` sans objet ici) ; mêmes règles qu'avant,
+  déplacées dans la requête (l'entité par les portées, sans le prédicat du noyau sur le
+  domaine) ; aide `Env::grant` des tests pour donner un droit à une personne existante.
+  reste : coût du prédicat dans la requête non mesuré (`bench-flow`, non lancé) ; le
+  design 011 (« Non-conformités ») dit encore « demandeur de la ligne avec
+  `flow.request` », alors que la route ne vérifie pas `flow.request` (antérieur, inchangé).

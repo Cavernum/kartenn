@@ -306,7 +306,9 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
   page plus courte avec une suite, et un curseur sur une ligne illisible, trahissaient
   les flux illisibles) ; les non-conformités se lisent
   par curseur signé (021-29, REQ-021-35 : date décroissante, puis l'identifiant du flux
-  ou du changeset rejeté ; la clé de la dernière ligne lue avant le filtre des droits) ;
+  ou du changeset rejeté ; la clé de la dernière ligne lisible), leur page coupée de même
+  sur les seules lignes lisibles, le prédicat porté par la requête (tâche 006-37 :
+  demandeur de la ligne, `flow.read` sur l'entité, ou une extrémité lue, REQ-027-1) ;
   le demandeur lit son flux comme tout lecteur, évaluations entières (027/REQ-027-2).
 - Les jointures sur le noyau (adresses, préfixes, origines des valeurs, machines) sont lues
   à l'assertion courante ; seules les tables du module suivent `as_of`.
