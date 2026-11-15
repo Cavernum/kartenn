@@ -807,7 +807,7 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-rest/tests/it/contract.rs`
     (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter)
   - dépend de : 32a, 32b, 32c
-- [ ] 32e. Adresses demandées rendues sous le filtre `address` (constat de la 021-11p10-e,
+- [x] 32e. Adresses demandées rendues sous le filtre `address` (constat de la 021-11p10-e,
   arbitrage du 2026-11-15) : `GET /v1/interfaces?address=a&address=b` ne dit pas quelle
   adresse demandée chaque interface porte, le client ne peut pas répartir la réponse par
   ligne. Sous `address`, chaque interface porte `addresses: MachineCardAddress[]`, celles
@@ -824,6 +824,27 @@ routeur complet, sauf mention « vrai TCP ».
     `interfaces_filtered_by_several_addresses` (à étendre),
     `interfaces_of_a_network_with_their_addresses` (`held_values`, à imiter)
   - dépend de : 32b
+  fait : `crates/kartenn-machines/src/rest.rs` (`network_addresses` devient
+  `held_addresses` : sous `network`, la sous-requête du réseau inchangée, plus
+  `t.address_id = ANY($7)` quand `address` est donné ; sous `address` seul, les
+  rattachements de l'interface parmi `$7` (`interface_id = x.id AND address_id = ANY($7)`)
+  puis l'adresse, sous son prédicat de lecture ; évaluée sur les lignes de la page, dans
+  la requête de la page ; les adresses rendues journalisées comme lues sous `address`
+  aussi ; description de `Interface.addresses` au contrat) ; contrat et `schema.d.ts` des
+  deux SDK régénérés. Test : `machines/tests/it/rest.rs`
+  `interfaces_filtered_by_address_carry_the_requested_ones` (deux adresses partagées
+  demandées, trois interfaces : chacune rend exactement les demandées qu'elle tient, en
+  une page puis page à page ; une adresse tenue non demandée absente ; journal de la
+  dernière page ; une demandée illisible omise, l'interface qui ne tient qu'elle rendue
+  avec `addresses: []` ; `network` et `address` ensemble).
+  choix : avec `network` et `address` ensemble, `addresses` rend l'intersection
+  (demandées et dans le réseau) : la réponse reste répartissable par adresse demandée ;
+  les filtres de ligne restent indépendants, une interface gardée peut donc rendre
+  `addresses: []` (une demandée hors du réseau, une autre du réseau non demandée).
+  reste : l'interface lisible qui ne tient qu'une adresse demandée illisible est rendue
+  avec `addresses: []`, ce qui révèle que l'adresse existe et lui est rattachée (oracle
+  de la 35, inchangé dans sa portée ; `addresses: []` désigne en plus, ligne à ligne,
+  les interfaces qui tiennent au moins une demandée illisible).
 - [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
   référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
   d'une propriété de type référence), puis `{id, clé naturelle, href}`, réduit à `{id}`
@@ -948,7 +969,8 @@ routeur complet, sauf mention « vrai TCP ».
   l'appelant ne lit pas, l'interface lisible qui la tient est rendue, ce qui révèle que
   l'adresse existe et à quelle interface elle est rattachée ; la répétition d'`address`
   permet d'en sonder 64 par requête, et une dichotomie sur les réponses non vides
-  retrouve laquelle — verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée
+  retrouve laquelle ; depuis la 32e, une interface rendue avec `addresses: []` sous
+  `address` dit qu'elle tient au moins une des adresses demandées illisibles — verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée
   par la clé d'un domaine illisible et par une clé inconnue : mêmes octets),
   `k-check -p kartenn-machines` (interfaces filtrées par une adresse illisible et par une
   adresse inconnue : mêmes octets)

@@ -143,8 +143,9 @@ pub struct InterfaceDto {
     pub enabled: bool,
     /// Its 802.1Q mode.
     pub vlan: VlanDto,
-    /// In a list filtered by `network` only: its addresses in the network that the caller
-    /// may read, by value (021/A28).
+    /// In a list filtered by `network` or `address` only: the addresses it holds that the
+    /// caller may read, by value, among those of the network, among the requested ones, or
+    /// both when both filters are given (021/A28, task 006-32e).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable = false)]
     pub addresses: Option<Vec<CardAddress>>,
@@ -1087,19 +1088,29 @@ fn held_in_network(param: &str) -> String {
     )
 }
 
-/// The addresses of the network `$15` held by the interface `x` that the caller may read,
-/// by value, as a JSON array of [`CardAddress`]; null without `$15`. Evaluated on the rows
-/// of the page only, in the query of the page, once [`in_network`] kept them: the network
-/// is then one the caller reads, its read predicate not evaluated again on each row.
-fn network_addresses() -> String {
+/// The addresses held by the interface `x` that answer the filters `network` (`$15`) and
+/// `address` (`$7`) and that the caller may read, by value, as a JSON array of
+/// [`CardAddress`]: those of the network, those among the requested ones, those of both
+/// when both are given (021/A28, task 006-32e); null without either. Evaluated on the rows
+/// of the page only, in the query of the page, once the filters kept them: the network is
+/// then one the caller reads, its read predicate not evaluated again on each row.
+fn held_addresses() -> String {
+    let card = "jsonb_agg(jsonb_build_object('id', a.id, 'value', host(a.address),
+                                           'primary', t.primary_for_family)
+                        ORDER BY a.address)";
     format!(
-        "CASE WHEN $15::uuid IS NULL THEN NULL ELSE coalesce(
-           (SELECT jsonb_agg(jsonb_build_object('id', a.id, 'value', host(a.address),
-                                                'primary', t.primary_for_family)
-                             ORDER BY a.address)
+        "CASE WHEN $15::uuid IS NOT NULL THEN coalesce(
+           (SELECT {card}
               FROM {p} p
               CROSS JOIN LATERAL {t} t
               CROSS JOIN LATERAL {a} a
+             WHERE (cardinality($7::uuid[]) = 0 OR t.address_id = ANY($7))
+               AND ($3::jsonb IS NULL OR {visible})),
+           '[]'::jsonb)
+         WHEN cardinality($7::uuid[]) > 0 THEN coalesce(
+           (SELECT {card}
+              FROM {requested} t
+              CROSS JOIN LATERAL {held} a
              WHERE $3::jsonb IS NULL OR {visible}),
            '[]'::jsonb) END",
         p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
@@ -1113,6 +1124,16 @@ fn network_addresses() -> String {
             "id, domain_id, address",
             "id = t.address_id AND domain_id = p.domain_id AND address <<= p.prefix"
         ),
+        requested = dated_where(
+            "machines.attachment",
+            "address_id, primary_for_family",
+            "interface_id = x.id AND address_id = ANY($7)"
+        ),
+        held = dated_where(
+            "public.address",
+            "id, domain_id, address",
+            "id = t.address_id"
+        ),
         visible = address_visible("a"),
     )
 }
@@ -1121,8 +1142,9 @@ fn network_addresses() -> String {
 /// `mac`, `address` (repeated: the interfaces that hold one of them at the date, paged,
 /// REQ-006-41) and `vlan` (access, native or tagged), `media` (the key of its
 /// `machines.interface_media`, REQ-009-26) and `network` (holding an address of the network
-/// the caller may read; each interface then carries those addresses, 021/A28), in
-/// conjunction (REQ-009-15).
+/// the caller may read), in conjunction (REQ-009-15). Under `network` or `address`, each
+/// interface carries the addresses it holds that answer them and that the caller reads
+/// (021/A28, task 006-32e).
 #[allow(clippy::too_many_lines)] // a list, its filters, its query and the reads it journals
 async fn list_interfaces(
     State(api): State<Api>,
@@ -1159,7 +1181,7 @@ async fn list_interfaces(
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let media = media_is("$14");
     let in_network = in_network();
-    let addresses = network_addresses();
+    let addresses = held_addresses();
     // The page in a subquery, its addresses computed on its rows only, after its `LIMIT`.
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
@@ -1237,8 +1259,8 @@ async fn list_interfaces(
         criteria(NAME, &page, &moment),
     )
     .await?;
-    // The addresses served with the interfaces of a network are read as well.
-    if network.is_some() {
+    // The addresses served with the interfaces, by network or by address, are read as well.
+    if network.is_some() || !holding.is_empty() {
         let held: Vec<Uuid> = rows
             .iter()
             .flat_map(|r| r.addresses.iter().flat_map(|held| held.0.iter()))

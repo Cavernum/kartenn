@@ -7000,8 +7000,9 @@ export interface components {
     /** @description An interface of a machine (REQ-009-6). */
     Interface: {
       /**
-       * @description In a list filtered by `network` only: its addresses in the network that the caller
-       *     may read, by value (021/A28).
+       * @description In a list filtered by `network` or `address` only: the addresses it holds that the
+       *     caller may read, by value, among those of the network, among the requested ones, or
+       *     both when both filters are given (021/A28, task 006-32e).
        */
       addresses?: components["schemas"]["MachineCardAddress"][];
       /** @description Whether it is enabled. */
