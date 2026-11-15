@@ -116,7 +116,10 @@ périmètre déjà utilisé par les listes (`reads.rs`) ; les modules exposent u
 
 Instantanés (M18, après le banc : 1,3 s et 7,9 s à froid). Le serveur garde, par clé de
 droits (les deux niveaux actuels : partie partagée par empreinte des droits, partie
-propre à l'appelant par sujet), le dernier corps calculé, sa date et la révision de
+propre à l'appelant par sujet et par l'empreinte de là où il tient, à la requête, les
+droits que ses modules comptent en plus de la lecture — `StatsContributor::permissions`,
+`flow.request` pour les flux de leur demandeur, tâche 006-39 : un droit retiré ou échu
+par sa date change la clé), le dernier corps calculé, sa date et la révision de
 l'outbox qu'il a vue :
 
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas

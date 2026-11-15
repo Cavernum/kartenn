@@ -89,4 +89,8 @@ impl StatsContributor for Stats {
             })
         })
     }
+
+    fn permissions(&self) -> &'static [&'static str] {
+        &[REQUEST]
+    }
 }

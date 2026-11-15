@@ -30,7 +30,7 @@ use kartenn_service::reads::{CHANGESET_READ_PERMISSION, CHANGESETS};
 use kartenn_service::review::proposals_for;
 use kartenn_store_pg::list::{self, Kind};
 use kartenn_store_pg::modules::PgModuleRead;
-use kartenn_store_pg::rbac::ReadScope;
+use kartenn_store_pg::rbac::{self, ReadScope};
 use kartenn_store_pg::{anomalies, changesets, outbox, read};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -580,17 +580,49 @@ fn rights_key(api: &Api, scope: &ReadScope, changesets: bool) -> String {
     format!("{}|{}|{changesets}", database(api), hex(&digest[..16]))
 }
 
-/// The subject, and its rights.
-fn subject_key(subject: &Subject, rights: &str) -> String {
+/// The subject, its rights, and where it holds those the modules count under (`held`).
+fn subject_key(subject: &Subject, rights: &str, held: &str) -> String {
     let mut groups = subject.groups.clone();
     groups.sort();
     groups.dedup();
     format!(
-        "{rights}|{}|{}|{}",
+        "{rights}|{held}|{}|{}|{}",
         subject.id,
         subject.issuer.as_deref().unwrap_or_default(),
         groups.join("\u{1f}")
     )
+}
+
+/// Where `subject` holds at `now` the permissions the counters of the modules depend on
+/// beyond its read scope ([`StatsContributor::permissions`]), as a digest: read at each
+/// request, so that a right withdrawn or ended by its date changes the key of its own
+/// counters (task 006-39).
+async fn held(api: &Api, subject: &Subject, now: OffsetDateTime) -> Result<String, Problem> {
+    let mut permissions: Vec<&'static str> = api
+        .modules
+        .modules()
+        .filter_map(|m| m.stats())
+        .flat_map(|c| c.permissions().iter().copied())
+        .collect();
+    permissions.sort_unstable();
+    permissions.dedup();
+    if permissions.is_empty() {
+        return Ok(String::new());
+    }
+    let mut conn = api.pool.acquire().await.map_err(|e| store(&e))?;
+    let visibilities = rbac::visibilities_on(&mut conn, subject, &permissions, now).await?;
+    let mut digest = Sha256::new();
+    for (permission, mut v) in permissions.into_iter().zip(visibilities) {
+        v.entities.sort_unstable();
+        v.sites.sort_unstable();
+        v.domains.sort_unstable();
+        v.prefixes.sort_unstable();
+        if let Some(bound) = &mut v.confinement {
+            bound.sort_unstable();
+        }
+        digest.update(format!("{permission}={v:?}\n").as_bytes());
+    }
+    Ok(hex(&digest.finalize()[..16]))
 }
 
 fn database(api: &Api) -> String {
@@ -811,7 +843,7 @@ async fn stats(
     let scope = Arc::new(api.authorizer().read_scope(&subject, now).await?);
     let changesets_read = changesets_read(&api, &subject).await?;
     let shared_key = rights_key(&api, &scope, changesets_read);
-    let own_key = subject_key(&subject, &shared_key);
+    let own_key = subject_key(&subject, &shared_key, &held(&api, &subject, now).await?);
     let (shared_part, own_part) = futures_util::try_join!(
         snapshots.get::<Shared>(
             &api,

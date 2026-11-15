@@ -54,6 +54,12 @@ fn ring() -> KeyRing {
 impl Env {
     /// The router of an instance with the modules, as the person `identity`.
     pub(crate) fn app(&self, identity: Uuid) -> Router {
+        self.app_issued(identity, None)
+    }
+
+    /// The router of an instance with the modules, as the person `identity` authenticated
+    /// by `issuer`, whose attachments confine it (K4, K13); `None`: unconfined.
+    pub(crate) fn app_issued(&self, identity: Uuid, issuer: Option<&str>) -> Router {
         let api = Api {
             pool: self.pool.clone(),
             ring: ring(),
@@ -78,7 +84,7 @@ impl Env {
             Arc::new(As(Principal {
                 identity,
                 kind: IdentityKind::Person,
-                issuer: None,
+                issuer: issuer.map(str::to_owned),
                 groups: Vec::new(),
                 method: AuthMethod::Bearer,
             })),
@@ -86,7 +92,7 @@ impl Env {
     }
 
     /// A person granted `entries` everywhere.
-    async fn granted(&self, entries: &[&str]) -> Uuid {
+    pub(crate) async fn granted(&self, entries: &[&str]) -> Uuid {
         self.granted_on(entries, None).await
     }
 
@@ -103,7 +109,7 @@ impl Env {
     }
 
     /// Grants `entries` to `identity` on the entity `entity`, everywhere when `None`.
-    async fn grant(&self, identity: Uuid, entries: &[&str], entity: Option<Uuid>) {
+    pub(crate) async fn grant(&self, identity: Uuid, entries: &[&str], entity: Option<Uuid>) {
         let pool = &self.pool;
         let role = Uuid::now_v7();
         sqlx::query(
@@ -165,7 +171,7 @@ pub(crate) async fn call(
 }
 
 /// The body of a request `prod → dev` for `ssh`.
-async fn body(env: &Env, prod: Uuid, dev: Uuid) -> Value {
+pub(crate) async fn body(env: &Env, prod: Uuid, dev: Uuid) -> Value {
     let mut fields = env.fields(prod, dev).await;
     fields.as_object_mut().unwrap().remove("local");
     fields["motive"] = json!("m");
@@ -340,7 +346,7 @@ async fn instant(pool: &PgPool) -> String {
 }
 
 /// The items of a page.
-fn items(page: &Value) -> &Vec<Value> {
+pub(crate) fn items(page: &Value) -> &Vec<Value> {
     page["items"].as_array().unwrap()
 }
 
@@ -538,7 +544,7 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
 
 /// The key of a row of a page of flows: the identifier of a flow, the proposal of a
 /// request pending a review.
-fn key(item: &Value) -> String {
+pub(crate) fn key(item: &Value) -> String {
     item["id"]
         .as_str()
         .or_else(|| item["review"]["changeset"].as_str())
