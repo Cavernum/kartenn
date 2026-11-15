@@ -2149,7 +2149,8 @@ async fn modify<T: WriteTx>(
 }
 
 /// Ends an object with what ends with it: a property's closed-list values (its
-/// components), an addressing object's assignments (003/design).
+/// components), the assignments of an object that carries properties (its attributes,
+/// 003/design).
 async fn close<T: WriteTx>(
     tx: &mut T,
     modules: &ModuleRegistry,
@@ -2161,8 +2162,13 @@ async fn close<T: WriteTx>(
     tx.close(kind, id, period, changeset).await?;
     if kind == ObjectKind::Property {
         tx.close_enum_values_of(id, period, changeset).await?;
-    } else if kind.is_addressing() || kind.is_vlan() {
-        // A VLAN or a group of VLAN is written in its own table: closed above.
+    } else if kind.is_addressing()
+        || kind.is_vlan()
+        || matches!(kind, ObjectKind::Entity | ObjectKind::Site)
+    {
+        // A VLAN or a group of VLAN is written in its own table: closed above. An entity
+        // or a site is closed only once nothing refers to it, children included
+        // (REQ-002-10): no object inherits from it on its tree any more.
         tx.unassign(id, None, period, changeset).await?;
     } else if let ObjectKind::Module(kind) = kind {
         // Its record ended, the module's own rows and its assignments end with it
