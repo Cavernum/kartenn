@@ -252,33 +252,61 @@ fn the_contract_is_openapi_3_1_its_query_in_an_extension() {
     assert!(document["paths"]["/v1/me"]["get"].get("security").is_none());
 }
 
-/// The filter `id` of the lists of the core and of the VLANs (REQ-006-41, H20): a query
-/// parameter, optional, an array of UUIDs.
+/// The filter `id` of every list of a collection of objects (REQ-006-41, H20; task
+/// 006-32d): a query parameter, optional, an array of UUIDs. The lists are those the
+/// contract serves, not the types declared: the `GET` of `/v1/<collection>` answering a
+/// page, whose objects are dated (`GET /v1/<collection>/{id}` takes `valid_at`), the core
+/// and every module, kube included. A type without a list (the label mappings, admitted
+/// values and tracked labels of kube) has none to filter; a page of what is not a dated
+/// object (the anomalies, the nonconformities, the reports, the identities) neither.
 #[test]
-fn the_lists_of_the_core_declare_the_id_filter() {
+fn every_list_of_a_collection_of_objects_declares_the_id_filter() {
     let reference = reference();
+    let paths = reference["paths"].as_object().unwrap();
+    let mut lists = Vec::new();
+    for (path, item) in paths {
+        let Some(collection) = path.strip_prefix("/v1/").filter(|c| !c.contains('/')) else {
+            continue;
+        };
+        let Some(get) = item.get("get") else {
+            continue;
+        };
+        let paged = get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+            .as_str()
+            .is_some_and(|r| r.starts_with("#/components/schemas/Listing_"));
+        let dated = reference["paths"][format!("/v1/{collection}/{{id}}")]["get"]["parameters"]
+            .as_array()
+            .is_some_and(|ps| ps.iter().any(|p| p["name"] == "valid_at"));
+        if !(paged && dated) {
+            continue;
+        }
+        let id = get["parameters"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|p| p["name"] == "id")
+            .unwrap_or_else(|| panic!("{path}: no filter id"));
+        assert_eq!(id["in"], "query", "{path}");
+        assert_eq!(id["required"], false, "{path}");
+        assert_eq!(id["schema"]["type"], "array", "{path}");
+        assert_eq!(id["schema"]["items"]["format"], "uuid", "{path}");
+        lists.push(collection);
+    }
     for collection in [
         "entities",
-        "sites",
-        "domains",
-        "prefixes",
-        "ranges",
-        "addresses",
-        "vlan-groups",
         "vlans",
+        "interfaces",
+        "workloads",
+        "flows",
+        "policy-rules",
+        "environments",
     ] {
-        let parameters = &reference["paths"][format!("/v1/{collection}")]["get"]["parameters"];
-        let id = parameters
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|p| p["name"] == "id")
-            .unwrap_or_else(|| panic!("{collection}: no filter id"));
-        assert_eq!(id["in"], "query", "{collection}");
-        assert_eq!(id["required"], false, "{collection}");
-        assert_eq!(id["schema"]["type"], "array", "{collection}");
-        assert_eq!(id["schema"]["items"]["format"], "uuid", "{collection}");
+        assert!(lists.contains(&collection), "{collection} is not a list");
     }
+    for collection in ["kube-label-mappings", "anomalies", "policy-reports"] {
+        assert!(!lists.contains(&collection), "{collection} is a list");
+    }
+    assert_eq!(lists.len(), 29, "the lists of objects: {lists:?}");
 }
 
 /// The extension `x-kartenn` of the reference (023/A5, task 023-5): every collection of

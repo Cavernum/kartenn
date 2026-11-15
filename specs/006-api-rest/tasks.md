@@ -685,7 +685,7 @@ routeur complet, sauf mention « vrai TCP ».
   illisible ne journalise pas de refus (005 : invisible égale absent) ; le chemin statique
   `/<collection>/properties` passe avant `/<collection>/{id}` (matchit), vérifié par le
   test.
-- [ ] 32. Filtre `id` répété sur toute collection, `address` répété sur la liste des
+- [x] 32. Filtre `id` répété sur toute collection, `address` répété sur la liste des
   interfaces ; déclarés au contrat — REQ-006-41. Découpée en 32a–32d (2026-11-14) : une
   trentaine de collections, onze listes à SQL propre dans sept crates. Commun aux quatre :
   borne `cursor::MAX_SIZE` (1000), refus dès le 1001ᵉ `id` lu ; poids au quota 1, la
@@ -845,7 +845,7 @@ routeur complet, sauf mention « vrai TCP ».
   de la page ; à mesurer au banc HTTP sur les charges de travail (les workloads, la plus
   grande des collections de kube) avant d'écrire une branche propre au filtre `id`. La
   coupe de la page des flux avant leur filtre de lecture, antérieure : tâche 36.
-- [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
+- [x] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
   politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
   d'objets, kube compris — verify : `k-check -p kartenn-policy` (filtrée par `id`, une
   page sans suite, `page_size` ou curseur → 400, par `filter::window`),
@@ -858,6 +858,32 @@ routeur complet, sauf mention « vrai TCP ».
     (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) sont des types
     globaux sans route de liste (inventaire de la 32c)
   - dépend de : 32a, 32b, 32c
+  fait : `crates/kartenn-policy/src/rest.rs` (`wanted` lit `id` par `filter::push_id` dans
+  le même parcours que les filtres de la collection, dédoublonné ; `filter::window` dans
+  `list` ; `cardinality(…::uuid[]) = 0 OR x.id = ANY(…)` dans la requête, sous le prédicat
+  de lecture `visible` ; `Op::ids` en tête de la liste générique, donc des onze
+  collections du module) ; contrat et types des deux SDK régénérés (`schema.d.ts`,
+  `filters.ts`). Tests : `policy/tests/it/rest.rs`
+  `the_collections_filtered_by_identifier` (ordre de la liste ; conjonction avec `key`,
+  `effect`, `flow_type` ; un objet d'une autre collection et un objet que l'appelant ne
+  lit pas : réponse identique à celle d'un inconnu, statut, en-têtes hors `request-id` et
+  octets ; 103 environnements par `QUERY`, au-delà de la page par défaut : une page sans
+  suite ; `page_size`, curseur, UUID mal formé → 400 qui le nomme) ;
+  `rest/tests/it/contract.rs` `every_list_of_a_collection_of_objects_declares_the_id_filter`
+  (remplace `the_lists_of_the_core_declare_the_id_filter`).
+  choix : la garde du contrat reconnaît une liste d'objets à son `GET /v1/<collection>`
+  qui répond une page (`Listing_*`) et dont l'objet `GET /v1/<collection>/{id}` prend
+  `valid_at` (un objet daté) : 29 listes, noyau, VLAN, machines, kube, flux et politique ;
+  l'historique ne suffisait pas (`environments` n'en a pas de route). Les types sans liste
+  (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) et les pages de ce
+  qui n'est pas un objet daté (anomalies, non-conformités, rapports, identités, groupes,
+  jeux de modifications…) en sortent ; le test les nomme en partie et compte les 29. Aucune
+  liste oubliée par les 32a–32c. La liste de la politique filtre la lecture dans la
+  requête : rien à reporter à la tâche 36.
+  reste : `id` n'est pas servi sur les pages qui ne sont pas des objets datés mais ont un
+  identifiant et une lecture par identifiant (`policy-reports`, `changesets`, `imports`,
+  `identities`, `groups`, `service-accounts`, `bindings`) : hors de « collection
+  d'objets » au sens de la 32, à rouvrir si un client en a besoin.
 - [x] 32e. Adresses demandées rendues sous le filtre `address` (constat de la 021-11p10-e,
   arbitrage du 2026-11-15) : `GET /v1/interfaces?address=a&address=b` ne dit pas quelle
   adresse demandée chaque interface porte, le client ne peut pas répartir la réponse par
