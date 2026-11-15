@@ -601,6 +601,22 @@ d'un flux ancre son propriétaire sur la portion ajoutée). Un objet qu'un plan 
 le résoudre (l'objet existant qu'une observation de `kube` retrouve dans sa complétion)
 n'est pas une référence de l'auteur et reste hors du contrôle.
 
+Précision du 2026-11-15 (tâche 002-29c2, arbitrée par l'utilisateur) : les lectures
+qu'un plan exige (`ModuleHandler::reads`) sont vérifiées avant les écritures, avec les
+droits sur les objets que le changeset clôt ou change, sauf sur un objet que le changeset
+crée (le plan d'un module qui le crée, `ModulePlan::creates`, ou une création du noyau),
+vérifié après les écritures comme ses droits ; un refus arrête le changeset avant toute
+écriture, si bien qu'une écriture du module (une adresse close au rattachement) ne
+répond jamais à qui n'a pas le droit de lire l'objet. Une valeur d'affectation qu'un
+plan ajoute et qui est une désignation cachée à l'auteur n'est pas contrôlée à
+l'écriture, et les désignations cachées sont refusées avant les règles des modules
+(`ModuleHandler::check`) : une règle ne lit jamais un objet que l'auteur ne lit pas. Ce
+que le module doit en plus : déclarer dans `reads` le droit de lire tout objet cité dont
+une écriture ou une règle dirait l'existence ou l'état, comme `kartenn-machines` le fait
+pour l'hôte, la grappe et la machine qui porte une interface créée (009/M16). C'est une
+première étape : le droit de lire tout
+objet désigné par identifiant est prévu après la v0.2 (tâche 002-31).
+
 Ce que le module doit : donner à chaque résolution le type de l'objet qu'il attend
 (`ObjectKind::Module` pour un type de module, qualifié) et le nom du champ de son corps
 qui le porte, chemin JSON compris (`owner`, `host`, `vlans[]`) ; ne résoudre par

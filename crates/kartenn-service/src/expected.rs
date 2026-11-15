@@ -410,7 +410,7 @@ pub(crate) async fn defaults<T: WriteTx>(
                 Some(&values),
                 &provenance,
                 period,
-                changeset,
+                (changeset, &std::collections::HashSet::new()),
             )
             .await?;
             out.written.push(Planned::Assign {

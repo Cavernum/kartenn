@@ -395,10 +395,13 @@ async fn label_mapping_needs_kube_settings(pool: PgPool) {
     assert!(settings.iter().all(|p| p.global_only));
     assert!(kartenn_core::authz::permission("kube.settings.read").is_none());
 
-    // The custom axes are the settings of the core (spec 027).
+    // The custom axes are the settings of the core (spec 027). The read of the namespace
+    // the admitted values cite is granted: refused, it would stop the changeset before its
+    // writes, so before the right on the values it creates (task 002-29c2).
     let axis_team = Grants::new()
         .everywhere(env.author, "core.settings.edit")
-        .everywhere(env.author, "core.settings.approval.self");
+        .everywhere(env.author, "core.settings.approval.self")
+        .everywhere(env.author, "kube.namespace.read");
     let declared = env
         .submit_with(
             &axis_team,

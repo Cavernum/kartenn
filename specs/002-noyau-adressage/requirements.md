@@ -163,6 +163,24 @@ qui n'a pas le droit de lire l'objet désigné reçoit le refus de ses droits, l
 pour un objet qui existe hors de sa portée ; seul qui l'aurait apprend
 `core.reference.unknown`.
 
+Précision du 2026-11-15 (tâche 002-29c2, arbitrée par l'utilisateur, option B) : pour
+qu'aucune écriture ne réponde avant les droits, le pipeline vérifie avant toute écriture
+les lectures qu'une opération exige sur des objets qu'elle cite sans les écrire
+(`ModuleHandler::reads`, ADR 0026, amendement 17), sauf sur les objets que le changeset
+crée ; un refus de droits avant écriture arrête le changeset avant toute écriture. Une
+affectation dont la valeur est une désignation cachée à l'auteur n'est pas contrôlée à
+l'écriture : le changeset est refusé plus loin, par ses droits ou par
+`core.reference.unknown`. Les désignations cachées sont refusées sitôt les droits
+accordés, avant les règles des modules. Pour un auteur sans droit, une référence soumise
+à un droit de lire, hors de sa portée, inconnue, d'un autre type ou close, reçoit donc
+la même réponse (règles, messages, nombre d'objets, ordre), requêtes à plusieurs
+opérations comprises. Une référence sur laquelle aucun droit n'est exigé reste un
+oracle d'existence : hors de portée, l'écriture passe ; cachée, elle est refusée. Le
+droit de lire l'hôte et la grappe qu'une machine désigne, et la machine qui porte une
+interface créée (009/M16), en est une première étape ; sa généralisation à toute
+référence par identifiant est prévue après la v0.2 (tâche 002-31). La lecture d'un
+objet existant se juge sur sa portée d'avant le changeset, même si celui-ci le déplace.
+
 ### D. Préfixes
 
 #### REQ-002-13 — Nature du préfixe

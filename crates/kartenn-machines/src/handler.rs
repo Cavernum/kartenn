@@ -138,6 +138,11 @@ const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "vlan", "com
 const VLAN_READ: &str = "core.vlan.read";
 /// The permission an address attached or detached needs, rather than its writing (M16).
 const ADDRESS_READ: &str = "core.address.read";
+/// The fields whose reference needs the right to read the object it designates, checked
+/// before the writes (M16, extension of 2026-11-15; INV-63): the host, the clusters and
+/// the machine of an interface created. A first step: every reference after v0.2 (task
+/// 002-31).
+const READ_CHECKED: &[&str] = &["host.machine", "host.cluster", "member_of", "machine"];
 
 /// `machines.attach_address` (REQ-009-9, 11).
 #[derive(Debug, Deserialize)]
@@ -769,7 +774,21 @@ impl ModuleHandler for Handler {
         object: Uuid,
         resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
-        match operation.name.as_str() {
+        // The references of the fields of `READ_CHECKED`, each read under the permission of
+        // its kind.
+        let cited = std::cell::RefCell::new(Vec::new());
+        let checked = |r: Ref, kind: ObjectKind, field: &str| {
+            let id = resolve(r, kind, field)?;
+            if READ_CHECKED.contains(&field) {
+                cited.borrow_mut().push(json!([
+                    kartenn_service::reads::read_permission(kind.name()),
+                    id
+                ]));
+            }
+            Some(id)
+        };
+        let resolve: &Resolve<'_> = &checked;
+        let mut plan = match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),
             "update_cluster" => Self::plan_update_cluster(operation, resolve),
             "create_machine" => Self::plan_create_machine(operation, object, resolve),
@@ -779,7 +798,17 @@ impl ModuleHandler for Handler {
             "attach_address" => Self::plan_attachment(operation, resolve, true),
             "detach_address" => Self::plan_attachment(operation, resolve, false),
             other => Err(invalid(format!("machines.{other}: unknown operation"))),
+        }?;
+        let cited = cited.into_inner();
+        if !cited.is_empty()
+            && let Some(data) = plan.data.as_object_mut()
+        {
+            match data.entry("reads").or_insert_with(|| json!([])) {
+                Value::Array(reads) => reads.extend(cited),
+                other => *other = Value::Array(cited),
+            }
         }
+        Ok(plan)
     }
 
     fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
