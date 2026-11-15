@@ -591,6 +591,16 @@ Les droits d'abord (INV-63) : le refus n'est révélé qu'à qui pourrait lire u
 type à cet identifiant, les autres recevant le refus de leurs droits. Une référence vers
 un objet que le changeset crée plus tôt reste acceptée.
 
+Précision du 2026-11-14 (tâche 002-29b2) : seul un plan qui crée son objet
+(`ModulePlan::creates`) le met hors du contrôle pour tout le changeset. Un plan qui met à
+jour ou clôt un objet le désigne (son `id`, résolu par `resolve`) : cet objet doit être en
+vigueur au début de la période de l'opération, et une opération du noyau de la même
+requête qui le désigne est lue de même. Seules les opérations du noyau que ce plan ajoute
+peuvent viser son objet sans ce contrôle, sur la période qu'il lui donne (la prolongation
+d'un flux ancre son propriétaire sur la portion ajoutée). Un objet qu'un plan écrit sans
+le résoudre (l'objet existant qu'une observation de `kube` retrouve dans sa complétion)
+n'est pas une référence de l'auteur et reste hors du contrôle.
+
 Ce que le module doit : donner à chaque résolution le type de l'objet qu'il attend
 (`ObjectKind::Module` pour un type de module, qualifié) et le nom du champ de son corps
 qui le porte, chemin JSON compris (`owner`, `host`, `vlans[]`) ; ne résoudre par

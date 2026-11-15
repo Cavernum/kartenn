@@ -111,6 +111,20 @@ voir [`../README.md`](../README.md).
   (migration 0019), appelée par `kartenn-server migrate` (`maintenance::deploy`, qui
   synchronise aussi les déclarations du noyau) ; à relancer au moins chaque mois
   (`maintenance::history_partitions`) jusqu'au planificateur de jobs
+- [ ] 26. L'annulation d'un changeset qui crée un groupe de VLAN est refusée
+  (`changeset.operation.no_version`, constaté par la tâche 002-29b2, antérieur à elle) :
+  l'inverse clôt le groupe (`Close`), puis retire le propriétaire que le plan du groupe lui
+  a affecté (`UnassignProperty`), sur un objet déjà clos. L'inverse d'un objet créé ne
+  retire pas ce que sa clôture emporte, ou ordonne les retraits avant la clôture ; vérifier
+  aussi la création d'un groupe et d'un VLAN dans le même changeset (le groupe, clos en
+  cascade avec ses VLAN, passe avant eux dans `undo_facts`) — REQ-004-34, 35 — verify :
+  test rouge d'abord (créer un groupe de VLAN ancré sur une entité, puis l'annuler ; créer
+  un groupe et un VLAN ensemble, puis annuler : appliqué, plus rien en vigueur) ;
+  `k-check -p kartenn-service` ; `k-web2-e2e` (parcours d'annulation)
+  où : `crates/kartenn-service/src/undo.rs` (`inverse`, vers 174) ;
+  `crates/kartenn-store-pg/src/undo.rs` (`facts`, vers 536 ; ordre des types, vers 25) ;
+  test voisin `crates/kartenn-service/tests/it/reference_integrity.rs`
+  (`the_writes_of_a_module_are_undone`), `tests/it/undo.rs`
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 

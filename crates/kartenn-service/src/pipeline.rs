@@ -1146,6 +1146,8 @@ struct Unknown {
     /// The others: the changeset goes on, so that the rights refuse it as they would an
     /// object out of reach; refused by these only once every right is granted.
     hidden: Vec<Violation>,
+    /// The objects of those, with the kind each was expected to have.
+    absent: HashSet<(Uuid, ObjectKind)>,
 }
 
 /// The read permission of the objects of `kind`, `None` for the declarations and their
@@ -1180,6 +1182,7 @@ async fn check_designations<T: WriteTx + Send, A: Authorizer>(
     let mut split = Unknown {
         revealed: Vec::new(),
         hidden: Vec::new(),
+        absent: HashSet::new(),
     };
     for d in unknown_designations(tx, designated, periods).await? {
         let readable = match read_permission(d.kind) {
@@ -1194,6 +1197,7 @@ async fn check_designations<T: WriteTx + Send, A: Authorizer>(
             split.revealed.push(violation);
         } else {
             split.hidden.push(violation);
+            split.absent.insert((d.id, d.kind));
         }
     }
     Ok(split)
@@ -1281,8 +1285,9 @@ fn plan(
 ) {
     let mut designated: Vec<Designation> = Vec::new();
     // The objects the changeset creates, by the identifiers drawn here, and those a module
-    // plan writes: the operations of the core a plan adds designate them by identifier,
-    // not by local name.
+    // plan creates: the operations of the core a plan adds designate them by identifier,
+    // not by local name. An object a module plan changes or closes is not one of them: it
+    // must be in force (task 002-29b2).
     let mut created: HashMap<Uuid, ObjectKind> = HashMap::new();
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
     // The local names of the objects created so far, which a value may designate.
@@ -1311,8 +1316,9 @@ fn plan(
             Option<ShareScope>,
         )> = std::collections::VecDeque::from([(requested.clone(), None, None)]);
         // The module plans that add core operations, by their position in `planned`,
-        // with the identifiers drawn for those operations (amendment 8).
-        let mut adding: Vec<(usize, Vec<Uuid>)> = Vec::new();
+        // with the identifiers drawn for those operations (amendment 8) and the object the
+        // plan writes.
+        let mut adding: Vec<(usize, Vec<Uuid>, (Uuid, ObjectKind))> = Vec::new();
         let mut first = true;
         while let Some((owned, added, shared)) = queue.pop_front() {
             let by = added.map(|(by, _)| by);
@@ -1353,9 +1359,13 @@ fn plan(
             let op = owned.inner();
             // REQ-002-12 (amendment of 2026-11-14): every reference by identifier, read
             // once the locks are held. A restoration gives back what was asserted before, an
-            // object closed since included: its own write judges its target.
+            // object closed since included: its own write judges its target. An operation
+            // of the core a module plan adds may designate the object of that plan over the
+            // period the plan gives it, an extension say (task 002-29b2).
+            let written = by.map(|by| adding[by].2);
             if !matches!(op, Operation::Restore { .. }) {
                 designated.extend(references(op).into_iter().filter_map(|r| match r.to {
+                    Ref::Id(id) if written == Some((id, r.kind)) => None,
                     Ref::Id(id) => Some(Designation {
                         operation: index,
                         own,
@@ -1412,15 +1422,18 @@ fn plan(
                     designated.extend(resolved.into_inner());
                     match found {
                         Ok(module_plan) => {
-                            // Created or changed (its period extended, say): the operations
-                            // of the core its plan adds name it as the changeset writes it.
-                            created.insert(
+                            let written = (
                                 module_plan.object,
                                 ObjectKind::from_qualified(module_plan.kind),
                             );
+                            // Created: in force for the whole changeset. Changed or closed:
+                            // designated by the plan, so read as any other reference.
+                            if module_plan.creates {
+                                created.insert(written.0, written.1);
+                            }
                             if !module_plan.core.is_empty() {
                                 let by = adding.len();
-                                adding.push((planned.len(), Vec::new()));
+                                adding.push((planned.len(), Vec::new(), written));
                                 let shared = handler.shared(&module_plan);
                                 let scope: ShareScope =
                                     (module_plan.kind.module().to_owned(), shared.scope);
@@ -1572,7 +1585,7 @@ fn plan(
         }
         // Each module plan receives the identifiers of the core objects it adds, so that
         // its data cite them (ADR 0026, amendment 8; 019/B9).
-        for (position, created) in adding {
+        for (position, created, _) in adding {
             if let Planned::Module { handler, plan, .. } = &mut planned[position] {
                 handler.planned(Arc::make_mut(plan), &created);
             }
@@ -1750,13 +1763,14 @@ const MAX_REPLAYS: u8 = 2;
 /// Under the locks, `domain_of` is read again for those objects (the domains of prefixes,
 /// ranges and addresses never change), and the operations of modules that lock a domain
 /// complete themselves again from `original`; a completion that differs from `prepared`
-/// was read on a state another changeset has changed since.
+/// was read on a state another changeset has changed since. The objects `absent`, which a
+/// designation found out of force, are left to that refusal.
 async fn moved<T: WriteTx>(
     tx: &mut T,
     original: &ChangesetRequest,
     prepared: &ChangesetRequest,
     (planned, origins): (&[Planned], &[usize]),
-    held: &[Uuid],
+    (held, absent): (&[Uuid], &HashSet<(Uuid, ObjectKind)>),
     modules: &ModuleRegistry,
     period: Option<Period>,
 ) -> Result<Option<Violation>, StoreError> {
@@ -1783,10 +1797,12 @@ async fn moved<T: WriteTx>(
             }
             _ => continue,
         };
-        if matches!(
-            kind,
-            ObjectKind::VlanGroup | ObjectKind::Vlan | ObjectKind::Module(_)
-        ) && let Some(domain) = tx.domain_of(kind, id).await?
+        if !absent.contains(&(id, kind))
+            && matches!(
+                kind,
+                ObjectKind::VlanGroup | ObjectKind::Vlan | ObjectKind::Module(_)
+            )
+            && let Some(domain) = tx.domain_of(kind, id).await?
             && !held.contains(&domain)
         {
             return Ok(Some(stale(origin, id)));
@@ -1820,6 +1836,7 @@ async fn moved<T: WriteTx>(
     for (p, origin) in planned.iter().zip(origins) {
         if let Planned::Module { plan, .. } = p
             && again.contains(origin)
+            && !absent.contains(&(plan.object, object_kind(plan.kind)))
             && let Some(domain) = tx.domain_of(object_kind(plan.kind), plan.object).await?
             && !plan.domains.contains(&domain)
         {
@@ -2759,6 +2776,9 @@ async fn stages<S: Store, A: Authorizer>(
             return refuse(store, req, changeset, unknown.revealed, mode, context).await;
         }
         let hidden = unknown.hidden;
+        // INV-63 (task 002-29b2): an object hidden from the author is not in force, its last
+        // domain no conflict that would tell him otherwise.
+        let absent = unknown.absent;
         let moved = or_roll_back!(
             tx,
             moved(
@@ -2766,7 +2786,7 @@ async fn stages<S: Store, A: Authorizer>(
                 original,
                 req,
                 (&planned, &origins),
-                &domains,
+                (&domains, &absent),
                 modules,
                 period
             )
@@ -2868,6 +2888,15 @@ async fn stages<S: Store, A: Authorizer>(
     if let Err(e) = before {
         tx.rollback().await?;
         return Err(e.into());
+    }
+    // INV-63 (task 002-29b2): an author refused on the objects he closes or changes is
+    // refused by his rights alone, before any write, whatever those objects are: the writes
+    // would answer otherwise for an object out of his reach than for one that is not (an
+    // update of a module object that does not exist, say). The rights on the objects
+    // created are checked after the writes.
+    if has_errors(&violations) {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, violations, mode, context).await;
     }
     // Spec 021, A12: a simulation places the objects of its trees, read before the writes,
     // as its author may read them.

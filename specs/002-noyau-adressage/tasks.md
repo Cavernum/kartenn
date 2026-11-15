@@ -301,7 +301,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     extrémité inchangée dans `flow.update`) est relevée comme les autres
   - reste : l'exemption de `created` pour l'objet d'une mise à jour ou d'une clôture
     (29b2) ; tests de refus par module (29b2, 29c, 29d)
-- [ ] 29b2. Références des VLAN et groupes de VLAN du cœur et des modules de test, et
+- [x] 29b2. Références des VLAN et groupes de VLAN du cœur et des modules de test, et
   objet écrit par un plan : seul un plan qui crée (`module_plan.creates`) met son objet
   dans `created` ; une mise à jour ou une clôture désigne un objet en vigueur, l'exemption
   d'une période prolongée ne valant que pour les opérations du noyau qu'ajoute ce même plan
@@ -316,11 +316,61 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   (`no_right_reaches_through_an_unknown_domain`), `tests/it/support/dummy_module.rs`,
   `kit_module.rs`
   dépend de : 29b1
+  - fait le 2026-11-14 : dans `pipeline::plan`, seul un plan de module qui crée
+    (`creates`) met son objet dans `created` ; l'objet d'une mise à jour ou d'une clôture
+    est désigné (son `id` résolu) et lu comme toute référence, de même pour une opération
+    du noyau de la même requête qui le désigne ; seules les opérations du noyau qu'ajoute
+    ce plan visent son objet sans contrôle (prolongation d'un flux). Précision à
+    l'amendement 17 de l'ADR 0026. Les droits d'abord (INV-63), deux fuites fermées que le
+    test de la mise à jour d'un VLAN a montrées : un auteur refusé par ses droits sur les
+    objets qu'il clôt ou change l'est avant toute écriture, par ces seuls refus (sinon
+    `changeset.operation.no_version` révélait l'absence, et une requête à plusieurs
+    opérations répondait `[forbidden, conflit]` pour une cible hors de portée, `[forbidden]`
+    pour une cible inconnue), et `moved` ne lit plus le dernier domaine d'un objet caché,
+    reconnu à son identifiant et à son type (un VLAN clos donnait
+    `changeset.operation.conflict`). Correction après revue : le même cas (une clôture ou
+    une mise à jour hors de portée, et une écriture en double dans son propre domaine :
+    quatre réponses égales) dans `rbac::no_right_reaches_through_an_unknown_domain` (cœur)
+    et `no_right_reaches_through_an_unknown_vlan` (VLAN), rouges d'abord
+    (`core.prefix.duplicate`, `core.vlan.vid_duplicate` à côté du refus de droits) ; aucun
+    test existant n'attendait de violations cumulées à côté d'un refus de droits.
+    Tests `reference_integrity.rs` : `the_object_a_module_operation_changes_is_in_force`
+    (rouge d'abord : `changeset.operation.no_version` au lieu de `core.reference.unknown`),
+    `a_vlan_group_and_a_vlan_designate_objects_in_force` (ancre inconnue ou d'un autre
+    type, propriétaire, groupe inconnu, d'une entité ou clos),
+    `every_reference_of_every_module_operation_is_checked` (un exemple par type
+    d'opération des VLAN du cœur, de `dummy` et de `kit`, chaque `Ref::Id` refusé ; rouge
+    d'abord sur l'`id` de `update_vlan_group`), `the_writes_of_a_module_are_undone`
+    (créer puis annuler, modifier puis annuler : VLAN, groupe réancré, objet de `dummy`) ;
+    `rbac::no_right_reaches_through_an_unknown_vlan` (même refus `core.object.forbidden`
+    pour un VLAN inconnu, une entité, un VLAN clos et un VLAN hors de portée ;
+    `core.reference.unknown` pour l'administrateur de tout)
+  - choix : un objet qu'un plan écrit sans le résoudre par `resolve` (l'objet existant
+    d'une observation `kube`, lu par sa complétion) n'est pas une référence de l'auteur et
+    reste hors du contrôle ; l'exemption des opérations ajoutées vaut pour le seul objet de
+    leur plan, au type près ; arbitré après revue : tout refus de droits constaté avant
+    écriture (objets clos ou changés) arrête le changeset avant toute écriture, la réponse
+    ne portant que ces refus, que la désignation soit cachée ou non ; les droits sur les
+    objets créés restent vérifiés après l'écriture
+  - reste : l'annulation de la création d'un groupe de VLAN est refusée
+    (`changeset.operation.no_version`, déjà avant cette tâche) : tâche 004-26. Ce que
+    laissent ouvert les droits vérifiés après l'écriture (objets créés) : un auteur sans
+    droit qui crée un objet désignant une référence cachée passe par les écritures, dont
+    les refus (une écriture de module qui échoue sur la référence absente, une règle
+    d'écriture qui cumule ses violations) peuvent différer de ceux d'une référence hors de
+    portée et révéler l'absence ; non observé sur les modules de test, à vérifier par
+    module en 29c et 29d
 - [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
   machine ou grappe, `member_of`, machine, interface, adresse), typées par la 29b1 : tests
   de refus et cas particuliers — REQ-002-12 (amendée) — verify : une
   interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
-  `core.reference.unknown` ; `k-check -p kartenn-machines`
+  `core.reference.unknown` ; la marche sur les types d'opération des modules du build
+  (`every_reference_of_every_module_operation_is_checked`, `kartenn-service`) étendue à
+  ceux de `kartenn-machines` ; une observation `kube` antidatée ne vise pas un objet qui
+  n'est pas encore en vigueur au début de sa période (son objet existant, lu par la
+  complétion, reste hors du contrôle, 29b2) ; un auteur sans droit qui crée un objet
+  désignant une référence cachée reçoit le même refus que pour une référence hors de
+  portée ; `k-check -p kartenn-machines`
   où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
   `crates/kartenn-machines/tests/it/machines.rs`
   dépend de : 29b1
