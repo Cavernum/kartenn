@@ -7203,9 +7203,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       défiler sa ligne en vue perdrait sa ligne (relecture d'interface) ; ni pendant un
       glisser (la cible du dépôt sous le défilement du navigateur). Relectures
       `ui-reviewer` et `a11y-auditor` : rien de bloquant.
-    - reste : passe filtrée du banc (≈ 7 % à 1 000 lignes/s, < 1 % à 500), à la session
-      principale sur le résultat fusionné ; `Tree` et `DataGrid` sans la marque (hors périmètre, `useVirtualRows` si
-      elles doivent suivre).
+    - banc : passe filtrée sur le résultat fusionné (`dc2ee843`, machine libre, une
+      passe, `K_BENCH_TREE_AB=1`) : 8,92 % de trames perdues à 1 000 lignes/s, aucune
+      tâche longue (budget 2 % : non tenu) ; reprises du diagnostic dans la même passe :
+      8,64 % et 3,90 % à 1 000 lignes/s, 1,09 % et 1,27 % à 500 lignes/s. Le budget ne se
+      ferme qu'avec la 22e-f.
+    - reste : `Tree` et `DataGrid` sans la marque (hors périmètre, `useVirtualRows` si
+      elles doivent suivre) ; relevés par la revue : `pressed` resterait vrai si un
+      `pointerdown` sur la barre de défilement n'est pas suivi d'un `pointerup` (à
+      vérifier) ; aucun test pour `pointercancel`, le nettoyage au démontage ni l'absence
+      de rendu au `scroll`.
   - [ ] 22e-f. (C, à arbitrer) Le protocole du budget de l'arbre à 500 lignes/s : 10⁴
     lignes en 20 s au lieu de 10, le budget (2 %, aucune tâche longue) inchangé
     (ce que l'utilisateur perd : rien dans le produit ; le banc ne garantit plus le
