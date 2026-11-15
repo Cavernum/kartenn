@@ -926,6 +926,14 @@ pub trait StatsContributor: Send + Sync + fmt::Debug {
         read: &'a mut dyn ModuleRead,
         scope: &'a StatsScope<'a>,
     ) -> BoxFuture<'a, Result<Contribution, StoreError>>;
+
+    /// The permissions its counters depend on beyond the read scope of the caller (the
+    /// flows of their requester, under `flow.request`): the counters of a caller are kept
+    /// for where it holds them at the read, so that a right withdrawn or ended by its date
+    /// is not served from a snapshot made while it held it (task 006-39).
+    fn permissions(&self) -> &'static [&'static str] {
+        &[]
+    }
 }
 
 /// Why the modules of a build cannot run together: the server stops (REQ-008-1).
