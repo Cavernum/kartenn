@@ -7513,6 +7513,33 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     reste, à attribuer : les noms d'objets cellule par cellule de la 11p10-d sont le
     premier suspect) ; l'arbre de 10⁴ lignes, 22,04 % de trames perdues, aucune tâche
     longue (budget 2 % ; inchangé, aucune tâche fusionnée ne le visait ; 22e-d).
+  - cinquième passe réduite, de référence (session principale, le 2026-11-15, `bench-web
+    small`, main 282f6908 après les 11p10-b2, 11p10-e et les 006-32a à 32e, aucun agent
+    en route, les quatre verrous libres, charge 5,7 au lancement retombée à 1,6 à la
+    fin) : shell initial 239,0 Ko ; premier écran 751,9 ms (697 puis 851,6 : l'écart de
+    la quatrième passe tenait donc surtout à la charge) ; navigation en cache, p75 86,3
+    ms ; flèche bas dans une grille, p75 14,3 ms ; flèche dans l'arbre 13,1 ms ; tas 25,9
+    Mo. Restent en échec : la page de 100 lignes, p95 131,2 ms, médiane 69,1, pire 337,5
+    (budget 100 ; 256,7 puis 179,4 : les interfaces lues par fenêtre de la 11p10-e ont
+    rendu 48 ms de plus au p95 et 20 ms à la médiane ; il reste une queue, quelques
+    échantillons lents sur vingt, à attribuer par une sonde : 22f-e) ; l'arbre de 10⁴
+    lignes, 21,27 % de trames perdues et 1 tâche longue (inchangé ; 22e-d).
+  - [ ] 22f-e. Sonde : attribuer la queue de la page de 100 lignes (p95 131,2 ms pour
+    une médiane de 69,1 à la cinquième passe : la page type tient le budget, quelques
+    échantillons sur vingt non) — pour chaque échantillon du banc, relever ce qui sépare
+    la réponse du dessin (attente réseau des lots de propriétés et d'interfaces, tâches
+    longues et leur pile, style et mise en page, ramasse-miettes, montage des lignes par
+    tranches) et dire ce qui distingue les échantillons lents des autres (première page
+    contre suivantes, lot en vol quand la page arrive, fenêtre de 10 ms des regroupeurs,
+    noms d'objets de la 11p10-d) ; aucune correction dans cette tâche : un relevé, la
+    cause nommée, et la ou les tâches de correction écrites avec leurs `où :` et `verify`
+    — verify : la passe filtrée du banc (`bench-web small -g "page of 100 rows"`), la
+    machine libre, trois fois ; le relevé sous cette tâche
+    - où : `web/v2/e2e/budgets/budgets.spec.ts` (597, « a page of 100 rows drawn within
+      100 ms of its response »), `web/v2/ui/src/components/DataGrid/{DataGrid.vue,row.ts}`,
+      `web/v2/shell/src/views/{list.ts,propertyColumns.ts}`,
+      `web/v2/sdk/src/data/batch.ts`, `web/v2/plugins/machines/src/holders.ts` ; modèle
+      de sonde : la note de la 22f-d
 - [x] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
   11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
   échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
