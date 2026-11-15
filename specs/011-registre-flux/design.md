@@ -301,8 +301,10 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
   la lecture (F19, tâche 12).
 - La demande d'un flux exige aussi `prop.core.owner.write` sur l'entité : le flux est
   ancré par une affectation ordinaire de `core.owner`, bornée à sa vie.
-- Lectures : le prédicat RBAC est appliqué par les routes ; une page est coupée avant le
-  filtre des droits (parfois plus courte, sans fuite) ; les non-conformités se lisent
+- Lectures : le prédicat RBAC est appliqué par les routes ; une page de flux est coupée
+  sur les seules lignes lisibles, le prédicat porté par la requête (tâche 006-36 : une
+  page plus courte avec une suite, et un curseur sur une ligne illisible, trahissaient
+  les flux illisibles) ; les non-conformités se lisent
   par curseur signé (021-29, REQ-021-35 : date décroissante, puis l'identifiant du flux
   ou du changeset rejeté ; la clé de la dernière ligne lue avant le filtre des droits) ;
   le demandeur lit son flux comme tout lecteur, évaluations entières (027/REQ-027-2).
