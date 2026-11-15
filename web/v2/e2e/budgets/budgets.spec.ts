@@ -364,8 +364,8 @@ function backgroundWriter(
 
 /**
  * How long `scrollRows` takes over its `ROWS` rows, in ms: 500 rows/s (task 021-22e-f,
- * arbitration C), half the speed of the prototype's protocol at eight times its rows
- * (021 design, « Budgets »).
+ * arbitration C), four times the speed of the prototype's protocol (021 design,
+ * « Budgets »).
  */
 const SCROLL_MS = 20_000;
 
