@@ -1025,11 +1025,16 @@ routeur complet, sauf mention « vrai TCP ».
   valeurs d'un écart d'une propriété `ref` résumées aussi (même mécanisme, REQ-006-42
   « tout corps ») ; une lecture des déclarations aux dates par lecture unitaire (le lot la
   faisait déjà sans `key`) pour savoir quelles clés sont `ref` ; une valeur mal formée
-  reste brute ; lisibilité « maintenant » (33a).
+  reste brute ; lisibilité « maintenant » (33a) ; les clés lues aux dates de la route
+  (anomalies et écarts : l'état présent, qu'ils lisent seul) ; le `kind` d'un
+  `ObjectRef` dit l'existence et non la lisibilité, ce qui ne fuit rien : une anomalie
+  ou un écart d'un objet illisible n'est pas listé (`open_and_readable`), comme celui
+  d'un objet supprimé (revue : `an_anomaly_of_an_unreadable_object_and_of_a_gone_one_leave_the_same_bytes`).
   reste : le shell montre encore l'identifiant d'une valeur `ref` (et le JSON d'un
   ensemble) : 11p10-d ; l'explication d'une valeur (`/explanation`, `raw_value`) rend
-  encore une référence brute, hors du recensement : à ajouter à la 33f ou à une tâche
-  voisine.
+  encore une référence brute : 33f ; `kartenn-store-pg/src/keys.rs` `natural_keys`
+  redit l'union de `property_read::kind_names` (même remarque que la revue de la
+  017-26), non factorisée.
 - [ ] 33c. VLAN : ancre et groupe d'un VLAN et d'un groupe — verify :
   `k-check -p kartenn-rest vlan`
   - où : `crates/kartenn-rest/src/vlan.rs` (`IdRef`, `Anchor`) ; `summary.rs`
@@ -1054,7 +1059,9 @@ routeur complet, sauf mention « vrai TCP ».
   `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`
   - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`),
     `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
-    `PolicyAxisResolution`, `PolicyReportItem`)
+    `PolicyAxisResolution`, `PolicyReportItem`) ; et l'explication d'une valeur
+    (`crates/kartenn-rest/src/properties.rs`, `explanation`, `raw_value`) dont une
+    référence est encore brute (reste de la 33b) : `Summaries::read`
   - dépend de : 33a–33e
 - [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
   (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées
