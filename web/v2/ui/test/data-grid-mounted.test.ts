@@ -7,7 +7,7 @@ import { createApp, h, nextTick, shallowReactive, type App, type Component } fro
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import type { CellRef, GridColumn } from "../src/components/DataGrid/grid.ts";
-import { ANCHORED_ROWS, headShift } from "../src/components/internal/virtualRows.ts";
+import { ANCHORED_ROWS, headShift, sameList } from "../src/components/internal/virtualRows.ts";
 
 // A paged list past the pages its cache keeps (task 021-22f): the cache drops the first
 // page as it reads the next one, every row moves up a page among the rows of the grid, and
@@ -72,8 +72,11 @@ afterEach(() => {
     delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
 });
 
-/** A grid of 1 000 rows (ten pages) mounted, its props reactive, its models followed. */
-async function mountGrid() {
+/**
+ * A grid of 1 000 rows (ten pages) mounted, its props reactive, its models followed; or of
+ * the props `given` (other rows, a `rowCount`).
+ */
+async function mountGrid(given: Record<string, unknown> = {}) {
   const props = shallowReactive<Record<string, unknown>>({
     label: "Adresses",
     columns,
@@ -82,6 +85,7 @@ async function mountGrid() {
     editable: () => true,
     active: undefined as CellRef | undefined,
     editing: undefined as CellRef | undefined,
+    ...given,
   });
   const root = document.createElement("div");
   document.body.append(root);
@@ -100,7 +104,7 @@ async function mountGrid() {
   app.mount(root);
   await settle();
   const grid = root.querySelector<HTMLElement>("[role='grid']")!;
-  expect(grid.dataset.virtual).toBe("true");
+  if (given.rows === undefined) expect(grid.dataset.virtual).toBe("true");
   return { props, grid };
 }
 
@@ -257,6 +261,79 @@ describe("DataGrid: a page dropped at the head of a paged list (task 021-22f)", 
   });
 });
 
+// A paged list virtualised from its first page (task 021-22f-f): before, the grid mounted
+// the 100 rows of the second page at once (200 rows, below `VIRTUAL_ROWS`), then unmounted
+// 190 of them as the third crossed it, the two slow pages of the bench of a page.
+describe("DataGrid: a list that announces a next page, virtualised from its first row (task 021-22f-f)", () => {
+  /** The rows of the body in the document. */
+  const mounted = (grid: HTMLElement) =>
+    grid.querySelectorAll(".k-data-grid__body [role='row']").length;
+
+  it("mounts its window alone at 100 rows, and keeps to it at 200 then 300", async () => {
+    const { props, grid } = await mountGrid({ rows: rowsOf(0, 100), rowCount: -1 });
+    expect(grid.dataset.virtual).toBe("true");
+    expect(grid.getAttribute("aria-rowcount")).toBe("-1");
+    const window = mounted(grid);
+    expect(window).toBeGreaterThan(0);
+    expect(window).toBeLessThan(50);
+    expect(grid.querySelector("[data-row='a0']")).not.toBeNull();
+    for (const to of [200, 300]) {
+      props.rows = rowsOf(0, to);
+      await settle();
+      expect(grid.dataset.virtual, `${to} rows`).toBe("true");
+      expect(mounted(grid), `${to} rows`).toBe(window);
+    }
+    // The last page read: the whole count, still beyond `VIRTUAL_ROWS`.
+    props.rows = rowsOf(0, 350);
+    props.rowCount = 350;
+    await settle();
+    expect(grid.dataset.virtual).toBe("true");
+    expect(grid.getAttribute("aria-rowcount")).toBe("351");
+  });
+
+  it("keeps every row below 200 of a list without a next page", async () => {
+    const { grid } = await mountGrid({ rows: rowsOf(0, 100) });
+    expect(grid.dataset.virtual).toBeUndefined();
+    expect(mounted(grid)).toBe(100);
+  });
+
+  // Before, the list read to its end (150 rows) went back to every row: the grid lost its
+  // height and its scroll offset, the cell of the focus left the view.
+  it("stays virtualised once read to its end: the window, the offset, the focus kept", async () => {
+    const { props, grid } = await mountGrid({ rows: rowsOf(0, 100), rowCount: -1 });
+    await scrollGrid(grid, 1200);
+    const cell = grid.querySelector<HTMLElement>("[data-row='a50'][data-column='label']")!;
+    cell.focus();
+    await settle();
+    expect(document.activeElement).toBe(cell);
+    const keys = () =>
+      [...grid.querySelectorAll<HTMLElement>(".k-data-grid__body [role='row'] [data-row]")]
+        .map((el) => el.dataset.row)
+        .filter((key, i, all) => all.indexOf(key) === i);
+    const window = keys();
+    // The last page: 50 rows more, the whole count known.
+    props.rows = rowsOf(0, 150);
+    props.rowCount = 150;
+    await settle();
+    expect(grid.dataset.virtual).toBe("true");
+    expect(keys()).toEqual(window);
+    expect(grid.scrollTop).toBe(1200);
+    expect(document.activeElement).toBe(cell);
+    expect(cell.isConnected).toBe(true);
+    // A press on a gap of the grid (or its scrollbar, in Firefox) focuses the grid, which
+    // gives the focus back to the cell of the stop, its mark kept.
+    grid.focus();
+    await settle();
+    expect(document.activeElement).toBe(cell);
+    // Another list (another read, a filter): the threshold again, every row of its 100.
+    props.rows = rowsOf(500, 600);
+    props.rowCount = 100;
+    await settle();
+    expect(grid.dataset.virtual).toBeUndefined();
+    expect(mounted(grid)).toBe(100);
+  });
+});
+
 describe("headShift: rows gone or come at the head only (task 021-22f)", () => {
   const keys = (from: number, to: number) => rowsOf(from, to).map((row) => row.id);
   it("is the first page dropped, the next one read or not, or a page read before", () => {
@@ -278,5 +355,28 @@ describe("headShift: rows gone or come at the head only (task 021-22f)", () => {
     // A row of the middle gone too: not a move of the head alone.
     const holed = keys(100, 1100).filter((key) => key !== "a500");
     expect(headShift(keys(0, 1000), holed)).toBe(0);
+  });
+});
+
+describe("sameList: the list read further, not another one (task 021-22f-f)", () => {
+  const keys = (from: number, to: number) => rowsOf(from, to).map((row) => row.id);
+
+  it("is the same rows, a page more at the tail, a page gone or come at the head", () => {
+    expect(sameList(keys(0, 100), keys(0, 100))).toBe(true);
+    expect(sameList(keys(0, 100), keys(0, 150))).toBe(true);
+    expect(sameList(keys(0, 1000), keys(100, 1100))).toBe(true);
+    expect(sameList(keys(100, 1100), keys(0, 1000))).toBe(true);
+  });
+
+  it("is not a sort, a filter, rows of another list, nor rows gone at the tail", () => {
+    expect(sameList(keys(0, 100), keys(0, 100).reverse())).toBe(false);
+    expect(
+      sameList(
+        keys(0, 100),
+        keys(0, 100).filter((_, i) => i % 2 === 0),
+      ),
+    ).toBe(false);
+    expect(sameList(keys(0, 100), keys(500, 600))).toBe(false);
+    expect(sameList(keys(0, 100), keys(0, 50))).toBe(false);
   });
 });

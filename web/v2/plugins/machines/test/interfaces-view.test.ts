@@ -115,6 +115,13 @@ beforeAll(async () => {
   await import("../src/index.ts");
   await defined;
   document.addEventListener("click", follow);
+  // A grid's box 600 px high (happy-dom lays nothing out): a list that announces a next
+  // page is virtualised from its first row, its window read from its box (task 021-22f-f).
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return this.classList.contains("k-data-grid") ? 600 : 0;
+  });
 });
 
 afterEach(() => {

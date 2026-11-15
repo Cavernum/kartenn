@@ -355,13 +355,23 @@ describe("the routes of the referential", () => {
   let app: App | undefined;
   const t = (key: string) => key;
 
+  /** The height given to a grid's box, restored after each test. */
+  let box: { mockRestore(): void } | undefined;
   beforeEach(async () => {
     router = createRouter({
       history: createMemoryHistory(),
       routes: [{ path: "/", component: RouterView, children: frameRoutes }],
     });
+    // A grid's box 600 px high: a list that announces a next page is virtualised from its
+    // first row, its window read from its box (task 021-22f-f).
+    box = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("k-data-grid") ? 600 : 0;
+    });
   });
   afterEach(() => {
+    box?.mockRestore();
     app?.unmount();
     app = undefined;
     queryClient.clear();

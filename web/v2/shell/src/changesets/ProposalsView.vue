@@ -82,7 +82,7 @@ const countText = computed(() =>
       row-key="id"
       :loading="list.isPending.value"
       :loading-rows="6"
-      :row-count="complete ? rows.length : undefined"
+      :row-count="complete ? rows.length : -1"
       @activate="onActivate"
       @window="onWindow"
     >

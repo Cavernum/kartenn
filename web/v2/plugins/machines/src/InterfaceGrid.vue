@@ -74,7 +74,7 @@ function onActivate(cell: CellRef): void {
     row-key="id"
     :loading="props.loading"
     :loading-rows="4"
-    :row-count="props.loading || props.more ? -1 : rows.length"
+    :row-count="props.more ? -1 : props.loading ? undefined : rows.length"
     @activate="onActivate"
     @window="(w) => emit('window', w)"
   >

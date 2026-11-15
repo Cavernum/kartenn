@@ -160,6 +160,13 @@ export interface VirtualRowsHost {
   /** Not virtualised now (the list is loading). */
   off?(): boolean;
   /**
+   * A list that announces a next page (its whole count unknown): virtualised from its first
+   * row, so the rows of its next pages mount in the window alone, never all at once below
+   * `VIRTUAL_ROWS` nor at once unmounted as they cross it; virtualised still once read to
+   * its end, as long as it is the same list (`sameList`, task 021-22f-f).
+   */
+  paged?(): boolean;
+  /**
    * The rows in view kept in their place when rows go or come at the head of the list
    * (`headShift`: a paged list whose cache drops its first page, task 021-22f).
    */
@@ -197,13 +204,45 @@ export function headShift(before: readonly string[], after: readonly string[]): 
 export const ANCHORED_ROWS = 50;
 
 /**
- * The virtualisation of a list of rows (`TreeGrid`, `Tree`): beyond `VIRTUAL_ROWS`, the
+ * Whether `after` is still the list `before` was, read further: the same rows, a page
+ * more at its tail, or a page gone or come at its head (`headShift`); not another list
+ * (another read, a filter, a sort), whose rows start elsewhere.
+ */
+export function sameList(before: readonly string[], after: readonly string[]): boolean {
+  if (after.length >= before.length && before.every((key, i) => after[i] === key)) return true;
+  return headShift(before, after) !== 0;
+}
+
+/**
+ * The virtualisation of a list of rows (`DataGrid`, `TreeGrid`, `Tree`): beyond
+ * `VIRTUAL_ROWS`, or from the first row of a list that announces a next page (`paged`),
+ * and then for as long as it stays the same list, read to its end (`sameList`): the
  * window of `@tanstack/vue-virtual` and the rows kept mounted, between gaps of the height
  * of the others (measured, else the row height of the density, read from `--k-row-height`
- * of the scroller); every row below it.
+ * of the scroller); every row otherwise.
  */
 export function useVirtualRows(host: VirtualRowsHost) {
-  const virtual = computed(() => !host.off?.() && host.count() > VIRTUAL_ROWS);
+  const keysNow = () =>
+    host.keys?.() ?? Array.from({ length: host.count() }, (_, i) => host.keyAt(i));
+  /**
+   * The keys of a list virtualised as paged, at its last change; `null` for none. A list
+   * read to its end keeps its scroller, its scroll offset and the focus in it: back to
+   * every row, the grid would lose its height and its offset at the last page (a list of
+   * 101 to 200 rows). Written as `virtual` is computed, the one place that reads it.
+   */
+  let paged: readonly string[] | null = null;
+  const virtual = computed(() => {
+    const count = host.off?.() ? 0 : host.count();
+    if (count === 0) {
+      paged = null;
+      return false;
+    }
+    if (host.paged?.() || paged !== null) {
+      const keys = keysNow();
+      paged = host.paged?.() || sameList(paged!, keys) ? keys : null;
+    }
+    return paged !== null || count > VIRTUAL_ROWS;
+  });
   /** The height of a row before it is measured: the row height of the density. */
   const estimate = ref(28);
   const top = () => host.top?.() ?? 0;

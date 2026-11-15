@@ -92,7 +92,7 @@ const total = computed(() => (complete.value ? number.value.format(rows.value.le
       :selected="props.selected ? [props.selected] : []"
       :loading="list.isPending.value"
       :loading-rows="6"
-      :row-count="complete ? rows.length : undefined"
+      :row-count="complete ? rows.length : -1"
       @update:selected="onSelected"
       @activate="onActivate"
       @window="onWindow"

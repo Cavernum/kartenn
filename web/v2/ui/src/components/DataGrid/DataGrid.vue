@@ -14,7 +14,10 @@
 // its bar, decision A7). Selection (`selectable`): Space, Shift+Space, Shift+Up and
 // Shift+Down (a range from the anchor), Ctrl+A; several rows get a column of checkboxes
 // (the pointer's way), one row a click.
-// Virtualised beyond `VIRTUAL_ROWS` rows (`@tanstack/vue-virtual`): only the rows near the
+// Virtualised (`@tanstack/vue-virtual`) beyond `VIRTUAL_ROWS` rows, or from the first row
+// while a next page is announced (`rowCount` at `-1`), the grid its own scroller, out of
+// the tab order (`tabindex="-1"`: Firefox makes a scroller a tab stop of its own, before
+// the cell of the roving stop, task 021-22f-f): only the rows near the
 // view are in the document, between gaps of the height of the others, measured; the row
 // of the focus and the one of the editor stay mounted whatever the scroll; the keys move
 // over the indexes of the rows, never over the rendered ones (no press lost). The window
@@ -159,7 +162,8 @@ const props = withDefaults(
     options?: ((row: R, column: GridColumn) => readonly ListOption[] | undefined) | undefined;
     /**
      * The rows of the whole list when the grid holds only some (a paged list), the header
-     * left out: `aria-rowcount` is this plus one; `-1` while unknown.
+     * left out: `aria-rowcount` is this plus one; `-1` while unknown, a next page to come:
+     * the grid is then virtualised from its first row (task 021-22f-f).
      */
     rowCount?: number | undefined;
     /**
@@ -326,8 +330,10 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
 
 /** The height of the header, above the rows in the scroll container. */
 const headHeight = ref(30);
-// Virtualised beyond 200 rows (`internal/virtualRows.ts`, shared with the trees): the
-// window, and the rows of the focus and of the editor kept mounted.
+// Virtualised beyond 200 rows (`internal/virtualRows.ts`, shared with the trees), or from
+// the first row while a next page is announced (`rowCount` at `-1`: the rows of a page
+// mount in the window alone, and the same list read to its end stays so, task 021-22f-f):
+// the window, and the rows of the focus and of the editor kept mounted.
 const rowsWindow = useVirtualRows({
   count: () => props.rows.length,
   keyAt: (index) => rowKeyList.value[index] ?? String(index),
@@ -337,6 +343,7 @@ const rowsWindow = useVirtualRows({
   kept: () => [current.value.row, editing.value?.row],
   top: () => headHeight.value,
   off: () => !!props.loading,
+  paged: () => props.rowCount === -1,
   // A paged list past `MAX_PAGES` (SDK): its first page dropped, the rows in view stay put.
   anchor: true,
 });
@@ -660,6 +667,12 @@ function cellOf(target: EventTarget | null): CellRef | null {
 
 function onFocusin(event: FocusEvent): void {
   const target = event.target as HTMLElement;
+  // The grid itself, virtualised and focusable (`tabindex="-1"`): a press on a gap, or on
+  // its scrollbar in Firefox. The focus goes back to the cell of the stop, unscrolled.
+  if (target === grid.value) {
+    cellElement(current.value)?.focus({ preventScroll: true });
+    return;
+  }
   // The checkbox of a row is the pointer's target: the focus stays on its cell, whose
   // keys select (Space).
   const box = target.closest<HTMLElement>(".k-data-grid__select")?.querySelector("input");
@@ -1180,6 +1193,7 @@ onBeforeUnmount(() => observer?.disconnect());
       :aria-readonly="props.editable ? undefined : 'true'"
       :aria-busy="props.loading ? 'true' : undefined"
       :data-virtual="virtual ? 'true' : undefined"
+      :tabindex="virtual ? -1 : undefined"
       :data-select="checkboxes ? 'true' : undefined"
       :style="template"
       @keydown="onKeydown"
