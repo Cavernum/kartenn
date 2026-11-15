@@ -1824,6 +1824,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     propriétés résolues par lots, filtre `id` répété, clé naturelle dans tous les
     résumés) ; les sous-tâches a et b ci-dessous ne sont que le filet, lançables sans
     toucher au contrat. Voir aussi 22f-c, 22f-d et 22e-d.
+  - clôture : la 11p10 ne se clôt qu'avec la 11p10-e (le parcours au quota par défaut de
+    la 11p10-b2 relève encore 75 à 102 429 relus, presque tous de la colonne machine).
   - [x] 11p10-a. Une seule porte pour les lectures par ligne du shell : `limited` sort de
     `parts/vlan.ts` vers `shell/src/data/gate.ts` (un plafond pour tout le shell) ;
     `ObjectName` y passe toujours et ne lit qu'en vue (la garde d'intersection de
@@ -1910,7 +1912,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       `ApiProblem.from` retiré (`statusText` est toujours une chaîne).
     - reste : le démontage seul (l'observateur lâché sans annulation explicite) et le
       changement de clé pendant l'attente ne sont pas testés.
-  - [ ] 11p10-b2. Le parcours au quota de lecture par défaut (sorti de la 11p10-b) : une
+  - [x] 11p10-b2. Le parcours au quota de lecture par défaut (sorti de la 11p10-b) : une
     seconde instance de kartenn-server à `[http.rate]` par défaut, à côté de celle des
     parcours (dont le quota de lecture est relevé, 11p9) ; une liste de dix pages défilée
     jusqu'au bout sans avis de page suivante ni état d'erreur, les 429 attendus par le
@@ -1923,6 +1925,49 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       (une entrée `webServer`), `e2e/fixtures/journeys.ts` (`loginIn` paramétré par
       l'origine), un jeu de dix pages écrit avant le parcours, `web/v2/e2e/journeys/`
     - dépend de : 11p10-b
+    - fait le 2026-11-15 : `web/v2/e2e/quota.toml` (9446, sans `[http.rate]`, journal de
+      chaque requête et de son statut : `kartenn_rest::request_id` en debug) ; `serve.sh
+      quota` (base `kartenn_e2e_v2_quota`, compte de secours `breakglass-v2-quota.txt`,
+      journal `web/e2e/.state/kartenn-v2-quota.log`) ; `web/e2e/users.toml` (la
+      `redirect_uri` de 9446) ; `journeys.config.ts` : projets `quota-instance` (sa
+      `teardown` `quota-instance-stop`), `quota-chromium` et `quota-firefox` (`baseURL`
+      9446), `quota.spec.ts` ignoré de `chromium` et `firefox` ; `journeys/quota.setup.ts`
+      (l'instance lancée détachée, attendue sur `/health/ready`, puis par l'API :
+      l'émetteur, `kartenn-admins` → `administrator`, `lecteurs` → `reader`, un domaine
+      possédé par une entité, `custom.salle` = « nord » hérité, 1 000 adresses de
+      2001:db8:4::/64), `quota.teardown.ts` et `fixtures/quota.ts` (arrêt par le PID, celui
+      d'une passe interrompue aussi) ; `global-setup.ts` : `breakglass(origin, proofs)`,
+      `expectOk` et `created` exportés ; `fixtures/journeys.ts` : `loginIn(…, origin)`,
+      `login` et la garde de la console sur le `baseURL` du projet, `QUOTA_DATA`,
+      `QUOTA_USERS`. Le parcours : la colonne de la propriété par « Colonnes », un écran
+      plus bas dès que les lignes en vue montrent leur valeur ; « 1 000 éléments », 1 000
+      lignes dessinées avec leur valeur, dix pages lues, aucune cellule illisible, aucune
+      alerte portant un texte, aucun 503 ; il imprime les requêtes sous `/v1/` par page lue
+      et par chemin, et les 429 relus.
+    - mesure (cinq passes ciblées, main a261598f) : Chromium 1 064 à 1 185 requêtes sous
+      `/v1/` en 15 à 19 s de défilement, Firefox 1 168 à 1 258 en 19 à 23 s ; par page lue
+      55 à 178 (une passe Chromium : 0:16 1:80 2:100 3:158 4:123 5:92 6:124 7:55 8:86 9:97
+      10:133) ; par chemin, 967 à 1 166 `GET /v1/interfaces?address=` (la colonne machine,
+      une lecture par ligne : 11p10-e), environ 70 lots `/v1/addresses/properties`, 10 à 12
+      `/v1/addresses` ; 429 relus : Chromium 75 à 102, Firefox 2 à 42, presque tous sur
+      `/v1/interfaces`, quelques-uns sur les lots de propriétés et la liste dans leur
+      sillage ; journal de l'instance d'une passe : 111 × 429, aucun 503. Le réessai de
+      la 11p10-b les absorbe tous : aucune alerte, aucune cellule illisible.
+      Vérification : `k-web2-check --base main` (1 284 tests, 2 741 captures sur 2 741 :
+      tout, `e2e/fixtures/env.ts` changé) ; `k-web2-e2e` complet en 12,0 min, 287 passés,
+      3 ignorés, rouge du seul garde axe (`accessibility.spec.ts:34`, le parcours sans
+      `expectAccessible`), corrigé puis `quota.spec.ts` et `accessibility.spec.ts` relancés
+      seuls : 28 passés.
+    - choix : l'instance démarrée par un projet de mise en place (dépendance de
+      `quota-chromium` et `quota-firefox`) et non par un `webServer`, que toute passe
+      attendrait : une passe qui ne choisit pas ce parcours ne la démarre pas (`--list
+      records.spec.ts` : aucun projet `quota-*`) ; un utilisateur par navigateur (alice,
+      bob), chacun son quota ; une base et un jeu à elle, qu'aucun autre parcours
+      n'invalide ; les régions vivantes du shell sont des `role=alert` vides : seules
+      celles qui portent un texte comptent ; « aucun 429 vu par la page » levé jusqu'à la
+      11p10-e (arbitrage du 2026-11-15), les 429 comptés et imprimés.
+    - reste : une passe tuée (SIGKILL) laisse l'instance tourner jusqu'à la mise en place
+      suivante, qui l'arrête par son PID.
   - [x] 11p10-c. Regroupeur de lectures dans le SDK (amendement H23 de la 006, validé par
     l'utilisateur le 2026-11-14) : les lectures de propriétés résolues demandées dans une
     même fenêtre de quelques millisecondes, pour une même collection et les mêmes dates,
@@ -2015,6 +2060,22 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     - où : `shell/src/views/record/ObjectName.vue`, `plugins/machines/src/
       {MachineColumn.vue,reads.ts}`, le regroupeur de la 11p10-c
     - dépend de : 006-32, 11p10-c
+  - [ ] 11p10-e. Interfaces des lignes d'une liste d'adresses lues par fenêtre (mesure de
+    la 11p10-b2, inscrite le 2026-11-15) : la colonne machine des listes d'adresses
+    (`MachineColumn.vue`) lit une liste d'interfaces par ligne derrière sa propre porte
+    de 4, environ 1 000 `GET /v1/interfaces?address=` pour dix pages, au-dessus du quota
+    par défaut (75 à 102 429 relus par passe sous Chromium). La lire par fenêtre avec le
+    filtre `address` répété de la 006-32b (64 adresses au plus par requête, paginé) : une
+    requête par fenêtre, le résultat réparti par adresse dans le cache par ligne, sous la
+    clé de la lecture unitaire — verify : Vitest monté, 100 lignes : 2 requêtes au lieu
+    de 100 ; `web/v2/e2e/journeys/quota.spec.ts` durci à « aucun 429 ni 503 vu par la
+    page », avec un plafond de requêtes sous `/v1/` par page lue
+    - où : `web/v2/plugins/machines/src/MachineColumn.vue`, la porte du plugin
+      (`plugins/machines/src/reads.ts`, `limited`), `web/v2/sdk/src/data/batch.ts`
+      (`createBatcher`, modèle de regroupeur), `plugins/machines/src/{InterfacesTab.vue,
+      InterfaceSearch.vue}` (qui partagent la clé `/v1/interfaces?address=`),
+      `web/v2/e2e/journeys/quota.spec.ts`
+    - dépend de : 006-32b, 11p10-b2
 - [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
   le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
   échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de
