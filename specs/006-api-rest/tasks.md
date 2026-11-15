@@ -986,33 +986,82 @@ routeur complet, sauf mention « vrai TCP ».
   reste : le filtre `domain=<slug>` (et `parent=<slug>`) d'une liste compare la clé d'un
   lié que l'appelant ne lit peut-être pas : un oracle sur la clé d'un domaine illisible,
   antérieur à cette tâche, à trancher (REQ-005, invisible égale absent).
-- [ ] 33b. Anomalies, écarts et valeurs de type référence : `object` d'une anomalie
+- [x] 33b. Anomalies, écarts et valeurs de type référence : `object` d'une anomalie
   (`anomalies.rs`) et d'un écart (`properties.rs`, `/v1/property-gaps`) avec sa clé
   naturelle ; valeur `ref` d'une propriété résolue, unitaire et par lots (31) — verify :
   `k-check -p kartenn-rest`
   - où : `crates/kartenn-rest/src/anomalies.rs` (`ObjectRef`), `properties.rs`
-  - dépend de : 33a ; à trancher avant : nom du membre de la clé naturelle pour une
-    clé composée (préfixe, plage, adresse : `domain` et `value` ; VLAN : groupe et
-    `vid`) et pour un type d'un module
+  - dépend de : 33a ; tranché (l'utilisateur, 2026-11-15, H23 et REQ-006-42) : un
+    membre `label`, une chaîne, sur tout résumé et pour tous les types, `slug` restant
+    là où il existe ; `label` = slug (domaine, entité, site, groupe de VLAN), valeur
+    canonique (préfixe, adresse), `<première> – <dernière>` (plage), `<vid> · <nom>`
+    (VLAN), clé donnée par le module (type d'un module), sans le domaine ni le groupe ;
+    lié illisible ou absent : `{id}` seul
+  fait : `summary.rs` (`Summary` à `label` ; `Summary::of` pour un type à slug, le slug
+  étant aussi le `label`, `Summary::labelled` pour les autres, `slug`, `label` et `href`
+  omis ensemble ; `Summaries::read`, résumés d'objets de tous types en une lecture des
+  clés aux dates, une par module visé et une autorisation par type ; `key_of`, la
+  composition par type) ; `kartenn-store-pg/src/keys.rs` (`natural_keys` : genre et clé
+  stockée de chaque objet aux dates, une requête, noyau et VLAN ; `None` pour un objet de
+  module) ; `kartenn-service/src/module.rs` (`ModuleHandler::keys`, clés des objets d'un
+  module, aucune par défaut) ; `objects.rs` (`address_text`, `prefix_text`,
+  `range_bounds` partagés avec `represent`) ; `anomalies.rs` (`ObjectRef {kind, id,
+  label, href}`, le genre d'un objet de module désormais donné) ; `properties.rs`
+  (`object` d'un écart ; valeurs `ref`, seules et en ensemble, de la lecture unitaire, du
+  lot, et `resolved`/`expected` d'un écart d'une propriété `ref` ; `declared`,
+  `ref_keys`, `references`, `summarised`, `with_summaries`) ; contrat et `schema.d.ts`
+  des deux SDK régénérés. Tests : `summary.rs`
+  `an_unreadable_object_and_an_absent_one_leave_the_same_bytes` (étendu : slug, clé
+  composée, `Summaries`), `each_kind_reads_its_key_as_a_human_does` ;
+  `rest/tests/it/objects.rs` `the_object_of_an_anomaly_and_of_a_deviation_carries_its_key`,
+  `a_value_of_type_reference_leaves_alike_the_unreadable_and_the_unknown` (lecture
+  unitaire et lot, valeur seule et ensemble, deux appelants, puis entités supprimées :
+  statut, en-têtes hors `request-id` et octets identiques) ; 33a mis à jour (`label`).
+  choix : `label` aligné sur `nameOf` du shell (`<vid> · <nom>`, `<première> –
+  <dernière>`) ; le groupe de VLAN, qui a un slug, porte `slug` et `label` ; un objet de
+  module dont le module ne donne pas de clé (aucun avant 33d, 33e) rend `{id}` (son
+  `ObjectRef` garde `kind`), comme aujourd'hui où son `href` était `null` ; `ObjectRef`
+  sans `slug` (il n'en avait pas) ; `href` d'`ObjectRef` omis au lieu de `null` ; les
+  valeurs d'un écart d'une propriété `ref` résumées aussi (même mécanisme, REQ-006-42
+  « tout corps ») ; une lecture des déclarations aux dates par lecture unitaire (le lot la
+  faisait déjà sans `key`) pour savoir quelles clés sont `ref` ; une valeur mal formée
+  reste brute ; lisibilité « maintenant » (33a) ; les clés lues aux dates de la route
+  (anomalies et écarts : l'état présent, qu'ils lisent seul) ; le `kind` d'un
+  `ObjectRef` dit l'existence et non la lisibilité, ce qui ne fuit rien : une anomalie
+  ou un écart d'un objet illisible n'est pas listé (`open_and_readable`), comme celui
+  d'un objet supprimé (revue : `an_anomaly_of_an_unreadable_object_and_of_a_gone_one_leave_the_same_bytes`).
+  reste : le shell montre encore l'identifiant d'une valeur `ref` (et le JSON d'un
+  ensemble) : 11p10-d ; l'explication d'une valeur (`/explanation`, `raw_value`) rend
+  encore une référence brute : 33f ; `kartenn-store-pg/src/keys.rs` `natural_keys`
+  redit l'union de `property_read::kind_names` (même remarque que la revue de la
+  017-26), non factorisée.
 - [ ] 33c. VLAN : ancre et groupe d'un VLAN et d'un groupe — verify :
   `k-check -p kartenn-rest vlan`
-  - où : `crates/kartenn-rest/src/vlan.rs` (`IdRef`, `Anchor`)
+  - où : `crates/kartenn-rest/src/vlan.rs` (`IdRef`, `Anchor`) ; `summary.rs`
+    (`Summary::of` pour un groupe, à slug ; `Summary::labelled` pour une ancre de genre
+    variable, ou `Summaries::read`), `label` d'un VLAN `<vid> · <nom>`
   - dépend de : 33a, 33b (forme de la clé)
 - [ ] 33d. Machines : références des grappes, machines, interfaces, rattachements et
   fiche — verify : `k-check -p kartenn-machines`
-  - où : `crates/kartenn-machines/src/rest.rs` (`IdRef`, `HostRef`)
+  - où : `crates/kartenn-machines/src/rest.rs` (`IdRef`, `HostRef`) ; implémenter
+    `ModuleHandler::keys` pour les types du module (sinon leurs objets restent `{id}`
+    dans les anomalies et les valeurs `ref`) ; `Summary::labelled` avec la clé lue par
+    la jointure de la page et `summary::readable`
   - dépend de : 33a, 33b
 - [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
   `k-check -p kartenn-kube`
   - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,
-    `rest/mirrors.rs`, `rest/chain.rs` (`HostRef`)
+    `rest/mirrors.rs`, `rest/chain.rs` (`HostRef`) ; `ModuleHandler::keys` et
+    `Summary::labelled` comme la 33d
   - dépend de : 33a, 33b
 - [ ] 33f. Flux et politique, et garde du contrat (aucun schéma de réponse ne porte une
   référence `{id}` seule hors résumé) — verify : `k-check -p kartenn-flow`,
   `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`
   - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`),
     `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
-    `PolicyAxisResolution`, `PolicyReportItem`)
+    `PolicyAxisResolution`, `PolicyReportItem`) ; et l'explication d'une valeur
+    (`crates/kartenn-rest/src/properties.rs`, `explanation`, `raw_value`) dont une
+    référence est encore brute (reste de la 33b) : `Summaries::read`
   - dépend de : 33a–33e
 - [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
   (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées

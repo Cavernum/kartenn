@@ -6727,8 +6727,8 @@ export interface components {
     /** @description A deviation between a resolved and an expected value. */
     Gap: {
       /**
-       * @description The value the source expects, raw, in the form of the resolved one (an array for
-       *     a set); `null` when masked, or for a deviation not evaluated since its values are
+       * @description The value the source expects, in the form of the resolved one (an array for a
+       *     set); `null` when masked, or for a deviation not evaluated since its values are
        *     stored.
        */
       expected: unknown;
@@ -6746,8 +6746,9 @@ export interface components {
       /** @description The property. */
       property?: string | null;
       /**
-       * @description The resolved value, raw (closed-list keys); `null` without a value, when masked,
-       *     or for a deviation not evaluated since its values are stored.
+       * @description The resolved value, raw (closed-list keys; for a reference, the summary of its
+       *     object, REQ-006-42); `null` without a value, when masked, or for a deviation not
+       *     evaluated since its values are stored.
        */
       resolved: unknown;
       /** @description The revision of the source it was evaluated against; `null` as `source`. */
@@ -7952,8 +7953,8 @@ export interface components {
       /** @description The elements of the page. */
       items: {
         /**
-         * @description The value the source expects, raw, in the form of the resolved one (an array for
-         *     a set); `null` when masked, or for a deviation not evaluated since its values are
+         * @description The value the source expects, in the form of the resolved one (an array for a
+         *     set); `null` when masked, or for a deviation not evaluated since its values are
          *     stored.
          */
         expected: unknown;
@@ -7971,8 +7972,9 @@ export interface components {
         /** @description The property. */
         property?: string | null;
         /**
-         * @description The resolved value, raw (closed-list keys); `null` without a value, when masked,
-         *     or for a deviation not evaluated since its values are stored.
+         * @description The resolved value, raw (closed-list keys; for a reference, the summary of its
+         *     object, REQ-006-42); `null` without a value, when masked, or for a deviation not
+         *     evaluated since its values are stored.
          */
         resolved: unknown;
         /** @description The revision of the source it was evaluated against; `null` as `source`. */
@@ -8845,17 +8847,22 @@ export interface components {
       /** @description The object. */
       self: string;
     };
-    /** @description An object named by its kind and identifier. */
+    /**
+     * @description An object named by its kind and summarised (REQ-006-42): `{kind, id, label, href}`,
+     *     `{kind, id}` alone if the caller may not read it or if it is gone.
+     */
     ObjectRef: {
-      /** @description Its URL; `null` if its kind is unknown. */
+      /** @description Its URL; absent with `label`. */
       href?: string | null;
       /**
        * Format: uuid
        * @description Identifier.
        */
       id: string;
-      /** @description Its kind; `null` if unknown. */
+      /** @description Its kind, of the core or of a module; `null` if unknown. */
       kind?: string | null;
+      /** @description Its natural key as a human reads it; absent with `href`. */
+      label?: string | null;
     };
     /** @description Where a property is required. */
     Obligation:
@@ -10104,7 +10111,11 @@ export interface components {
       links: components["schemas"]["ResolvedLinks"];
       /** @description The keys of the values the caller may not see (REQ-005-21). */
       masked: string[];
-      /** @description The values by key; `null`: « no value » explicitly. */
+      /**
+       * @description The values by key; `null`: « no value » explicitly. A value of type reference is
+       *     the summary of its object, `{id}` alone if the caller may not read it or if it was
+       *     absent then (REQ-006-42); an array of them for a set.
+       */
       properties: {
         [key: string]: Record<string, never>;
       };
@@ -10133,7 +10144,10 @@ export interface components {
       id: string;
       /** @description The keys of the values the caller may not see (REQ-005-21). */
       masked: string[];
-      /** @description The values by key; `null`: « no value » explicitly. */
+      /**
+       * @description The values by key; `null`: « no value » explicitly; a value of type reference as
+       *     in the read of one object (REQ-006-42).
+       */
       properties: {
         [key: string]: Record<string, never>;
       };
@@ -10393,16 +10407,24 @@ export interface components {
       property: string;
       suggestion?: components["schemas"]["Expected"] | null;
     };
-    /** @description The summary of a linked object whose natural key is its slug. */
+    /**
+     * @description The summary of a linked object: `{id, label, href}`, with `slug` for a kind that has
+     *     one; `{id}` alone for an object the caller may not read or that was absent then.
+     */
     Summary: {
-      /** @description Its URL; absent with the slug. */
+      /** @description Its URL; absent with `label`. */
       href?: string | null;
       /**
        * Format: uuid
        * @description Identifier.
        */
       id: string;
-      /** @description Slug; absent if the caller may not read the object or if it was absent then. */
+      /**
+       * @description Its natural key as a human reads it (REQ-006-42); absent if the caller may not
+       *     read the object or if it was absent then.
+       */
+      label?: string | null;
+      /** @description Slug, for a kind that has one; absent with `label`. */
       slug?: string | null;
     };
     /**

@@ -721,6 +721,20 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 
+    /// The natural key, as a human reads it, of each of `objects` of the module that
+    /// exists at the dates of `read`: the `label` of their summaries (spec 006,
+    /// REQ-006-42), in one read for them all. It names nothing but the object (not its
+    /// parent nor its domain). None by default: an object left out is summarised by its
+    /// identifier alone, as one the caller may not read.
+    fn keys<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        objects: &'a [Uuid],
+    ) -> BoxFuture<'a, Result<Vec<(Uuid, String)>, StoreError>> {
+        let _ = (read, objects);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
     /// The values of the module's [`Module::measures`] for the changeset of `context`
     /// (local names), read after the sections of its differential; an approval policy
     /// holds the changeset on them (REQ-016-7). Nothing by default: a measure not given

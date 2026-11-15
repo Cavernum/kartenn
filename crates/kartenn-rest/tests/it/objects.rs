@@ -2525,8 +2525,12 @@ async fn a_summary_leaves_alike_the_unreadable_and_the_unknown(pool: PgPool) {
     ];
     // The members sorted (an object, a page), or in the order of the type (a history).
     let fulls = [
-        format!(r#""domain":{{"href":"/v1/domains/{lab}","id":"{lab}","slug":"lab"}}"#),
-        format!(r#""domain":{{"id":"{lab}","slug":"lab","href":"/v1/domains/{lab}"}}"#),
+        format!(
+            r#""domain":{{"href":"/v1/domains/{lab}","id":"{lab}","label":"lab","slug":"lab"}}"#
+        ),
+        format!(
+            r#""domain":{{"id":"{lab}","slug":"lab","label":"lab","href":"/v1/domains/{lab}"}}"#
+        ),
     ];
     let bare = format!(r#""domain":{{"id":"{lab}"}}"#);
     let mut before = Vec::new();
@@ -2697,7 +2701,7 @@ async fn a_page_summarises_each_linked_object_as_its_caller_may_read_it(pool: Pg
     )
     .await;
     let app = app(&pool, who);
-    let full = |id: Uuid, slug: &str, collection: &str| json!({"id": id, "slug": slug, "href": format!("/v1/{collection}/{id}")});
+    let full = |id: Uuid, slug: &str, collection: &str| json!({"id": id, "slug": slug, "label": slug, "href": format!("/v1/{collection}/{id}")});
     let body = ok(&app, "/v1/prefixes").await;
     let domains: Vec<&Value> = body["items"]
         .as_array()
@@ -2735,4 +2739,209 @@ async fn a_page_summarises_each_linked_object_as_its_caller_may_read_it(pool: Pg
         ],
         "{body}"
     );
+}
+
+/// Declares the property `key`, of type reference to entities, on prefixes.
+async fn declare_ref(pool: &PgPool, key: &str, cardinality: &str) -> Uuid {
+    let sql = format!(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, inherit_tree, sensitive, valid_period,
+                                           changeset_id)
+         VALUES (gen_random_uuid(), $1, 'ref', $2, ARRAY['prefix'],
+                 '{{\"target\": \"entity\"}}', 'addressing', false, {SINCE})
+         RETURNING id"
+    );
+    insert(pool, &sql, &[key, cardinality]).await
+}
+
+/// Assigns the references `targets` to `property` on `holder`: the first as a single
+/// value, all of them as a set if `set`.
+async fn assign_ref(pool: &PgPool, property: Uuid, holder: Uuid, targets: &[Uuid], set: bool) {
+    let (one, set) = if set {
+        (None, Some(targets.to_vec()))
+    } else {
+        (targets.first().copied(), None)
+    };
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO property_assignment (object_id, object_type, property_id, kind, v_uuid,
+                                          v_uuids, provenance, valid_period, changeset_id)
+         VALUES ($1, 'prefix', $2, 'value', $3, $4, 'input', {SINCE})"
+    )))
+    .bind(holder)
+    .bind(property)
+    .bind(one)
+    .bind(set)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO property_origin (object_id, property_id, origin_object_id,
+                                      valid_period, changeset_id)
+         VALUES ($1, $2, $1, {SINCE})"
+    )))
+    .bind(holder)
+    .bind(property)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[kartenn_testing::pg_test]
+async fn the_object_of_an_anomaly_and_of_a_deviation_carries_its_key(pool: PgPool) {
+    // Task 006-33b, REQ-006-42: `{kind, id, label, href}`, the label the key of the object
+    // alone (not its domain); the values of a deviation of a reference, summarised.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "192.0.2.0/24").await;
+    let host = address(&pool, lab, "192.0.2.7").await;
+    let team = node(&pool, "entity", "team", None).await;
+    declare_ref(&pool, "policy.team", "single").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    anomaly(&pool, author, net, "core.test.net").await;
+    anomaly(&pool, author, host, "core.test.host").await;
+    let gone = Uuid::now_v7();
+    let gap = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+    sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
+        .bind(gap)
+        .bind("policy.team: resolved, expected by src@1 (rule)")
+        .bind(json!({
+            "property": "policy.team", "resolved": team, "expected": gone,
+            "source": "src", "revision": "1",
+        }))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let app = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    let object = |kind: &str, id: Uuid, label: &str, collection: &str| json!({"kind": kind, "id": id, "label": label, "href": format!("/v1/{collection}/{id}")});
+    let body = ok(&app, "/v1/anomalies?rule=core.test.net").await;
+    assert_eq!(
+        body["items"][0]["object"],
+        object("prefix", net, "192.0.2.0/24", "prefixes")
+    );
+    let body = ok(&app, "/v1/anomalies?rule=core.test.host").await;
+    assert_eq!(
+        body["items"][0]["object"],
+        object("address", host, "192.0.2.7", "addresses")
+    );
+    let body = ok(&app, "/v1/property-gaps?property=policy.team").await;
+    let item = &body["items"][0];
+    assert_eq!(
+        item["object"],
+        object("prefix", net, "192.0.2.0/24", "prefixes")
+    );
+    let entity = format!("/v1/entities/{team}");
+    assert_eq!(
+        item["resolved"],
+        json!({"id": team, "slug": "team", "label": "team", "href": entity})
+    );
+    assert_eq!(item["expected"], json!({ "id": gone }), "{body}");
+}
+
+#[kartenn_testing::pg_test]
+async fn an_anomaly_of_an_unreadable_object_and_of_a_gone_one_leave_the_same_bytes(pool: PgPool) {
+    // Task 006-33b, INV-63, REQ-006-42: the anomalies and the deviations of an object the
+    // caller may not read, then of the same object gone, answer alike for both callers:
+    // status, headers but `request-id`, and bytes.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "192.0.2.0/24").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    anomaly(&pool, author, net, "core.test.net").await;
+    let gap = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+    sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
+        .bind(gap)
+        .bind("policy.zone: resolved \"red\", expected \"blue\" by src@1 (rule)")
+        .bind(json!({
+            "property": "policy.zone", "resolved": "red", "expected": "blue",
+            "source": "src", "revision": "1",
+        }))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let blind = app(
+        &pool,
+        person(&pool, &["core.domain.read"], ("global", None)).await,
+    );
+    let uris = [
+        format!("/v1/anomalies?object={net}"),
+        format!("/v1/property-gaps?object={net}"),
+    ];
+    let mut before = Vec::new();
+    for uri in &uris {
+        let shown = ok(&reader, uri).await;
+        assert_eq!(
+            shown["items"][0]["object"]["label"], "192.0.2.0/24",
+            "{uri}: {shown}"
+        );
+        let unreadable = answer(&blind, uri).await;
+        assert_eq!(unreadable.0, StatusCode::OK, "{uri}");
+        before.push(unreadable);
+    }
+    sqlx::query("DELETE FROM prefix WHERE id = $1")
+        .bind(net)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (uri, unreadable) in uris.iter().zip(&before) {
+        for app in [&reader, &blind] {
+            let gone = answer(app, uri).await;
+            assert_eq!(&gone, unreadable, "{uri}: unreadable and gone");
+        }
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn a_value_of_type_reference_leaves_alike_the_unreadable_and_the_unknown(pool: PgPool) {
+    // Task 006-33b, REQ-006-42, 005: the value of a reference, read alone and by batch, is
+    // the summary of its object for a caller who may read it, its identifier alone for one
+    // who may not; the object gone, the same bytes for both, as for an object that never
+    // was. A set summarises each of its objects.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "192.0.2.0/24").await;
+    let team = node(&pool, "entity", "team", None).await;
+    let ops = node(&pool, "entity", "ops", None).await;
+    let one = declare_ref(&pool, "policy.team", "single").await;
+    let set = declare_ref(&pool, "policy.teams", "set").await;
+    assign_ref(&pool, one, net, &[team], false).await;
+    assign_ref(&pool, set, net, &[ops], true).await;
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let blind = app(&pool, person(&pool, &READ_ALL[1..], ("global", None)).await);
+    let uris = [
+        format!("/v1/prefixes/{net}/properties"),
+        format!("/v1/prefixes/properties?id={net}"),
+    ];
+    let full = |id: Uuid, slug: &str| {
+        format!(r#"{{"href":"/v1/entities/{id}","id":"{id}","label":"{slug}","slug":"{slug}"}}"#)
+    };
+    let bare = |id: Uuid| format!(r#"{{"id":"{id}"}}"#);
+    let mut before = Vec::new();
+    for uri in &uris {
+        let (status, _, shown) = answer(&reader, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        let shown = String::from_utf8(shown).unwrap();
+        let one = format!(r#""policy.team":{}"#, full(team, "team"));
+        let set = format!(r#""policy.teams":[{}]"#, full(ops, "ops"));
+        assert!(
+            shown.contains(&one) && shown.contains(&set),
+            "{uri}: {shown}"
+        );
+        let unreadable = answer(&blind, uri).await;
+        let body = String::from_utf8(unreadable.2.clone()).unwrap();
+        let cut = shown
+            .replace(&one, &format!(r#""policy.team":{}"#, bare(team)))
+            .replace(&set, &format!(r#""policy.teams":[{}]"#, bare(ops)));
+        assert_eq!(body, cut, "{uri}");
+        before.push(unreadable);
+    }
+    sqlx::query("DELETE FROM entity WHERE id = ANY($1)")
+        .bind(vec![team, ops])
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (uri, unreadable) in uris.iter().zip(&before) {
+        for app in [&reader, &blind] {
+            let unknown = answer(app, uri).await;
+            assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
+        }
+    }
 }

@@ -3316,7 +3316,7 @@
         "description": "A deviation between a resolved and an expected value.",
         "properties": {
           "expected": {
-            "description": "The value the source expects, raw, in the form of the resolved one (an array for\na set); `null` when masked, or for a deviation not evaluated since its values are\nstored."
+            "description": "The value the source expects, in the form of the resolved one (an array for a\nset); `null` when masked, or for a deviation not evaluated since its values are\nstored."
           },
           "id": {
             "description": "Identifier of its anomaly.",
@@ -3343,7 +3343,7 @@
             ]
           },
           "resolved": {
-            "description": "The resolved value, raw (closed-list keys); `null` without a value, when masked,\nor for a deviation not evaluated since its values are stored."
+            "description": "The resolved value, raw (closed-list keys; for a reference, the summary of its\nobject, REQ-006-42); `null` without a value, when masked, or for a deviation not\nevaluated since its values are stored."
           },
           "revision": {
             "description": "The revision of the source it was evaluated against; `null` as `source`.",
@@ -6499,7 +6499,7 @@
               "description": "A deviation between a resolved and an expected value.",
               "properties": {
                 "expected": {
-                  "description": "The value the source expects, raw, in the form of the resolved one (an array for\na set); `null` when masked, or for a deviation not evaluated since its values are\nstored."
+                  "description": "The value the source expects, in the form of the resolved one (an array for a\nset); `null` when masked, or for a deviation not evaluated since its values are\nstored."
                 },
                 "id": {
                   "description": "Identifier of its anomaly.",
@@ -6526,7 +6526,7 @@
                   ]
                 },
                 "resolved": {
-                  "description": "The resolved value, raw (closed-list keys); `null` without a value, when masked,\nor for a deviation not evaluated since its values are stored."
+                  "description": "The resolved value, raw (closed-list keys; for a reference, the summary of its\nobject, REQ-006-42); `null` without a value, when masked, or for a deviation not\nevaluated since its values are stored."
                 },
                 "revision": {
                   "description": "The revision of the source it was evaluated against; `null` as `source`.",
@@ -8866,10 +8866,10 @@
         "type": "object"
       },
       "ObjectRef": {
-        "description": "An object named by its kind and identifier.",
+        "description": "An object named by its kind and summarised (REQ-006-42): `{kind, id, label, href}`,\n`{kind, id}` alone if the caller may not read it or if it is gone.",
         "properties": {
           "href": {
-            "description": "Its URL; `null` if its kind is unknown.",
+            "description": "Its URL; absent with `label`.",
             "type": [
               "string",
               "null"
@@ -8881,7 +8881,14 @@
             "type": "string"
           },
           "kind": {
-            "description": "Its kind; `null` if unknown.",
+            "description": "Its kind, of the core or of a module; `null` if unknown.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "description": "Its natural key as a human reads it; absent with `href`.",
             "type": [
               "string",
               "null"
@@ -12299,7 +12306,7 @@
             "additionalProperties": {
               "type": "object"
             },
-            "description": "The values by key; `null`: « no value » explicitly.",
+            "description": "The values by key; `null`: « no value » explicitly. A value of type reference is\nthe summary of its object, `{id}` alone if the caller may not read it or if it was\nabsent then (REQ-006-42); an array of them for a set.",
             "propertyNames": {
               "type": "string"
             },
@@ -12360,7 +12367,7 @@
             "additionalProperties": {
               "type": "object"
             },
-            "description": "The values by key; `null`: « no value » explicitly.",
+            "description": "The values by key; `null`: « no value » explicitly; a value of type reference as\nin the read of one object (REQ-006-42).",
             "propertyNames": {
               "type": "string"
             },
@@ -12977,10 +12984,10 @@
         "type": "object"
       },
       "Summary": {
-        "description": "The summary of a linked object whose natural key is its slug.",
+        "description": "The summary of a linked object: `{id, label, href}`, with `slug` for a kind that has\none; `{id}` alone for an object the caller may not read or that was absent then.",
         "properties": {
           "href": {
-            "description": "Its URL; absent with the slug.",
+            "description": "Its URL; absent with `label`.",
             "type": [
               "string",
               "null"
@@ -12991,8 +12998,15 @@
             "format": "uuid",
             "type": "string"
           },
+          "label": {
+            "description": "Its natural key as a human reads it (REQ-006-42); absent if the caller may not\nread the object or if it was absent then.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "slug": {
-            "description": "Slug; absent if the caller may not read the object or if it was absent then.",
+            "description": "Slug, for a kind that has one; absent with `label`.",
             "type": [
               "string",
               "null"
