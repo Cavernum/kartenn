@@ -7,7 +7,7 @@ import { createApp, h, nextTick, shallowReactive, type App, type Component } fro
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import type { CellRef, GridColumn } from "../src/components/DataGrid/grid.ts";
-import { ANCHORED_ROWS, headShift } from "../src/components/internal/virtualRows.ts";
+import { ANCHORED_ROWS, headShift, sameList } from "../src/components/internal/virtualRows.ts";
 
 // A paged list past the pages its cache keeps (task 021-22f): the cache drops the first
 // page as it reads the next one, every row moves up a page among the rows of the grid, and
@@ -291,17 +291,46 @@ describe("DataGrid: a list that announces a next page, virtualised from its firs
     expect(grid.getAttribute("aria-rowcount")).toBe("351");
   });
 
-  it("keeps every row below 200 of a list without a next page, a paged list once read", async () => {
-    const whole = await mountGrid({ rows: rowsOf(0, 100) });
-    expect(whole.grid.dataset.virtual).toBeUndefined();
-    expect(mounted(whole.grid)).toBe(100);
-    // Its count known (`rowCount`), a list read to its end is not virtualised either.
-    const { props, grid } = await mountGrid({ rows: rowsOf(0, 150), rowCount: -1 });
-    expect(grid.dataset.virtual).toBe("true");
+  it("keeps every row below 200 of a list without a next page", async () => {
+    const { grid } = await mountGrid({ rows: rowsOf(0, 100) });
+    expect(grid.dataset.virtual).toBeUndefined();
+    expect(mounted(grid)).toBe(100);
+  });
+
+  // Before, the list read to its end (150 rows) went back to every row: the grid lost its
+  // height and its scroll offset, the cell of the focus left the view.
+  it("stays virtualised once read to its end: the window, the offset, the focus kept", async () => {
+    const { props, grid } = await mountGrid({ rows: rowsOf(0, 100), rowCount: -1 });
+    await scrollGrid(grid, 1200);
+    const cell = grid.querySelector<HTMLElement>("[data-row='a50'][data-column='label']")!;
+    cell.focus();
+    await settle();
+    expect(document.activeElement).toBe(cell);
+    const keys = () =>
+      [...grid.querySelectorAll<HTMLElement>(".k-data-grid__body [role='row'] [data-row]")]
+        .map((el) => el.dataset.row)
+        .filter((key, i, all) => all.indexOf(key) === i);
+    const window = keys();
+    // The last page: 50 rows more, the whole count known.
+    props.rows = rowsOf(0, 150);
     props.rowCount = 150;
     await settle();
+    expect(grid.dataset.virtual).toBe("true");
+    expect(keys()).toEqual(window);
+    expect(grid.scrollTop).toBe(1200);
+    expect(document.activeElement).toBe(cell);
+    expect(cell.isConnected).toBe(true);
+    // A press on a gap of the grid (or its scrollbar, in Firefox) focuses the grid, which
+    // gives the focus back to the cell of the stop, its mark kept.
+    grid.focus();
+    await settle();
+    expect(document.activeElement).toBe(cell);
+    // Another list (another read, a filter): the threshold again, every row of its 100.
+    props.rows = rowsOf(500, 600);
+    props.rowCount = 100;
+    await settle();
     expect(grid.dataset.virtual).toBeUndefined();
-    expect(mounted(grid)).toBe(150);
+    expect(mounted(grid)).toBe(100);
   });
 });
 
@@ -326,5 +355,28 @@ describe("headShift: rows gone or come at the head only (task 021-22f)", () => {
     // A row of the middle gone too: not a move of the head alone.
     const holed = keys(100, 1100).filter((key) => key !== "a500");
     expect(headShift(keys(0, 1000), holed)).toBe(0);
+  });
+});
+
+describe("sameList: the list read further, not another one (task 021-22f-f)", () => {
+  const keys = (from: number, to: number) => rowsOf(from, to).map((row) => row.id);
+
+  it("is the same rows, a page more at the tail, a page gone or come at the head", () => {
+    expect(sameList(keys(0, 100), keys(0, 100))).toBe(true);
+    expect(sameList(keys(0, 100), keys(0, 150))).toBe(true);
+    expect(sameList(keys(0, 1000), keys(100, 1100))).toBe(true);
+    expect(sameList(keys(100, 1100), keys(0, 1000))).toBe(true);
+  });
+
+  it("is not a sort, a filter, rows of another list, nor rows gone at the tail", () => {
+    expect(sameList(keys(0, 100), keys(0, 100).reverse())).toBe(false);
+    expect(
+      sameList(
+        keys(0, 100),
+        keys(0, 100).filter((_, i) => i % 2 === 0),
+      ),
+    ).toBe(false);
+    expect(sameList(keys(0, 100), keys(500, 600))).toBe(false);
+    expect(sameList(keys(0, 100), keys(0, 50))).toBe(false);
   });
 });

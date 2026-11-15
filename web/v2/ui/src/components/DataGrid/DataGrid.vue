@@ -332,8 +332,8 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
 const headHeight = ref(30);
 // Virtualised beyond 200 rows (`internal/virtualRows.ts`, shared with the trees), or from
 // the first row while a next page is announced (`rowCount` at `-1`: the rows of a page
-// mount in the window alone, task 021-22f-f): the window, and the rows of the focus and of
-// the editor kept mounted.
+// mount in the window alone, and the same list read to its end stays so, task 021-22f-f):
+// the window, and the rows of the focus and of the editor kept mounted.
 const rowsWindow = useVirtualRows({
   count: () => props.rows.length,
   keyAt: (index) => rowKeyList.value[index] ?? String(index),
@@ -667,6 +667,12 @@ function cellOf(target: EventTarget | null): CellRef | null {
 
 function onFocusin(event: FocusEvent): void {
   const target = event.target as HTMLElement;
+  // The grid itself, virtualised and focusable (`tabindex="-1"`): a press on a gap, or on
+  // its scrollbar in Firefox. The focus goes back to the cell of the stop, unscrolled.
+  if (target === grid.value) {
+    cellElement(current.value)?.focus({ preventScroll: true });
+    return;
+  }
   // The checkbox of a row is the pointer's target: the focus stays on its cell, whose
   // keys select (Space).
   const box = target.closest<HTMLElement>(".k-data-grid__select")?.querySelector("input");
