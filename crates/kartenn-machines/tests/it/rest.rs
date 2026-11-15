@@ -2017,3 +2017,215 @@ async fn interfaces_filtered_by_address_carry_the_requested_ones(pool: PgPool) {
         ])
     );
 }
+
+/// An operation of the core from its JSON fields (the VLANs).
+fn core_op(name: &str, fields: Value) -> Operation {
+    let mut object = fields;
+    object["op"] = name.into();
+    serde_json::from_value(object).unwrap()
+}
+
+/// `body` with every summary of one of `hidden` cut to its identifier: what a caller who
+/// may not read them is served.
+fn cut(body: &Value, hidden: &[Uuid]) -> Value {
+    match body {
+        Value::Object(members) => {
+            let id = members
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| id.parse::<Uuid>().ok());
+            match id {
+                Some(id) if hidden.contains(&id) && members.contains_key("href") => {
+                    json!({"id": id})
+                }
+                _ => Value::Object(
+                    members
+                        .iter()
+                        .map(|(name, value)| (name.clone(), cut(value, hidden)))
+                        .collect(),
+                ),
+            }
+        }
+        Value::Array(items) => Value::Array(items.iter().map(|v| cut(v, hidden)).collect()),
+        other => other.clone(),
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn a_reference_leaves_alike_the_unreadable_and_the_absent(pool: PgPool) {
+    // REQ-006-42, 005 (task 006-33d): the owner and the site of a cluster or a machine, the
+    // host, the cluster of a member, the machine and the VLANs of an interface are
+    // summarised in full for a caller who may read them, by their identifier alone for one
+    // who may not, the host saying its kind only then; the linked objects gone, the reader
+    // is served the very bytes the other one was.
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let other = env.entity("other").await;
+    env.applied(vec![core_op(
+        "create_vlan_group",
+        json!({"slug": "edge", "anchor": {"entity": {"id": acme}}, "vid_min": 1, "vid_max": 4094}),
+    )])
+    .await;
+    let now = "AND valid_period @> now()";
+    let group = env
+        .id(
+            &format!("SELECT id FROM vlan_group WHERE slug = $1 {now}"),
+            "edge",
+        )
+        .await;
+    env.applied(vec![core_op(
+        "create_vlan",
+        json!({"group": {"id": group}, "vid": 10, "name": "users"}),
+    )])
+    .await;
+    let vlan = env
+        .id(
+            &format!("SELECT id FROM vlan WHERE name = $1 {now}"),
+            "users",
+        )
+        .await;
+    env.applied(vec![
+        op(
+            "create_cluster",
+            json!({"local": 1, "slug": "farm", "owner": {"id": other}}),
+        ),
+        op(
+            "create_cluster",
+            json!({"slug": "pool", "owner": {"id": acme}}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 2, "name": "hv", "kind": "physical", "owner": {"id": other}}),
+        ),
+        op(
+            "create_interface",
+            json!({"machine": {"local": 2}, "name": "eth0"}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "node", "kind": "physical", "owner": {"id": acme},
+                   "member_of": {"local": 1}}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 3, "name": "vm", "kind": "virtual", "owner": {"id": acme},
+                   "host": {"machine": {"local": 2}}}),
+        ),
+        op(
+            "create_interface",
+            json!({"machine": {"local": 3}, "name": "eth0",
+                   "vlan": {"mode": "access", "access": {"id": vlan}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm2", "kind": "virtual", "owner": {"id": acme},
+                   "host": {"cluster": {"local": 1}}}),
+        ),
+    ])
+    .await;
+    let cluster = |slug| env.id("SELECT id FROM machines.cluster WHERE slug = $1", slug);
+    let (farm, pool_of_acme) = (cluster("farm").await, cluster("pool").await);
+    let machine = |name| env.id("SELECT id FROM machines.machine WHERE name = $1", name);
+    let (hv, node, vm, vm2) = (
+        machine("hv").await,
+        machine("node").await,
+        machine("vm").await,
+        machine("vm2").await,
+    );
+    let interface = |of: Uuid| {
+        let of = of.to_string();
+        let env = &env;
+        async move {
+            env.id(
+                "SELECT id FROM machines.interface WHERE machine_id = $1::uuid",
+                &of,
+            )
+            .await
+        }
+    };
+    let (hv_eth0, vm_eth0) = (interface(hv).await, interface(vm).await);
+    // Everything; and the machines and clusters of `acme`, every interface, nothing else.
+    let reader = env.admin().await;
+    env.grant(reader, &["core.entity.read", "core.site.read"], None)
+        .await;
+    let reader = env.app(reader);
+    let blind = env
+        .person(&["machines.read", "machines.cluster.read"], Some(acme))
+        .await;
+    env.grant(blind, &["machines.interface.read"], None).await;
+    let blind = env.app(blind);
+    let uris = [
+        format!("/v1/clusters/{pool_of_acme}"),
+        format!("/v1/clusters?id={pool_of_acme}"),
+        format!("/v1/machines/{node}"),
+        format!("/v1/machines/{vm}"),
+        format!("/v1/machines/{vm2}"),
+        format!("/v1/machines?id={node}&id={vm}&id={vm2}"),
+        format!("/v1/interfaces/{vm_eth0}"),
+        format!("/v1/interfaces/{hv_eth0}"),
+        format!("/v1/interfaces?id={vm_eth0}&id={hv_eth0}"),
+    ];
+    let mut shown = std::collections::BTreeMap::new();
+    let mut before = Vec::new();
+    for uri in &uris {
+        let (status, _, bytes) = answer(&reader, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        let full: Value = serde_json::from_slice(&bytes).unwrap();
+        let unreadable = answer(&blind, uri).await;
+        assert_eq!(unreadable.0, StatusCode::OK, "{uri}");
+        let expected = serde_json::to_vec(&cut(&full, &[acme, other, farm, hv, vlan])).unwrap();
+        assert_eq!(
+            String::from_utf8(unreadable.2.clone()).unwrap(),
+            String::from_utf8(expected).unwrap(),
+            "{uri}: the same body but the summaries, cut to their identifier"
+        );
+        shown.insert(uri.clone(), full);
+        before.push(unreadable);
+    }
+    // The summaries in full: the key of each kind, and the kind of a host.
+    let entity = json!({"id": acme, "slug": "acme", "label": "acme",
+                        "href": format!("/v1/entities/{acme}")});
+    assert_eq!(shown[&uris[0]]["owner"], entity);
+    assert_eq!(shown[&uris[2]]["owner"], entity);
+    assert_eq!(
+        shown[&uris[2]]["member_of"],
+        json!({"id": farm, "label": "farm", "href": format!("/v1/clusters/{farm}")})
+    );
+    assert_eq!(
+        shown[&uris[3]]["host"],
+        json!({"id": hv, "kind": "machine", "label": "hv", "href": format!("/v1/machines/{hv}")})
+    );
+    assert_eq!(
+        shown[&uris[4]]["host"],
+        json!({"id": farm, "kind": "cluster", "label": "farm",
+               "href": format!("/v1/clusters/{farm}")})
+    );
+    assert_eq!(shown[&uris[6]]["vlan"]["access"]["label"], "10 · users");
+    assert_eq!(
+        shown[&uris[7]]["machine"],
+        json!({"id": hv, "label": "hv", "href": format!("/v1/machines/{hv}")})
+    );
+    // A host the caller may not read says not its kind.
+    let hidden: Value = serde_json::from_slice(&before[4].2).unwrap();
+    assert_eq!(hidden["host"], json!({"id": farm}));
+    // The linked objects gone: the reader is served what the other one was.
+    for (table, id) in [
+        ("entity", acme),
+        ("entity", other),
+        ("machines.cluster", farm),
+        ("machines.machine", hv),
+        ("vlan", vlan),
+    ] {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE id = $1"
+        )))
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    for (uri, unreadable) in uris.iter().zip(&before) {
+        let absent = answer(&reader, uri).await;
+        assert_eq!(&absent, unreadable, "{uri}: unreadable and absent");
+    }
+}
