@@ -4,7 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { createApp, h, nextTick, shallowReactive, type App, type Component } from "vue";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Tree from "../src/components/Tree/Tree.vue";
 import type { CellState, GridColumn } from "../src/components/DataGrid/grid.ts";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
@@ -841,5 +841,85 @@ describe("TreeGrid: a row renders again only when its own row changes (task 021-
     expect([selected(3), selected(4)]).toEqual(["false", "true"]);
     // The selection moved: the row it leaves, the row it reaches.
     expect(tree.renders.rows).toBe(2);
+  });
+});
+
+describe("TreeGrid: no hover while the tree scrolls (task 021-22e-e)", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+  const nodes: TreeNode[] = [
+    { id: "a", label: "192.0.2.0/24" },
+    { id: "b", label: "198.51.100.0/24" },
+  ];
+  function scrolled(extra: Record<string, unknown> = {}) {
+    const { root } = mount(TreeGrid as Component, {
+      label: "Arbre",
+      treeLabel: "Préfixe",
+      nodes,
+      ...extra,
+    });
+    const grid = root.querySelector<HTMLElement>("[role='treegrid']")!;
+    const scroll = () => grid.dispatchEvent(new Event("scroll"));
+    const move = () => grid.dispatchEvent(new Event("pointermove", { bubbles: true }));
+    const marked = () => grid.hasAttribute("data-scrolling");
+    return { root, grid, scroll, move, marked };
+  }
+
+  it("is marked from the first scroll until 150 ms after the last", () => {
+    const tree = scrolled();
+    expect(tree.marked()).toBe(false);
+    tree.scroll();
+    expect(tree.marked()).toBe(true);
+    // Each scroll puts the end off.
+    vi.advanceTimersByTime(100);
+    tree.scroll();
+    vi.advanceTimersByTime(100);
+    expect(tree.marked()).toBe(true);
+    vi.advanceTimersByTime(50);
+    expect(tree.marked()).toBe(false);
+  });
+
+  it("a pointer that moves after the scroll stopped takes the hover back at once", () => {
+    const tree = scrolled();
+    tree.scroll();
+    // Moving with the scroll (a wheel turned while the pointer moves): still marked.
+    vi.advanceTimersByTime(20);
+    tree.move();
+    expect(tree.marked()).toBe(true);
+    // 50 ms without a scroll: the pointer is aiming.
+    vi.advanceTimersByTime(30);
+    tree.move();
+    expect(tree.marked()).toBe(false);
+    // Nothing left to end it later, and the next scroll marks it again.
+    vi.advanceTimersByTime(200);
+    expect(tree.marked()).toBe(false);
+    tree.scroll();
+    expect(tree.marked()).toBe(true);
+  });
+
+  it("never marked while a button is pressed in the tree: its click keeps its row", () => {
+    const tree = scrolled();
+    tree.scroll();
+    const cell = tree.root.querySelector<HTMLElement>("[data-row='b'][data-column='']")!;
+    // The press takes the mark away, and the scroll its focus makes sets none.
+    cell.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(tree.marked()).toBe(false);
+    tree.scroll();
+    expect(tree.marked()).toBe(false);
+    // Released elsewhere: the next scroll marks it.
+    document.body.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    tree.scroll();
+    expect(tree.marked()).toBe(true);
+  });
+
+  it("never marked during a drag: its drop needs the rows under the pointer", () => {
+    const tree = scrolled({ parentMode: "declared", canMove: noCycle });
+    const row = tree.root.querySelector<HTMLElement>("[role='row'][data-node='a']")!;
+    row.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+    tree.scroll();
+    expect(tree.marked()).toBe(false);
+    row.dispatchEvent(new Event("dragend", { bubbles: true, cancelable: true }));
+    tree.scroll();
+    expect(tree.marked()).toBe(true);
   });
 });

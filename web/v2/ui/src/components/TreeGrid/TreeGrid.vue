@@ -898,6 +898,53 @@ onMounted(() => {
   observer.observe(root.value);
 });
 onBeforeUnmount(() => observer?.disconnect());
+
+// ——— Scrolling ———
+
+/**
+ * No hover while the tree scrolls (task 021-22e-e): the body takes no pointer events from
+ * the first `scroll` until 150 ms after the last, so a row passing under a still pointer
+ * paints neither its hover nor its « + » (what it hovered leaves, its tooltip closes).
+ * Written on the element: neither the start nor the end renders the tree. A pointer that
+ * moves 50 ms or more after the last `scroll` is aiming: the hover comes back at once
+ * (one that clicks without moving within the 150 ms reaches the scroller). Never while a
+ * button is pressed in the tree (a click whose focus scrolls its row into view keeps its
+ * row) nor during a drag (its drop needs the rows the browser scrolls under it).
+ */
+const SCROLL_SETTLE = 150;
+const SCROLL_AIM = 50;
+let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+let lastScroll = 0;
+let pressed = false;
+function endScrolling(): void {
+  clearTimeout(scrollTimer);
+  scrollTimer = undefined;
+  grid.value?.removeAttribute("data-scrolling");
+}
+function onScroll(): void {
+  if (pressed || moves.dragging.value !== null) return endScrolling();
+  lastScroll = performance.now();
+  if (scrollTimer === undefined) grid.value?.setAttribute("data-scrolling", "");
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(endScrolling, SCROLL_SETTLE);
+}
+function onPointermove(): void {
+  if (scrollTimer !== undefined && performance.now() - lastScroll >= SCROLL_AIM) endScrolling();
+}
+// Released wherever the pointer goes up; a drag or a touch pan cancels the pointer.
+const release = () => void (pressed = false);
+const RELEASE = { capture: true, once: true } as const;
+function onPointerdown(): void {
+  pressed = true;
+  endScrolling();
+  window.addEventListener("pointerup", release, RELEASE);
+  window.addEventListener("pointercancel", release, RELEASE);
+}
+onBeforeUnmount(() => {
+  clearTimeout(scrollTimer);
+  window.removeEventListener("pointerup", release, { capture: true });
+  window.removeEventListener("pointercancel", release, { capture: true });
+});
 </script>
 
 <template>
@@ -920,6 +967,9 @@ onBeforeUnmount(() => observer?.disconnect());
       @focusout="onFocusout"
       @dblclick="onDblclick"
       @dragover="moves.onDragElsewhere"
+      @scroll.passive="onScroll"
+      @pointermove.passive="onPointermove"
+      @pointerdown.passive="onPointerdown"
     >
       <div role="rowgroup" class="k-tree-grid__head">
         <div role="row" class="k-tree-grid__row" aria-rowindex="1">
@@ -1112,6 +1162,12 @@ onBeforeUnmount(() => observer?.disconnect());
    * the root holds it lower). */
   .k-tree-grid[data-virtual] {
     max-block-size: var(--k-size-list-max);
+  }
+
+  /* No hover while the tree scrolls (`data-scrolling`, task 021-22e-e): the rows that pass
+   * under a still pointer paint nothing. */
+  .k-tree-grid[data-scrolling] .k-tree-grid__body {
+    pointer-events: none;
   }
 
   /* The height of the rows left out of the document (virtualised). */
