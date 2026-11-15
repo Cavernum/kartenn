@@ -201,8 +201,10 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
 - Pourquoi : sans droit exigé sur l'hôte, un hôte hors de portée était accepté et un
   hôte inconnu refusé, ce qui révélait l'existence de machines et de grappes illisibles
   (et leur type, par `machines.host.invalid`).
-- Rejeté : le même droit exigé sur toute référence par identifiant (option A
-  généralisée), non retenu pour la v0.2 ; laisser l'oracle (option B seule).
+- Une première étape : la généralisation du droit de lire à toute référence par
+  identifiant est prévue après la v0.2 (tâche 002-31) ; le gestionnaire nomme les champs
+  soumis au droit dans une liste (`READ_CHECKED`), qu'il suffira d'étendre.
+- Rejeté : laisser l'oracle (option B seule).
 - Décidé par : l'utilisateur (2026-11-15)
 
 ## M17 — Média d'une interface (REQ-009-26)

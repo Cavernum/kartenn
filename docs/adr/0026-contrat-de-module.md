@@ -613,7 +613,8 @@ l'écriture, et les désignations cachées sont refusées avant les règles des 
 (`ModuleHandler::check`) : une règle ne lit jamais un objet que l'auteur ne lit pas. Ce
 que le module doit en plus : déclarer dans `reads` le droit de lire tout objet cité dont
 une écriture ou une règle dirait l'existence ou l'état, comme `kartenn-machines` le fait
-pour l'hôte et la grappe (009/M16).
+pour l'hôte et la grappe (009/M16). C'est une première étape : le droit de lire tout
+objet désigné par identifiant est prévu après la v0.2 (tâche 002-31).
 
 Ce que le module doit : donner à chaque résolution le type de l'objet qu'il attend
 (`ObjectKind::Module` pour un type de module, qualifié) et le nom du champ de son corps

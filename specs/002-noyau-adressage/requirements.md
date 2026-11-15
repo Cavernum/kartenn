@@ -175,7 +175,9 @@ accordés, avant les règles des modules. Pour un auteur sans droit, une référ
 sa portée, inconnue, d'un autre type ou close reçoit donc la même réponse (règles,
 messages, nombre d'objets, ordre), requêtes à plusieurs opérations comprises. Une
 référence sur laquelle aucun droit n'est exigé reste un oracle d'existence : hors de
-portée, l'écriture passe ; cachée, elle est refusée.
+portée, l'écriture passe ; cachée, elle est refusée. Le droit de lire l'hôte et la
+grappe qu'une machine désigne (009/M16) en est une première étape ; sa généralisation à
+toute référence par identifiant est prévue après la v0.2 (tâche 002-31).
 
 ### D. Préfixes
 
