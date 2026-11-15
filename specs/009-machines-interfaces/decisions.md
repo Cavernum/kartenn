@@ -31,7 +31,8 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
 - M13 lectures : machines d'une adresse et d'un réseau, adresses d'une machine.
 - M14 API, permissions, plugin : `/v1/machines`, `/v1/interfaces`, `/v1/clusters`.
 - M15 budgets : 10⁵ machines, 3·10⁵ interfaces, 3·10⁵ rattachements.
-- M16 droits d'un rattachement : écriture sur l'interface et lecture de l'adresse.
+- M16 droits d'un rattachement : écriture sur l'interface et lecture de l'adresse ;
+  lecture de l'hôte et de la grappe désignés (extension du 2026-11-15).
 
 ## M1 — Périmètre
 - Décision : **modèle logique et hébergement**. Machines (physiques, virtuelles,
@@ -189,6 +190,20 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
   l'adresse (rattacher une adresse qu'on ne voit pas).
 - À relire : choix de sécurité, signalé dans le rapport.
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+- Extension du 2026-11-15 (tâche 002-29c2, INV-63) : désigner un hôte ou une grappe
+  (`host.machine`, `host.cluster`, `member_of`, à la création comme à la mise à jour)
+  exige le droit de le lire, `machines.read` sur la machine hôte et
+  `machines.cluster.read` sur la grappe, vérifié avant les écritures (`ModuleHandler::
+  reads`, ADR 0026, amendement 17), sauf sur une machine ou une grappe que le changeset
+  crée. Sans ce droit, l'hôte hors de portée est refusé comme un hôte inconnu, d'un autre
+  type ou clos (`core.object.forbidden`), et ni l'existence ni le type d'un hôte
+  illisible ne se lisent par les règles d'hébergement.
+- Pourquoi : sans droit exigé sur l'hôte, un hôte hors de portée était accepté et un
+  hôte inconnu refusé, ce qui révélait l'existence de machines et de grappes illisibles
+  (et leur type, par `machines.host.invalid`).
+- Rejeté : le même droit exigé sur toute référence par identifiant (option A
+  généralisée), non retenu pour la v0.2 ; laisser l'oracle (option B seule).
+- Décidé par : l'utilisateur (2026-11-15)
 
 ## M17 — Média d'une interface (REQ-009-26)
 - Constat (2026-10-26, relecture de la maquette E11) : l'utilisateur veut lire sur la
