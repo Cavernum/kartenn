@@ -67,6 +67,24 @@ interface Probe {
    * `domains` a `changes` names (none when its data does not read).
    */
   stream: { at: number; kind: string; data?: string; domains?: string[] }[];
+  /** When the body of each response was read (`Response.json`), by its URL, the last. */
+  parsed: Record<string, number>;
+  /** The mutation that first put each `data-row` in the document, once `watchRows` runs. */
+  inserted: Record<string, number>;
+  /** At each scan of `watchRows`: the rows of the grid in the document, and if virtualised. */
+  mounted: { at: number; rows: number; virtual: boolean }[];
+  /** The long animation frames (> 50 ms), their render phases and their longest scripts. */
+  frames: LongFrame[];
+}
+
+/** A `long-animation-frame` entry, as the probe keeps it. */
+interface LongFrame {
+  start: number;
+  duration: number;
+  /** The start of its rendering (`renderStart`), then of its style and layout. */
+  render: number;
+  layout: number;
+  scripts: { invoker: string; start: number; duration: number; layout: number }[];
 }
 
 declare global {
@@ -75,8 +93,57 @@ declare global {
   }
 }
 
+/**
+ * Added after `probe` by the page of 100 rows alone (021-22f-e): when each body is read,
+ * and the long animation frames, which `pageSpans` reads.
+ */
+function watchSpans(): void {
+  const p = window.__kProbe;
+  const json = Response.prototype.json;
+  Response.prototype.json = function (this: Response) {
+    const url = this.url;
+    return json.call(this).then((body: unknown) => {
+      p.parsed[url] = performance.now();
+      return body;
+    });
+  };
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries() as (PerformanceEntry & {
+      renderStart: number;
+      styleAndLayoutStart: number;
+      scripts: (PerformanceEntry & {
+        invoker: string;
+        sourceFunctionName: string;
+        forcedStyleAndLayoutDuration: number;
+      })[];
+    })[])
+      p.frames.push({
+        start: entry.startTime,
+        duration: entry.duration,
+        render: entry.renderStart,
+        layout: entry.styleAndLayoutStart,
+        scripts: entry.scripts.map((s) => ({
+          invoker: `${s.invoker}${s.sourceFunctionName ? ` ${s.sourceFunctionName}` : ""}`,
+          start: s.startTime,
+          duration: s.duration,
+          layout: s.forcedStyleAndLayoutDuration,
+        })),
+      });
+  }).observe({ type: "long-animation-frame", buffered: true } as PerformanceObserverInit);
+}
+
 function probe({ origin, useful }: { origin: string; useful: string }): void {
-  const p: Probe = { events: [], shifts: [], clicks: [], rows: {}, stream: [] };
+  const p: Probe = {
+    events: [],
+    shifts: [],
+    clicks: [],
+    rows: {},
+    stream: [],
+    parsed: {},
+    inserted: {},
+    mounted: [],
+    frames: [],
+  };
   window.__kProbe = p;
   // What the event stream brings: a `ready` or a change invalidates reads under way.
   const Native = window.EventSource;
@@ -594,8 +661,63 @@ test("first useful screen within 2 s of the callback, without shift; a slow plug
   ).toContainText("aucune extension définie dans le délai", { timeout: 15_000 });
 });
 
+/**
+ * Runs in the page: for each page drawn, what parts the time from the end of its response
+ * to its first row drawn (021-22f-e): to its body read, to the mutation that brings the row,
+ * to the frame; the other reads in flight at its end, and those that landed before its
+ * row; the long animation frames over it, their scripts and their style and layout.
+ */
+function pageSpans(samples: { url: string; ids: string[] }[]): string[] {
+  const p = window.__kProbe;
+  const kind = (name: string) =>
+    new URL(name).pathname.replace(/^\/v1\//, "").replace(/[0-9a-f-]{36}/g, ":id");
+  const tally = (names: string[]) => {
+    const counts = new Map<string, number>();
+    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+    return [...counts].map(([k, n]) => `${k} ${n}`).join(", ") || "none";
+  };
+  const ms = (v: number) => v.toFixed(1);
+  const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+  return samples.map(({ url, ids }, i) => {
+    const timing = performance.getEntriesByName(url).at(-1) as PerformanceResourceTiming;
+    const end = timing.responseEnd;
+    const first = (at: Record<string, number>) =>
+      Math.min(...ids.map((k) => at[k]).filter((v): v is number => v !== undefined));
+    const drawn = first(p.rows);
+    const inserted = first(p.inserted);
+    const parsed = p.parsed[url] ?? NaN;
+    const others = resources.filter((e) => e.name !== url && !e.name.includes("/events"));
+    const flying = others.filter((e) => e.startTime < end && e.responseEnd > end);
+    const landed = others.filter((e) => e.responseEnd > end && e.responseEnd <= drawn);
+    const frames = p.frames.filter((f) => f.start < drawn && f.start + f.duration > end);
+    const shownFrames = frames.map((f) => {
+      const scripts = f.scripts.reduce((sum, s) => sum + s.duration, 0);
+      const layout = f.layout > 0 ? f.start + f.duration - f.layout : 0;
+      const top = [...f.scripts]
+        .sort((a, b) => b.duration - a.duration)
+        .slice(0, 2)
+        .map((s) => `${s.invoker} ${ms(s.duration)}`)
+        .join("; ");
+      return `${ms(f.duration)} at ${ms(f.start - end)} (scripts ${ms(scripts)} [${top}], style and layout ${ms(layout)})`;
+    });
+    const stream = p.stream.filter((s) => s.at > end - 100 && s.at <= drawn).map((s) => s.kind);
+    const dom = (at: number) => p.mounted.filter((m) => m.at <= at).at(-1);
+    const shownDom = (m: { rows: number; virtual: boolean } | undefined) =>
+      m ? `${m.rows}${m.virtual ? " virtualised" : ""}` : "?";
+    return (
+      `INFO page ${i + 1}: ${ms(drawn - end)} ms = body ${ms(parsed - end)} + render` +
+      ` ${ms(inserted - parsed)} + frame ${ms(drawn - inserted)}; network ${ms(end - timing.startTime)};` +
+      ` rows in the document ${shownDom(dom(end))} then ${shownDom(dom(drawn))};` +
+      ` in flight at its end: ${tally(flying.map((e) => kind(e.name)))}; landed before its row:` +
+      ` ${tally(landed.map((e) => kind(e.name)))}; long frames: ${shownFrames.join(" | ") || "none"}` +
+      `; stream: ${stream.join(", ") || "none"}`
+    );
+  });
+}
+
 test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) => {
   const cdp = await benchOf(page);
+  await page.addInitScript(watchSpans);
   await loginIn(page, "alice");
   await slowDown(cdp);
   await page.goto("/addresses");
@@ -611,10 +733,33 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
         const key = cell.dataset.row;
         if (key && !(key in seen)) seen[key] = now;
       }
+      window.__kProbe.mounted.push({
+        at: now,
+        rows: el.querySelectorAll(".k-data-grid__body > [role='row']").length,
+        virtual:
+          el.closest("[data-virtual]") !== null || el.querySelector("[data-virtual]") !== null,
+      });
     };
     scan();
     let pending = false;
-    new MutationObserver(() => {
+    // The mutation that brings a row, apart from its frame: what the render took, and what
+    // the frame waited for after it.
+    const inserted = window.__kProbe.inserted;
+    const mark = (node: Element, at: number) => {
+      const key = (node as HTMLElement).dataset.row;
+      if (key && !(key in inserted)) inserted[key] = at;
+    };
+    new MutationObserver((records) => {
+      const at = performance.now();
+      for (const record of records) {
+        if (record.type === "attributes" && record.attributeName === "data-row")
+          mark(record.target as Element, at);
+        for (const node of record.addedNodes)
+          if (node instanceof Element) {
+            mark(node, at);
+            for (const inner of node.querySelectorAll("[data-row]")) mark(inner, at);
+          }
+      }
       if (pending) return;
       pending = true;
       requestAnimationFrame(() => {
@@ -655,6 +800,7 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
         .map((e) => e.name),
     );
   const delays: number[] = [];
+  const samples: { url: string; ids: string[] }[] = [];
   let undrawn = 0;
   let withoutRows = 0;
   let measured = new Set(await reads());
@@ -706,7 +852,10 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
         [url, ids] as const,
       );
       if (delay === null) undrawn++;
-      else delays.push(delay);
+      else {
+        delays.push(delay);
+        samples.push({ url, ids });
+      }
     }
     measured = new Set(now);
     await settle(page);
@@ -716,6 +865,7 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
     `INFO reads of /v1/addresses without rows: ${withoutRows}; pages of which no row was` +
       ` drawn within 5 s of its response: ${undrawn}`,
   );
+  for (const line of await page.evaluate(pageSpans, samples)) console.log(line);
   expect(delays.length).toBeGreaterThanOrEqual(PAGES - 2);
   check(`page of 100 rows, p95 of ${delays.length}`, quantile(delays, 0.95), 100, "ms");
   spread("page of 100 rows", delays, "ms");
