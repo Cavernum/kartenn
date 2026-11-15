@@ -1103,4 +1103,22 @@ routeur complet, sauf mention « vrai TCP ».
   reste : `GET /v1/flow-nonconformities` coupe encore sa page avant le filtre des droits
   (« The key of the last row read, before the filter of the rights (design 011) ») : même
   défaut (pages courtes, curseur portant la clé d'une non-conformité illisible), à
-  traiter par sa propre tâche ; coût du prédicat dans la requête non mesuré (aucun banc).
+  traiter par sa propre tâche (37) ; coût du prédicat dans la requête non mesuré (aucun
+  banc).
+- [ ] 37. Page des non-conformités coupée avant le filtre des droits (sécurité, antérieur,
+  relevé par la 36) : `GET /v1/flow-nonconformities` lit sa page, la coupe et calcule son
+  curseur sur les lignes brutes (« The key of the last row read, before the filter of the
+  rights (design 011) »), puis écarte ce que l'appelant ne lit pas. Les pages sont courtes
+  ou vides avec une suite, et le curseur, lisible, peut porter la clé d'une non-conformité
+  illisible. À faire : le prédicat de lecture dans la requête, avant la coupe, comme la 36
+  (`read::Reader`), la page et son curseur calculés sur les seules lignes lues ; le design
+  011 corrigé — verify : `k-check -p kartenn-flow` (deux appelants, l'un lisant tout,
+  l'autre une partie, page après page : les pages du second sont celles du premier
+  privées de ce qu'il ne lit pas ; aucune page courte avec une suite ; aucun curseur ne
+  nomme une ligne illisible)
+  - où : `crates/kartenn-flow/src/rest.rs` (route `flow-nonconformities`, vers la ligne
+    1351, sa coupe et son curseur) ; `crates/kartenn-flow/src/read.rs` (`Reader`, à
+    réemployer) ; test voisin `flow/tests/it/rest.rs`
+    `a_page_of_flows_is_cut_on_the_rows_the_caller_reads` ;
+    `specs/011-registre-flux/design.md` (pagination des non-conformités)
+  - dépend de : 36
