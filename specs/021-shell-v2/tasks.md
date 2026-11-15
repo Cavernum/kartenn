@@ -7524,7 +7524,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     rendu 48 ms de plus au p95 et 20 ms à la médiane ; il reste une queue, quelques
     échantillons lents sur vingt, à attribuer par une sonde : 22f-e) ; l'arbre de 10⁴
     lignes, 21,27 % de trames perdues et 1 tâche longue (inchangé ; 22e-d).
-  - [ ] 22f-e. Sonde : attribuer la queue de la page de 100 lignes (p95 131,2 ms pour
+  - [x] 22f-e. Sonde : attribuer la queue de la page de 100 lignes (p95 131,2 ms pour
     une médiane de 69,1 à la cinquième passe : la page type tient le budget, quelques
     échantillons sur vingt non) — pour chaque échantillon du banc, relever ce qui sépare
     la réponse du dessin (attente réseau des lots de propriétés et d'interfaces, tâches
@@ -7540,6 +7540,106 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `web/v2/shell/src/views/{list.ts,propertyColumns.ts}`,
       `web/v2/sdk/src/data/batch.ts`, `web/v2/plugins/machines/src/holders.ts` ; modèle
       de sonde : la note de la 22f-d
+    - relevé (2026-11-15, branche `tache-021-22f-e`, main ae82a7f9, seul agent, les quatre
+      verrous libres, charge 0,6 à 2,4 au lancement de chaque passe, 0,8 à 2,0 à la fin,
+      4,7 après la première, qui compilait le serveur ;
+      sept passes filtrées de 20 échantillons). Le banc imprime désormais, par échantillon,
+      une ligne `INFO page N` : le temps de la fin de la réponse au premier rang dessiné,
+      coupé en `body` (jusqu'à la lecture du corps, `Response.json`), `render` (jusqu'à la
+      mutation qui pose la ligne) et `frame` (jusqu'à la trame) ; les lignes de la grille
+      dans le document avant et après, virtualisée ou non ; les lectures en vol à la fin de
+      la réponse et celles arrivées avant la ligne ; les trames longues qui la recouvrent
+      (`long-animation-frame` : scripts les plus longs, style et mise en page). Le premier
+      échantillon est la deuxième page de la liste (lignes 101 à 200).
+
+      | passe (main) | page 1 | page 2 | pages 3 à 20 | p95 | médiane |
+      |---|---|---|---|---|---|
+      | 1 | 327,1 (body 159,8) | 109,3 | 36 à 76 | 109,3 | 68,4 |
+      | 2 | 301,1 (body 139,5) | 110,2 | 45 à 77 | 110,2 | 71,1 |
+      | 3 | 322,4 (body 153,8) | 110,2 | 38 à 85, une à 166,4 | 166,4 | 70,2 |
+      | 6, trace GC | 370,8 (body 36,0) | 143,2 | 45 à 97 | 143,2 | 71,3 |
+      | 7 | 251,4 (body 44,0) | 113,5 | 43 à 83 | 113,5 | 69,4 |
+      | 2, 3, 6 au calme¹ | 148,8 à 154,8 (body 2,3 à 2,4) | 105,9 à 110,5 | 45 à 91 | 105,9 à 110,5 | 70,4 à 71,4 |
+      | 4, 5 virtualisée dès 50², au calme | 48,9 à 56,7 | 44,3 à 48,1 | 45 à 85 | 78,6 à 78,9 | 64,5 à 68,5 |
+
+      ¹ Variante de sonde, retirée : `networkidle`, 3 s et deux trames avant le premier
+      défilement. ² Essai local non commité : `VIRTUAL_ROWS` à 50 dans `virtualRows.ts`.
+    - cause, prouvée par mesure : la queue, ce sont toujours les deux premiers
+      échantillons, et la grille au seuil de virtualisation (`VIRTUAL_ROWS` = 200). Page 1
+      (100 → 200 lignes, non virtualisée) : les 100 lignes de la page montées d'un coup,
+      `Response.json.then` 150 à 205 ms (331 à froid, passe 6) et un rappel de trame (`FrameRequestCallback`) de 57
+      à 100 ms, contre 25 à 45 et 12 à 14 ensuite. Page 2 (200 → 300, le seuil franchi) : la
+      grille passe en virtualisée, 190 lignes démontées, `Response.json.then` 103 à 110 ms,
+      `ResizeObserverCallback` 65 à 73 ms (`readEstimate`, `measureKey`,
+      `measureHeaders` de `DataGrid.vue`) et 90 à 97 ms de style et mise en page. Sur
+      vingt échantillons, le p95 est le deuxième pire : c'est la page 2, toujours au-dessus
+      de 100. L'essai virtualisé dès 50 lignes, au calme, ramène les deux à 44 à 57 ms et le
+      p95 à 78,6 et 78,9 (tenu, deux passes).
+    - cause, prouvée par mesure, artefact du banc : en sus, à la page 1, dans trois passes
+      sur cinq de main (1, 2, 3) et dans la passe 4 de l'essai, la réponse attend 139 à 158 ms (`body`) derrière
+      la trame longue de l'évaluation d'un plugin (`SCRIPT[src="/plugins/machines/1.0.0/
+      index.js"].onload` 92 à 93 ms et 54 ms de mise en page, ou celui d'`example`, 70 ms) :
+      le banc défile dès la première cellule visible, pendant le démarrage des plugins ; à
+      ce moment aussi le code est froid (passes 6 et 7 : `Response.json.then` 205 à 331 ms
+      pour la même page). Le démarrage des plugins appartient au budget du premier écran,
+      pas à celui d'une page ; au calme, `body` tombe à 2,4 ms. Le budget reste à 100 ms.
+    - écartées, par mesure : lot en vol (aucune lecture en vol à la fin de la réponse des
+      pages lentes ; une lecture d'interfaces en vol dans la moitié des pages rapides) ;
+      fenêtre de 10 ms des regroupeurs (`body` de 12 à 25 ms dans les pages rapides, de 2 à
+      5 dans les lentes au calme) ; noms d'objets de la 11p10-d (aucune lecture de noms dans
+      cette liste : n'arrivent que des lectures d'interfaces et la feuille du plugin
+      `example`) ; ramasse-miettes (trace V8 de la passe 6 : un nettoyage de 6,6 à 10,4 ms
+      dans cinq fenêtres sur quarante, aucune dans la page 2, jamais la différence) ; flux
+      d'événements (aucun événement dans les fenêtres). Déduit, sans tâche : l'unique
+      échantillon lent du régime établi (passe 3, page 12, 166,4 ms, `Response.json.then`
+      109 ms dans une seule trame, passe sans trace V8) reste non attribué ; un sur 144
+      échantillons des pages 3 à 20 de main (huit passes).
+    - à noter, dans le budget : passé la dixième page (`MAX_PAGES`), une page coûte 20 à
+      25 ms de plus (pages 3 à 9 : 40 à 58 ms ; 10 à 20 : 63 à 87) : un `DIV.onscroll` de 9
+      à 13 ms (l'ancrage de la 22f), `render` de 30 à 43 ms au lieu de 20 à 25, `frame` de
+      17 à 25 au lieu de 8 à 12 ; c'est la marge du p95 une fois les deux premières pages
+      corrigées (78,6 et 78,9). Le plugin `example` relie sa feuille `styles.css` dans la
+      racine d'ombre de chaque élément (`handle.styles`, `sdk/src/extensions.ts`) : 39
+      chargements, depuis le cache, en une passe ; hors de la queue.
+    - choix : la décomposition imprimée par échantillon gardée (`watchSpans`, ajoutée par
+      ce seul test, et `pageSpans`) ; la variante « au calme », la trace V8 du
+      ramasse-miettes et l'essai `VIRTUAL_ROWS` retirés (relevés ici) ; les passes de la
+      sonde lancées par l'agent, exception accordée par la session principale.
+  - [ ] 22f-f. `DataGrid` : une liste paginée virtualisée dès sa première page, sans
+    monter d'un coup les 100 lignes de la deuxième ni franchir le seuil de 200 à la
+    troisième (22f-e : 149 à 155 ms puis 106 à 111 ms au calme, le p95 d'une passe) —
+    verify : Vitest, une `DataGrid` de 100 lignes annoncée paginée ne monte que sa fenêtre
+    et le reste à 200 puis 300 lignes (échoue sur main : 200 lignes montées) ; passe
+    filtrée du banc (`bench-web small -g "page of 100 rows"`) par la session principale,
+    après la 22f-g, pages 1 et 2 sous 100 ms et p95 ≤ 100 trois fois
+    - où : `web/v2/ui/src/components/internal/virtualRows.ts` (`VIRTUAL_ROWS`, `virtual`
+      de `useVirtualRows`, 206), `ui/src/components/DataGrid/DataGrid.vue` (`useVirtualRows`,
+      331 ; `rowCount`, 164 et 1174), `shell/src/views/ListView.vue` (`:row-count`, 384) et
+      les autres vues qui passent `row-count` ; test voisin
+      `ui/test/data-grid-rows-mounted.test.ts` ; design 020, ligne 20 de l'inventaire
+      (« virtualisée au-delà de 200 lignes »)
+    - à trancher avant : le contrat de `@kartenn/ui` et la ligne du design changent. (A)
+      une liste qui annonce une page suivante est virtualisée dès sa première ligne, signal
+      à choisir (`rowCount` à `-1` tant qu'elle n'est pas complète, ce que dit déjà
+      `aria-rowcount`, ou une propriété nouvelle) : mesuré par l'essai de la 22f-e ; (B) le
+      seuil abaissé à 100 pour toutes les grilles : le franchissement passe à la première
+      page suivante, déduit sans gain ; (C) seuil gardé, lignes hors fenêtre montées par
+      tranches sous 200 : plus de code, non mesuré. Recommandé : (A) ; la recherche du
+      navigateur (Ctrl+F) ne trouve plus alors les lignes hors fenêtre d'une liste paginée,
+      ce qu'elle ne faisait déjà plus au-delà de 200.
+    - dépend de : 22f-e
+  - [ ] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
+    des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
+    ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
+    les plugins de la liste soient définis (la colonne d'interfaces du plugin `machines`
+    dans l'en-tête, ou l'état des plugins du shell) puis deux trames ; budget inchangé ; la
+    ligne `INFO page N` garde la décomposition — verify : passe filtrée du banc par la
+    session principale, trois fois : `body` de la page 1 sous 20 ms
+    - où : `web/v2/e2e/budgets/budgets.spec.ts` (« a page of 100 rows drawn within 100 ms
+      of its response », après le premier `gridcell` visible ; `settle` de
+      `e2e/bench/measure.ts`) ; signal de plugin à imiter : `plugins/machines/src/
+      holders.ts`, ou ce que lit le test du premier écran (« a slow plugin set aside »)
+    - dépend de : 22f-e
 - [x] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
   11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
   échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
