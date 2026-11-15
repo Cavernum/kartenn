@@ -12977,11 +12977,14 @@
         "type": "object"
       },
       "Summary": {
-        "description": "The summary of a linked object.",
+        "description": "The summary of a linked object whose natural key is its slug.",
         "properties": {
           "href": {
-            "description": "Its URL.",
-            "type": "string"
+            "description": "Its URL; absent with the slug.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "description": "Identifier.",
@@ -12989,7 +12992,7 @@
             "type": "string"
           },
           "slug": {
-            "description": "Slug; `null` if the linked object did not exist at the dates of the read.",
+            "description": "Slug; absent if the caller may not read the object or if it was absent then.",
             "type": [
               "string",
               "null"
@@ -12997,8 +13000,7 @@
           }
         },
         "required": [
-          "id",
-          "href"
+          "id"
         ],
         "type": "object"
       },

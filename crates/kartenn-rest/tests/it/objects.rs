@@ -38,6 +38,18 @@ async fn person(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)
     .fetch_one(pool)
     .await
     .unwrap();
+    grant(pool, identity, permissions, scope).await;
+    Principal {
+        identity,
+        kind: IdentityKind::Person,
+        issuer: None,
+        groups: Vec::new(),
+        method: Method::Bearer,
+    }
+}
+
+/// Grants `permissions` on `scope` to the person `identity`, by a role of their own.
+async fn grant(pool: &PgPool, identity: Uuid, permissions: &[&str], scope: (&str, Option<Uuid>)) {
     let role = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -67,13 +79,6 @@ async fn person(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)
         .execute(pool)
         .await
         .unwrap();
-    Principal {
-        identity,
-        kind: IdentityKind::Person,
-        issuer: None,
-        groups: Vec::new(),
-        method: Method::Bearer,
-    }
 }
 
 const READ_ALL: [&str; 6] = [
@@ -357,14 +362,19 @@ async fn every_collection_reads_with_its_summaries(pool: PgPool) {
 /// them (the fixtures above draw them at random), by the system author: a version is
 /// served with the motive and the author of its changeset.
 async fn journal(pool: &PgPool) {
-    sqlx::query(
+    journal_of(pool, "addressing_domain").await;
+}
+
+/// Journals the changesets of the versions of `table`, so that its history reads.
+async fn journal_of(pool: &PgPool, table: &str) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
          SELECT DISTINCT d.changeset_id, '00000000-0000-7000-8000-000000000001'::uuid, 'fixture',
                 'applied', 'direct', tstzrange(now(), NULL)
-         FROM (SELECT changeset_id FROM addressing_domain
-               UNION SELECT changeset_id FROM addressing_domain_history) d
-         WHERE NOT EXISTS (SELECT 1 FROM changeset c WHERE c.id = d.changeset_id)",
-    )
+         FROM (SELECT changeset_id FROM {table}
+               UNION SELECT changeset_id FROM {table}_history) d
+         WHERE NOT EXISTS (SELECT 1 FROM changeset c WHERE c.id = d.changeset_id)"
+    )))
     .execute(pool)
     .await
     .unwrap();
@@ -2482,4 +2492,137 @@ async fn the_id_filter_names_its_parameter_past_the_largest_page(pool: PgPool) {
         let detail = json_of(response).await["detail"].to_string();
         assert!(detail.contains("id"), "{uri}: {detail}");
     }
+}
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let response = get(app, uri).await;
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+#[kartenn_testing::pg_test]
+async fn a_summary_leaves_alike_the_unreadable_and_the_unknown(pool: PgPool) {
+    // REQ-006-42, 005: the domain of a prefix, summarised in full for a caller who may read
+    // it, by its identifier alone for one who may not; then, the domain gone, the same
+    // bytes for both, as for an object that never was.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    journal_of(&pool, "prefix").await;
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let blind = app(
+        &pool,
+        person(&pool, &["core.prefix.read"], ("global", None)).await,
+    );
+    let uris = [
+        format!("/v1/prefixes/{net}"),
+        "/v1/prefixes".to_owned(),
+        format!("/v1/prefixes/{net}/history"),
+    ];
+    // The members sorted (an object, a page), or in the order of the type (a history).
+    let fulls = [
+        format!(r#""domain":{{"href":"/v1/domains/{lab}","id":"{lab}","slug":"lab"}}"#),
+        format!(r#""domain":{{"id":"{lab}","slug":"lab","href":"/v1/domains/{lab}"}}"#),
+    ];
+    let bare = format!(r#""domain":{{"id":"{lab}"}}"#);
+    let mut before = Vec::new();
+    for uri in &uris {
+        let (status, _, shown) = answer(&reader, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        let shown = String::from_utf8(shown).unwrap();
+        let full = fulls.iter().find(|f| shown.contains(f.as_str()));
+        let full = full.unwrap_or_else(|| panic!("{uri}: {shown}"));
+        let unreadable = answer(&blind, uri).await;
+        let body = String::from_utf8(unreadable.2.clone()).unwrap();
+        // The same body but the summary, cut to its identifier.
+        assert_eq!(body, shown.replace(full.as_str(), &bare), "{uri}");
+        before.push(unreadable);
+    }
+    sqlx::query("DELETE FROM addressing_domain WHERE id = $1")
+        .bind(lab)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (uri, unreadable) in uris.iter().zip(&before) {
+        for app in [&reader, &blind] {
+            let unknown = answer(app, uri).await;
+            assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
+        }
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn a_page_summarises_each_linked_object_as_its_caller_may_read_it(pool: PgPool) {
+    // REQ-006-42: one page, links readable and not, prefixes and the parents of entities.
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    for (domain, value) in [
+        (lab, "10.1.0.0/24"),
+        (dmz, "10.2.0.0/24"),
+        (lab, "10.3.0.0/24"),
+    ] {
+        prefix(&pool, domain, value).await;
+    }
+    let root = node(&pool, "entity", "root", None).await;
+    let team = node(&pool, "entity", "team", Some(root)).await;
+    node(&pool, "entity", "squad", Some(team)).await;
+    // Every prefix, the domain `lab` alone; the entities under `team`, not `root`.
+    let who = person(&pool, &["core.prefix.read"], ("global", None)).await;
+    grant(
+        &pool,
+        who.identity,
+        &["core.domain.read"],
+        ("domain", Some(lab)),
+    )
+    .await;
+    grant(
+        &pool,
+        who.identity,
+        &["core.entity.read"],
+        ("entity", Some(team)),
+    )
+    .await;
+    let app = app(&pool, who);
+    let full = |id: Uuid, slug: &str, collection: &str| json!({"id": id, "slug": slug, "href": format!("/v1/{collection}/{id}")});
+    let body = ok(&app, "/v1/prefixes").await;
+    let domains: Vec<&Value> = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| &p["domain"])
+        .collect();
+    // Sorted by domain identifier, then value.
+    let (first, second) = if dmz < lab { (dmz, lab) } else { (lab, dmz) };
+    let summary = |id: Uuid| {
+        if id == lab {
+            full(lab, "lab", "domains")
+        } else {
+            json!({ "id": id })
+        }
+    };
+    let expected = if first == lab {
+        vec![summary(first), summary(first), summary(second)]
+    } else {
+        vec![summary(first), summary(second), summary(second)]
+    };
+    assert_eq!(domains, expected.iter().collect::<Vec<_>>(), "{body}");
+    let body = ok(&app, "/v1/entities").await;
+    let parents: Vec<(&Value, &Value)> = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (&e["slug"], &e["parent"]))
+        .collect();
+    assert_eq!(
+        parents,
+        [
+            (&json!("squad"), &full(team, "team", "entities")),
+            (&json!("team"), &json!({ "id": root })),
+        ],
+        "{body}"
+    );
 }
