@@ -1041,13 +1041,44 @@ routeur complet, sauf mention « vrai TCP ».
     (`Summary::of` pour un groupe, à slug ; `Summary::labelled` pour une ancre de genre
     variable, ou `Summaries::read`), `label` d'un VLAN `<vid> · <nom>`
   - dépend de : 33a, 33b (forme de la clé)
-- [ ] 33d. Machines : références des grappes, machines, interfaces, rattachements et
+- [x] 33d. Machines : références des grappes, machines, interfaces, rattachements et
   fiche — verify : `k-check -p kartenn-machines`
   - où : `crates/kartenn-machines/src/rest.rs` (`IdRef`, `HostRef`) ; implémenter
     `ModuleHandler::keys` pour les types du module (sinon leurs objets restent `{id}`
     dans les anomalies et les valeurs `ref`) ; `Summary::labelled` avec la clé lue par
     la jointure de la page et `summary::readable`
   - dépend de : 33a, 33b
+  fait : `crates/kartenn-machines/src/read.rs` (`keys_of` : nom d'une machine, slug d'un
+  cluster, nom seul d'une interface, aux dates, une requête) et `handler.rs`
+  (`ModuleHandler::keys` par le port de lecture) ; `rest.rs` : `owner`, `site`,
+  `member_of` d'un cluster et d'une machine (liste, lecture, fiche, `hosted`,
+  `clusters/{id}/machines`), `machine` et `vlan.access`/`native`/`tagged` d'une
+  interface (liste, lecture) en `Summary` par `Summaries::read` (une lecture des clés
+  du noyau et une du module par page, une autorisation par type) ; l'hôte en
+  `MachineHostSummary {id, kind, label, href}`, `kind` omis avec `label` (le genre d'un
+  hôte illisible ne se dit pas), `HostRef` gardé pour l'écriture ; `interface` et
+  `address` d'un rattachement (`MachineAddress`) en résumés complets sans lecture de
+  plus (les deux bouts déjà lus sous la portée de l'appelant) ; contrat et `schema.d.ts`
+  des deux SDK régénérés ; `web/v2/plugins/machines` (`MachineList`, `MachineRecord`,
+  `ClusterRecord`, `HostSection`) et leurs tests, `sdk/test/dependents.test.ts`, le
+  parcours `moves.spec.ts` lisent `host.kind`/`host.id` ; design 009 « Routes ». Test :
+  `machines/tests/it/rest.rs` `a_reference_leaves_alike_the_unreadable_and_the_absent`
+  (cluster, machine, fiche, interface, en lecture et en liste par `id`, deux
+  appelants : corps identique au résumé coupé près, l'hôte illisible sans `kind` ; puis
+  entités, cluster, machine hôte et VLAN supprimés : statut, en-têtes hors
+  `request-id` et octets du lecteur identiques à ceux de l'illisible).
+  choix : `Summaries::read` plutôt qu'une jointure par requête de page (moins de SQL
+  touché, nombre de lectures constant par page, VLAN et entités compris) ; cluster en
+  `label` seul, sans `slug` (le crochet `keys` ne rend qu'une chaîne ; même forme dans
+  les anomalies) ; `kind` de l'hôte à côté du résumé, et non l'enveloppe
+  `{machine: …}` qui dirait le genre ; `interface_name`, `value` et `href` d'un
+  rattachement gardés à côté des résumés ; `addresses` d'une interface (REQ-006-41) et
+  de la fiche inchangées : objets rendus, déjà filtrés par la lisibilité ; dans le
+  shell, un hôte sans `kind` se montre par son identifiant, sans lien.
+  reste : les résumés lus par `Summaries::read` hors de l'instantané de la page (même
+  remarque que la 33b) ; `interface_name`/`value`/`href` redondants d'un rattachement,
+  à retirer avec 11p10-d ; un cluster n'a pas `slug` dans ses résumés (le crochet
+  `keys` ne dit pas de slug) : à trancher avec 33h.
 - [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
   `k-check -p kartenn-kube`
   - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,
