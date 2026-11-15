@@ -43,12 +43,20 @@ impl Authenticator for As {
     }
 }
 
+/// The key ring of every instance of the tests, so that a test reads the cursors it is
+/// served.
+fn ring() -> KeyRing {
+    static LINE: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| KeyRing::generate_line("k1"));
+    KeyRing::parse(&LINE).unwrap()
+}
+
 impl Env {
     /// The router of an instance with the modules, as the person `identity`.
     pub(crate) fn app(&self, identity: Uuid) -> Router {
         let api = Api {
             pool: self.pool.clone(),
-            ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
+            ring: ring(),
             bound: Duration::from_secs(60),
             journal: PgAuditJournal::new(self.pool.clone(), Instance::new("test")),
             audit: ReadAudit::default(),
@@ -521,6 +529,106 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
         }
     }
     assert_eq!(seen, ["active", "requested", "requested"]);
+}
+
+/// The key of a row of a page of flows: the identifier of a flow, the proposal of a
+/// request pending a review.
+fn key(item: &Value) -> String {
+    item["id"]
+        .as_str()
+        .or_else(|| item["review"]["changeset"].as_str())
+        .unwrap()
+        .to_owned()
+}
+
+/// A list read page after page from `uri`: its rows, and for each page its size and the
+/// content of its cursor, `None` for the last one.
+async fn pages(app: &Router, uri: &str) -> (Vec<Value>, Vec<(usize, Option<String>)>) {
+    let (mut uri, mut rows, mut pages) = (uri.to_owned(), Vec::new(), Vec::new());
+    loop {
+        let (status, page) = call(app, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {page}");
+        let next = page["links"]["next"].as_str().map(str::to_owned);
+        let cursor = next.as_deref().map(|next| {
+            // Base64url and dots: the query does not escape them.
+            let (_, cursor) = next.split_once("?cursor=").unwrap();
+            let content =
+                kartenn_auth::signed::verify(&ring(), kartenn_auth::keys::Purpose::Cursor, cursor)
+                    .unwrap();
+            String::from_utf8(content).unwrap()
+        });
+        pages.push((items(&page).len(), cursor));
+        rows.extend(items(&page).iter().cloned());
+        match next {
+            Some(next) => uri = next,
+            None => break,
+        }
+    }
+    (rows, pages)
+}
+
+/// Task 006-36: a page of flows is cut on the rows the caller reads. An author who reads
+/// only its own flows pages through the rows a reader of every flow is served, less those
+/// of another author: no page shorter than asked with a next one, no cursor that carries
+/// the key of a row it does not read.
+#[kartenn_testing::pg_test]
+async fn a_page_of_flows_is_cut_on_the_rows_the_caller_reads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let (author, other) = (
+        env.granted(crate::requests::REQUEST).await,
+        env.granted(crate::requests::REQUEST).await,
+    );
+    let (mine, theirs) = (env.app(author), env.app(other));
+    // Applied flows, then requests pending a review, the two authors in turn: in the
+    // order of the list, each row of the one is followed by a row of the other.
+    for (source, destination, status) in [
+        (prod, dev, StatusCode::CREATED),
+        (dev, prod, StatusCode::ACCEPTED),
+    ] {
+        for _ in 0..3 {
+            for app in [&mine, &theirs] {
+                let (got, answer) = call(
+                    app,
+                    Method::POST,
+                    "/v1/flows",
+                    Some(body(&env, source, destination).await),
+                )
+                .await;
+                assert_eq!(got, status, "{answer}");
+            }
+        }
+    }
+    let everything = env.app(env.granted(&["flow.read"]).await);
+    let own = |row: &Value| row["fields"]["requester_id"] == json!(author);
+    for (uri, size) in [
+        ("/v1/flows?state=active,requested&page_size=1", 1),
+        ("/v1/flows?state=active,requested&page_size=2", 2),
+        ("/v1/flows?page_size=1", 1),
+        (&*format!("/v1/addresses/{prod}/flows?page_size=1"), 1),
+        (&*format!("/v1/addresses/{prod}/flows?page_size=2"), 2),
+    ] {
+        let (all, _) = pages(&everything, uri).await;
+        let (read, cut) = pages(&mine, uri).await;
+        let expected: Vec<String> = all.iter().filter(|r| own(r)).map(key).collect();
+        assert!(!expected.is_empty() && expected.len() < all.len(), "{uri}");
+        assert_eq!(read.iter().map(key).collect::<Vec<_>>(), expected, "{uri}");
+        let unread: Vec<String> = all.iter().filter(|r| !own(r)).map(key).collect();
+        for (served, cursor) in &cut {
+            let Some(cursor) = cursor else { continue };
+            assert_eq!(
+                *served, size,
+                "{uri}: a page shorter than asked has a next one"
+            );
+            for key in &unread {
+                assert!(
+                    !cursor.contains(key),
+                    "{uri}: the cursor {cursor} names {key}"
+                );
+            }
+        }
+    }
 }
 
 /// `PATCH /v1/flows/{id}` under the version read, as a JSON Merge Patch.

@@ -244,13 +244,19 @@ async fn filter_by_subtree_axis_and_machine(pool: PgPool) {
     );
     let dates = at(&pool).await;
     let mut conn = pool.acquire().await.unwrap();
-    let of_network: Vec<Uuid> =
-        of_object(&mut conn, dates, EndpointKind::Prefix, network, None, 10)
-            .await
-            .unwrap()
-            .into_iter()
-            .filter_map(|v: FlowView| v.id)
-            .collect();
+    let of_network: Vec<Uuid> = of_object(
+        &mut conn,
+        dates,
+        (EndpointKind::Prefix, network),
+        None,
+        None,
+        10,
+    )
+    .await
+    .unwrap()
+    .into_iter()
+    .filter_map(|v: FlowView| v.id)
+    .collect();
     assert_eq!(of_network, [t.first]);
     drop(conn);
     let prod = FlowFilter {
