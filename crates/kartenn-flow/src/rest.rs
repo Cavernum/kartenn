@@ -857,38 +857,6 @@ async fn flows_seen(
     Ok(seen)
 }
 
-/// The flows among `ids` the caller reads at `at` through one of their endpoints, holding
-/// `flow.read` elsewhere (REQ-027-1): one query for the set.
-async fn through_endpoints(
-    api: &Api,
-    scope: &ReadScope,
-    at: OffsetDateTime,
-    ids: &[Uuid],
-) -> Result<HashSet<Uuid>, Problem> {
-    if ids.is_empty() || !scope.reads(FLOW) {
-        return Ok(HashSet::new());
-    }
-    let Some(json) = scope.to_json() else {
-        return Ok(ids.iter().copied().collect());
-    };
-    let sql = format!(
-        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2))
-         SELECT DISTINCT f.id FROM flow.flow f
-          CROSS JOIN LATERAL (VALUES (f.source_kind, f.source_id),
-                                     (f.destination_kind, f.destination_id)) AS x(kind, id)
-          WHERE f.id = ANY($3) AND {}",
-        endpoint_readable()
-    );
-    let rows: Vec<(Uuid,)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
-        .bind(at)
-        .bind(json)
-        .bind(ids)
-        .fetch_all(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
-}
-
 /// The caller of a list of flows as its query reads it (task 006-36): the rows it reads
 /// are kept before the page is cut, as [`flows_seen`] keeps them from a set. An applied
 /// flow under `flow.read` on its entity or as its requester (REQ-011-17), or, holding
@@ -919,7 +887,7 @@ async fn reader_of(
         );
     }
     // The entities whose requests pending a review it reads: `flow.read`, as
-    // [`readable_entities`] reads it, then `flow.review`.
+    // [`nonconformity_reader`] reads it, then `flow.review`.
     let (mut every_review, mut review_entities) = match scope.kinds() {
         None => (true, Vec::new()),
         Some(kinds) => kinds
@@ -1397,11 +1365,12 @@ async fn nonconformities(
         })
         .transpose()?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
+    filter.reader = Some(nonconformity_reader(&scope, &principal));
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
     let mut rows =
         read::nonconformities(&mut conn, dates(&moment), &filter, i64::from(page.size) + 1).await?;
-    // The key of the last row read, before the filter of the rights (design 011).
+    // The page and its cursor on the rows the caller reads (task 006-37, design 011).
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let (at, id) = rows[size - 1].key();
@@ -1413,21 +1382,7 @@ async fn nonconformities(
         );
         next_href(&format!("/v1/{NONCONFORMITIES}"), &cursor)
     });
-    let entities: Vec<Uuid> = rows.iter().map(|r| r.entity).collect();
-    let readable = readable_entities(&api, &scope, moment.valid_at, &entities).await?;
-    let mine =
-        |r: &Nonconformity| r.requester == principal.identity || readable.contains(&r.entity);
-    let others: Vec<Uuid> = rows
-        .iter()
-        .filter(|r| !mine(r))
-        .filter_map(|r| r.flow)
-        .collect();
-    let through = through_endpoints(&api, &scope, moment.valid_at, &others).await?;
-    let items: Vec<NonconformityDto> = rows
-        .into_iter()
-        .filter(|r| mine(r) || r.flow.is_some_and(|f| through.contains(&f)))
-        .map(nonconformity_dto)
-        .collect();
+    let items: Vec<NonconformityDto> = rows.into_iter().map(nonconformity_dto).collect();
     let flows: Vec<Uuid> = items.iter().filter_map(|n| n.flow).collect();
     kit::record_read(
         &api,
@@ -1445,30 +1400,34 @@ async fn nonconformities(
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
-/// The entities of `ids` where the scope of `flow.read` reaches: globally, or the
-/// entity granted (a flow is anchored on its entity, ADR 0026).
-async fn readable_entities(
-    api: &Api,
-    scope: &ReadScope,
-    _at: OffsetDateTime,
-    ids: &[Uuid],
-) -> Result<HashSet<Uuid>, Problem> {
-    let Some(json) = scope.to_json() else {
-        return Ok(ids.iter().copied().collect());
-    };
-    let rows: Vec<(Uuid,)> = sqlx::query_as(
-        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($1))
-         SELECT x.id FROM unnest($2::uuid[]) AS x(id)
-          WHERE EXISTS (SELECT 1 FROM s
-                         WHERE s.kind = $3 AND (s.global OR x.id = ANY (s.entities)))",
-    )
-    .bind(json)
-    .bind(ids)
-    .bind(FLOW)
-    .fetch_all(&api.pool)
-    .await
-    .map_err(|e| kit::store(&e))?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+/// The caller of the list of non-conformities as its query reads it (task 006-37): the
+/// rows of its own requests, those of the entities where the scope of `flow.read` reaches
+/// (globally, or the entity granted: a flow is anchored on its entity, ADR 0026), and,
+/// holding `flow.read` elsewhere, those of the flows it reads through one of their
+/// endpoints (REQ-027-1), at any of their versions. The condition names the row `n`.
+fn nonconformity_reader(scope: &ReadScope, principal: &Principal) -> Reader {
+    let mut condition = format!(
+        "(EXISTS (SELECT 1 FROM s
+                   WHERE s.kind = '{FLOW}' AND (s.global OR n.entity = ANY (s.entities)))"
+    );
+    if scope.reads(FLOW) {
+        condition = format!(
+            "{condition} OR EXISTS (
+                SELECT 1 FROM flow.flow f
+                 CROSS JOIN LATERAL (VALUES (f.source_kind, f.source_id),
+                                            (f.destination_kind, f.destination_id)) AS x(kind, id)
+                 WHERE f.id = n.flow AND {})",
+            endpoint_readable()
+        );
+    }
+    condition.push(')');
+    Reader {
+        identity: principal.identity,
+        scope: scope.to_json(),
+        condition,
+        every_review: false,
+        review_entities: Vec::new(),
+    }
 }
 
 /// `POST /v1/flows`: a request, triaged (REQ-011-21). Applied (201), the answer carries

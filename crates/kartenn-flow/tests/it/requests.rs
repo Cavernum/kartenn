@@ -191,7 +191,7 @@ impl Env {
             .unwrap()
     }
 
-    async fn slugged(&self, table: &str, slug: &str) -> Uuid {
+    pub(crate) async fn slugged(&self, table: &str, slug: &str) -> Uuid {
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT id FROM {table} WHERE slug = $1 AND valid_period @> now()"
         )))
