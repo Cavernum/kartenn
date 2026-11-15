@@ -58,6 +58,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/addresses/{id}/flows": [],
   "/v1/addresses/{id}/history": [],
   "/v1/admissibility-conditions": [
+    { name: "id", type: "array" },
     { name: "key", type: "string" },
     { name: "kind", type: "string" },
   ],
@@ -109,7 +110,10 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "q", type: "string" },
   ],
   "/v1/entities/{id}/history": [],
-  "/v1/environments": [{ name: "key", type: "string" }],
+  "/v1/environments": [
+    { name: "id", type: "array" },
+    { name: "key", type: "string" },
+  ],
   "/v1/flow-nonconformities": [
     { name: "entity", type: "string" },
     { name: "requester", type: "string" },
@@ -119,7 +123,10 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "state", type: "string" },
     { name: "kind", type: "string" },
   ],
-  "/v1/flow-types": [{ name: "key", type: "string" }],
+  "/v1/flow-types": [
+    { name: "id", type: "array" },
+    { name: "key", type: "string" },
+  ],
   "/v1/flow-types/{id}/history": [],
   "/v1/flows": [
     { name: "id", type: "array" },
@@ -148,6 +155,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/identities": [],
   "/v1/imports": [],
   "/v1/inference-rules": [
+    { name: "id", type: "array" },
     { name: "key", type: "string" },
     { name: "axis", type: "string" },
     { name: "domain", type: "string" },
@@ -239,11 +247,20 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/machines/{id}/flows": [],
   "/v1/machines/{id}/history": [],
   "/v1/machines/{id}/hosted": [],
-  "/v1/policy-axes": [{ name: "property", type: "string" }],
+  "/v1/policy-axes": [
+    { name: "id", type: "array" },
+    { name: "property", type: "string" },
+  ],
   "/v1/policy-axes/{id}/history": [],
-  "/v1/policy-exempt-roles": [{ name: "role", type: "string" }],
+  "/v1/policy-exempt-roles": [
+    { name: "id", type: "array" },
+    { name: "role", type: "string" },
+  ],
   "/v1/policy-exempt-roles/{id}/history": [],
-  "/v1/policy-patterns": [{ name: "key", type: "string" }],
+  "/v1/policy-patterns": [
+    { name: "id", type: "array" },
+    { name: "key", type: "string" },
+  ],
   "/v1/policy-patterns/{id}/history": [],
   "/v1/policy-reports": [
     { name: "state", type: "string" },
@@ -252,6 +269,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "to", type: "string" },
   ],
   "/v1/policy-rules": [
+    { name: "id", type: "array" },
     { name: "key", type: "string" },
     { name: "effect", type: "string" },
     { name: "pattern", type: "string" },
@@ -259,7 +277,10 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "service", type: "string" },
   ],
   "/v1/policy-rules/{id}/history": [],
-  "/v1/policy-values": [{ name: "axis", type: "string" }],
+  "/v1/policy-values": [
+    { name: "id", type: "array" },
+    { name: "axis", type: "string" },
+  ],
   "/v1/policy-values/{id}/history": [],
   "/v1/prefixes": [
     { name: "id", type: "array" },
@@ -355,6 +376,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/ranges/{id}/history": [],
   "/v1/risk-signals": [
+    { name: "id", type: "array" },
     { name: "key", type: "string" },
     { name: "kind", type: "string" },
   ],
@@ -362,6 +384,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/roles": [],
   "/v1/service-accounts": [],
   "/v1/services": [
+    { name: "id", type: "array" },
     { name: "key", type: "string" },
     { name: "flow_type", type: "string" },
   ],

@@ -297,6 +297,160 @@ async fn the_collections_are_read_under_the_catalogue(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+/// The answer to `GET uri`: its status, its headers but `request-id`, its bytes.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let request = Request::get(uri)
+        .header(header::AUTHORIZATION, "Bearer t")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// The filter `id` of the collections of the module (REQ-006-41, task 006-32d): the objects
+/// among the identifiers that the caller reads, in the order of the list and in
+/// conjunction with the other filters, in one page without a next one; an unreadable
+/// object, or one of another collection, is absent as an unknown one, headers and bytes
+/// included; refused beside `page_size` and a cursor.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // the filter, its conjunctions, its page and its refusals
+async fn the_collections_filtered_by_identifier(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    policy(&env).await;
+    // Past the default size of a page: 101 environments more.
+    env.applied(
+        (0..101)
+            .map(|i| op("environment.create", json!({ "key": format!("e{i:03}") })))
+            .collect(),
+    )
+    .await;
+    let reader = env.app(env.person(&["policy.catalogue.read"]).await);
+    let stranger = env.app(env.person(&[]).await);
+    let id_of = |page: &Value, at: usize| page["items"][at]["id"].as_str().unwrap().to_owned();
+    let (_, _, page) = call(&reader, Method::GET, "/v1/environments?key=dev", None, &[]).await;
+    let dev = id_of(&page, 0);
+    let (_, _, page) = call(&reader, Method::GET, "/v1/environments?key=prod", None, &[]).await;
+    let prod = id_of(&page, 0);
+    let (_, _, page) = call(&reader, Method::GET, "/v1/policy-rules", None, &[]).await;
+    let rule = id_of(&page, 0);
+    let (_, _, page) = call(&reader, Method::GET, "/v1/services", None, &[]).await;
+    let (service, flow_type) = (
+        id_of(&page, 0),
+        page["items"][0]["flow_type_id"]
+            .as_str()
+            .unwrap()
+            .to_owned(),
+    );
+    let unknown = Uuid::now_v7();
+    for (uri, expected) in [
+        (
+            format!("/v1/environments?id={prod}&id={dev}&id={prod}"),
+            vec!["dev", "prod"],
+        ),
+        (
+            format!("/v1/environments?id={prod}&id={unknown}&key=prod"),
+            vec!["prod"],
+        ),
+        (format!("/v1/environments?id={dev}&key=prod"), vec![]),
+        (
+            format!("/v1/policy-rules?id={rule}&effect=allow"),
+            vec!["prod-dev"],
+        ),
+        (format!("/v1/policy-rules?id={rule}&effect=deny"), vec![]),
+        (format!("/v1/policy-rules?id={service}"), vec![]),
+        (
+            format!("/v1/services?id={service}&flow_type={flow_type}"),
+            vec!["ssh"],
+        ),
+        (
+            format!("/v1/services?id={service}&flow_type={unknown}"),
+            vec![],
+        ),
+    ] {
+        let (status, _, page) = call(&reader, Method::GET, &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {page}");
+        let member = if uri.starts_with("/v1/environments") {
+            "value_key"
+        } else {
+            "key"
+        };
+        assert_eq!(keys(&page, member), expected, "{uri}");
+    }
+    // An object of another collection, and one the caller does not read, leave the answer
+    // of an unknown identifier, in one page.
+    let mut answers = Vec::new();
+    for absent in [unknown.to_string(), service.clone()] {
+        answers.push(answer(&reader, &format!("/v1/policy-rules?id={absent}&id={rule}")).await);
+    }
+    assert_eq!(answers[0], answers[1], "unknown and of another collection");
+    assert_eq!(answers[0].0, StatusCode::OK);
+    assert!(answers[0].1.get("link").is_none());
+    let mut answers = Vec::new();
+    for absent in [unknown.to_string(), rule.clone()] {
+        answers.push(answer(&stranger, &format!("/v1/policy-rules?id={absent}")).await);
+    }
+    assert_eq!(answers[0], answers[1], "unknown and unreadable");
+    assert_eq!(answers[0].0, StatusCode::OK);
+    // Past the default size of a page, one page without a next one.
+    let (_, _, first) = call(&reader, Method::GET, "/v1/environments", None, &[]).await;
+    assert!(first["links"]["next"].is_string(), "{}", first["links"]);
+    let all: Vec<String> = sqlx::query_scalar(
+        "SELECT id::text FROM policy.policy_value
+          WHERE property_key = 'policy.environment' ORDER BY value_key",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(all.len(), 103);
+    let (status, _, page) = call(
+        &reader,
+        Method::from_bytes(b"QUERY").unwrap(),
+        "/v1/environments",
+        Some(json!({ "filters": [{ "field": "id", "value": all }] })),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let listed: Vec<String> = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(listed, all);
+    assert!(page["links"]["next"].is_null(), "{}", page["links"]);
+    // `page_size` or a cursor beside `id`, a value that is not an identifier → 400 naming
+    // it.
+    let (_, _, first) = call(
+        &reader,
+        Method::GET,
+        "/v1/environments?page_size=1",
+        None,
+        &[],
+    )
+    .await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (
+            format!("/v1/environments?id={dev}&page_size=5"),
+            "page_size",
+        ),
+        (format!("{next}&id={dev}"), "cursor"),
+        ("/v1/environments?id=a".to_owned(), "id"),
+    ] {
+        let (status, _, problem) = call(&reader, Method::GET, &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {problem}");
+        assert!(
+            problem["detail"].to_string().contains(named),
+            "{uri}: {problem}"
+        );
+    }
+}
+
 /// An object of a collection read by identifier is read with its version in one snapshot
 /// (task 021-11d): a write validated between the two reads is seen by neither, so that
 /// the `version` names the value served.

@@ -11552,6 +11552,8 @@ export interface operations {
   list_admissibility_conditions: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Equal to, or held by, `kind`. */
@@ -14979,6 +14981,8 @@ export interface operations {
   list_environments: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `value_key`. */
         key?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -15386,6 +15390,8 @@ export interface operations {
   list_flow_types: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -17404,6 +17410,8 @@ export interface operations {
   list_inference_rules: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Equal to, or held by, `axis_key`. */
@@ -21848,6 +21856,8 @@ export interface operations {
   list_policy_axes: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `property_key`. */
         property?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -22309,6 +22319,8 @@ export interface operations {
   list_policy_exempt_roles: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `role_key`. */
         role?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -22813,6 +22825,8 @@ export interface operations {
   list_policy_patterns: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -23433,6 +23447,8 @@ export interface operations {
   list_policy_rules: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Equal to, or held by, `effect`. */
@@ -23902,6 +23918,8 @@ export interface operations {
   list_policy_values: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `property_key`. */
         axis?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -25600,6 +25618,8 @@ export interface operations {
   list_risk_signals: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Equal to, or held by, `kind`. */
@@ -26542,6 +26562,8 @@ export interface operations {
   list_services: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to, or held by, `key`. */
         key?: string;
         /** @description Equal to, or held by, `flow_type_id`. */
