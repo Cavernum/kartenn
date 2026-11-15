@@ -5,17 +5,18 @@
 <script setup lang="ts">
 // The machine column of the lists of addresses (point `column`, task 18ca): the machines
 // whose interfaces hold the row's address, each a link to its record. The interfaces are
-// followed (`useList`: read again once invalidated, and at other dates) from the turn of the
-// cell, a few cells at a time (`limited`: a list mounts dozens of rows at once); the names
-// of the machines through the shared cache (`Names`). Unreadable: said in a word, with the
-// code of the problem (`CodeBadge`).
-import { ApiProblem, reads, type ObjectRef } from "@kartenn/sdk";
+// followed (`useList`: read again once invalidated, and at other dates), read with those of
+// the other rows of the window (`heldBy`, task 021-11p10-e: a list mounts dozens of rows at
+// once); the names of the machines through the shared cache (`Names`). Unreadable: said in
+// a word, with the code of the problem (`CodeBadge`).
+import { ApiProblem, type ObjectRef } from "@kartenn/sdk";
 import { CodeBadge, NoValue, Skeleton } from "@kartenn/ui";
-import { computed, onScopeDispose, shallowRef, watch } from "vue";
+import { computed } from "vue";
 import { useList, useNotified } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
+import { heldBy } from "./holders.ts";
 import { useHosted, useTexts } from "./host.ts";
-import { limited, Names, type Interface } from "./reads.ts";
+import { Names, type Interface } from "./reads.ts";
 
 const props = defineProps<{
   object: ObjectRef | null;
@@ -32,50 +33,8 @@ const address = computed(() => {
   return typeof id === "string" ? id : null;
 });
 
-/** The address whose turn came: its interfaces are followed from then on. */
-const turn = shallowRef<string | null>(null);
 const list = useList<Interface, never>(() =>
-  turn.value ? (reads.list("/v1/interfaces", { address: [turn.value] }) as never) : null,
-);
-
-let live = true;
-/** Gives back the place of the cell among the reads at once (its first answer came). */
-let release: (() => void) | null = null;
-onScopeDispose(() => {
-  live = false;
-  release?.();
-});
-/** Counts the turns asked: a later one (another row) voids the former. */
-let asked = 0;
-
-watch(
-  address,
-  (id) => {
-    release?.();
-    turn.value = null;
-    const ask = ++asked;
-    if (!id) return;
-    // The place is held until the first answer of the list (read or refused).
-    void limited(
-      () => live && ask === asked,
-      () =>
-        new Promise<void>((resolve) => {
-          release = () => {
-            release = null;
-            resolve();
-          };
-          turn.value = id;
-          if (!list.state.value.pending) release();
-        }),
-    );
-  },
-  { immediate: true },
-);
-watch(
-  () => list.state.value.pending,
-  (pending) => {
-    if (!pending) release?.();
-  },
+  address.value ? (heldBy(address.value) as never) : null,
 );
 
 /** The interfaces that hold it, `null` while they are read (at these dates). */

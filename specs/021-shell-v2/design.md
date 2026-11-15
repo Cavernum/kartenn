@@ -587,6 +587,17 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   repart en lot : la gigue d'un `Retry-After` se tire une fois par refus, partagée par ses
   lectures. Une colonne de propriétés ne lit qu'une fois sa première
   fenêtre donnée par la grille.
+- **Interfaces par fenêtre** (021-11p10-e, 006-32b et 006-32e) : la colonne machine des
+  listes d'adresses lit de même, dans le plugin machines (`plugins/machines/src/
+  holders.ts`, sur le modèle de `batch.ts`, que le SDK n'exporte pas : une exportation
+  serait une API des plugins) : les lectures `reads.list("/v1/interfaces", { address:
+  [id] })` d'une fenêtre de 10 ms aux mêmes dates partent en une requête
+  `GET /v1/interfaces?address=…` (64 adresses au plus, `page_size` 1 000, suivie jusqu'à
+  sa dernière page) ; chaque interface est rangée sous la clé de la lecture unitaire de
+  chacune des adresses demandées qu'elle porte (`addresses`), avec cette seule adresse,
+  en une page sans suite ni ETag ; une adresse qu'aucune ne porte reçoit une page vide.
+  Même lecture seule, mêmes abandons, quatre lots en vol, même lot refusé relu en lot.
+  L'onglet d'une adresse et la recherche partagent cette clé.
 - **Pages lâchées** (021-22f) : le partage structurel d'une liste compare chaque page à
   celle lue avant sous le même curseur (`sharePages`), jamais à celle de sa place, et une
   page sous un curseur neuf (la liste relue) garde ses lignes inchangées par leur `id` ; passé

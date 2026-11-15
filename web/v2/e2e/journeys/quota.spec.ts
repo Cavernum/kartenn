@@ -9,11 +9,18 @@ import { expect, expectAccessible, QUOTA_DATA, QUOTA_USERS, test } from "../fixt
 // pages of addresses scrolled screen by screen to their end, a column of a property shown:
 // every row drawn with its value, no cell unreadable, no alert, no 503. The end-to-end proof
 // of the one gate of the reads by row (11p10-a), of the refusals read again after
-// `Retry-After` (11p10-b) and of the batches of properties (11p10-c). The 429 the page
-// meets are read again by the cache, counted and printed with the requests under /v1/ by
-// page read and by path, a measure, no budget yet: the machine column of the addresses
-// reads the interfaces of each row (about 1 000 for ten pages, above 50 a second), until
-// task 11p10-e reads them by window and hardens this journey to no 429 at all.
+// `Retry-After` (11p10-b), of the batches of properties (11p10-c) and of the interfaces of
+// the machine column read by window (11p10-e: before, one read per row, about 1 000 for ten
+// pages and 75 to 102 429 a pass): no 429 nor 503 seen by the page, and at most
+// `PER_PAGE` requests under /v1/ while each page is read. The requests by page read and by
+// path, and the refusals by path, printed first.
+
+/**
+ * The requests under /v1/ while a page of the list is read, at most: the page, a batch of
+ * properties and a window of interfaces per screen scrolled (three to four screens a page),
+ * the names and the counts of the shell; before 11p10-e, 55 to 178.
+ */
+const PER_PAGE = 30;
 
 declare global {
   interface Window {
@@ -26,7 +33,7 @@ declare global {
   }
 }
 
-test("ten pages scrolled to their end at the read quota by default: every row drawn with its property, no alert, the 429 read again", async ({
+test("ten pages scrolled to their end at the read quota by default: every row drawn with its property, no alert, no 429 nor 503, a ceiling of requests by page", async ({
   page,
   login,
   browserName,
@@ -135,20 +142,25 @@ test("ten pages scrolled to their end at the read quota by default: every row dr
     }, column);
   /**
    * Down by most of a screen (the rows in view drawn first): the grid scrolls in itself once
-   * virtualised, the surface before.
+   * virtualised, the surface before. Two frames later, the rows that came into view are
+   * rendered (the virtualiser draws them in a frame): measured before that, the rows of the
+   * former screen, all drawn, would let the next step skip a screen of rows never seen.
    */
   const down = () =>
-    grid.evaluate((el) => {
+    grid.evaluate(async (el) => {
       el.scrollBy(0, el.clientHeight * 0.8);
       const surface = document.getElementById("k-surface");
       surface?.scrollBy(0, surface.clientHeight * 0.8);
+      for (let frame = 0; frame < 2; frame++)
+        await new Promise((resolve) => requestAnimationFrame(resolve));
     });
 
   // As fast as the shell draws: each screen down once its rows show their value.
   const started = Date.now();
-  for (let step = 0; step < 500 && (await drawn()) < QUOTA_DATA.count; step++) {
+  let steps = 0;
+  for (; steps < 500 && (await drawn()) < QUOTA_DATA.count; steps++) {
     await expect
-      .poll(pendingInView, { message: `rows in view drawn (step ${step})`, timeout: 15_000 })
+      .poll(pendingInView, { message: `rows in view drawn (step ${steps})`, timeout: 15_000 })
       .toBe(0);
     await down();
   }
@@ -168,7 +180,8 @@ test("ten pages scrolled to their end at the read quota by default: every row dr
   }
   console.log(
     `INFO quota ${browserName}: ${byPage.reduce((sum, n) => sum + n, 0)} requests under /v1/, ` +
-      `${seconds.toFixed(1)} s of scrolling; by page read (0: before the first) ` +
+      `${seconds.toFixed(1)} s of scrolling in ${steps} steps, ${await drawn()} rows drawn; ` +
+      `by page read (0: before the first) ` +
       `${byPage.map((n, i) => `${i}:${n}`).join(" ")}; by path ${counted(byPath)}; ` +
       `refused ${refused.length} (${counted(refusals)})`,
   );
@@ -181,9 +194,10 @@ test("ten pages scrolled to their end at the read quota by default: every row dr
   expect(await page.evaluate(() => [...(window.__alerts ?? [])]), "alerts").toEqual([]);
   // The live regions of the shell are alerts too, empty until they speak.
   await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
-  // No shedding; the 429 are counted above, read again by the cache (until task 11p10-e).
+  // Under the quota and the shedding limit all along, by window and by batch.
+  expect(refused, "429 and 503 seen by the page").toEqual([]);
   expect(
-    refused.filter((refusal) => refusal.startsWith("503")),
-    "503 seen by the page",
+    byPage.filter((n) => n > PER_PAGE),
+    `pages read with more than ${PER_PAGE} requests under /v1/`,
   ).toEqual([]);
 });
