@@ -443,6 +443,10 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - C. Droits des objets créés avant les écritures, leur portée tirée du plan (ancres,
       parent) : le plus gros changement (pipeline, spec 005, ADR 0026)
     - recommandation de l'agent : B dans cette tâche, et A pour les seuls hôtes et grappes
+    - arbitrage de l'utilisateur (2026-11-15) : B, et A limitée aux hôtes et aux grappes
+      (désigner un hôte ou une grappe par `host` ou `member_of` exige le droit de les
+      lire, vérifié avant les écritures, hors objets que le changeset crée) ; le modèle
+      des droits reste inchangé ailleurs ; A généralisée n'est pas retenue pour la v0.2
       (`machines.read`, `machines.cluster.read` sur l'hôte et la grappe, extension de M16)
       comme décision de la spec 009
 - [ ] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
