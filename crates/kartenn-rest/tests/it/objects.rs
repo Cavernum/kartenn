@@ -2556,6 +2556,116 @@ async fn a_summary_leaves_alike_the_unreadable_and_the_unknown(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
+async fn a_filter_on_an_unreadable_link_answers_as_on_an_unknown_one(pool: PgPool) {
+    // Task 006-35, REQ-006-42: `domain=<slug>` and `parent=<slug>` match the objects whose
+    // link the caller may read; the slug of a link they may not read leaves the bytes of a
+    // slug that never was (status, headers, body, cursor), by natural key and by
+    // properties, while a readable link still filters.
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let zone = declare(&pool, "policy.zone", false).await;
+    for (domain, value) in [
+        (lab, "10.1.0.0/24"),
+        (lab, "10.1.1.0/24"),
+        (dmz, "10.2.0.0/24"),
+    ] {
+        let net = prefix(&pool, domain, value).await;
+        assign(&pool, zone, net, "red", &[]).await;
+    }
+    address(&pool, lab, "10.1.0.1").await;
+    address(&pool, dmz, "10.2.0.1").await;
+    let root = node(&pool, "entity", "root", None).await;
+    let team = node(&pool, "entity", "team", Some(root)).await;
+    node(&pool, "entity", "squad", Some(team)).await;
+    let campus = node(&pool, "site", "campus", None).await;
+    let hall = node(&pool, "site", "hall", Some(campus)).await;
+    node(&pool, "site", "room", Some(hall)).await;
+    // Every prefix and address; the domain `dmz`, not `lab`; `team`, not `root`; `hall`,
+    // not `campus`.
+    let who = person(
+        &pool,
+        &["core.prefix.read", "core.address.read"],
+        ("global", None),
+    )
+    .await;
+    grant(
+        &pool,
+        who.identity,
+        &["core.domain.read"],
+        ("domain", Some(dmz)),
+    )
+    .await;
+    grant(
+        &pool,
+        who.identity,
+        &["core.entity.read"],
+        ("entity", Some(team)),
+    )
+    .await;
+    grant(
+        &pool,
+        who.identity,
+        &["core.site.read"],
+        ("site", Some(hall)),
+    )
+    .await;
+    let blind = app(&pool, who);
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    for (unreadable, unknown, readable) in [
+        (
+            "/v1/prefixes?domain=lab&page_size=1",
+            "/v1/prefixes?domain=nowhere&page_size=1",
+            "/v1/prefixes?domain=dmz&page_size=1",
+        ),
+        (
+            "/v1/addresses?domain=lab",
+            "/v1/addresses?domain=nowhere",
+            "/v1/addresses?domain=dmz",
+        ),
+        (
+            "/v1/prefixes?domain=lab&prop.policy.zone=red&page_size=1",
+            "/v1/prefixes?domain=nowhere&prop.policy.zone=red&page_size=1",
+            "/v1/prefixes?domain=dmz&prop.policy.zone=red&page_size=1",
+        ),
+        (
+            "/v1/prefixes?domain=lab&q=10.1",
+            "/v1/prefixes?domain=nowhere&q=10.1",
+            "/v1/prefixes?domain=dmz&q=10.2",
+        ),
+        (
+            "/v1/entities?parent=root",
+            "/v1/entities?parent=nowhere",
+            "/v1/entities?parent=team",
+        ),
+        (
+            "/v1/sites?parent=campus",
+            "/v1/sites?parent=nowhere",
+            "/v1/sites?parent=hall",
+        ),
+    ] {
+        // The reader of every link finds objects under it.
+        assert!(
+            !ids_of(&ok(&reader, unreadable).await).is_empty(),
+            "{unreadable}"
+        );
+        let hidden = answer(&blind, unreadable).await;
+        assert_eq!(hidden.0, StatusCode::OK, "{unreadable}");
+        assert_eq!(
+            hidden,
+            answer(&blind, unknown).await,
+            "{unreadable}: and unknown"
+        );
+        let body: Value = serde_json::from_slice(&hidden.2).unwrap();
+        assert!(ids_of(&body).is_empty(), "{unreadable}: {body}");
+        assert!(body["links"]["next"].is_null(), "{unreadable}: {body}");
+        assert!(
+            !ids_of(&ok(&blind, readable).await).is_empty(),
+            "{readable}"
+        );
+    }
+}
+
+#[kartenn_testing::pg_test]
 async fn a_page_summarises_each_linked_object_as_its_caller_may_read_it(pool: PgPool) {
     // REQ-006-42: one page, links readable and not, prefixes and the parents of entities.
     let lab = domain(&pool, "lab").await;

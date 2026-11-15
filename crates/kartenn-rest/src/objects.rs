@@ -1005,6 +1005,7 @@ async fn filtered(
         typed(&name, &declaration.value_type, condition)?;
         conditions.push((declaration.id, condition.clone()));
     }
+    // A domain the caller may not read answers as an unknown one (task 006-35, REQ-006-42).
     let domains = list::objects(
         &api.pool,
         Kind::Domain,
@@ -1016,7 +1017,7 @@ async fn filtered(
         None,
         None,
         1,
-        &ReadScope::all(),
+        scope,
     )
     .await
     .map_err(|e| store(&e))?;

@@ -118,17 +118,40 @@ impl Kind {
     }
 }
 
-impl Shape {
-    /// The condition that the row `x` is readable under the scope `s`.
-    fn readable(&self, kind: Kind) -> String {
-        let name = format!("'{}'", kind.as_str());
-        match (kind, self.value) {
-            (Kind::Domain, _) => readable("x.id", &name, "x.id", "NULL::inet", "$1"),
-            (Kind::Range, _) => readable("x.id", &name, "x.domain_id", "lower(x.range)", "$1"),
-            (_, Some((value, _))) => {
-                readable("x.id", &name, "x.domain_id", &format!("x.{value}"), "$1")
-            }
-            (_, None) => readable("x.id", &name, "NULL::uuid", "NULL::inet", "$1"),
+impl Kind {
+    /// The kind of the object that an object of this kind links to: its domain, or its
+    /// parent (an entity, a site).
+    const fn linked(self) -> Option<Self> {
+        match self {
+            Self::Entity => Some(Self::Entity),
+            Self::Site => Some(Self::Site),
+            Self::Prefix | Self::Range | Self::Address => Some(Self::Domain),
+            Self::Domain => None,
+        }
+    }
+
+    /// The condition that the row `row` of this kind is readable under the scope `s`, at
+    /// the date `$1`.
+    fn readable(self, row: &str) -> String {
+        let name = format!("'{}'", self.as_str());
+        let id = format!("{row}.id");
+        match (self, self.shape().value) {
+            (Self::Domain, _) => readable(&id, &name, &id, "NULL::inet", "$1"),
+            (Self::Range, _) => readable(
+                &id,
+                &name,
+                &format!("{row}.domain_id"),
+                &format!("lower({row}.range)"),
+                "$1",
+            ),
+            (_, Some((value, _))) => readable(
+                &id,
+                &name,
+                &format!("{row}.domain_id"),
+                &format!("{row}.{value}"),
+                "$1",
+            ),
+            (_, None) => readable(&id, &name, "NULL::uuid", "NULL::inet", "$1"),
         }
     }
 }
@@ -246,7 +269,7 @@ fn objects_sql(kind: Kind, current: bool, suggestions: bool) -> Result<String, T
     } else {
         snapshot(shape.table, shape.columns)?
     };
-    let visible = shape.readable(kind);
+    let visible = kind.readable("x");
     let (key, after, order, value_filter) = match shape.value {
         Some((column, cast)) => {
             let first = if kind == Kind::Range {
@@ -285,6 +308,15 @@ fn objects_sql(kind: Kind, current: bool, suggestions: bool) -> Result<String, T
         ),
         None => (String::new(), "NULL::text"),
     };
+    // A link filters by the slug of a linked object the caller may read: the slug of one
+    // they may not read matches nothing, as an unknown slug (task 006-35, REQ-006-42).
+    let link_filter = match kind.linked() {
+        Some(linked) => format!(
+            "{link} = ANY($9) AND ($3::jsonb IS NULL OR {})",
+            linked.readable("l")
+        ),
+        None => "false".to_owned(),
+    };
     let (within_filter, usage_filter) = match kind {
         Kind::Prefix => (
             "EXISTS (SELECT FROM unnest($12::cidr[]) w WHERE x.prefix <<= w)",
@@ -314,7 +346,7 @@ fn objects_sql(kind: Kind, current: bool, suggestions: bool) -> Result<String, T
          SELECT {key}, to_jsonb(x), {link} FROM {relation} x {join}
          WHERE ($6::uuid IS NULL OR {after})
            AND (cardinality($8::text[]) = 0 OR {slug_filter})
-           AND (cardinality($9::text[]) = 0 OR {link} = ANY($9))
+           AND (cardinality($9::text[]) = 0 OR ({link_filter}))
            AND (cardinality($10::text[]) = 0 OR {value_filter})
            AND (cardinality($11::uuid[]) = 0 OR x.id = ANY($11))
            AND (cardinality($12::cidr[]) = 0 OR {within_filter})
@@ -413,7 +445,7 @@ pub async fn count(
         sqlx::query_scalar(AssertSqlSafe(format!(
             "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
              SELECT count(*) FROM {relation} x WHERE {}",
-            shape.readable(kind)
+            kind.readable("x")
         )))
         .bind(valid_at)
         .bind(None::<OffsetDateTime>)
