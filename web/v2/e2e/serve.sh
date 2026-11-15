@@ -8,6 +8,8 @@
 #   web/e2e/.state/plugins-v2, recreates the kartenn_e2e_v2 database, migrates it, creates the
 #   break-glass account `e2e` (its proofs in web/e2e/.state/breakglass-v2.txt), then
 #   serves kartenn-server on 9443 with web/v2/e2e/kartenn.toml;
+# - `serve.sh quota`: a second instance at the read quota by default, on 9446 with
+#   web/v2/e2e/quota.toml, started by the journey of the quota alone (task 021-11p10-b2);
 # - `serve.sh budgets`: the same instance in release on the dataset of bench-core, for
 #   the browser bench (web/v2/e2e/budgets.config.ts, `bench-web`).
 # Same ports as web/e2e: k-web-e2e and k-web2-e2e hold every slot of k-heavy, never side
@@ -40,6 +42,21 @@ kartenn)
   # (task 021-11p11), kept until the next one.
   exec env SSL_CERT_FILE="$state/ca.pem" \
     "$bin/kartenn-server" run "$database" web/v2/e2e/kartenn.toml >"$state/kartenn-v2.log" 2>&1
+  ;;
+quota)
+  # The instance at the read quota by default (task 021-11p10-b2), started by the journey
+  # of the quota alone (journeys/quota.setup.ts), after `kartenn`: its builds and plugins,
+  # a database of its own (kartenn_e2e_v2_quota), its break-glass account `e2e`
+  # (breakglass-v2-quota.txt), on 9446 with web/v2/e2e/quota.toml. Its log, every request
+  # with its status, in kartenn-v2-quota.log.
+  database="${DATABASE_URL%/*}/kartenn_e2e_v2_quota"
+  psql "$DATABASE_URL" -q -c 'DROP DATABASE IF EXISTS kartenn_e2e_v2_quota WITH (FORCE)' \
+    -c 'CREATE DATABASE kartenn_e2e_v2_quota'
+  "$bin/kartenn-server" migrate "$database" >/dev/null
+  "$bin/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
+    >"$state/breakglass-v2-quota.txt"
+  exec env SSL_CERT_FILE="$state/ca.pem" \
+    "$bin/kartenn-server" run "$database" web/v2/e2e/quota.toml >"$state/kartenn-v2-quota.log" 2>&1
   ;;
 budgets)
   # The instance of the browser bench (REQ-021-30, `bench-web`): kartenn-server in release
@@ -79,7 +96,7 @@ budgets)
     "$release/kartenn-server" run "$database" web/v2/e2e/kartenn.toml
   ;;
 *)
-  echo "usage: serve.sh idp|kartenn|budgets" >&2
+  echo "usage: serve.sh idp|kartenn|quota|budgets" >&2
   exit 2
   ;;
 esac

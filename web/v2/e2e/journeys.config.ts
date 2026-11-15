@@ -1,12 +1,14 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
-import { BASE_URL, ISSUER } from "./fixtures/env.ts";
+import { BASE_URL, ISSUER, QUOTA_URL } from "./fixtures/env.ts";
 
 // Journeys of the new shell against the real kartenn-server and PostgreSQL (spec 021,
 // REQ-021-31; design « Migration »): the instance of web/v2/e2e/kartenn.toml, `[web] root`
 // and `plugins_dir` on the builds of web/v2, started with the issuer by serve.sh. Run by
 // `k-web2-e2e`; the captures keep playwright.config.ts (`k-web2-check`, `k-web-shots`).
 const repository = fileURLToPath(new URL("../../..", import.meta.url));
+/** The journey at the read quota by default, on its instance alone. */
+const QUOTA = /quota\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "journeys",
@@ -23,8 +25,29 @@ export default defineConfig({
     locale: "fr-FR",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "chromium", testIgnore: QUOTA, use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", testIgnore: QUOTA, use: { ...devices["Desktop Firefox"] } },
+    // The journey at the read quota by default (task 021-11p10-b2) on an instance of its own
+    // (web/v2/e2e/quota.toml), started by the project `quota-instance` only when a run
+    // selects it, and stopped after it: no `webServer`, which every run would wait for.
+    {
+      name: "quota-instance",
+      testMatch: /quota\.setup\.ts$/,
+      teardown: "quota-instance-stop",
+    },
+    { name: "quota-instance-stop", testMatch: /quota\.teardown\.ts$/ },
+    {
+      name: "quota-chromium",
+      testMatch: QUOTA,
+      dependencies: ["quota-instance"],
+      use: { ...devices["Desktop Chrome"], baseURL: QUOTA_URL },
+    },
+    {
+      name: "quota-firefox",
+      testMatch: QUOTA,
+      dependencies: ["quota-instance"],
+      use: { ...devices["Desktop Firefox"], baseURL: QUOTA_URL },
+    },
   ],
   webServer: [
     {

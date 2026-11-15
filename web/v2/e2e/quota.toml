@@ -1,0 +1,34 @@
+# The second kartenn-server of the journeys of the new shell (task 021-11p10-b2): the one of
+# kartenn.toml on 9446, without `[http.rate]` — the quota of reads by default (REQ-006-29,
+# 50 a second, 200 at once; REQ-006-30, 20 requests in flight), which kartenn.toml raises
+# out of the other journeys' way. Its own database (kartenn_e2e_v2_quota), started for the
+# journey of the quota alone (journeys/quota.setup.ts, `serve.sh quota`). Paths are relative
+# to the repository.
+[telemetry]
+# Every request with its status (`http.request`, kartenn-rest request_id.rs, debug below
+# 500): the log of the instance says the refusals it served, 429 and 503.
+outputs = [{ kind = "stdout", filter = "warn,kartenn_rest::request_id=debug" }]
+
+[http]
+listen = "127.0.0.1:9446"
+public_origin = "https://127.0.0.1:9446"
+
+[http.tls]
+cert_file = "web/e2e/.state/cert.pem"
+key_file = "web/e2e/.state/key.pem"
+
+[web]
+root = "web/v2/dist/shell"
+plugins_dir = "web/e2e/.state/plugins-v2"
+
+[auth]
+key_file = "web/e2e/.state/kartenn-keys"
+redirect_uri = "https://127.0.0.1:9446/v1/auth/callback"
+
+[[auth.issuers]]
+id = "dev"
+issuer = "https://127.0.0.1:9444"
+client_id = "kartenn"
+client_secret_file = "web/e2e/.state/idp-secret"
+audience = "kartenn"
+algorithms = ["ES256"]
