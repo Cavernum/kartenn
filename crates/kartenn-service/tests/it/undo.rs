@@ -238,6 +238,45 @@ async fn an_inverse_restores_what_a_changeset_changed(pool: PgPool) {
     );
 }
 
+/// An object created with its assignment is undone: the assignment is removed before the
+/// object is closed, which then refuses the removal (task 004-26).
+#[kartenn_testing::pg_test]
+async fn an_object_created_with_its_assignment_is_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let created = f
+        .applied(vec![
+            Operation::CreatePrefix {
+                local: Some(1),
+                domain: Ref::Id(f.domain),
+                prefix: "10.0.0.0/8".into(),
+                nature: Nature::Container,
+                point_to_point: false,
+                anycast: false,
+            },
+            Operation::AssignProperty {
+                object: Ref::Local(1),
+                kind: ObjectKind::Prefix,
+                property: Ref::Id(f.env),
+                values: vec![RawInput::Text("dev".into())],
+            },
+        ])
+        .await;
+    let undo = inverse(&f.store, created, f.author).await.unwrap().unwrap();
+    match f.run(&undo.request).await {
+        Outcome::Applied { .. } => {}
+        other => panic!("{:?}: {other:?}", undo.request.operations),
+    }
+    let living: (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM prefix WHERE valid_period @> now()),
+                (SELECT count(*) FROM property_assignment WHERE valid_period @> now())",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // The network and its `prod`, as before.
+    assert_eq!(living, (1, 1));
+}
+
 #[kartenn_testing::pg_test]
 async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     let f = Fixture::new(&pool).await;

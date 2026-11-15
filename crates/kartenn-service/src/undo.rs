@@ -179,7 +179,10 @@ pub async fn inverse<S: Store>(
     let Some(facts) = store.undo_facts(changeset).await? else {
         return Ok(None);
     };
-    let mut operations = Vec::new();
+    // The assignments it made are removed first, while their object is still there: once
+    // closed, an object it created refuses the removal (`changeset.operation.no_version`,
+    // task 004-26). The rest keeps the order of the kinds.
+    let (mut unassigned, mut rest) = (Vec::new(), Vec::new());
     let mut conflicts = Vec::new();
     for t in facts.touched {
         if let Some(by) = t.later {
@@ -191,26 +194,28 @@ pub async fn inverse<S: Store>(
             });
             continue;
         }
-        operations.push(match (t.created, t.property) {
-            (true, None) => Operation::Close {
+        match (t.created, t.property) {
+            (true, None) => rest.push(Operation::Close {
                 kind: t.kind,
                 id: Ref::Id(t.id),
                 expected: None,
                 cascade: false,
-            },
-            (true, Some(property)) => Operation::UnassignProperty {
+            }),
+            (true, Some(property)) => unassigned.push(Operation::UnassignProperty {
                 object: Ref::Id(t.id),
                 kind: t.kind,
                 property: Ref::Id(property),
-            },
-            (false, property) => Operation::Restore {
+            }),
+            (false, property) => rest.push(Operation::Restore {
                 kind: t.kind,
                 id: Ref::Id(t.id),
                 property,
                 before: changeset,
-            },
-        });
+            }),
+        }
     }
+    let mut operations = unassigned;
+    operations.append(&mut rest);
     let mut rbac_conflicts = Vec::new();
     operations.extend(rbac_inverse(facts.rbac, facts.start, &mut rbac_conflicts));
     Ok(Some(Inverse {
