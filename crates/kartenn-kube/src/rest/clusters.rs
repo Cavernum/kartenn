@@ -102,9 +102,18 @@ struct ClusterDto {
     create_node_machines: bool,
     /// The group of kartenn of its connector, by its identifier: a group of the rights,
     /// not an object of the referential.
-    connector_group: Option<IdRef>,
+    connector_group: Option<GroupRef>,
     /// Its URL.
     href: String,
+}
+
+/// A group of the rights by its identifier alone: no object of the referential, it has no
+/// summary (spec 006, task 33e; the guard of task 33f exempts it).
+#[derive(Debug, Clone, Copy, Serialize, ToSchema)]
+#[schema(as = RightsGroupRef)]
+struct GroupRef {
+    /// Identifier.
+    id: Uuid,
 }
 
 impl Refers for ClusterDto {
@@ -273,7 +282,7 @@ impl<'r> sqlx::FromRow<'r, PgRow> for ClusterRow {
             create_node_machines: row.try_get("create_node_machines")?,
             connector_group: row
                 .try_get::<Option<Uuid>, _>("connector_group_id")?
-                .map(|id| IdRef { id }),
+                .map(|id| GroupRef { id }),
             href: format!("/v1/{COLLECTION}/{id}"),
         }))
     }

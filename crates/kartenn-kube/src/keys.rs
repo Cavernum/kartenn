@@ -11,6 +11,7 @@
 use kartenn_core::period::Instant;
 use kartenn_service::port::StoreError;
 use sqlx::PgConnection;
+use sqlx::types::time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::edges::{snapshot, time};
@@ -68,4 +69,40 @@ pub(crate) async fn of(
         .fetch_all(conn)
         .await
         .map_err(|e| store(&e))
+}
+
+/// The key of each object of `asked` at the instant asked with it, by the current
+/// assertions, in one statement however many instants (the journal of the pods reads its
+/// objects as they were when a pod was seen, task 006-33e): for each pair asked whose
+/// object existed then, its index in `asked` and its key.
+///
+/// # Errors
+///
+/// Database errors.
+pub(crate) async fn at_instants(
+    pool: &sqlx::PgPool,
+    asked: &[(Uuid, OffsetDateTime)],
+) -> sqlx::Result<Vec<(usize, String)>> {
+    if asked.is_empty() {
+        return Ok(Vec::new());
+    }
+    let versions = KEYS
+        .iter()
+        .map(|(table, _, key)| format!("SELECT x.id, {key} AS key, x.valid_period FROM {table} x"))
+        .collect::<Vec<_>>()
+        .join(" UNION ALL ");
+    let (ids, instants): (Vec<Uuid>, Vec<OffsetDateTime>) = asked.iter().copied().unzip();
+    let rows: Vec<(i64, String)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT q.n, k.key
+           FROM unnest($1::uuid[], $2::timestamptz[]) WITH ORDINALITY AS q (id, at, n)
+           JOIN ({versions}) k ON k.id = q.id AND k.valid_period @> q.at"
+    )))
+    .bind(&ids)
+    .bind(&instants)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(n, key)| Some((usize::try_from(n).ok()?.checked_sub(1)?, key)))
+        .collect())
 }

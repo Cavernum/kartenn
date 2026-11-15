@@ -160,6 +160,104 @@ async fn a_mirror_summarises_what_its_caller_may_read(pool: PgPool) {
     assert_eq!(page["items"][0]["namespace"], json!({"id": payments}));
     let (_, body) = get(&mirrors, &node).await;
     assert_eq!(body["ranges"], json!([{"id": network}]));
+
+    // A service names its namespace and its cluster; a namespace its cluster.
+    env.applied(
+        env.connector,
+        vec![super::super::sync(
+            "service",
+            env.prod,
+            "frontend",
+            json!({"namespace": "payments", "service_type": "node_port",
+                   "ports": [{"port": 80, "target_port": "http", "node_port": 30080}]}),
+        )],
+    )
+    .await;
+    let frontend = named(&pool, "kube.service", "frontend").await;
+    let service = format!("/v1/kube-services/{frontend}");
+    let namespace = format!("/v1/kube-namespaces/{payments}");
+    let services = as_person(
+        &pool,
+        reader(
+            &pool,
+            &[
+                "kube.service.read",
+                "kube.namespace.read",
+                "kube.cluster.read",
+            ],
+            None,
+        )
+        .await,
+    );
+    let (status, body) = get(&services, &service).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body["namespace"],
+        summary("kube-namespaces", payments, "payments")
+    );
+    assert_eq!(body["cluster"], summary("kube-clusters", env.prod, "prod"));
+    let (_, body) = get(&services, &namespace).await;
+    assert_eq!(body["cluster"], summary("kube-clusters", env.prod, "prod"));
+    let alone = as_person(
+        &pool,
+        reader(&pool, &["kube.service.read", "kube.namespace.read"], None).await,
+    );
+    let (_, body) = get(&alone, &service).await;
+    assert_eq!(
+        body["namespace"],
+        summary("kube-namespaces", payments, "payments")
+    );
+    assert_eq!(body["cluster"], json!({"id": env.prod}));
+    let (_, body) = get(&alone, &namespace).await;
+    assert_eq!(body["cluster"], json!({"id": env.prod}));
+    let (_, body) = get(&mirrors, &service).await;
+    assert!(body.get("namespace").is_none(), "{body}");
+}
+
+/// REQ-006-42 by a route of the core: the object of an anomaly, a setting of the module,
+/// carries the key the module gives it (the label key of a tracked label), `{id}` alone
+/// for who may not read it.
+#[kartenn_testing::pg_test]
+async fn an_anomaly_of_a_setting_carries_the_key_of_the_module(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.applied(
+        env.admin,
+        vec![op(
+            "set_tracked_labels",
+            json!({"keys": ["app.example.org/tier"]}),
+        )],
+    )
+    .await;
+    let tracked: Uuid = sqlx::query_scalar(
+        "SELECT id FROM kube.tracked_label
+          WHERE label_key = 'app.example.org/tier' AND valid_period @> now()",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // An anomaly opened on it, as a rule of the module would.
+    sqlx::query(
+        "INSERT INTO anomaly (rule_id, object_id, message, opened_by)
+         SELECT 'kube.operation.invalid', $1, 'test', id FROM changeset LIMIT 1",
+    )
+    .bind(tracked)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let admin = as_person(&pool, super::person(&pool, &["*"]).await);
+    let (status, page) = get(&admin, "/v1/anomalies").await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let item = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["object"]["id"] == json!(tracked))
+        .unwrap_or_else(|| panic!("{page}"));
+    assert_eq!(
+        item["object"],
+        json!({"kind": "kube.tracked_label", "id": tracked, "label": "app.example.org/tier",
+               "href": format!("/v1/kube-tracked-labels/{tracked}")})
+    );
 }
 
 /// REQ-006-42: a cluster names its owner, its domains and its pod containers by their
@@ -277,16 +375,33 @@ async fn a_cluster_leaves_alike_an_unreadable_reference_and_an_absent_one(pool: 
     assert_eq!(absent.2, unreadable.2);
 }
 
-/// REQ-006-42: an observation names its workload and its node by their summaries; a
-/// workload the caller may not read and one closed since leave the same bytes, and the
-/// same answer, `ETag` included.
+/// REQ-006-42, REQ-019-16: an observation names its workload and its node as they were at
+/// the instant asked, as its caller may read them now: a workload closed since, read then,
+/// keeps its summary for who reads it and leaves `{id}` to who does not; one absent at the
+/// instant asked leaves the same `{id}`, and the same answer, `ETag` included, to both.
 #[kartenn_testing::pg_test]
-async fn a_journal_leaves_alike_an_unreadable_workload_and_a_gone_one(pool: PgPool) {
+#[allow(clippy::too_many_lines)] // two pods, two callers, two instants
+async fn a_journal_names_its_objects_as_they_were_at_the_instant_asked(pool: PgPool) {
     let env = Env::new(&pool).await;
+    // `web-1` seen an hour ago, before `web` and `worker-1` were declared; `web-2` seen
+    // once they were.
+    let seen = clock(&pool).await;
+    let mut second = env.pod(2, "198.51.100.18");
+    second.from = seen;
     env.recorded(&Batch {
-        opened: vec![env.pod(1, "198.51.100.17")],
+        opened: vec![env.pod(1, "198.51.100.17"), second],
         closed: Vec::new(),
     })
+    .await;
+    // `web` closed by the connector since: the journal still names it.
+    env.applied(
+        env.connector,
+        vec![op(
+            "sync",
+            json!({"action": "close", "type": "kube.workload", "cluster": {"id": env.prod},
+                   "name": "web", "namespace": "payments", "kind": "deployment"}),
+        )],
+    )
     .await;
     let journal = ["kube.observation.read", "kube.node.read"];
     let workloads = reader(
@@ -299,39 +414,44 @@ async fn a_journal_leaves_alike_an_unreadable_workload_and_a_gone_one(pool: PgPo
         as_person(&pool, workloads),
         as_person(&pool, reader(&pool, &journal, None).await),
     );
-    let at = rfc3339(clock(&pool).await - hours(1) + std::time::Duration::from_secs(60));
-    let uri = format!(
-        "/v1/kube-clusters/{}/observations?ip=198.51.100.17&at={at}",
-        env.prod
-    );
+    let held = |ip: &str, at: String| {
+        format!(
+            "/v1/kube-clusters/{}/observations?ip={ip}&at={at}",
+            env.prod
+        )
+    };
 
-    let (status, page) = get(&workloads, &uri).await;
+    // At the instant `web-2` was seen, `web` lived: its summary for who reads it, though
+    // closed now; `{id}` for who does not.
+    let then = held("198.51.100.18", rfc3339(seen));
+    let (status, page) = get(&workloads, &then).await;
     assert_eq!(status, StatusCode::OK, "{page}");
     let item = &page["items"][0];
     assert_eq!(item["workload"], summary("workloads", env.web, "web"));
     assert_eq!(item["node"], summary("kube-nodes", env.node, "worker-1"));
-    let (_, page) = get(&nodes, &uri).await;
-    assert_eq!(page["items"][0]["workload"], json!({"id": env.web}));
+    let (_, page) = get(&nodes, &then).await;
+    let unreadable = page["items"][0]["workload"].clone();
+    assert_eq!(unreadable, json!({"id": env.web}));
     assert_eq!(
         page["items"][0]["node"],
         summary("kube-nodes", env.node, "worker-1")
     );
-    let unreadable = answer(&nodes, &uri).await;
 
-    // The workload closed by the connector: absent now, the journal still names it.
-    env.applied(
-        env.connector,
-        vec![op(
-            "sync",
-            json!({"action": "close", "type": "kube.workload", "cluster": {"id": env.prod},
-                   "name": "web", "namespace": "payments", "kind": "deployment"}),
-        )],
-    )
-    .await;
-    let gone = answer(&workloads, &uri).await;
-    assert_eq!(gone.0, StatusCode::OK);
-    assert_eq!(gone, unreadable);
-    assert_eq!(gone, answer(&nodes, &uri).await);
+    // An hour ago, neither `web` nor `worker-1` was declared: `{id}` for both callers, the
+    // same bytes as the unreadable one, the same answer.
+    let before = held(
+        "198.51.100.17",
+        rfc3339(seen - hours(1) + std::time::Duration::from_secs(60)),
+    );
+    let absent = answer(&workloads, &before).await;
+    assert_eq!(absent.0, StatusCode::OK);
+    let page: Value = serde_json::from_slice(&absent.2).unwrap();
+    assert_eq!(
+        serde_json::to_vec(&page["items"][0]["workload"]).unwrap(),
+        serde_json::to_vec(&unreadable).unwrap()
+    );
+    assert_eq!(page["items"][0]["node"], json!({"id": env.node}));
+    assert_eq!(absent, answer(&nodes, &before).await);
 }
 
 /// REQ-006-42: a link of a chain of execution names its node by its summary; a node the
