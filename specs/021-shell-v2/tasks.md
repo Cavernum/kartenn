@@ -7628,7 +7628,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       navigateur (Ctrl+F) ne trouve plus alors les lignes hors fenêtre d'une liste paginée,
       ce qu'elle ne faisait déjà plus au-delà de 200.
     - dépend de : 22f-e
-  - [ ] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
+  - [x] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
     des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
     ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
     les plugins de la liste soient définis (la colonne d'interfaces du plugin `machines`
@@ -7640,6 +7640,44 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `e2e/bench/measure.ts`) ; signal de plugin à imiter : `plugins/machines/src/
       holders.ts`, ou ce que lit le test du premier écran (« a slow plugin set aside »)
     - dépend de : 22f-e
+    - relevé (2026-11-15, branche `tache-021-22f-g`, main 2e0226f9, seul agent, les quatre
+      verrous libres à chaque lancement ; passes filtrées de 20 échantillons, lancées par
+      l'agent, exception accordée par la session principale). Avant le premier défilement,
+      le banc attend la marque du shell (`atRest`, ses plugins chargés), les colonnes
+      `x.machines.machine` et `x.example.usage` dans l'en-tête, l'avertissement du shell
+      qui écarte `slow` à 5 s, puis deux trames (`settle`).
+
+      | passe | charge au lancement | page 1 (body) | page 2 (body) | p95 | médiane | pire |
+      |---|---|---|---|---|---|---|
+      | 1¹ | 1,00 | 240,5 (3,1) | 170,8 (3,7) | 179,4 | 92,2 | 240,5 |
+      | 2¹ | 4,02 | 192,4 (3,8) | 110,5 (4,2) | 110,5 | 74,7 | 192,4 |
+      | 3¹ | 2,51 | 285,3 (4,0) | 158,3 (3,4) | 158,3 | 73,4 | 285,3 |
+      | essai² | 0,84 | 284,2 (5,0) | 349,1 (123,6) | 284,2 | 74,4 | 349,1 |
+      | 4 | 1,16 | 343,6 (5,0) | 143,1 (3,0) | 143,1 | 73,1 | 343,6 |
+      | 5 | 1,03 | 166,3 (4,0) | 114,7 (2,9) | 114,7 | 69,2 | 166,3 |
+      | 6 | 1,18 | 351,4 (5,1) | 165,3 (3,3) | 165,3 | 66,4 | 351,4 |
+
+      ¹ Sans l'attente de `slow` ; la passe 1, la première du worktree, après le clonage
+      de son `target` (charge 5,5 à sa fin). ² Essai non commité : `networkidle` et 3 s de plus, sans l'attente de
+      `slow`.
+    - mesuré : l'artefact est retiré, `body` de la page 1 entre 3,1 et 5,1 ms dans les six
+      passes (139 à 158 dans trois passes sur cinq de la 22f-e) ; verify tenu. Un second
+      artefact de démarrage, trouvé par l'essai : `slow` écarté à 5 s pendant une page la
+      fait attendre derrière une tâche de minuterie de 155 ms (page 2 de l'essai, `body`
+      123,6) ; les passes 1 à 3 y échappaient par le hasard du calendrier (au plus 21,5 ms
+      de minuterie dans une page), d'où l'attente de son avertissement.
+    - écart à l'attendu (page 1 vers 150 ms, page 2 vers 110) : la page 1 reste entre 166
+      et 351 ms, bimodale (166 et 192 contre 240 à 351), toujours dans son propre travail
+      (`Response.json.then` 160 à 342 ms, rappel de trame 56 à 135, aucune lecture en vol) ;
+      la page 2 entre 111 et 170. Le repos plus long de l'essai, celui de la variante « au
+      calme » de la 22f-e (148,8 à 154,8), n'y change rien (284,2) : ce n'est pas le
+      démarrage des plugins, c'est le montage d'un coup des 100 lignes de la page 1 (code
+      froid), ce que corrige la 22f-f. Le p95 reste la page 2, au-dessus de 100.
+    - choix : signal des plugins pris dans ce que le shell montre déjà (marque
+      `kartenn:plugins-fetched` par `atRest`, colonnes des plugins, avertissement de
+      `slow`), sans rien exposer de plus côté shell ; le nom `slow` et le texte de
+      l'avertissement écrits dans le test (le jeu de plugins du banc est fixe) ; budget
+      inchangé, la ligne `INFO page N` inchangée.
 - [x] 22r. Shell initial à 299,9 Ko gzip pour un budget de 300 (REQ-021-30), relevé par la
   11p10-b arrêtée à 300,0 : 60 octets de marge, toute tâche qui touche le premier lot
   échoue ; rendre au moins 8 Ko au premier lot sans changer le budget ni ce que montre le
