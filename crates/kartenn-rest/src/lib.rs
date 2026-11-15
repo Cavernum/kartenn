@@ -36,6 +36,7 @@ pub mod rights;
 mod rules;
 pub mod simulation;
 pub mod stats;
+pub mod summary;
 pub mod transport;
 pub mod tree;
 pub mod versions;

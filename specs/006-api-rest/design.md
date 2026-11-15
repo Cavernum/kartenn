@@ -303,7 +303,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   et `sites` `{id, slug, parent}`, `prefixes` `{id, domain, value, nature,
   point_to_point, anycast, public}`, `ranges` `{id, domain, first, last, usage,
   public}`, `addresses` `{id, domain, value, usage, public}` ; `domain` et `parent` sont
-  des résumés `{id, slug, href}` (`parent` vaut `null` à la racine). Les propriétés ne
+  des résumés `{id, slug, href}` (`parent` vaut `null` à la racine), réduits à `{id}`
+  pour un lié que l'appelant ne lit pas ou absent aux dates (H23, REQ-006-42 ; la
+  lisibilité des liés d'une page s'obtient par une autorisation groupée). Les propriétés ne
   sont pas dans l'objet : `links.properties` mène aux valeurs résolues (006-13). Filtres
   de clé naturelle : `slug` ; `parent` (slug) pour les entités et les sites ; `domain`
   (slug) et `value` (`first` pour une plage) pour les objets d'adressage ; une valeur

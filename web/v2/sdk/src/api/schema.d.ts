@@ -10392,16 +10392,16 @@ export interface components {
       property: string;
       suggestion?: components["schemas"]["Expected"] | null;
     };
-    /** @description The summary of a linked object. */
+    /** @description The summary of a linked object whose natural key is its slug. */
     Summary: {
-      /** @description Its URL. */
-      href: string;
+      /** @description Its URL; absent with the slug. */
+      href?: string | null;
       /**
        * Format: uuid
        * @description Identifier.
        */
       id: string;
-      /** @description Slug; `null` if the linked object did not exist at the dates of the read. */
+      /** @description Slug; absent if the caller may not read the object or if it was absent then. */
       slug?: string | null;
     };
     /**

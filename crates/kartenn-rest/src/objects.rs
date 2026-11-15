@@ -54,6 +54,8 @@ use crate::openapi::{documented, listing_of, op, queryable, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::resources;
 use crate::rights::{IdentityRef, identity_ref};
+pub use crate::summary::Summary;
+use crate::summary::{Readable, readable};
 
 /// What the routes of the objects read with.
 #[derive(Debug, Clone)]
@@ -483,17 +485,6 @@ pub fn routes() -> OpenApiRouter<Api> {
 
 // ---------------------------------------------------------------- representations
 
-/// The summary of a linked object.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
-pub struct Summary {
-    /// Identifier.
-    pub id: Uuid,
-    /// Slug; `null` if the linked object did not exist at the dates of the read.
-    pub slug: Option<String>,
-    /// Its URL.
-    pub href: String,
-}
-
 /// The links of an object.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[schema(as = ObjectLinks)]
@@ -688,18 +679,42 @@ fn link_id(kind: Kind, fields: &Value) -> Option<Uuid> {
         .and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
+/// The ids of the objects that the objects of `kind` of columns `fields` link to.
+fn link_ids<'a>(kind: Kind, fields: impl IntoIterator<Item = &'a Value>) -> Vec<Uuid> {
+    fields
+        .into_iter()
+        .filter_map(|f| link_id(kind, f))
+        .collect()
+}
+
+/// The objects `ids` that objects of `kind` link to, readable by the caller of `context`
+/// now: one authorisation for them all (REQ-006-42).
+async fn linked_readable(
+    api: &Api,
+    context: &RequestContext,
+    kind: Kind,
+    ids: Vec<Uuid>,
+) -> Result<Readable, Problem> {
+    let Some(to) = linked(kind) else {
+        return Ok(Readable::all());
+    };
+    readable(api, context, Target::Core(to), ids).await
+}
+
 /// The representation of an object of `kind` from its columns `fields` and the slug
-/// `link` of the object it links to.
-fn represent(kind: Kind, fields: &Value, link: Option<&str>) -> Result<ObjectDto, Problem> {
+/// `link` of the object it links to, summarised in full if the caller may read it
+/// (`readable`), by its identifier alone otherwise (REQ-006-42).
+fn represent(
+    kind: Kind,
+    fields: &Value,
+    link: Option<&str>,
+    readable: &Readable,
+) -> Result<ObjectDto, Problem> {
     let c: Columns =
         serde_json::from_value(fields.clone()).map_err(|_| malformed(kind, "columns"))?;
     let links = Links::of(kind, c.id);
     let summary = |to: Kind, id: Option<Uuid>, slug: Option<String>| {
-        id.map(|id| Summary {
-            id,
-            slug,
-            href: href(to, id),
-        })
+        id.map(|id| Summary::of(Target::Core(to), id, slug, readable))
     };
     let slug = || c.slug.clone().ok_or_else(|| malformed(kind, "slug"));
     let domain = || {
@@ -1137,9 +1152,16 @@ async fn list(
     };
     let next = next.map(|cursor| next_href(&format!("/v1/{name}"), &cursor));
     let ids: Vec<Uuid> = rows.iter().map(|row| row.key.id).collect();
+    let readable = linked_readable(
+        &api,
+        &context,
+        kind,
+        link_ids(kind, rows.iter().map(|r| &r.fields)),
+    )
+    .await?;
     let items = rows
         .into_iter()
-        .map(|row| represent(kind, &row.fields, row.link.as_deref()))
+        .map(|row| represent(kind, &row.fields, row.link.as_deref(), &readable))
         .collect::<Result<Vec<_>, _>>()?;
     let items = crate::kit::versioned(&items, &versions);
     let criteria = json!({
@@ -1200,7 +1222,8 @@ async fn object(
             .map_err(|e| store(&e))?,
         None => None,
     };
-    let body = represent(kind, &found.fields, link.as_deref())?;
+    let readable = linked_readable(&api, &context, kind, link_ids(kind, [&found.fields])).await?;
+    let body = represent(kind, &found.fields, link.as_deref(), &readable)?;
     Ok(respond_object(&headers, &moment, version, &body))
 }
 
@@ -1247,7 +1270,7 @@ pub(crate) fn journaled(version: &Version) -> Result<(String, IdentityRef), Prob
 }
 
 /// A version as served, its author named for whoever reads the object (Q-021-29).
-fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
+fn version_of(kind: Kind, version: &Version, readable: &Readable) -> Result<VersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
     let (motive, author) = journaled(version)?;
     Ok(VersionDto {
@@ -1258,7 +1281,7 @@ fn version_of(kind: Kind, version: &Version) -> Result<VersionDto, Problem> {
         changeset: crate::changesets::summary(version.changeset),
         motive,
         author,
-        object: represent(kind, &version.fields, version.link.as_deref())?,
+        object: represent(kind, &version.fields, version.link.as_deref(), readable)?,
     })
 }
 
@@ -1376,9 +1399,16 @@ async fn history(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
+    let readable = linked_readable(
+        &api,
+        &context,
+        kind,
+        link_ids(kind, versions.iter().map(|v| &v.fields)),
+    )
+    .await?;
     let items = versions
         .into_iter()
-        .map(|v| version_of(kind, &v))
+        .map(|v| version_of(kind, &v, &readable))
         .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =
@@ -1402,7 +1432,7 @@ mod tests {
     use super::*;
 
     fn json_of(kind: Kind, fields: &Value, link: Option<&str>) -> Value {
-        serde_json::to_value(represent(kind, fields, link).unwrap()).unwrap()
+        serde_json::to_value(represent(kind, fields, link, &Readable::all()).unwrap()).unwrap()
     }
 
     #[test]
