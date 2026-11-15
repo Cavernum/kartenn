@@ -183,6 +183,12 @@ impl Env {
         .fetch_one(&self.pool)
         .await
         .unwrap();
+        self.bound(identity, entity, permissions).await;
+        identity
+    }
+
+    /// `identity` granted `permissions` on the entity `entity` too.
+    async fn bound(&self, identity: Uuid, entity: Uuid, permissions: &[&str]) {
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -212,7 +218,6 @@ impl Env {
             .execute(&self.pool)
             .await
             .unwrap();
-        identity
     }
 
     /// Whether `reader` holds `permission` on `object`.
@@ -3046,6 +3051,15 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             vec![unknown, other, gone],
             true,
         ),
+        // The name `theirs` already gives one of its interfaces: the write would refuse it
+        // as a duplicate before the right on the interface created.
+        (
+            "interface.machine.taken",
+            Box::new(|x| interface(x, 0, Value::Null)),
+            theirs,
+            vec![unknown, other, gone],
+            true,
+        ),
         (
             "machine.host",
             Box::new(move |x| {
@@ -3300,3 +3314,137 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
 
 /// Operations citing the identifier they are given.
 type MakeMany = Box<dyn Fn(Uuid) -> Vec<Operation>>;
+
+/// The violations of a refusal, at submission or at validation, as [`seen`] gives them.
+fn refusal(outcome: &Outcome) -> Vec<(&'static str, String, Option<usize>, usize)> {
+    match outcome {
+        Outcome::Refused { violations, .. } | Outcome::FailedRevalidation { violations, .. } => {
+            violations
+                .iter()
+                .map(|v| (v.rule.id, v.message.clone(), v.operation, v.subjects.len()))
+                .collect()
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// INV-63 in validation (task 002-29c2): the author's read of the host is asked again when
+/// his changeset is validated, before its writes; a host that has left his reach and one
+/// that no longer lives are refused alike.
+#[kartenn_testing::pg_test]
+async fn a_validation_refuses_alike_a_host_out_of_reach_or_closed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    let h1 = env.create("h1", "physical", json!({})).await;
+    let h2 = env.create("h2", "physical", json!({})).await;
+    // Without `approval.self`: pending.
+    let author = env
+        .granted(
+            acme,
+            &["machines.read", "machines.edit", "prop.core.owner.edit"],
+        )
+        .await;
+    let validator = env
+        .granted(
+            acme,
+            &["machines.read", "machines.apply", "prop.core.owner.apply"],
+        )
+        .await;
+    let vm = |name: &str, host: Uuid| {
+        op(
+            "create_machine",
+            json!({"name": name, "kind": "virtual", "owner": {"id": acme},
+                   "host": {"machine": {"id": host}}}),
+        )
+    };
+    let mut pending = Vec::new();
+    for (name, host) in [("vm1", h1), ("vm2", h2), ("vm3", h1)] {
+        match env.submit_as(author, vec![vm(name, host)]).await {
+            Outcome::Pending { changeset, .. } => pending.push(changeset),
+            other => panic!("{name}: {other:?}"),
+        }
+    }
+    let authorizer = PgAuthorizer::new(env.pool.clone()).with_modules(env.registry.clone());
+    let validate = async |id: Uuid| {
+        kartenn_service::review::validate_pending(
+            &env.store,
+            &authorizer,
+            &kartenn_service::expected::Sources::none(),
+            id,
+            &Subject::from(validator),
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
+    };
+    // In reach, applied.
+    let applied = validate(pending[2]).await;
+    assert!(matches!(applied, Outcome::Applied { .. }), "{applied:?}");
+    let owner = env.property("core.owner").await;
+    env.applied(vec![
+        assign(h1, "machines.machine", owner, &other.to_string()),
+        close("machines.machine", h2, false),
+    ])
+    .await;
+    let out_of_reach = refusal(&validate(pending[0]).await);
+    let closed = refusal(&validate(pending[1]).await);
+    assert_eq!(
+        out_of_reach[0].0, "core.object.forbidden",
+        "{out_of_reach:?}"
+    );
+    assert_eq!(closed, out_of_reach);
+}
+
+/// Task 002-29c2: the read a module asks on an existing object is judged before the
+/// writes, on its scope of then: a machine the changeset brings back under its author
+/// cannot host in the same changeset; brought back first, it can.
+#[kartenn_testing::pg_test]
+async fn a_machine_brought_back_hosts_from_the_next_changeset(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    env.applied(vec![op(
+        "create_machine",
+        json!({"name": "far", "kind": "physical", "owner": {"id": other}}),
+    )])
+    .await;
+    let far = env.machine("far", other).await;
+    let mover = env
+        .granted(
+            acme,
+            &[
+                "machines.read",
+                "machines.edit",
+                "machines.approval.self",
+                "prop.core.owner.edit",
+                "prop.core.owner.approval.self",
+            ],
+        )
+        .await;
+    env.bound(
+        mover,
+        other,
+        &["prop.core.owner.edit", "prop.core.owner.approval.self"],
+    )
+    .await;
+    let owner = env.property("core.owner").await;
+    let home = assign(far, "machines.machine", owner, &acme.to_string());
+    let vm = op(
+        "create_machine",
+        json!({"name": "vm1", "kind": "virtual", "owner": {"id": acme},
+               "host": {"machine": {"id": far}}}),
+    );
+    let together = env.submit_as(mover, vec![home.clone(), vm.clone()]).await;
+    assert_eq!(
+        refusal(&together),
+        [(
+            "core.object.forbidden",
+            "1 object(s) need machines.read".to_owned(),
+            None,
+            1
+        )]
+    );
+    for operations in [vec![home], vec![vm]] {
+        let outcome = env.submit_as(mover, operations).await;
+        assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    }
+}

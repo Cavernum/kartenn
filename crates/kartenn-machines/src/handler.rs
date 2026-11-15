@@ -139,9 +139,10 @@ const VLAN_READ: &str = "core.vlan.read";
 /// The permission an address attached or detached needs, rather than its writing (M16).
 const ADDRESS_READ: &str = "core.address.read";
 /// The fields whose reference needs the right to read the object it designates, checked
-/// before the writes (M16, extension of 2026-11-15; INV-63): the host and the clusters. A
-/// first step: every reference after v0.2 (task 002-31).
-const READ_CHECKED: &[&str] = &["host.machine", "host.cluster", "member_of"];
+/// before the writes (M16, extension of 2026-11-15; INV-63): the host, the clusters and
+/// the machine of an interface created. A first step: every reference after v0.2 (task
+/// 002-31).
+const READ_CHECKED: &[&str] = &["host.machine", "host.cluster", "member_of", "machine"];
 
 /// `machines.attach_address` (REQ-009-9, 11).
 #[derive(Debug, Deserialize)]
