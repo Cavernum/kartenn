@@ -168,7 +168,31 @@ const id = useId();
    * below the height of a header and six rows (a short or zoomed window, WCAG 1.4.10): the
    * surface scrolls then. A list not virtualised keeps its own height, and every other
    * screen its own (021-22f-h). The rules of the height are all here. */
-  .k-frame__surface:has(> [data-list] .k-data-grid[data-virtual]) {
+  /* Each part of a list panel in its own row, present or not: the body always in the
+   * elastic one, a toolbar or a footer missing (the other panels, never stretched to the
+   * surface, keep their placement). */
+  .k-view-panel[data-list] {
+    grid-template-areas: "header" "toolbar" "body" "footer";
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__header {
+    grid-area: header;
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__toolbar {
+    grid-area: toolbar;
+  }
+
+  .k-view-panel__body[data-list] {
+    grid-area: body;
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__footer {
+    grid-area: footer;
+  }
+
+  /* stylelint-disable-next-line selector-max-compound-selectors -- the chain of the body's rules below, whole, so that the surface never fills alone */
+  .k-frame__surface:has(> [data-list] > .k-view-panel__body > .k-data-grid-frame > [data-virtual]) {
     grid-template-rows: minmax(auto, 1fr);
   }
 

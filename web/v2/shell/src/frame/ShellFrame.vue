@@ -210,7 +210,7 @@ onMounted(() => {
   // fractional height (a zoom) rounded up by `scrollHeight` (021-22f-h).
   const measure = () =>
     (surfaceScrolls.value =
-      el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+      el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth);
   surfaceSizes = new ResizeObserver(measure);
   const observe = () => {
     surfaceSizes?.disconnect();

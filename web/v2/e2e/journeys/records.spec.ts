@@ -135,39 +135,57 @@ test("a long list keeps a few dozen rows, reads ahead, and opens a row by keyboa
   ).toBeVisible();
 });
 
+/** The heights of the window, the surface, the main panel and its grid (021-22f-h). */
+const heightsOf = (page: Page) =>
+  page.evaluate(() => {
+    const surface = document.getElementById("k-surface")!;
+    const panel = surface.querySelector<HTMLElement>(".k-view-panel[data-main]")!;
+    const grid = panel.querySelector<HTMLElement>("[role='grid']")!;
+    const style = getComputedStyle(grid);
+    return {
+      window: {
+        scroll: document.documentElement.scrollHeight,
+        client: document.documentElement.clientHeight,
+      },
+      surface: { scroll: surface.scrollHeight, client: surface.clientHeight },
+      // The room of the surface (its content box) and the panel's outer height.
+      room: surface.clientHeight - parseFloat(getComputedStyle(surface).paddingBlockStart) * 2,
+      panel: panel.getBoundingClientRect().height,
+      grid: { scroll: grid.scrollHeight, client: grid.clientHeight },
+      // The grid's root: its column chooser (when shown), then the grid.
+      root: grid.closest(".k-data-grid-frame")!.getBoundingClientRect().height,
+      // The room of the panel's body under the grid's root: none unless stretched.
+      slack:
+        panel.querySelector(".k-view-panel__body")!.getBoundingClientRect().bottom -
+        grid.closest(".k-data-grid-frame")!.getBoundingClientRect().bottom,
+      virtual: grid.hasAttribute("data-virtual"),
+      least:
+        parseFloat(style.getPropertyValue("--k-header-height")) +
+        6 * parseFloat(style.getPropertyValue("--k-row-height")),
+    };
+  });
+
+/**
+ * A list screen at 1 200 px high whose grid is virtualised: neither the window nor the
+ * surface scrolls, the panel fills the surface, the grid its body, past a list's height
+ * (`--k-size-list-max`, 480 px), and it scrolls in itself when it has more rows.
+ */
+async function expectFilled(page: Page): Promise<Awaited<ReturnType<typeof heightsOf>>> {
+  const seen = await heightsOf(page);
+  expect(seen.virtual).toBe(true);
+  expect(seen.window.scroll).toBe(seen.window.client);
+  expect(seen.surface.scroll).toBeLessThanOrEqual(seen.surface.client);
+  expect(Math.abs(seen.panel - seen.room)).toBeLessThanOrEqual(1);
+  expect(seen.slack).toBeLessThanOrEqual(1);
+  expect(seen.grid.client).toBeGreaterThan(800);
+  return seen;
+}
+
 test("a list of more than one page takes the rest of the window: its grid the one scroller", async ({
   page,
   login,
 }) => {
-  /** The heights of the window, the surface, the main panel and the grid. */
-  const heights = () =>
-    page.evaluate(() => {
-      const surface = document.getElementById("k-surface")!;
-      const panel = surface.querySelector<HTMLElement>(".k-view-panel[data-main]")!;
-      const grid = panel.querySelector<HTMLElement>("[role='grid']")!;
-      const style = getComputedStyle(grid);
-      return {
-        window: {
-          scroll: document.documentElement.scrollHeight,
-          client: document.documentElement.clientHeight,
-        },
-        surface: { scroll: surface.scrollHeight, client: surface.clientHeight },
-        // The room of the surface (its content box) and the panel's outer height.
-        room: surface.clientHeight - parseFloat(getComputedStyle(surface).paddingBlockStart) * 2,
-        panel: panel.getBoundingClientRect().height,
-        grid: { scroll: grid.scrollHeight, client: grid.clientHeight },
-        // The grid's root: its column chooser (when shown), then the grid.
-        root: grid.closest(".k-data-grid-frame")!.getBoundingClientRect().height,
-        // The room of the panel's body under the grid's root: none unless stretched.
-        slack:
-          panel.querySelector(".k-view-panel__body")!.getBoundingClientRect().bottom -
-          grid.closest(".k-data-grid-frame")!.getBoundingClientRect().bottom,
-        virtual: grid.hasAttribute("data-virtual"),
-        least:
-          parseFloat(style.getPropertyValue("--k-header-height")) +
-          6 * parseFloat(style.getPropertyValue("--k-row-height")),
-      };
-    });
+  const heights = () => heightsOf(page);
   await page.setViewportSize({ width: 1440, height: 1200 });
   await login("alice");
   await page.goto(`/addresses?within=${encodeURIComponent(DATA.bulk.prefix)}`);
@@ -175,13 +193,8 @@ test("a list of more than one page takes the rest of the window: its grid the on
   await expect(grid.getByRole("link", { name: "2001:db8:2::1", exact: true })).toBeVisible();
   await expect(grid).toHaveAttribute("data-virtual", "true");
 
-  // Neither the window nor the surface scrolls; the panel fills the surface and the grid,
-  // past a list's height (`--k-size-list-max`, 480 px), scrolls in itself (021-22f-h).
-  let seen = await heights();
-  expect(seen.window.scroll).toBe(seen.window.client);
-  expect(seen.surface.scroll).toBeLessThanOrEqual(seen.surface.client);
-  expect(Math.abs(seen.panel - seen.room)).toBeLessThanOrEqual(1);
-  expect(seen.grid.client).toBeGreaterThan(800);
+  // A toolbar (the filters) and a footer (the count).
+  let seen = await expectFilled(page);
   expect(seen.grid.scroll).toBeGreaterThan(seen.grid.client);
 
   // A short window (or zoomed, WCAG 1.4.10): the grid's root keeps the height of a header
@@ -203,6 +216,37 @@ test("a list of more than one page takes the rest of the window: its grid the on
   expect(seen.virtual).toBe(false);
   expect(seen.grid.scroll).toBe(seen.grid.client);
   expect(seen.slack).toBeLessThanOrEqual(1);
+});
+
+test("the list screens without a toolbar or a footer fill the window as well", async ({
+  page,
+  login,
+}) => {
+  // A next page announced on the first page of these lists (their data hold one page), its
+  // read left pending: the grid stays virtualised from its first row.
+  const MORE = "e2e-more";
+  await page.route(/\/v1\/(property-declarations|changesets)(\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("cursor") === MORE) return;
+    // Not compressed: Firefox's fetch of a route hands the body over still encoded.
+    const headers = { ...route.request().headers(), "accept-encoding": "identity" };
+    const response = await route.fetch({ headers });
+    if (response.status() !== 200) return route.fulfill({ response });
+    const body = (await response.json()) as { links?: Record<string, string> };
+    body.links = { ...body.links, next: `${url.pathname}?cursor=${MORE}` };
+    await route.fulfill({ response, json: body });
+  });
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  await login("alice");
+  // The properties: neither toolbar nor footer, the body in the elastic row all the same;
+  // the changesets: a toolbar (the filters) and a footer.
+  for (const path of ["/property-declarations", "/changesets"]) {
+    await page.goto(path);
+    const grid = page.locator("#k-surface [role='grid']");
+    await expect(grid.getByRole("row").nth(1)).toBeVisible();
+    await expect(grid).toHaveAttribute("data-virtual", "true");
+    await expectFilled(page);
+  }
 });
 
 test("past ten pages: each page read is shown, none read ahead of the view, the end reached", async ({
