@@ -807,6 +807,23 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-rest/tests/it/contract.rs`
     (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter)
   - dépend de : 32a, 32b, 32c
+- [ ] 32e. Adresses demandées rendues sous le filtre `address` (constat de la 021-11p10-e,
+  arbitrage du 2026-11-15) : `GET /v1/interfaces?address=a&address=b` ne dit pas quelle
+  adresse demandée chaque interface porte, le client ne peut pas répartir la réponse par
+  ligne. Sous `address`, chaque interface porte `addresses: MachineCardAddress[]`, celles
+  des adresses demandées qu'elle tient et que l'appelant lit (même champ, même forme que
+  sous `network`, 021/A28) ; une adresse illisible en est omise ; pas de requête par ligne,
+  les adresses lues dans la requête de la page ; contrat et types des deux SDK régénérés —
+  REQ-006-41 — verify : `k-check -p kartenn-machines` (deux adresses demandées, trois
+  interfaces, l'une tenant les deux : chacune rend exactement les demandées qu'elle tient ;
+  une adresse tenue non demandée n'est pas rendue ; une demandée illisible est omise ;
+  `network` et `address` ensemble ; pagination inchangée)
+  - où : `crates/kartenn-machines/src/rest.rs` (`network_addresses`, `list_interfaces`
+    vers les lignes 1094 et 1127, journal des adresses lues ; `InterfaceDto.addresses`,
+    sa description au contrat) ; test `machines/tests/it/rest.rs`
+    `interfaces_filtered_by_several_addresses` (à étendre),
+    `interfaces_of_a_network_with_their_addresses` (`held_values`, à imiter)
+  - dépend de : 32b
 - [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
   référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
   d'une propriété de type référence), puis `{id, clé naturelle, href}`, réduit à `{id}`

@@ -330,6 +330,11 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   en une liste paginée (fin de la lecture par machine de l'onglet « Interfaces », 18cc),
   et `/v1/machines` gagne un filtre « sans hôte » (premier niveau de l'arbre de
   l'hébergement en une page, 18cd) ; ajouts au contrat du module (18e, 18f).
+  Amendée le 2026-11-15 (utilisateur, constat de la 11p10-e, tâche 006-32e) : sous le
+  filtre `address` aussi, chaque interface porte `addresses`, même champ et même forme
+  (`MachineCardAddress[]`) : celles des adresses demandées qu'elle tient et que
+  l'appelant lit, une adresse illisible omise. Avec `network` et `address` ensemble,
+  `addresses` rend celles qui répondent aux deux (demandées et dans le réseau).
 - **A29 — Plancher des événements** (utilisateur, 2026-11-03) : il garde l'horizon de
   tout le cluster PostgreSQL ; sur un cluster partagé, les pages d'événements et les
   points de reprise prennent du retard (la remise n'attend pas). Limite connue, écrite

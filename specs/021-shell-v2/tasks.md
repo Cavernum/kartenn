@@ -2066,7 +2066,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     de 4, environ 1 000 `GET /v1/interfaces?address=` pour dix pages, au-dessus du quota
     par défaut (75 à 102 429 relus par passe sous Chromium). La lire par fenêtre avec le
     filtre `address` répété de la 006-32b (64 adresses au plus par requête, paginé) : une
-    requête par fenêtre, le résultat réparti par adresse dans le cache par ligne, sous la
+    requête par fenêtre, le résultat réparti par adresse dans le cache par ligne (par le
+    champ `addresses` de chaque interface, que la 006-32e rend sous `address`), sous la
     clé de la lecture unitaire — verify : Vitest monté, 100 lignes : 2 requêtes au lieu
     de 100 ; `web/v2/e2e/journeys/quota.spec.ts` durci à « aucun 429 ni 503 vu par la
     page », avec un plafond de requêtes sous `/v1/` par page lue
@@ -2075,7 +2076,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       (`createBatcher`, modèle de regroupeur), `plugins/machines/src/{InterfacesTab.vue,
       InterfaceSearch.vue}` (qui partagent la clé `/v1/interfaces?address=`),
       `web/v2/e2e/journeys/quota.spec.ts`
-    - dépend de : 006-32b, 11p10-b2
+    - dépend de : 006-32b, 006-32e, 11p10-b2
 - [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
   le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
   échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de
