@@ -46,6 +46,7 @@ use crate::objects::{Api, Target, audited, bad, instant, store};
 use crate::openapi::{documented, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{Charge, ids_weight};
+use crate::summary::Summaries;
 
 /// Most objects of a read of the resolved values of several objects (REQ-006-40).
 pub const BATCH_MAX: usize = 200;
@@ -466,7 +467,9 @@ struct ResolvedLinks {
 /// The resolved values of the properties of an object.
 #[derive(Debug, Serialize, ToSchema)]
 struct Resolved {
-    /// The values by key; `null`: « no value » explicitly.
+    /// The values by key; `null`: « no value » explicitly. A value of type reference is
+    /// the summary of its object, `{id}` alone if the caller may not read it or if it was
+    /// absent then (REQ-006-42); an array of them for a set.
     #[schema(value_type = BTreeMap<String, Object>)]
     properties: BTreeMap<String, Option<Value>>,
     /// Where each value of `properties` comes from, by the same keys; a key of `masked`
@@ -549,8 +552,18 @@ async fn resolved(
             (key, shown)
         })
         .collect();
+    let refs = ref_keys(&declared(&api, &moment).await?);
+    let referred: Vec<Uuid> = found
+        .properties
+        .iter()
+        .filter(|(key, _)| refs.contains(*key))
+        .filter_map(|(_, value)| value.as_ref())
+        .flat_map(references)
+        .collect();
+    let summaries =
+        Summaries::read(&api, &context, referred, moment.valid_at, moment.as_of).await?;
     let body = Resolved {
-        properties: found.properties,
+        properties: with_summaries(found.properties, &refs, &summaries),
         sources,
         masked: found.masked,
         links: ResolvedLinks {
@@ -561,6 +574,72 @@ async fn resolved(
     Ok(respond_json(&headers, &moment, &body))
 }
 
+/// The declarations of the properties at the dates of `moment`.
+async fn declared(api: &Api, moment: &Moment) -> Result<Vec<DeclarationRead>, Problem> {
+    let all = property_read::DeclarationFilter::default();
+    property_read::declarations(
+        &api.pool,
+        moment.valid_at,
+        moment.as_of,
+        all,
+        None,
+        i64::MAX,
+    )
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The keys of the properties of type reference among `declarations`.
+fn ref_keys(declarations: &[DeclarationRead]) -> BTreeSet<String> {
+    declarations
+        .iter()
+        .filter(|d| d.value_type == "ref")
+        .map(|d| d.key.clone())
+        .collect()
+}
+
+/// The objects a value of type reference names: its identifier, or those of a set.
+fn references(value: &Value) -> Vec<Uuid> {
+    let one = |v: &Value| v.as_str().and_then(|s| s.parse::<Uuid>().ok());
+    match value {
+        Value::Array(values) => values.iter().filter_map(one).collect(),
+        other => one(other).into_iter().collect(),
+    }
+}
+
+/// A value of type reference with each identifier it holds replaced by the summary of
+/// its object among `summaries` (REQ-006-42): `{id}` alone for an object the caller may
+/// not read or that was absent at the dates of the read.
+fn summarised(value: Value, summaries: &Summaries) -> Value {
+    let one = |v: Value| match v.as_str().and_then(|s| s.parse::<Uuid>().ok()) {
+        Some(id) => serde_json::to_value(summaries.of(id)).expect("a summary serialises"),
+        None => v,
+    };
+    match value {
+        Value::Array(values) => Value::Array(values.into_iter().map(one).collect()),
+        other => one(other),
+    }
+}
+
+/// `properties` with the values of the keys among `refs` (of type reference) summarised.
+fn with_summaries(
+    properties: BTreeMap<String, Option<Value>>,
+    refs: &BTreeSet<String>,
+    summaries: &Summaries,
+) -> BTreeMap<String, Option<Value>> {
+    properties
+        .into_iter()
+        .map(|(key, value)| {
+            let value = if refs.contains(&key) {
+                value.map(|v| summarised(v, summaries))
+            } else {
+                value
+            };
+            (key, value)
+        })
+        .collect()
+}
+
 // ---------------------------------------------------------------- several objects
 
 /// The resolved values of the properties of one object of a batch: those of the read of
@@ -569,7 +648,8 @@ async fn resolved(
 struct ResolvedItem {
     /// The object.
     id: Uuid,
-    /// The values by key; `null`: « no value » explicitly.
+    /// The values by key; `null`: « no value » explicitly; a value of type reference as
+    /// in the read of one object (REQ-006-42).
     #[schema(value_type = BTreeMap<String, Object>)]
     properties: BTreeMap<String, Option<Value>>,
     /// Where each value of `properties` comes from, by the same keys; a key of `masked`
@@ -698,21 +778,10 @@ async fn batch(
             .collect();
         ids.retain(|id| !denied.contains(id));
     }
+    let declarations = declared(api, &moment).await?;
+    let refs = ref_keys(&declarations);
     let keys = if asked_keys.is_empty() {
-        let all = property_read::DeclarationFilter::default();
-        property_read::declarations(
-            &api.pool,
-            moment.valid_at,
-            moment.as_of,
-            all,
-            None,
-            i64::MAX,
-        )
-        .await
-        .map_err(|e| store(&e))?
-        .into_iter()
-        .map(|d| d.key)
-        .collect()
+        declarations.into_iter().map(|d| d.key).collect()
     } else {
         asked_keys.clone()
     };
@@ -747,7 +816,18 @@ async fn batch(
         .into_iter()
         .collect();
     let nodes = visible_nodes(api, context, &holders, &moment).await?;
-    let items = items_of(kind, &ids, rows, &nodes);
+    // The objects the values of type reference name, summarised together.
+    let referred: Vec<Uuid> = rows
+        .iter()
+        .filter(|r| refs.contains(&r.property))
+        .filter_map(|r| r.value.as_ref())
+        .flat_map(references)
+        .collect();
+    let summaries = Summaries::read(api, context, referred, moment.valid_at, moment.as_of).await?;
+    let mut items = items_of(kind, &ids, rows, &nodes);
+    for item in &mut items {
+        item.properties = with_summaries(std::mem::take(&mut item.properties), &refs, &summaries);
+    }
     let bytes = serde_json::to_vec(&ResolvedBatch { items }).expect("JSON values serialise");
     Ok((
         [
@@ -1265,11 +1345,12 @@ struct Gap {
     object: ObjectRef,
     /// The code of its rule, `prop.resolution.expected_mismatch` (021/A36).
     rule: String,
-    /// The resolved value, raw (closed-list keys); `null` without a value, when masked,
-    /// or for a deviation not evaluated since its values are stored.
+    /// The resolved value, raw (closed-list keys; for a reference, the summary of its
+    /// object, REQ-006-42); `null` without a value, when masked, or for a deviation not
+    /// evaluated since its values are stored.
     resolved: Value,
-    /// The value the source expects, raw, in the form of the resolved one (an array for
-    /// a set); `null` when masked, or for a deviation not evaluated since its values are
+    /// The value the source expects, in the form of the resolved one (an array for a
+    /// set); `null` when masked, or for a deviation not evaluated since its values are
     /// stored.
     expected: Value,
     /// The source that expects it; `null` for a deviation not evaluated since its values
@@ -1284,8 +1365,26 @@ struct Gap {
 }
 
 impl Gap {
-    /// The deviation of `anomaly`, its values taken from its detail (021/A39).
-    fn of(anomaly: &Anomaly, kind: Option<Kind>) -> Self {
+    /// The values of type reference of a deviation of a property among `refs`, raw.
+    fn referred<'a>(anomaly: &'a Anomaly, refs: &BTreeSet<String>) -> Vec<&'a Value> {
+        match (gap_property(anomaly), anomaly.detail.as_ref()) {
+            (Some(key), Some(detail)) if refs.contains(key) => ["resolved", "expected"]
+                .into_iter()
+                .filter_map(|name| detail.get(name))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The deviation of `anomaly`, its values taken from its detail (021/A39), its object
+    /// and, for a property among `refs` (of type reference), its values summarised among
+    /// `summaries` (REQ-006-42).
+    fn of(
+        anomaly: &Anomaly,
+        kind: Option<Kind>,
+        refs: &BTreeSet<String>,
+        summaries: &Summaries,
+    ) -> Self {
         let member = |name: &str| {
             anomaly
                 .detail
@@ -1295,13 +1394,21 @@ impl Gap {
                 .unwrap_or_default()
         };
         let text = |name: &str| member(name).as_str().map(str::to_owned);
+        let value = |name: &str| {
+            let raw = member(name);
+            if gap_property(anomaly).is_some_and(|key| refs.contains(key)) {
+                summarised(raw, summaries)
+            } else {
+                raw
+            }
+        };
         Self {
             id: anomaly.id,
             property: gap_property(anomaly).map(str::to_owned),
-            object: ObjectRef::new(kind, anomaly.object_id),
+            object: ObjectRef::new(kind, anomaly.object_id, summaries),
             rule: anomaly.rule_id.clone(),
-            resolved: member("resolved"),
-            expected: member("expected"),
+            resolved: value("resolved"),
+            expected: value("expected"),
             source: text("source"),
             revision: text("revision"),
             message: anomaly.message.clone(),
@@ -1372,9 +1479,22 @@ async fn gaps(
         .await
         .map_err(RequestError::Audit)?;
     mask_gaps(&api, &context, &mut found).await?;
+    let refs = ref_keys(&declared(&api, &moment).await?);
+    let referred = found
+        .iter()
+        .flat_map(|(anomaly, _)| Gap::referred(anomaly, &refs))
+        .flat_map(references);
+    let summaries = Summaries::read(
+        &api,
+        &context,
+        ids.iter().copied().chain(referred),
+        moment.valid_at,
+        None,
+    )
+    .await?;
     let items: Vec<Gap> = found
         .iter()
-        .map(|(anomaly, kind)| Gap::of(anomaly, *kind))
+        .map(|(anomaly, kind)| Gap::of(anomaly, *kind, &refs, &summaries))
         .collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }

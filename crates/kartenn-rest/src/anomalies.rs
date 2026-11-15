@@ -31,8 +31,9 @@ use uuid::Uuid;
 
 use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
-use crate::objects::{Api, audited, bad, gate, href, instant, store};
+use crate::objects::{Api, Target, audited, bad, gate, instant, store};
 use crate::problem::{Problem, ProblemKind};
+use crate::summary::{Summaries, Summary};
 
 /// The routes of the anomalies.
 pub fn routes() -> OpenApiRouter<Api> {
@@ -103,23 +104,35 @@ pub(crate) struct AnomalyDto {
     links: AnomalyLinks,
 }
 
-/// An object named by its kind and identifier.
+/// An object named by its kind and summarised (REQ-006-42): `{kind, id, label, href}`,
+/// `{kind, id}` alone if the caller may not read it or if it is gone.
 #[derive(Debug, Serialize, ToSchema)]
 pub(crate) struct ObjectRef {
-    /// Its kind; `null` if unknown.
+    /// Its kind, of the core or of a module; `null` if unknown.
     kind: Option<&'static str>,
     /// Identifier.
     id: Uuid,
-    /// Its URL; `null` if its kind is unknown.
+    /// Its natural key as a human reads it; absent with `href`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
+    /// Its URL; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     href: Option<String>,
 }
 
 impl ObjectRef {
-    pub(crate) fn new(kind: Option<Kind>, id: Uuid) -> Self {
+    /// The object `id`, of kind `kind` as the store gave it, among the `summaries` of
+    /// the page.
+    pub(crate) fn new(kind: Option<Kind>, id: Uuid, summaries: &Summaries) -> Self {
+        let Summary { label, href, .. } = summaries.of(id);
         Self {
-            kind: kind.map(Kind::as_str),
+            kind: summaries
+                .target(id)
+                .map(Target::as_str)
+                .or_else(|| kind.map(Kind::as_str)),
             id,
-            href: kind.map(|k| href(k, id)),
+            label,
+            href,
         }
     }
 }
@@ -131,12 +144,12 @@ struct AnomalyLinks {
     acknowledgement: String,
 }
 
-/// An anomaly as listed, with a link to its object of kind `kind`.
-fn represent(anomaly: &Anomaly, kind: Option<Kind>) -> AnomalyDto {
+/// An anomaly as listed, with the summary of its object of kind `kind`.
+fn represent(anomaly: &Anomaly, kind: Option<Kind>, summaries: &Summaries) -> AnomalyDto {
     AnomalyDto {
         id: anomaly.id,
         rule: anomaly.rule_id.clone(),
-        object: ObjectRef::new(kind, anomaly.object_id),
+        object: ObjectRef::new(kind, anomaly.object_id, summaries),
         message: anomaly.message.clone(),
         opened_at: rfc3339(instant(anomaly.opened_at)),
         links: AnomalyLinks {
@@ -244,8 +257,13 @@ async fn list(
         .map_err(|e| store(&e))?;
     let next = anomaly_next(&api, &page, NAME, &moment, &mut found);
     crate::properties::mask_gaps(&api, &context, &mut found).await?;
-    let items: Vec<AnomalyDto> = found.iter().map(|(a, k)| represent(a, *k)).collect();
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
+    let summaries =
+        Summaries::read(&api, &context, ids.iter().copied(), moment.valid_at, None).await?;
+    let items: Vec<AnomalyDto> = found
+        .iter()
+        .map(|(a, k)| represent(a, *k, &summaries))
+        .collect();
     let criteria = json!({
         "anomalies": { "rule": rule, "domain": domain, "entity": entity, "object": object }
     });

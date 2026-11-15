@@ -662,10 +662,22 @@ fn malformed(kind: Kind, what: &str) -> Problem {
     Problem::new(ProblemKind::Internal)
 }
 
-fn address_text(text: &str) -> Option<String> {
+/// The canonical address (REQ-002-6) of the text of an `inet`.
+pub(crate) fn address_text(text: &str) -> Option<String> {
     // `inet` prints a host mask only when it is not that of a host.
     let bare = text.split_once('/').map_or(text, |(addr, _)| addr);
     Addr::parse_any(&ALL, bare).ok().map(|a| a.to_string())
+}
+
+/// The canonical CIDR (REQ-002-6) of the text of a `cidr`.
+pub(crate) fn prefix_text(text: &str) -> Option<String> {
+    Prefix::parse_any(&ALL, text).ok().map(|p| p.to_string())
+}
+
+/// The canonical bounds of the text of an `inetrange`, `[first,last]`.
+pub(crate) fn range_bounds(text: &str) -> Option<(String, String)> {
+    let (first, last) = text.strip_prefix('[')?.strip_suffix(']')?.split_once(',')?;
+    Some((address_text(first.trim())?, address_text(last.trim())?))
 }
 
 /// The id of the object `fields` links to.
@@ -739,9 +751,7 @@ fn represent(
                 .prefix
                 .as_deref()
                 .ok_or_else(|| malformed(kind, "prefix"))?;
-            let value = Prefix::parse_any(&ALL, text)
-                .map_err(|_| malformed(kind, "prefix"))?
-                .to_string();
+            let value = prefix_text(text).ok_or_else(|| malformed(kind, "prefix"))?;
             ObjectDto::Prefix(PrefixDto {
                 id: c.id,
                 domain: domain()?,
@@ -757,8 +767,7 @@ fn represent(
             let (first, last) = c
                 .range
                 .as_deref()
-                .and_then(|r| r.strip_prefix('[')?.strip_suffix(']')?.split_once(','))
-                .and_then(|(a, b)| Some((address_text(a.trim())?, address_text(b.trim())?)))
+                .and_then(range_bounds)
                 .ok_or_else(|| malformed(kind, "range"))?;
             ObjectDto::Range(RangeDto {
                 id: c.id,
