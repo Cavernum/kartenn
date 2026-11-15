@@ -330,6 +330,100 @@ async fn an_object_assigned_then_closed_is_undone(pool: PgPool) {
     assert_eq!(living, (1, 0));
 }
 
+/// An entity and a site closed with their assignments, the closure undone: both are given
+/// back with their assignment (task 003-21; 003/design, « Affectations »).
+#[kartenn_testing::pg_test]
+async fn an_entity_and_a_site_closed_with_their_assignments_are_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    f.applied(vec![
+        Operation::DeclareProperty {
+            local: Some(1),
+            declaration: DeclarationInput {
+                key: "custom.tier".into(),
+                value_type: TypeInput::ENUM,
+                cardinality: Cardinality::Single,
+                carriers: vec!["entity".into(), "site".into()],
+                inherit: None,
+                module: None,
+                obligations: Vec::new(),
+                expected: None,
+                labels: None,
+            },
+        },
+        Operation::AddEnumValue {
+            local: None,
+            property: Ref::Local(1),
+            key: "gold".into(),
+            labels: std::collections::BTreeMap::new(),
+        },
+        Operation::CreateEntity {
+            local: Some(2),
+            slug: "branch".into(),
+            parent: None,
+        },
+        Operation::CreateSite {
+            local: Some(3),
+            slug: "north".into(),
+            parent: None,
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(2),
+            kind: ObjectKind::Entity,
+            property: Ref::Local(1),
+            values: vec![RawInput::Text("gold".into())],
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(3),
+            kind: ObjectKind::Site,
+            property: Ref::Local(1),
+            values: vec![RawInput::Text("gold".into())],
+        },
+    ])
+    .await;
+    let entity = f.id("SELECT id FROM entity").await;
+    let site = f.id("SELECT id FROM site").await;
+    let living = || async {
+        let counts: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM entity WHERE id = $1 AND valid_period @> now())
+                  + (SELECT count(*) FROM site WHERE id = $2 AND valid_period @> now()),
+                    (SELECT count(*) FROM property_assignment
+                     WHERE object_id IN ($1, $2) AND valid_period @> now())",
+        )
+        .bind(entity)
+        .bind(site)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        counts
+    };
+    assert_eq!(living().await, (2, 2));
+    let closed = f
+        .applied(vec![
+            Operation::Close {
+                kind: ObjectKind::Entity,
+                id: Ref::Id(entity),
+                expected: None,
+                cascade: false,
+            },
+            Operation::Close {
+                kind: ObjectKind::Site,
+                id: Ref::Id(site),
+                expected: None,
+                cascade: false,
+            },
+        ])
+        .await;
+    // No assignment left in force without the object that carries it.
+    assert_eq!(living().await, (0, 0));
+    let undo = inverse(&f.store, closed, f.author).await.unwrap().unwrap();
+    assert!(undo.conflicts.is_empty(), "{:?}", undo.conflicts);
+    match f.run(&undo.request).await {
+        Outcome::Applied { .. } => {}
+        other => panic!("{:?}: {other:?}", undo.request.operations),
+    }
+    assert_eq!(living().await, (2, 2));
+}
+
 #[kartenn_testing::pg_test]
 async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     let f = Fixture::new(&pool).await;

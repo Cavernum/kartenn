@@ -213,7 +213,12 @@ flowchart TD
 - **Affectations** : opérations `assign_property`, `clear_property` (effacement
   explicite) et `unassign_property` sur la période du changeset ; la portion visée des
   affectations existantes est retirée (fonction `kartenn_unassign`, migration 0014).
-  Clore un objet clôt ses affectations (ce sont ses attributs).
+  Clore un objet clôt ses affectations (ce sont ses attributs), quel que soit son type :
+  objet d'adressage, VLAN ou groupe, objet de module, entité ou site (`pipeline::close`) ;
+  l'annulation de la clôture rend l'objet puis ses affectations (004-26). Une entité ou un
+  site n'est clos que si rien ne le cite, enfants compris (REQ-002-10, REQ-003-10) : aucun
+  objet n'hérite plus de lui le long de son arbre ni ne le nomme comme propriétaire, et
+  ses propres origines sont retirées par la règle 3 (tâche 21).
 - **Arbres `entity` et `site`** (P15, P16) : les candidats d'une entité ou d'un site
   sont lui-même puis ses parents successifs, chacun sur le temps où le lien tient
   (requête récursive sur `parent_id`, priorité décroissante avec la profondeur).

@@ -160,7 +160,7 @@ voir [`../README.md`](../README.md).
     pour ses cinq premières exécutions) ; les arbres d'ancrage (`segments_anchor!`, préparés)
     gardent leur CTE `w` : citée une fois, elle est fondue dans la requête, et leur plan
     générique ne connaît pas `$3` de toute façon.
-- [ ] 21. Affectations laissées en vigueur à la clôture d'une entité ou d'un site
+- [x] 21. Affectations laissées en vigueur à la clôture d'une entité ou d'un site
   (intégrité, antérieur, relevé par la 004-26 et sa revue) : `pipeline::close` retire les
   affectations des préfixes, plages, adresses, VLAN, groupes et objets de module qu'il
   clôt, pas celles d'une entité ni d'un site ; après la clôture, des affectations restent
@@ -178,3 +178,14 @@ voir [`../README.md`](../README.md).
     (`an_object_created_with_its_assignment_is_undone`, à imiter) ;
     `specs/003-proprietes/requirements.md`, `design.md`
   - dépend de : 004-26
+  - fait : la spec voulait déjà le second sens (design « Affectations » : clore un objet
+    clôt ses affectations ; arbres `entity` et `site` : le clore suit les règles de
+    l'adressage), écrit désormais en clair pour tous les types ; `pipeline::close` retire
+    aussi celles d'une entité et d'un site ; test
+    `undo::an_entity_and_a_site_closed_with_their_assignments_are_undone` (rouge avant :
+    deux affectations restaient en vigueur ; l'annulation rendait déjà l'objet et son
+    affectation). Héritage : une entité ou un site n'est clos que sans enfant ni objet qui
+    le cite (REQ-002-10, 003-10), la résolution le traitait déjà par la règle 3 ; aucune
+    valeur résolue ne reste sur un héritier.
+  - choix : pas de test d'héritage dédié (aucun héritier possible à la clôture, refus
+    couverts par `anchors.rs`).
