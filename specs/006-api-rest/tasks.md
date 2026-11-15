@@ -1035,12 +1035,35 @@ routeur complet, sauf mention « vrai TCP ».
   encore une référence brute : 33f ; `kartenn-store-pg/src/keys.rs` `natural_keys`
   redit l'union de `property_read::kind_names` (même remarque que la revue de la
   017-26), non factorisée.
-- [ ] 33c. VLAN : ancre et groupe d'un VLAN et d'un groupe — verify :
+- [x] 33c. VLAN : ancre et groupe d'un VLAN et d'un groupe — verify :
   `k-check -p kartenn-rest vlan`
   - où : `crates/kartenn-rest/src/vlan.rs` (`IdRef`, `Anchor`) ; `summary.rs`
     (`Summary::of` pour un groupe, à slug ; `Summary::labelled` pour une ancre de genre
     variable, ou `Summaries::read`), `label` d'un VLAN `<vid> · <nom>`
   - dépend de : 33a, 33b (forme de la clé)
+  fait : `vlan.rs` (`AnchorSummary`, schéma `VlanGroupAnchorSummary` : l'ancre d'un groupe
+  lu, résumé de son entité, site ou domaine ; `group` d'un VLAN, d'une occupation et d'un
+  prochain VID libre en `Summary` ; `group_dto`, `vlan_dto` prennent les `Summaries` de la
+  page, lues par `Summaries::read` en un lot pour la page ou l'objet ; `itself`, le
+  groupe que sert sa propre route) ; contrat et `schema.d.ts` des deux SDK régénérés.
+  Test : `rest/tests/it/vlan/rest.rs`
+  `the_anchor_and_the_group_leave_alike_the_unreadable_and_the_unknown` (lecture unitaire
+  et liste des groupes et des VLAN, deux appelants, l'un sans `core.domain.read` ou sans
+  `core.vlan_group.read` : même corps au résumé près ; domaine puis groupe supprimés :
+  statut, en-têtes hors `request-id` et octets identiques ; occupation et prochain VID
+  libre résumant leur groupe).
+  choix : les corps d'écriture gardent `VlanObjectRef` et `VlanGroupAnchor` (`{id}`), une
+  référence qu'un client donne et non qu'il lit ; l'ancre lue prend un schéma à part,
+  `VlanGroupAnchorSummary` ; les clés par `Summaries::read` (une lecture des clés et une
+  autorisation par genre visé) plutôt qu'une jointure par genre d'ancre dans la requête
+  de la page ; le groupe d'une occupation ou d'un prochain VID libre est résumé sans
+  autorisation de plus (la route l'a déjà ouvert, `dated_read`, et lu aux dates,
+  `group_at`) ; aucune référence à un VLAN dans `vlan.rs` (son `label` `<vid> · <nom>`
+  vient de la 33b, `key_of`).
+  reste : l'historique d'un groupe et d'un VLAN (`modules.rs`, `ModuleObjectDto`, commun
+  à tous les types de module) rend `parent` et `domain` en identifiants nus, ni résumés
+  ni masqués selon la lisibilité du lié : hors du recensement 33b–33f, à rattacher à la
+  33f (garde du contrat) ou à une tâche à part.
 - [ ] 33d. Machines : références des grappes, machines, interfaces, rattachements et
   fiche — verify : `k-check -p kartenn-machines`
   - où : `crates/kartenn-machines/src/rest.rs` (`IdRef`, `HostRef`) ; implémenter

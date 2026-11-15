@@ -13598,8 +13598,8 @@
         "description": "A VLAN (REQ-008-14).",
         "properties": {
           "group": {
-            "$ref": "#/components/schemas/VlanObjectRef",
-            "description": "Its group."
+            "$ref": "#/components/schemas/Summary",
+            "description": "Its group, `{id}` alone if the caller may not read it or if it was absent at the\ndates of the read (REQ-006-42)."
           },
           "href": {
             "description": "Its URL.",
@@ -13765,7 +13765,7 @@
         "description": "A group of VLANs (REQ-008-12).",
         "properties": {
           "anchor": {
-            "$ref": "#/components/schemas/VlanGroupAnchor",
+            "$ref": "#/components/schemas/VlanGroupAnchorSummary",
             "description": "Anchor."
           },
           "href": {
@@ -13809,7 +13809,7 @@
         "type": "object"
       },
       "VlanGroupAnchor": {
-        "description": "The anchor of a group (V3): an entity, a site or an addressing domain.",
+        "description": "The anchor of a group (V3), as a write names it: an entity, a site or an addressing\ndomain.",
         "oneOf": [
           {
             "description": "An entity.",
@@ -13842,6 +13842,50 @@
             "properties": {
               "domain": {
                 "$ref": "#/components/schemas/VlanObjectRef",
+                "description": "An addressing domain."
+              }
+            },
+            "required": [
+              "domain"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VlanGroupAnchorSummary": {
+        "description": "The anchor of a group (V3) as a read serves it: the summary of its entity, site or\naddressing domain (REQ-006-42), `{id}` alone if the caller may not read it or if it\nwas absent at the dates of the read.",
+        "oneOf": [
+          {
+            "description": "An entity.",
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/Summary",
+                "description": "An entity."
+              }
+            },
+            "required": [
+              "entity"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A site.",
+            "properties": {
+              "site": {
+                "$ref": "#/components/schemas/Summary",
+                "description": "A site."
+              }
+            },
+            "required": [
+              "site"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An addressing domain.",
+            "properties": {
+              "domain": {
+                "$ref": "#/components/schemas/Summary",
                 "description": "An addressing domain."
               }
             },
@@ -14016,7 +14060,7 @@
         "description": "The next free VID of a group (REQ-008-20).",
         "properties": {
           "group": {
-            "$ref": "#/components/schemas/VlanObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The group."
           },
           "vid": {
@@ -14033,7 +14077,7 @@
         "type": "object"
       },
       "VlanObjectRef": {
-        "description": "The identifier of an object, as the operations name it.",
+        "description": "The identifier of an object, as the operations name it (in the body of a write).",
         "properties": {
           "id": {
             "description": "Identifier.",
@@ -14056,7 +14100,7 @@
             "type": "integer"
           },
           "group": {
-            "$ref": "#/components/schemas/VlanObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The group."
           },
           "reserved": {

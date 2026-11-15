@@ -35,6 +35,7 @@ use crate::kit::{
     ProblemKind, documented, listing_of, next_href, op, queryable, respond, respond_page,
     schemas_of,
 };
+use crate::summary::{Readable, Summaries, Summary};
 
 /// The tag of the routes in the contract: those of the core.
 const TAG: &str = "core";
@@ -45,7 +46,7 @@ const VLAN_MEMBERS: &[&str] = &["group", "vid", "name", "status"];
 
 // ---------------------------------------------------------------- representations
 
-/// The identifier of an object, as the operations name it.
+/// The identifier of an object, as the operations name it (in the body of a write).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
 #[schema(as = VlanObjectRef)]
 pub struct IdRef {
@@ -53,7 +54,8 @@ pub struct IdRef {
     pub id: Uuid,
 }
 
-/// The anchor of a group (V3): an entity, a site or an addressing domain.
+/// The anchor of a group (V3), as a write names it: an entity, a site or an addressing
+/// domain.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schema(as = VlanGroupAnchor)]
@@ -66,12 +68,28 @@ pub enum Anchor {
     Domain(IdRef),
 }
 
-impl Anchor {
-    fn of(kind: &str, id: Uuid) -> Self {
+/// The anchor of a group (V3) as a read serves it: the summary of its entity, site or
+/// addressing domain (REQ-006-42), `{id}` alone if the caller may not read it or if it
+/// was absent at the dates of the read.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = VlanGroupAnchorSummary)]
+pub enum AnchorSummary {
+    /// An entity.
+    Entity(Summary),
+    /// A site.
+    Site(Summary),
+    /// An addressing domain.
+    Domain(Summary),
+}
+
+impl AnchorSummary {
+    /// The anchor of kind `kind`, its summary `summary`.
+    fn of(kind: &str, summary: Summary) -> Self {
         match kind {
-            "entity" => Self::Entity(IdRef { id }),
-            "site" => Self::Site(IdRef { id }),
-            _ => Self::Domain(IdRef { id }),
+            "entity" => Self::Entity(summary),
+            "site" => Self::Site(summary),
+            _ => Self::Domain(summary),
         }
     }
 }
@@ -85,7 +103,7 @@ pub struct GroupDto {
     /// Slug, unique among the living groups.
     pub slug: String,
     /// Anchor.
-    pub anchor: Anchor,
+    pub anchor: AnchorSummary,
     /// First VID of its range.
     pub vid_min: i16,
     /// Last VID of its range.
@@ -100,8 +118,9 @@ pub struct GroupDto {
 pub struct VlanDto {
     /// Identifier.
     pub id: Uuid,
-    /// Its group.
-    pub group: IdRef,
+    /// Its group, `{id}` alone if the caller may not read it or if it was absent at the
+    /// dates of the read (REQ-006-42).
+    pub group: Summary,
     /// VID, 1 to 4094, unique in the group.
     pub vid: i16,
     /// Name, unique in the group.
@@ -129,7 +148,7 @@ pub struct SliceDto {
 #[schema(as = VlanOccupancy)]
 pub struct OccupancyDto {
     /// The group.
-    pub group: IdRef,
+    pub group: Summary,
     /// Its range, from `vid_min` to `vid_max`, in runs.
     pub slices: Vec<SliceDto>,
     /// VIDs of active or deprecated VLANs.
@@ -145,7 +164,7 @@ pub struct OccupancyDto {
 #[schema(as = VlanNextFree)]
 pub struct NextFreeDto {
     /// The group.
-    pub group: IdRef,
+    pub group: Summary,
     /// The smallest free VID, at or after `from`.
     pub vid: u16,
 }
@@ -310,21 +329,23 @@ fn visible(kind: &str) -> String {
 type GroupRow = (Uuid, String, String, Uuid, i16, i16);
 type VlanRow = (Uuid, Uuid, i16, String, String);
 
-fn group_dto((id, slug, kind, anchor, vid_min, vid_max): GroupRow) -> GroupDto {
+/// The group of `row`, its anchor summarised among `linked`.
+fn group_dto((id, slug, kind, anchor, vid_min, vid_max): GroupRow, linked: &Summaries) -> GroupDto {
     GroupDto {
         id,
         slug,
-        anchor: Anchor::of(&kind, anchor),
+        anchor: AnchorSummary::of(&kind, linked.of(anchor)),
         vid_min,
         vid_max,
         href: format!("/v1/vlan-groups/{id}"),
     }
 }
 
-fn vlan_dto((id, group, vid, name, status): VlanRow) -> VlanDto {
+/// The VLAN of `row`, its group summarised among `linked`.
+fn vlan_dto((id, group, vid, name, status): VlanRow, linked: &Summaries) -> VlanDto {
     VlanDto {
         id,
-        group: IdRef { id: group },
+        group: linked.of(group),
         vid,
         name,
         status,
@@ -475,7 +496,9 @@ async fn list_groups(
     let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
     kit::release(snapshot);
     kit::record_read(&api, &context, GROUP, &ids, criteria(NAME, &page, &moment)).await?;
-    let items: Vec<GroupDto> = rows.into_iter().map(group_dto).collect();
+    let anchors = rows.iter().map(|r| r.3);
+    let linked = Summaries::read(&api, &context, anchors, moment.valid_at, moment.as_of).await?;
+    let items: Vec<GroupDto> = rows.into_iter().map(|r| group_dto(r, &linked)).collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -568,7 +591,9 @@ async fn list_vlans(
     let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
     kit::release(snapshot);
     kit::record_read(&api, &context, VLAN, &ids, criteria(NAME, &page, &moment)).await?;
-    let items: Vec<VlanDto> = rows.into_iter().map(vlan_dto).collect();
+    let groups = rows.iter().map(|r| r.1);
+    let linked = Summaries::read(&api, &context, groups, moment.valid_at, moment.as_of).await?;
+    let items: Vec<VlanDto> = rows.into_iter().map(|r| vlan_dto(r, &linked)).collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -632,7 +657,8 @@ async fn show_group(
 ) -> Result<Response, Problem> {
     let moment = dated_read(&api, &context, group_type(), id, dates).await?;
     let (row, version): (GroupRow, _) = kit::read_one(&api, group_sql(), id, &moment).await?;
-    let body = group_dto(row);
+    let linked = Summaries::read(&api, &context, [row.3], moment.valid_at, moment.as_of).await?;
+    let body = group_dto(row, &linked);
     answer(&api, &context, &headers, GROUP, id, &moment, version, body).await
 }
 
@@ -650,8 +676,20 @@ async fn show_vlan(
         dated("vlan", VLAN_COLUMNS)
     );
     let (row, version): (VlanRow, _) = kit::read_one(&api, sql, id, &moment).await?;
-    let body = vlan_dto(row);
+    let linked = Summaries::read(&api, &context, [row.1], moment.valid_at, moment.as_of).await?;
+    let body = vlan_dto(row, &linked);
     answer(&api, &context, &headers, VLAN, id, &moment, version, body).await
+}
+
+/// The summary of the group `row` that a route serves, once the caller may read it and it
+/// exists at the dates ([`dated_read`], [`group_at`]): its slug, which is its label.
+fn itself(row: GroupRow) -> Summary {
+    Summary::of(
+        kit::Target::Module(group_type()),
+        row.0,
+        Some(row.1),
+        &Readable::all(),
+    )
 }
 
 /// The range of the group `row` and its VLANs at `moment`, `(vid, status)`.
@@ -695,7 +733,7 @@ async fn group_occupancy(
     let (range, live) = living(&api, &row, &moment).await?;
     let found = occupancy(range, &live);
     let body = OccupancyDto {
-        group: IdRef { id },
+        group: itself(row),
         slices: found
             .slices
             .iter()
@@ -754,7 +792,7 @@ async fn group_next_free(
         Problem::new(ProblemKind::Exhausted).detail("no VID is free in the group from there")
     })?;
     let body = NextFreeDto {
-        group: IdRef { id },
+        group: itself(row),
         vid: vid.get(),
     };
     Ok(respond(
