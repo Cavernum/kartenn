@@ -52,7 +52,7 @@ const countText = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <ViewPanel :title="title" :detail="total" main flush list>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <NextPageAlert
       v-else-if="refreshFailed"

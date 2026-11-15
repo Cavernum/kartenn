@@ -89,7 +89,7 @@ const gaps = (key: string) =>
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.properties") }}</h1>
-  <ViewPanel :title="t('nav.properties')" :detail="count" main flush>
+  <ViewPanel :title="t('nav.properties')" :detail="count" main flush list>
     <!-- A next page refused: the rows read stay shown, that page retried alone. -->
     <NextPageAlert
       v-if="list.isFetchNextPageError.value"

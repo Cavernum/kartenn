@@ -135,6 +135,76 @@ test("a long list keeps a few dozen rows, reads ahead, and opens a row by keyboa
   ).toBeVisible();
 });
 
+test("a list of more than one page takes the rest of the window: its grid the one scroller", async ({
+  page,
+  login,
+}) => {
+  /** The heights of the window, the surface, the main panel and the grid. */
+  const heights = () =>
+    page.evaluate(() => {
+      const surface = document.getElementById("k-surface")!;
+      const panel = surface.querySelector<HTMLElement>(".k-view-panel[data-main]")!;
+      const grid = panel.querySelector<HTMLElement>("[role='grid']")!;
+      const style = getComputedStyle(grid);
+      return {
+        window: {
+          scroll: document.documentElement.scrollHeight,
+          client: document.documentElement.clientHeight,
+        },
+        surface: { scroll: surface.scrollHeight, client: surface.clientHeight },
+        // The room of the surface (its content box) and the panel's outer height.
+        room: surface.clientHeight - parseFloat(getComputedStyle(surface).paddingBlockStart) * 2,
+        panel: panel.getBoundingClientRect().height,
+        grid: { scroll: grid.scrollHeight, client: grid.clientHeight },
+        // The grid's root: its column chooser (when shown), then the grid.
+        root: grid.closest(".k-data-grid-frame")!.getBoundingClientRect().height,
+        // The room of the panel's body under the grid's root: none unless stretched.
+        slack:
+          panel.querySelector(".k-view-panel__body")!.getBoundingClientRect().bottom -
+          grid.closest(".k-data-grid-frame")!.getBoundingClientRect().bottom,
+        virtual: grid.hasAttribute("data-virtual"),
+        least:
+          parseFloat(style.getPropertyValue("--k-header-height")) +
+          6 * parseFloat(style.getPropertyValue("--k-row-height")),
+      };
+    });
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  await login("alice");
+  await page.goto(`/addresses?within=${encodeURIComponent(DATA.bulk.prefix)}`);
+  const grid = page.getByRole("grid", { name: "Adresses" });
+  await expect(grid.getByRole("link", { name: "2001:db8:2::1", exact: true })).toBeVisible();
+  await expect(grid).toHaveAttribute("data-virtual", "true");
+
+  // Neither the window nor the surface scrolls; the panel fills the surface and the grid,
+  // past a list's height (`--k-size-list-max`, 480 px), scrolls in itself (021-22f-h).
+  let seen = await heights();
+  expect(seen.window.scroll).toBe(seen.window.client);
+  expect(seen.surface.scroll).toBeLessThanOrEqual(seen.surface.client);
+  expect(Math.abs(seen.panel - seen.room)).toBeLessThanOrEqual(1);
+  expect(seen.grid.client).toBeGreaterThan(800);
+  expect(seen.grid.scroll).toBeGreaterThan(seen.grid.client);
+
+  // A short window (or zoomed, WCAG 1.4.10): the grid's root keeps the height of a header
+  // and six rows, the surface scrolls to reach the rest.
+  await page.setViewportSize({ width: 1440, height: 320 });
+  await expect(async () => {
+    seen = await heights();
+    expect(seen.root).toBeGreaterThanOrEqual(seen.least - 1);
+    expect(seen.surface.scroll).toBeGreaterThan(seen.surface.client);
+  }).toPass({ timeout: 5_000 });
+
+  // A short list read whole is not virtualised: it keeps its own height (no scroll of its
+  // own, nothing stretched under it).
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  await navigation(page).getByRole("link", { name: "Domaines" }).click();
+  const domains = page.getByRole("grid", { name: "Domaines" });
+  await expect(domains.getByRole("link", { name: DATA.domain, exact: true })).toBeVisible();
+  seen = await heights();
+  expect(seen.virtual).toBe(false);
+  expect(seen.grid.scroll).toBe(seen.grid.client);
+  expect(seen.slack).toBeLessThanOrEqual(1);
+});
+
 test("past ten pages: each page read is shown, none read ahead of the view, the end reached", async ({
   page,
   login,
