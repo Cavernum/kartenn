@@ -1152,14 +1152,34 @@ routeur complet, sauf mention « vrai TCP ».
   sous un schéma distinct, `RightsGroupRef` (décision provisoire, voir 33f).
   reste : les machines d'un nœud et de la chaîne restent `{id}` jusqu'à la fusion de la
   33d (`keys` de `machines`).
-- [ ] 33f. Flux et politique, et garde du contrat (aucun schéma de réponse ne porte une
-  référence `{id}` seule hors résumé) — verify : `k-check -p kartenn-flow`,
-  `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`
-  - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`),
-    `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
-    `PolicyAxisResolution`, `PolicyReportItem`) ; et l'explication d'une valeur
-    (`crates/kartenn-rest/src/properties.rs`, `explanation`, `raw_value`) dont une
-    référence est encore brute (reste de la 33b) : `Summaries::read`
+- [ ] 33f. Flux et politique (découpée le 2026-11-15 : 33f1, 33f2, 33f3, chacune dans un
+  contexte d'agent) :
+  - [ ] 33f1. Flux : les extrémités d'un flux, d'une demande et d'une non-conformité en
+    résumés ; `ModuleHandler::keys` pour `kartenn-flow` — verify : `k-check -p kartenn-flow`
+    (illisible et absent laissent les mêmes octets)
+    - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`), `handler.rs` (`keys`, à
+      imiter : `crates/kartenn-kube/src/keys.rs`, 33e) ; `summary.rs` (`Summaries::read`)
+    - dépend de : 33a–33e
+  - [ ] 33f2. Politique : extrémités, points, résolutions d'axe et lignes de rapport en
+    résumés ; `ModuleHandler::keys` pour `kartenn-policy` — verify :
+    `k-check -p kartenn-policy` (illisible et absent laissent les mêmes octets)
+    - où : `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
+      `PolicyAxisResolution`, `PolicyReportItem`), `handler.rs` (`keys`)
+    - dépend de : 33a–33e
+  - [ ] 33f3. Restes communs et garde du contrat : l'explication d'une valeur
+    (`explanation`, `raw_value`) dont une référence est encore brute (reste de la 33b) ;
+    l'historique d'un objet de module (`ModuleObjectDto`, commun à tous les types : `parent`
+    et `domain` en identifiants nus, ni résumés ni masqués selon la lisibilité du lié,
+    reste de la 33c, que la garde ne verrait pas puisque ce sont des chaînes) ; le refus
+    d'un `host` renvoyé tel que lu, qui montre le texte de la désérialisation sans
+    pointeur `/host` (reste de la 33d) ; puis la garde : aucun schéma de réponse ne porte
+    une référence `{id}` seule, ni un identifiant d'objet nu, hors résumé — verify :
+    `k-check -p kartenn-rest contract`, `k-check -p kartenn-rest`
+    - où : `crates/kartenn-rest/src/properties.rs` (`explanation`, `raw_value`),
+      `crates/kartenn-rest/src/modules.rs` (`ModuleObjectDto`),
+      `crates/kartenn-machines/src/handler.rs` (désérialisation de `host`),
+      `crates/kartenn-rest/tests/it/contract.rs` (garde, à côté de celle des filtres `id`)
+    - dépend de : 33f1, 33f2
   - exemption de la garde : `RightsGroupRef` (le groupe de connecteur d'une grappe kube,
     33e), un groupe des droits qui n'est pas un objet du référentiel et n'a pas de
     résumé ; la garde l'exempte avec cette raison. Question laissée ouverte (antérieure
