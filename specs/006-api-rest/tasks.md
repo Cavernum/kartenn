@@ -754,10 +754,10 @@ routeur complet, sauf mention « vrai TCP ».
     `uuid[]`)
   - dépend de : 32a
   fait : `crates/kartenn-machines/src/rest.rs` (`filters` lit `id` par
-  `filter::push_id` et `address` répété dans le même parcours, chacun dédoublonné, 1000
-  au plus ; `window` : celle de `filter::window` pour `id`, et pour `address` seul une
-  page sans suite qui lit la plus grande page et une ligne de plus ; `one_page` refuse
-  au-delà ; `cardinality($n::uuid[]) = 0 OR x.id = ANY($n)` sous le prédicat de lecture
+  `filter::push_id` (1000 au plus) et `address` répété (`MAX_ADDRESSES`, 64 au plus)
+  dans le même parcours, chacun dédoublonné, rendus dans une struct `Wanted` ;
+  `filter::window` pour `id`, `address` paginé comme tout filtre, son curseur portant les
+  adresses ; `cardinality($n::uuid[]) = 0 OR x.id = ANY($n)` sous le prédicat de lecture
   dans les trois listes, `a.address_id = ANY($7)` dans la jointure des rattachements ;
   `MachineFilter.ids`, vide pour les machines hébergées et celles d'une grappe ; contrat :
   `Op::ids` en tête de chaque liste, `address` par `Op::repeated`, tableau d'UUID) ;
@@ -768,22 +768,27 @@ routeur complet, sauf mention « vrai TCP ».
   une page sans suite ; `page_size` ou curseur avec `id` → 400 qui le nomme ; UUID mal
   formé → 400), `interfaces_filtered_by_several_addresses` (deux adresses : leurs deux
   interfaces ; une adresse partagée `vip` : ses deux interfaces ; conjonction avec
-  `machine` et `id` ; une page sans suite ; 1000 adresses → 200, 1001 → 400 ;
-  `page_size` ou curseur → 400 qui le nomme) ; test unitaire de `one_page`.
+  `machine` et `id` ; l'adresse partagée portée par plus d'interfaces qu'une page, lue
+  en entier page après page ; 64 adresses sur deux pages suivies jusqu'au bout, le `Link`
+  de suite sous 6 Ko ; 65 → 400 qui nomme `address` ; valeur qui n'est pas un UUID → 400).
   Côté web : `address` passe de `string` à `array` dans `FILTERS`, et reste dans la barre
   du shell (le type `array` y tombe sur le texte, comme avant) ; le greffon machines de
   `web/v2` l'envoie en tableau d'un élément (`MachineColumn.vue`, `InterfacesTab.vue`,
   `InterfaceSearch.vue`, clé attendue de `test/machines.test.ts`), sans `page_size`.
-  choix : `address`, donné une fois ou plus, suit la règle d'`id` (une page sans suite,
-  `page_size` ou curseur → 400, 1000 valeurs au plus) : un curseur ne porte pas mille
-  adresses ; une adresse partagée (`vip`, `anycast`) tenant plusieurs interfaces, la page
-  lit la plus grande page (1000) et refuse par un 400 qui nomme `address` au-delà, plutôt
-  que de tronquer ; avec `id`, la borne est celle d'`id` ; doublons lus une fois.
-  reste : `address=<uuid>` répond sur une adresse que l'appelant ne lit pas (l'interface
-  lisible qui la tient est rendue) : oracle d'existence et de rattachement, antérieur,
-  voisin de la 35 ; une adresse partagée par plus de 1000 interfaces ne se liste plus par
-  `address` (400) ; le refus au-delà de 1000 interfaces n'est couvert que par le test
-  unitaire de `one_page`.
+  choix (après revue) : `address` ne suit pas la règle « une page » d'`id` : le nombre
+  d'adresses ne borne pas les lignes (une adresse partagée, `vip` ou `anycast`, tient
+  plusieurs interfaces, au-delà d'une page). Il reste un filtre paginé ordinaire, curseur
+  et `page_size` admis ; répété 64 fois au plus, 400 qui nomme `address` au-delà. La
+  borne est basse à dessein : le curseur recopie les filtres en clair (`cursor.rs`,
+  `Content.filters`) et repart dans `Link` puis dans l'URL de la page suivante ;
+  100 adresses donnaient environ 7 Ko, au ras des 8 Kio d'une ligne de requête. Doublons
+  lus une fois, comptés dans la borne.
+  reste : `address=<uuid>` répond sur une adresse que l'appelant ne lit pas (oracle,
+  reporté à la 35) ; le filtre sélectif (`address` ou `id` de quelques valeurs) garde le
+  plan de la liste : les interfaces parcourues dans l'ordre de la page, le rattachement
+  ou l'identifiant sondé à chaque ligne, sans partir de `attachment_by_address` ni de la
+  clé primaire — un parcours complet des interfaces quand peu d'entre elles répondent, à
+  mesurer au banc HTTP avant d'écrire une branche propre au filtre sélectif.
 - [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
   `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
   conjonction ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400, par
@@ -921,8 +926,16 @@ routeur complet, sauf mention « vrai TCP ».
     (décision de cache, ligne ≈ 442), `web/v2/sdk/src/data/cache.ts` (déconnexion)
 - [ ] 35. Oracle des filtres par clé d'un objet lié (antérieur, relevé par la 33a) :
   `domain=<slug>` et `parent=<slug>` répondent sur la clé d'un lié que l'appelant ne peut
-  pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu —
-  verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée par la clé d'un
-  domaine illisible et par une clé inconnue : mêmes octets)
+  pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu. De
+  même `GET /v1/interfaces?address=<uuid>` (relevé par la 32b) : sur une adresse que
+  l'appelant ne lit pas, l'interface lisible qui la tient est rendue, ce qui révèle que
+  l'adresse existe et à quelle interface elle est rattachée ; la répétition d'`address`
+  permet d'en sonder 64 par requête, et une dichotomie sur les réponses non vides
+  retrouve laquelle — verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée
+  par la clé d'un domaine illisible et par une clé inconnue : mêmes octets),
+  `k-check -p kartenn-machines` (interfaces filtrées par une adresse illisible et par une
+  adresse inconnue : mêmes octets)
   - où : `crates/kartenn-rest/src/objects.rs` (`declare_filters`, résolution de `domain`
-    et `parent`), `crates/kartenn-rest/src/filter.rs`
+    et `parent`), `crates/kartenn-rest/src/filter.rs`,
+    `crates/kartenn-machines/src/rest.rs` (`list_interfaces`, condition sur `$7` ;
+    `address_visible`, à imiter)

@@ -18176,7 +18176,7 @@ export interface operations {
         name?: string;
         /** @description This EUI-48, any usual notation. */
         mac?: string;
-        /** @description Holding this address at the date (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; more than 1000 interfaces holding them (shared addresses) is refused. */
+        /** @description Holding this address at the date (repeated: one of), 64 times at most: the cursor of the next page carries them. */
         address?: string[];
         /** @description Carrying this VLAN, access, native or tagged. */
         vlan?: string;

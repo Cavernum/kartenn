@@ -1706,8 +1706,8 @@ async fn clusters_machines_and_interfaces_filtered_by_identifier(pool: PgPool) {
 
 /// The filter `address`, repeated, of the interfaces (REQ-006-41, task 006-32b): the
 /// interfaces that hold one of the addresses, a shared one on each of its interfaces, in
-/// conjunction with the other filters, in one page without a next one; a thousand
-/// addresses at most.
+/// conjunction with the other filters, paged as any list, its cursor carrying the
+/// addresses; 64 addresses at most, so that the link to the next page stays short.
 #[kartenn_testing::pg_test]
 async fn interfaces_filtered_by_several_addresses(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -1765,41 +1765,54 @@ async fn interfaces_filtered_by_several_addresses(pool: PgPool) {
         ),
     ] {
         let uri = format!("/v1/interfaces?{uri}");
-        let (status, headers, body) = call(&app, "GET", &uri, None, &[]).await;
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
         assert_eq!(status, StatusCode::OK, "{uri}: {body}");
         assert_eq!(sorted(ids(&body, "id")), expected, "{uri}");
-        assert!(headers.get("link").is_none(), "{uri}");
-        assert!(body["links"]["next"].is_null(), "{uri}");
     }
-    // A thousand addresses at most, read through a `QUERY`.
-    let mut wanted: Vec<Uuid> = (0..999).map(|_| Uuid::now_v7()).collect();
-    wanted.push(second);
-    let (status, body) = query_values(&app, "interfaces", "address", &wanted).await;
+    // A shared address held by more interfaces than a page is read whole, page after page.
+    let items = every_page(
+        &app,
+        &format!("/v1/interfaces?address={shared}&page_size=1"),
+    )
+    .await;
+    let found = items.iter().map(|i| i["id"].as_str().unwrap().to_owned());
+    assert_eq!(sorted(found.collect()), set(&[eth1, eth3]));
+    // 64 addresses, two of them held, on two pages followed to the end: the cursor carries
+    // the addresses, its link to the next page under 6 KB.
+    let mut wanted: Vec<Uuid> = (0..62).map(|_| Uuid::now_v7()).collect();
+    wanted.extend([first, second]);
+    let repeated = |values: &[Uuid]| -> String {
+        values
+            .iter()
+            .map(|a| format!("&address={a}"))
+            .collect::<Vec<_>>()
+            .concat()
+    };
+    let query = repeated(&wanted);
+    let uri = format!("/v1/interfaces?page_size=1{query}");
+    let (status, headers, body) = call(&app, "GET", &uri, None, &[]).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(ids(&body, "id"), [eth2.to_string()]);
+    assert_eq!(ids(&body, "id").len(), 1);
+    let link = headers.get("link").expect("a link to the next page");
+    assert!(link.len() < 6 * 1024, "{} bytes", link.len());
+    let items = every_page(&app, &uri).await;
+    let found = items.iter().map(|i| i["id"].as_str().unwrap().to_owned());
+    assert_eq!(sorted(found.collect()), set(&[eth1, eth2]));
+    // A 65th address, or a value that is not an identifier → 400 naming `address`.
     wanted.push(Uuid::now_v7());
-    let (status, body) = query_values(&app, "interfaces", "address", &wanted).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(
-        body["detail"]
-            .to_string()
-            .contains("address is given more than 1000 times"),
-        "{body}"
-    );
-    // `page_size` or a cursor beside `address`, or a value that is not an identifier → 400
-    // naming it.
-    let (_, _, page) = call(&app, "GET", "/v1/interfaces?page_size=1", None, &[]).await;
-    let next = page["links"]["next"].as_str().unwrap().to_owned();
-    for (uri, named) in [
+    let query = repeated(&wanted);
+    for (uri, detail) in [
         (
-            format!("/v1/interfaces?address={first}&page_size=5"),
-            "page_size",
+            format!("/v1/interfaces?page_size=1{query}"),
+            "address is given more than 64 times",
         ),
-        (format!("{next}&address={first}"), "address"),
-        ("/v1/interfaces?address=10.0.0.10".to_owned(), "address"),
+        (
+            "/v1/interfaces?address=10.0.0.10".to_owned(),
+            "address is not an identifier",
+        ),
     ] {
         let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
-        assert!(body["detail"].to_string().contains(named), "{uri}: {body}");
+        assert!(body["detail"].to_string().contains(detail), "{uri}: {body}");
     }
 }

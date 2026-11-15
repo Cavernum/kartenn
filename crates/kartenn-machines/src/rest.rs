@@ -17,7 +17,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::routing::{delete, get, post};
 use kartenn_rest::ModuleRouter;
-use kartenn_rest::cursor::MAX_SIZE;
+use kartenn_rest::filter::window;
 use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
     ProblemKind, documented, listing_of, next_href, op, queryable, respond_page, schemas_of,
@@ -578,19 +578,28 @@ fn interface_dto(row: InterfaceRow) -> InterfaceDto {
     }
 }
 
-/// The filters of a list by name, the identifiers of its filter `id`, and the addresses of
-/// its filter `address` when it is one of its names.
-type Filters<'a> = (
-    std::collections::BTreeMap<&'a str, &'a str>,
-    Vec<Uuid>,
-    Vec<Uuid>,
-);
+/// The values of the repeated filter `address` of the interfaces, at most. A list filtered
+/// by `address` is paged as any list, and its cursor copies its filters in clear, back in
+/// `Link` then in the URL of the next page: 64 addresses keep that URL under 6 KB, well
+/// within the 8 KiB of a request line (task 006-32b).
+const MAX_ADDRESSES: usize = 64;
 
-/// The filters of a list, each given once, among `names`; `id` (H23, REQ-006-41) and
-/// `address` (of the interfaces) given once per value, each value read once, [`MAX_SIZE`]
-/// values at most (see [`kartenn_rest::filter::ids`]).
-fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
-    let mut found = std::collections::BTreeMap::new();
+/// The filters of a list read by [`filters`].
+struct Wanted<'a> {
+    /// The filters given once, by name.
+    by_name: std::collections::BTreeMap<&'a str, &'a str>,
+    /// The identifiers of the filter `id`, each once.
+    ids: Vec<Uuid>,
+    /// The addresses of the filter `address`, when it is one of the names of the list.
+    addresses: Vec<Uuid>,
+}
+
+/// The filters of a list, each given once, among `names`; `id` (H23, REQ-006-41) given
+/// once per value, the largest page at most (see [`kartenn_rest::filter::ids`]), and
+/// `address` (of the interfaces) given once per value, [`MAX_ADDRESSES`] at most; each
+/// value read once.
+fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Wanted<'a>, Problem> {
+    let mut by_name = std::collections::BTreeMap::new();
     let (mut ids, mut addresses) = (Vec::new(), Vec::new());
     for (name, value) in &page.filters {
         if name == "id" {
@@ -601,15 +610,15 @@ fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
             return Err(kit::bad(format!("unknown parameter {name}")));
         }
         if name == "address" {
-            if addresses.len() == usize::from(MAX_SIZE) {
+            if addresses.len() == MAX_ADDRESSES {
                 return Err(kit::bad(format!(
-                    "address is given more than {MAX_SIZE} times"
+                    "address is given more than {MAX_ADDRESSES} times"
                 )));
             }
             addresses.push(uuid(name, value)?);
             continue;
         }
-        if found.insert(name.as_str(), value.as_str()).is_some() {
+        if by_name.insert(name.as_str(), value.as_str()).is_some() {
             return Err(kit::bad(format!("{name} is given more than once")));
         }
     }
@@ -617,51 +626,11 @@ fn filters<'a>(page: &'a Page, names: &[&str]) -> Result<Filters<'a>, Problem> {
         values.sort_unstable();
         values.dedup();
     }
-    Ok((found, ids, addresses))
-}
-
-/// The rows a list filtered by the identifiers `ids` and the addresses `addresses` reads,
-/// and the size past which it offers a next page: those of
-/// [`kartenn_rest::filter::window`] for `id`. Filtered by `address` (task 006-32b), a list
-/// is one page as well, without a next one, so that no cursor carries the addresses: a
-/// shared address (`vip`, `anycast`) being held by several interfaces, it reads the largest
-/// page and one more row, the one [`one_page`] refuses.
-///
-/// # Errors
-///
-/// 400 `bad-request` naming `page_size` or `cursor` beside `id` or `address`.
-fn window(page: &Page, ids: &[Uuid], addresses: &[Uuid]) -> Result<(i64, usize), Problem> {
-    let window = kartenn_rest::filter::window(page, ids)?;
-    if addresses.is_empty() || !ids.is_empty() {
-        return Ok(window);
-    }
-    if page.after().is_some() {
-        return Err(kit::bad(
-            "cursor does not go with address: a list filtered by address is one page",
-        ));
-    }
-    if page.sized() {
-        return Err(kit::bad(
-            "page_size does not go with address: a list filtered by address is one page",
-        ));
-    }
-    Ok((i64::from(MAX_SIZE) + 1, usize::MAX))
-}
-
-/// `rows`, read by [`window`] for the addresses `addresses`, if they fit in one page.
-///
-/// # Errors
-///
-/// 400 `bad-request` naming `address`: these addresses are held by more interfaces than
-/// the largest page.
-fn one_page<T>(rows: Vec<T>, addresses: &[Uuid]) -> Result<Vec<T>, Problem> {
-    if !addresses.is_empty() && rows.len() > usize::from(MAX_SIZE) {
-        return Err(kit::bad(format!(
-            "address: these addresses are held by more than {MAX_SIZE} interfaces, the \
-             largest page"
-        )));
-    }
-    Ok(rows)
+    Ok(Wanted {
+        by_name,
+        ids,
+        addresses,
+    })
 }
 
 fn uuid(name: &str, text: &str) -> Result<Uuid, Problem> {
@@ -720,8 +689,12 @@ async fn list_clusters(
 ) -> Result<Response, Problem> {
     const NAME: &str = "clusters";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let (wanted, ids, _) = filters(&page, &["slug", "q"])?;
-    let (limit, size) = window(&page, &ids, &[])?;
+    let Wanted {
+        by_name: wanted,
+        ids,
+        ..
+    } = filters(&page, &["slug", "q"])?;
+    let (limit, size) = window(&page, &ids)?;
     let after = after::<(String, Uuid)>(&page)?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let sql = format!(
@@ -815,7 +788,7 @@ async fn machines_page(
     path: &str,
     filter: &MachineFilter<'_>,
 ) -> Result<Response, Problem> {
-    let (limit, size) = window(page, filter.ids, &[])?;
+    let (limit, size) = window(page, filter.ids)?;
     let after = after::<(String, Uuid)>(page)?;
     let (moment, scope) = reading(api, principal, page).await?;
     // Correlated in `LATERAL` joins from the network down: the generic plan the pool's
@@ -970,7 +943,11 @@ async fn list_machines(
 ) -> Result<Response, Problem> {
     const NAME: &str = "machines";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let (wanted, ids, _) = filters(
+    let Wanted {
+        by_name: wanted,
+        ids,
+        ..
+    } = filters(
         &page,
         &[
             "q",
@@ -1141,7 +1118,7 @@ fn network_addresses() -> String {
 }
 
 /// `GET`/`QUERY /v1/interfaces`: by machine then name, filtered by `id`, `machine`, `name`,
-/// `mac`, `address` (repeated: the interfaces that hold one of them at the date, one page,
+/// `mac`, `address` (repeated: the interfaces that hold one of them at the date, paged,
 /// REQ-006-41) and `vlan` (access, native or tagged), `media` (the key of its
 /// `machines.interface_media`, REQ-009-26) and `network` (holding an address of the network
 /// the caller may read; each interface then carries those addresses, 021/A28), in
@@ -1156,13 +1133,17 @@ async fn list_interfaces(
 ) -> Result<Response, Problem> {
     const NAME: &str = "interfaces";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let (wanted, ids, holding) = filters(
+    let Wanted {
+        by_name: wanted,
+        ids,
+        addresses: holding,
+    } = filters(
         &page,
         &[
             "machine", "name", "mac", "address", "vlan", "media", "network", "q",
         ],
     )?;
-    let (limit, size) = window(&page, &ids, &holding)?;
+    let (limit, size) = window(&page, &ids)?;
     let machine = optional_uuid(&wanted, "machine")?;
     let vlan = optional_uuid(&wanted, "vlan")?;
     let network = optional_uuid(&wanted, "network")?;
@@ -1212,7 +1193,7 @@ async fn list_interfaces(
     );
     // The rows of the page and their versions are read in one snapshot (task 021-11c).
     let mut snapshot = kit::snapshot(&api).await?;
-    let rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+    let mut rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
         .bind(moment.valid_at)
@@ -1234,7 +1215,6 @@ async fn list_interfaces(
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let mut rows = one_page(rows, &holding)?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -1844,10 +1824,8 @@ pub fn routes() -> ModuleRouter {
             ("mac", "This EUI-48, any usual notation."),
             (
                 "address",
-                "Holding this address at the date (repeated: one of), 1000 at most: one \
-                 page holds them all, without a next page, and goes with neither page_size \
-                 nor a cursor; more than 1000 interfaces holding them (shared addresses) \
-                 is refused.",
+                "Holding this address at the date (repeated: one of), 64 times at most: \
+                 the cursor of the next page carries them.",
             ),
             ("vlan", "Carrying this VLAN, access, native or tagged."),
             (
@@ -1962,23 +1940,4 @@ pub fn routes() -> ModuleRouter {
             Vec::new(),
             delete(detach),
         ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_list_by_address_holds_the_largest_page_at_most() {
-        let largest = usize::from(MAX_SIZE);
-        let address = [Uuid::nil()];
-        assert_eq!(
-            one_page(vec![(); largest], &address).unwrap().len(),
-            largest
-        );
-        let refused = one_page(vec![(); largest + 1], &address).unwrap_err();
-        assert!(format!("{refused:?}").contains("address"), "{refused:?}");
-        // Without `address`, the rows are those of a page and its one more row.
-        assert!(one_page(vec![(); largest + 1], &[]).is_ok());
-    }
 }
