@@ -238,6 +238,98 @@ async fn an_inverse_restores_what_a_changeset_changed(pool: PgPool) {
     );
 }
 
+/// An object created with its assignment is undone: the assignment is removed before the
+/// object is closed, which then refuses the removal (task 004-26).
+#[kartenn_testing::pg_test]
+async fn an_object_created_with_its_assignment_is_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let created = f
+        .applied(vec![
+            Operation::CreatePrefix {
+                local: Some(1),
+                domain: Ref::Id(f.domain),
+                prefix: "10.0.0.0/8".into(),
+                nature: Nature::Container,
+                point_to_point: false,
+                anycast: false,
+            },
+            Operation::AssignProperty {
+                object: Ref::Local(1),
+                kind: ObjectKind::Prefix,
+                property: Ref::Id(f.env),
+                values: vec![RawInput::Text("dev".into())],
+            },
+        ])
+        .await;
+    let undo = inverse(&f.store, created, f.author).await.unwrap().unwrap();
+    match f.run(&undo.request).await {
+        Outcome::Applied { .. } => {}
+        other => panic!("{:?}: {other:?}", undo.request.operations),
+    }
+    let living: (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM prefix WHERE valid_period @> now()),
+                (SELECT count(*) FROM property_assignment WHERE valid_period @> now())",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    // Left in force: the network `10.1.2.0/24` of the fixture and its `prod`.
+    assert_eq!(living, (1, 1));
+}
+
+/// An object assigned then closed by the same changeset is given back without the
+/// assignment: the object restored before the assignment is removed (task 004-26).
+#[kartenn_testing::pg_test]
+async fn an_object_assigned_then_closed_is_undone(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let closed = f
+        .applied(vec![
+            Operation::AssignProperty {
+                object: Ref::Id(f.address),
+                kind: ObjectKind::Address,
+                property: Ref::Id(f.env),
+                values: vec![RawInput::Text("dev".into())],
+            },
+            Operation::Close {
+                kind: ObjectKind::Address,
+                id: Ref::Id(f.address),
+                expected: None,
+                cascade: false,
+            },
+        ])
+        .await;
+    let undo = inverse(&f.store, closed, f.author).await.unwrap().unwrap();
+    assert!(undo.conflicts.is_empty(), "{:?}", undo.conflicts);
+    // The closure ended the assignment within the transaction that made it: no version of
+    // it is left to undo, only the address to give back.
+    assert!(
+        matches!(
+            undo.request.operations.as_slice(),
+            [Operation::Restore {
+                kind: ObjectKind::Address,
+                property: None,
+                ..
+            }]
+        ),
+        "{:?}",
+        undo.request.operations
+    );
+    match f.run(&undo.request).await {
+        Outcome::Applied { .. } => {}
+        other => panic!("{:?}: {other:?}", undo.request.operations),
+    }
+    let living: (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM address WHERE id = $1 AND valid_period @> now()),
+                (SELECT count(*) FROM property_assignment
+                 WHERE object_id = $1 AND valid_period @> now())",
+    )
+    .bind(f.address)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(living, (1, 0));
+}
+
 #[kartenn_testing::pg_test]
 async fn a_later_change_is_a_conflict_not_overwritten(pool: PgPool) {
     let f = Fixture::new(&pool).await;

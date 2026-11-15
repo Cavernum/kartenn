@@ -111,7 +111,7 @@ voir [`../README.md`](../README.md).
   (migration 0019), appelée par `kartenn-server migrate` (`maintenance::deploy`, qui
   synchronise aussi les déclarations du noyau) ; à relancer au moins chaque mois
   (`maintenance::history_partitions`) jusqu'au planificateur de jobs
-- [ ] 26. L'annulation d'un changeset qui crée un groupe de VLAN est refusée
+- [x] 26. L'annulation d'un changeset qui crée un groupe de VLAN est refusée
   (`changeset.operation.no_version`, constaté par la tâche 002-29b2, antérieur à elle) :
   l'inverse clôt le groupe (`Close`), puis retire le propriétaire que le plan du groupe lui
   a affecté (`UnassignProperty`), sur un objet déjà clos. L'inverse d'un objet créé ne
@@ -125,6 +125,25 @@ voir [`../README.md`](../README.md).
   `crates/kartenn-store-pg/src/undo.rs` (`facts`, vers 536 ; ordre des types, vers 25) ;
   test voisin `crates/kartenn-service/tests/it/reference_integrity.rs`
   (`the_writes_of_a_module_are_undone`), `tests/it/undo.rs`
+  — fait : cause commune à tous les types, pas propre au groupe ni à la période de
+  l'inverse (`538fe5ac` hors de cause) : la clôture d'un préfixe, d'une plage, d'une
+  adresse, d'un VLAN, d'un groupe ou d'un objet de module retire ses affectations
+  (`pipeline::close`), et le retrait qui la suivait ne trouvait plus d'objet en vigueur
+  (`resolution::carried`) ; `undo::inverse` place désormais en tête les retraits des
+  affectations créées sur un objet créé, les autres gardent leur place, après la
+  restauration de leur objet. Tests `the_creation_of_a_group_is_undone` (seul, puis avec
+  un VLAN) et `an_object_created_with_its_assignment_is_undone` (préfixe), rouges avant ;
+  `an_object_assigned_then_closed_is_undone` (affectée puis close dans un même changeset :
+  l'affectation, finie dans sa transaction, ne laisse rien à retirer, l'inverse est une
+  seule restauration) et `a_move_into_a_new_group_is_undone` (VLAN déplacé dans un groupe
+  neuf), verts ;
+  `k-web2-e2e` : parcours d'annulation passé, trois échecs Firefox de `machines` et
+  `moves` (sans annulation) repassés seuls, 26 sur 26
+  — choix : l'ordre clôtures/restaurations reste celui des types ; inverser les
+  clôtures (dépendants d'abord) n'était pas nécessaire, le groupe clos avant son VLAN dans
+  le même changeset passe, comme la clôture du groupe neuf avant la restauration du VLAN
+  déplacé — reste, hors de cette tâche : `pipeline::close` ne retire pas les affectations
+  d'une entité ni d'un site clos
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 
