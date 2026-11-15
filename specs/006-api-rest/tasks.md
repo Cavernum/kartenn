@@ -1057,8 +1057,8 @@ routeur complet, sauf mention « vrai TCP ».
   du noyau et une du module par page, une autorisation par type) ; l'hôte en
   `MachineHostSummary {id, kind, label, href}`, `kind` omis avec `label` (le genre d'un
   hôte illisible ne se dit pas), `HostRef` gardé pour l'écriture ; `interface` et
-  `address` d'un rattachement (`MachineAddress`) en résumés complets sans lecture de
-  plus (les deux bouts déjà lus sous la portée de l'appelant) ; contrat et `schema.d.ts`
+  `address` d'un rattachement (`MachineAddress`) par `Summaries::read` aussi (clé
+  d'adresse du noyau, lisibilité d'`authorize_many`, revue) ; contrat et `schema.d.ts`
   des deux SDK régénérés ; `web/v2/plugins/machines` (`MachineList`, `MachineRecord`,
   `ClusterRecord`, `HostSection`) et leurs tests, `sdk/test/dependents.test.ts`, le
   parcours `moves.spec.ts` lisent `host.kind`/`host.id` ; design 009 « Routes ». Test :
@@ -1066,7 +1066,14 @@ routeur complet, sauf mention « vrai TCP ».
   (cluster, machine, fiche, interface, en lecture et en liste par `id`, deux
   appelants : corps identique au résumé coupé près, l'hôte illisible sans `kind` ; puis
   entités, cluster, machine hôte et VLAN supprimés : statut, en-têtes hors
-  `request-id` et octets du lecteur identiques à ceux de l'illisible).
+  `request-id` et octets du lecteur identiques à ceux de l'illisible) ;
+  `the_addresses_of_a_machine_are_summarised_as_the_core_reads_them` (IPv4, IPv6 à deux
+  suites de zéros ; trois appelants : tout, les adresses d'un réseau, sans interfaces ;
+  `label` égal à la `value` de `/v1/addresses/{id}`) ;
+  `a_host_as_read_is_refused_as_a_write` (Merge Patch de `host` tel que lu : 422,
+  `machines.operation.invalid`, détail `host:…`) ;
+  `renaming_the_host_changes_the_etag_of_its_guest`. Design 006 « Représentations » (un
+  résumé se lit, une référence s'écrit par son identifiant) et 009 « Routes ».
   choix : `Summaries::read` plutôt qu'une jointure par requête de page (moins de SQL
   touché, nombre de lectures constant par page, VLAN et entités compris) ; cluster en
   `label` seul, sans `slug` (le crochet `keys` ne rend qu'une chaîne ; même forme dans
@@ -1074,11 +1081,16 @@ routeur complet, sauf mention « vrai TCP ».
   `{machine: …}` qui dirait le genre ; `interface_name`, `value` et `href` d'un
   rattachement gardés à côté des résumés ; `addresses` d'une interface (REQ-006-41) et
   de la fiche inchangées : objets rendus, déjà filtrés par la lisibilité ; dans le
-  shell, un hôte sans `kind` se montre par son identifiant, sans lien.
+  shell, un hôte sans `kind` se montre par son identifiant, sans type ni lien
+  (`CitedName` à `type` facultatif) ; pas d'adresse IPv4-mapped à tester, aucune n'est
+  stockée (REQ-002-31).
   reste : les résumés lus par `Summaries::read` hors de l'instantané de la page (même
   remarque que la 33b) ; `interface_name`/`value`/`href` redondants d'un rattachement,
   à retirer avec 11p10-d ; un cluster n'a pas `slug` dans ses résumés (le crochet
-  `keys` ne dit pas de slug) : à trancher avec 33h.
+  `keys` ne dit pas de slug) : à trancher avec 33h ; le refus d'un `host` tel que lu
+  dit le message de serde (« invalid value: map, expected map with a single key ») avec
+  un `pointer` vide, au lieu de `/host` et de la forme attendue (dans `handler.rs`,
+  hors de cette tâche).
 - [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
   `k-check -p kartenn-kube`
   - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,

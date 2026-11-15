@@ -225,7 +225,10 @@ natif, marqués) d'une interface, l'interface et l'adresse d'un rattachement son
 résumés `{id, label, href}` (`slug` en plus pour une entité ou un site), `{id}` seul pour
 un lié illisible ou absent aux dates. L'hôte se lit `{id, kind, label, href}` (`kind` :
 `machine` ou `cluster`), `{id}` seul s'il est illisible : son genre ne se dit pas ; en
-écriture, `host` reste `{machine|cluster: Ref}`. Clés du module
+écriture, `host` reste `{machine|cluster: Ref}` (design 006, « un résumé se lit, une
+référence s'écrit par son identifiant ») : un `host` renvoyé tel que lu dans un Merge
+Patch est refusé, 422, violation `machines.operation.invalid` dont le détail commence par
+`host:`. Clés du module
 (`ModuleHandler::keys`) : le nom d'une machine, le slug d'un cluster, le nom seul d'une
 interface.
 
