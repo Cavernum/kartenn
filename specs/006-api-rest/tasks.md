@@ -1142,4 +1142,22 @@ routeur complet, sauf mention « vrai TCP ».
   domaine) ; aide `Env::grant` des tests pour donner un droit à une personne existante.
   reste : coût du prédicat dans la requête non mesuré (`bench-flow`, non lancé) ; le
   design 011 (« Non-conformités ») dit encore « demandeur de la ligne avec
-  `flow.request` », alors que la route ne vérifie pas `flow.request` (antérieur, inchangé).
+  `flow.request` », alors que la route ne vérifie pas `flow.request` (antérieur, inchangé ;
+  tâche 38).
+- [ ] 38. (à arbitrer) Lecture de ses propres demandes sans `flow.request` (droits,
+  antérieur, relevé par la revue de la 37) : REQ-011-17 et le design 011 (« Demandes »,
+  « Non-conformités ») rangent la lecture de ses propres demandes sous `flow.request` ;
+  deux routes acceptent le demandeur sans le vérifier, `GET /v1/flows` (`read.rs`,
+  `Reader`, condition « as its requester ») et `GET /v1/flow-nonconformities`. Scénario :
+  une personne qui a perdu `flow.request` lit encore ses demandes rejetées (motif, texte
+  de la règle) et ses flux. Portée faible : ses seules lignes. Options : A, le code suit
+  la spec (le demandeur ne lit ses lignes que s'il tient encore `flow.request`) ; B, la
+  spec suit le code (l'auteur d'une demande en garde la lecture, REQ-011-17 et le design
+  amendés) — verify : `k-check -p kartenn-flow` (une personne sans `flow.request` : ses
+  lignes servies ou non selon l'option, réponses égales à « absent » si non servies)
+  - où : `crates/kartenn-flow/src/read.rs` (`Reader::reads`, `Reader::condition`),
+    `crates/kartenn-flow/src/rest.rs` (`reader_of`, `nonconformity_reader`) ;
+    `specs/011-registre-flux/requirements.md` (REQ-011-17),
+    `specs/011-registre-flux/design.md` (lignes 140 et 189) ; tests
+    `flow/tests/it/requests.rs`
+  - dépend de : arbitrage de l'utilisateur (droits)
