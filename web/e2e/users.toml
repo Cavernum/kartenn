@@ -5,7 +5,8 @@ issuer = "https://127.0.0.1:9444"
 listen = "127.0.0.1:9444"
 client_id = "kartenn"
 client_secret_file = "web/e2e/.state/idp-secret"
-redirect_uris = ["https://127.0.0.1:9443/v1/auth/callback"]
+# 9446: the instance of the new shell at the read quota by default (web/v2/e2e/quota.toml).
+redirect_uris = ["https://127.0.0.1:9443/v1/auth/callback", "https://127.0.0.1:9446/v1/auth/callback"]
 cert_file = "web/e2e/.state/cert.pem"
 key_file = "web/e2e/.state/key.pem"
 

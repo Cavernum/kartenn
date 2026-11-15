@@ -95,6 +95,27 @@ export const DATA = {
   vlan: { group: "campus", vid: 10, name: "serveurs" },
 } as const;
 
+/**
+ * The data set of the instance at the read quota by default (journeys/quota.setup.ts, task
+ * 021-11p10-b2): ten pages of addresses in a network of a domain (100 a page, the default
+ * of the API), and a text property the domain carries, inherited by each of them.
+ */
+export const QUOTA_DATA = {
+  domain: "quota",
+  prefix: "2001:db8:4::/64",
+  count: 1000,
+  property: "custom.salle",
+  value: "nord",
+} as const;
+
+/** The users of the journey of the quota, one by browser: each its own quota. */
+export const QUOTA_USERS = { chromium: "alice", firefox: "bob" } as const;
+
+/** The addresses of the ten pages: 2001:db8:4::1 onwards. */
+export function quotaAddresses(): string[] {
+  return Array.from({ length: QUOTA_DATA.count }, (_, i) => `2001:db8:4::${(i + 1).toString(16)}`);
+}
+
 /** The addresses of the long list: 2001:db8:2::1 onwards. */
 export function bulkAddresses(): string[] {
   return Array.from({ length: DATA.bulk.count }, (_, i) => `2001:db8:2::${(i + 1).toString(16)}`);
@@ -134,7 +155,8 @@ declare global {
 export const test = base.extend<Guarded>({
   toleratedErrors: [[], { option: true }],
   toleratedCsp: [[], { option: true }],
-  page: async ({ page, toleratedErrors, toleratedCsp }, use) => {
+  page: async ({ page, baseURL, toleratedErrors, toleratedCsp }, use) => {
+    const origin = baseURL ?? BASE_URL;
     // Known to `atRest`, which does not wait on a time the journey drives: the clock is the
     // context's, whichever of its pages installs it.
     const context = page.context();
@@ -157,7 +179,7 @@ export const test = base.extend<Guarded>({
       // Pages of kartenn only: the issuer's page is not under test.
       if (
         message.type() === "error" &&
-        page.url().startsWith(BASE_URL) &&
+        page.url().startsWith(origin) &&
         !/Failed to load resource/.test(message.text())
       ) {
         const { url, lineNumber } = message.location();
@@ -178,8 +200,9 @@ export const test = base.extend<Guarded>({
       "uncaught exceptions and console errors",
     ).toEqual([]);
   },
-  login: async ({ page }, use) => {
-    await use((user) => loginIn(page, user));
+  // On the instance of the project (`baseURL`): the quota's has its own (task 021-11p10-b2).
+  login: async ({ page, baseURL }, use) => {
+    await use((user) => loginIn(page, user, baseURL));
   },
 });
 
@@ -240,14 +263,18 @@ export async function atRest(page: Page): Promise<void> {
 }
 
 /**
- * Logs `user` in on `page`, of any browser context (a second one, to share a link), and
- * returns once the shell is at rest (`atRest`).
+ * Logs `user` in on `page`, of any browser context (a second one, to share a link), on the
+ * instance at `origin`, and returns once the shell is at rest (`atRest`).
  */
-export async function loginIn(page: Page, user: keyof typeof USERS): Promise<void> {
-  await page.goto(`${BASE_URL}/v1/auth/login?issuer=dev`);
+export async function loginIn(
+  page: Page,
+  user: keyof typeof USERS,
+  origin: string = BASE_URL,
+): Promise<void> {
+  await page.goto(`${origin}/v1/auth/login?issuer=dev`);
   await page.getByRole("button", { name: USERS[user] }).click();
   // The callback sends the browser back to the shell (`/`).
-  await page.waitForURL(`${BASE_URL}/`);
+  await page.waitForURL(`${origin}/`);
   await atRest(page);
 }
 

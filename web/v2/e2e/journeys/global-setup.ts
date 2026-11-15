@@ -19,24 +19,8 @@ import { totp } from "../fixtures/totp.ts";
  * of the groups of users.toml.
  */
 export default async function globalSetup(): Promise<void> {
-  const proofs = readFileSync(`${STATE}breakglass-v2.txt`, "utf8");
-  const passphrase = /^passphrase: (.+)$/m.exec(proofs)?.[1];
-  const secret = /secret=([A-Z2-7]+)/.exec(proofs)?.[1];
-  if (!passphrase || !secret) throw new Error(`no break-glass proofs in ${STATE}`);
-
-  const api = await request.newContext({
-    baseURL: BASE_URL,
-    ignoreHTTPSErrors: true,
-    // CSRF (REQ-006-28): a cookie session writes with the origin of the instance.
-    extraHTTPHeaders: { Origin: BASE_URL },
-  });
+  const api = await breakglass(BASE_URL, "breakglass-v2.txt");
   try {
-    await expectOk(
-      api,
-      "/v1/auth/breakglass",
-      { name: "e2e", passphrase, code: totp(secret) },
-      204,
-    );
     await expectOk(api, "/v1/issuer-attachments?approval=self", {
       motive: "end-to-end journeys",
       issuer: ISSUER,
@@ -164,7 +148,36 @@ export default async function globalSetup(): Promise<void> {
   }
 }
 
-async function expectOk(
+/**
+ * A context of the API under the break-glass session of the instance at `origin`, whose
+ * proofs serve.sh wrote in `proofs` (under web/e2e/.state).
+ */
+export async function breakglass(origin: string, proofs: string): Promise<APIRequestContext> {
+  const text = readFileSync(`${STATE}${proofs}`, "utf8");
+  const passphrase = /^passphrase: (.+)$/m.exec(text)?.[1];
+  const secret = /secret=([A-Z2-7]+)/.exec(text)?.[1];
+  if (!passphrase || !secret) throw new Error(`no break-glass proofs in ${STATE}${proofs}`);
+  const api = await request.newContext({
+    baseURL: origin,
+    ignoreHTTPSErrors: true,
+    // CSRF (REQ-006-28): a cookie session writes with the origin of the instance.
+    extraHTTPHeaders: { Origin: origin },
+  });
+  try {
+    await expectOk(
+      api,
+      "/v1/auth/breakglass",
+      { name: "e2e", passphrase, code: totp(secret) },
+      204,
+    );
+  } catch (error) {
+    await api.dispose();
+    throw error;
+  }
+  return api;
+}
+
+export async function expectOk(
   api: APIRequestContext,
   path: string,
   body: object,
@@ -179,7 +192,7 @@ async function expectOk(
 }
 
 /** Creates an object by its collection, and returns its identifier (from `Location`). */
-async function created(api: APIRequestContext, path: string, body: object): Promise<string> {
+export async function created(api: APIRequestContext, path: string, body: object): Promise<string> {
   const response = await expectOk(api, path, body);
   const id = response.headers()["location"]?.split("/").pop();
   if (!id) throw new Error(`POST ${path}: no Location`);
