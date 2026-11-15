@@ -1207,4 +1207,22 @@ routeur complet, sauf mention « vrai TCP ».
   `handler::REQUEST` réemployée par `POST /v1/flows`.
   reste : aucun parcours du shell ne lit ses demandes sans le droit (maquettes seules) ; le
   compteur de l'accueil se met en cache par portée de lecture et par sujet : un retrait de
-  `flow.request` s'y voit au recalcul suivant (révision), non mesuré.
+  `flow.request` s'y voit au recalcul suivant (révision), non mesuré (tâche 39).
+- [ ] 39. Compteur de l'accueil après un droit retiré, et tests manquants de la 38 (relevés
+  par sa revue) : la clé `Own` du cache de `GET /v1/stats` ne porte pas les entités où le
+  sujet tient `flow.request` ; un retrait ne se voit qu'au recalcul suivant (au moins
+  30 s, et seulement quand la révision de l'outbox avance), et une liaison qui arrive à
+  son terme par la seule date, sans écriture, pourrait laisser le compteur faux jusqu'à
+  la prochaine écriture ou au jour UTC suivant (à vérifier). La fuite se limite à un
+  nombre. À faire : `requested_on` dans la clé `Own` ; tests de la 38 qui manquent : droit
+  tenu sur une autre entité que celle de la ligne (refus partiel), confinement de
+  l'émetteur, demande en attente sans entité (lue seulement avec `flow.request`
+  partout) ; les deux commentaires de `rest.rs` (module, `flows_seen`) qui disent encore
+  « as their requester » sans le droit — verify : `k-check -p kartenn-rest stats`,
+  `k-check -p kartenn-flow` (un sujet dont le droit est retiré, ou dont la liaison est
+  échue par la date : le compteur servi juste après égale celui d'un sujet sans le droit)
+  - où : `crates/kartenn-rest/src/stats.rs` (clé `Own`, vers 584),
+    `crates/kartenn-flow/src/stats.rs`, `crates/kartenn-flow/src/rest.rs`
+    (`requested_on`, doc du module ligne 10, `flows_seen` vers 837) ; test voisin
+    `flow/tests/it/rest.rs` `a_requester_without_flow_request_reads_its_rows_as_absent`
+  - dépend de : 38
