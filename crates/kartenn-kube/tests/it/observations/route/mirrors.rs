@@ -17,7 +17,12 @@ use sqlx::types::time::OffsetDateTime;
 use tower::ServiceExt;
 
 use super::super::{Env, op, sync};
-use super::{app, audited, person, person_on, principal, rfc3339};
+use super::{app, audited, person, person_on, principal, rfc3339, summary};
+
+/// The summary of the cluster `id` whose slug is `slug` (spec 006, REQ-006-42).
+fn cluster(id: Uuid, slug: &str) -> Value {
+    summary("kube-clusters", id, slug)
+}
 
 /// The answer of `GET uri`.
 async fn get(app: &Router, uri: &str) -> (StatusCode, HeaderMap, Value) {
@@ -157,7 +162,7 @@ async fn mirrors_listed_by_type_and_filter(pool: PgPool) {
     let node = &nodes["items"][0];
     assert_eq!(nodes["items"].as_array().unwrap().len(), 1, "{nodes}");
     assert_eq!(node["id"], json!(env.node));
-    assert_eq!(node["cluster"], json!({"id": env.prod}));
+    assert_eq!(node["cluster"], cluster(env.prod, "prod"));
     assert_eq!(node["pod_cidrs"], json!(["198.51.100.0/26"]));
     assert!(
         node["addresses"]
@@ -173,7 +178,7 @@ async fn mirrors_listed_by_type_and_filter(pool: PgPool) {
         &format!("/v1/kube-nodes?name=worker-1&cluster={stage}"),
     )
     .await;
-    assert_eq!(at_stage["items"][0]["cluster"], json!({"id": stage}));
+    assert_eq!(at_stage["items"][0]["cluster"], cluster(stage, "stage"));
     let none = page(&app, &format!("/v1/kube-nodes?machine={}", Uuid::now_v7())).await;
     assert!(names(&none).is_empty());
 
@@ -195,7 +200,10 @@ async fn mirrors_listed_by_type_and_filter(pool: PgPool) {
     let db = &stateful["items"][0];
     assert_eq!(
         (&db["cluster"], &db["namespace"]),
-        (&json!({"id": env.prod}), &json!({"id": payments}))
+        (
+            &cluster(env.prod, "prod"),
+            &summary("kube-namespaces", payments, "payments")
+        )
     );
     assert_eq!(
         db["ports"],
@@ -205,7 +213,7 @@ async fn mirrors_listed_by_type_and_filter(pool: PgPool) {
     assert_eq!(names(&in_payments), ["db", "web"]);
     let at_stage = page(&app, &format!("/v1/workloads?cluster={stage}")).await;
     assert_eq!(names(&at_stage), ["web"]);
-    assert_eq!(at_stage["items"][0]["cluster"], json!({"id": stage}));
+    assert_eq!(at_stage["items"][0]["cluster"], cluster(stage, "stage"));
     let labelled = page(&app, "/v1/workloads?label=app=db").await;
     assert_eq!(names(&labelled), ["db"]);
     let suggested = page(&app, "/v1/workloads?q=d").await;
@@ -272,7 +280,7 @@ async fn mirrors_listed_by_type_and_filter(pool: PgPool) {
     assert!(absent["items"][0]["absent_since"].is_string(), "{absent}");
     let present = page(&app, "/v1/workloads?absent_since:exists=false").await;
     assert_eq!(names(&present), ["db", "web"]);
-    assert_eq!(present["items"][1]["cluster"], json!({"id": stage}));
+    assert_eq!(present["items"][1]["cluster"], cluster(stage, "stage"));
 
     // Refused: a filter a collection does not serve, a value that does not read, a filter
     // given twice.

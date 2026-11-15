@@ -1114,12 +1114,40 @@ routeur complet, sauf mention « vrai TCP ».
   dit le message de serde (« invalid value: map, expected map with a single key ») avec
   un `pointer` vide, au lieu de `/host` et de la forme attendue (dans `handler.rs`,
   hors de cette tâche).
-- [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
+- [x] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
   `k-check -p kartenn-kube`
   - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,
     `rest/mirrors.rs`, `rest/chain.rs` (`HostRef`) ; `ModuleHandler::keys` et
     `Summary::labelled` comme la 33d
   - dépend de : 33a, 33b
+  fait : `crates/kartenn-kube/src/keys.rs` (nouveau : clés des objets du module aux dates,
+  une requête pour tous) et `handler.rs` (`ModuleHandler::keys`) ; `rest.rs` (`Refers`,
+  `summarised` : les références d'une page lues `{id}` puis résumées ensemble par
+  `Summaries::read`, une lecture des clés et une autorisation par type pour la page ;
+  `ObservationDto`) ; `rest/clusters.rs`, `rest/mirrors.rs` (lecture et liste de la
+  grappe et des cinq miroirs), `rest/chain.rs` (`HostRef` retiré, `LinkDto` en résumés) ;
+  `IdRef` (`KubeObjectRef`) ne reste qu'aux corps écrits et à `connector_group` ; contrat
+  et `schema.d.ts` des deux SDK régénérés. Tests : `tests/it/observations/route/summaries.rs`
+  `a_mirror_summarises_what_its_caller_may_read`,
+  `a_cluster_leaves_alike_an_unreadable_reference_and_an_absent_one`,
+  `a_journal_leaves_alike_an_unreadable_workload_and_a_gone_one`,
+  `a_chain_leaves_alike_an_unreadable_node_and_a_gone_one` (statut, en-têtes hors
+  `request-id` et octets identiques) ; `route/clusters.rs`, `route/mirrors.rs`,
+  `route/chain.rs` mis à jour.
+  choix : clé d'un objet du module = son seul nom (nœud, espace de noms, charge, service,
+  ingress), sans grappe ni espace de noms, la charge sans sa sorte (son `href` la dit) ;
+  slug pour une grappe, rendu en `label` seul (le crochet `keys` ne donne qu'un `label`,
+  pas de `slug` pour un type de module) ; réglages : `label_key` (étiquette suivie),
+  `axis_key` (valeurs admises, sans l'espace de noms), `<clé>=<valeur> → <axe>`
+  (correspondance) ; `Summaries::read` plutôt qu'une jointure par lié (les liés couvrent
+  noyau, kube et machines) ; clés lues aux dates de la route (le journal et la chaîne : à
+  `valid_at` de la lecture, non à l'instant `at` de l'observation) ; un hôte illisible
+  de la chaîne reste `null` (Q-019-31), son type ne se dit pas ; `connector_group`, un
+  groupe des droits et non un objet du référentiel, reste `{id}`.
+  reste : `connector_group` d'une grappe rendu `{id}` seul (`KubeObjectRef`) : un groupe
+  n'a pas de `Target` ni de résumé ; à trancher avec la garde de la 33f ; les machines
+  d'un nœud et de la chaîne restent `{id}` jusqu'à la fusion de la 33d (`keys` de
+  `machines`) ; les clés des réglages du module ne sont pas testées par une route.
 - [ ] 33f. Flux et politique, et garde du contrat (aucun schéma de réponse ne porte une
   référence `{id}` seule hors résumé) — verify : `k-check -p kartenn-flow`,
   `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`

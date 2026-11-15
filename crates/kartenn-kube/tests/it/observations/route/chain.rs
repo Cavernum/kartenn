@@ -556,14 +556,19 @@ async fn chain_route_framed(pool: PgPool) {
     let who = reader(&pool, &[OBSERVATIONS, MACHINES], None).await;
     let app = as_person(&pool, who);
     // Now: the node, its machine and the hypervisor of that machine.
+    // The node, which the caller may not read, by its identifier alone; the machines by
+    // their summaries (spec 006, REQ-006-42), the key of each the module machines gives.
     let (status, body) = get(&app, &chain(env.web)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
+    let link = &body["links"][0];
+    assert_eq!(body["links"].as_array().map(Vec::len), Some(1), "{body}");
+    assert_eq!(link["node"], json!({"id": worker1}));
     assert_eq!(
-        body,
-        json!({"links": [{"node": {"id": worker1}, "machine": {"id": vm1},
-                          "hypervisor": {"id": hv1}, "virtualization_cluster": null}],
-               "reason": null})
+        (&link["machine"]["id"], &link["hypervisor"]["id"]),
+        (&json!(vm1), &json!(hv1))
     );
+    assert_eq!(link["virtualization_cluster"], Value::Null);
+    assert_eq!(body["reason"], Value::Null);
     // The reader of the journal of the pods alone: the machines answer as absent.
     let pods_only = as_person(&pool, reader(&pool, &[OBSERVATIONS], Some(env.pods)).await);
     let (status, body) = get(&pods_only, &chain(env.web)).await;

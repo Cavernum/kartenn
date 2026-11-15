@@ -18,6 +18,7 @@ use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, Page, PageParams, Problem, ProblemKind, documented,
     listing_of, next_href, op, presented, queryable, respond_page, schemas_of,
 };
+use kartenn_rest::summary::Summary;
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_store_pg::rbac::readable;
@@ -33,8 +34,8 @@ use utoipa::openapi::{ObjectBuilder, RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 use uuid::Uuid;
 
-use super::IdRef;
 use super::reading::{criteria, dated, dated_where, listed};
+use super::{Refers, summarised};
 use crate::module::{INGRESS, NAMESPACE, NODE, SERVICE, WORKLOAD, type_of};
 use crate::observations::rfc3339;
 
@@ -61,17 +62,17 @@ struct NodeDto {
     /// Identifier.
     id: Uuid,
     /// Its cluster.
-    cluster: IdRef,
+    cluster: Summary,
     /// Its name, unique in its cluster at every instant.
     name: String,
     /// Its `uid` in Kubernetes.
     uid: Option<Uuid>,
     /// The machine (`machines.machine`, physical or virtual) it is.
-    machine: Option<IdRef>,
+    machine: Option<Summary>,
     /// Its addresses as read.
     addresses: Vec<NodeAddress>,
     /// The networks of the core of its pod ranges.
-    ranges: Vec<IdRef>,
+    ranges: Vec<Summary>,
     /// Its pod ranges as read (`spec.podCIDRs`).
     pod_cidrs: Vec<String>,
     /// Its zone.
@@ -89,7 +90,7 @@ struct NamespaceDto {
     /// Identifier.
     id: Uuid,
     /// Its cluster.
-    cluster: IdRef,
+    cluster: Summary,
     /// Its name, unique in its cluster at every instant.
     name: String,
     /// Its `uid` in Kubernetes.
@@ -122,9 +123,9 @@ struct WorkloadDto {
     /// Identifier.
     id: Uuid,
     /// The cluster of its namespace.
-    cluster: IdRef,
+    cluster: Summary,
     /// Its namespace.
-    namespace: IdRef,
+    namespace: Summary,
     /// `deployment`, `statefulset`, `daemonset`, `cronjob`, `job`, `replicaset` or `pod`.
     kind: String,
     /// Its name, unique by kind in its namespace at every instant.
@@ -185,9 +186,9 @@ struct ServiceDto {
     /// Identifier.
     id: Uuid,
     /// The cluster of its namespace.
-    cluster: IdRef,
+    cluster: Summary,
     /// Its namespace.
-    namespace: IdRef,
+    namespace: Summary,
     /// Its name, unique in its namespace at every instant.
     name: String,
     /// Its `uid` in Kubernetes.
@@ -201,11 +202,11 @@ struct ServiceDto {
     /// Its ports, a sorted set.
     ports: Vec<ServicePort>,
     /// Its addresses of the core in the service domain of its cluster.
-    cluster_addresses: Vec<IdRef>,
+    cluster_addresses: Vec<Summary>,
     /// Its `LoadBalancer` addresses and `externalIPs`, addresses of the core.
-    external_addresses: Vec<IdRef>,
+    external_addresses: Vec<Summary>,
     /// The workloads it selects, as the connector computed them.
-    workloads: Vec<IdRef>,
+    workloads: Vec<Summary>,
     /// Since when it is absent from its cluster, RFC 3339; `null` while present.
     absent_since: Option<String>,
     /// Its URL.
@@ -238,9 +239,9 @@ struct IngressDto {
     /// Identifier.
     id: Uuid,
     /// The cluster of its namespace.
-    cluster: IdRef,
+    cluster: Summary,
     /// Its namespace.
-    namespace: IdRef,
+    namespace: Summary,
     /// Its name, unique in its namespace at every instant.
     name: String,
     /// Its `uid` in Kubernetes.
@@ -253,11 +254,53 @@ struct IngressDto {
     tls_hosts: Vec<String>,
     /// Its addresses of the core, in the external domain of its cluster, else its service
     /// domain.
-    addresses: Vec<IdRef>,
+    addresses: Vec<Summary>,
     /// Since when it is absent from its cluster, RFC 3339; `null` while present.
     absent_since: Option<String>,
     /// Its URL.
     href: String,
+}
+
+impl Refers for NodeDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        std::iter::once(&mut self.cluster)
+            .chain(self.machine.iter_mut())
+            .chain(self.ranges.iter_mut())
+            .for_each(f);
+    }
+}
+
+impl Refers for NamespaceDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        f(&mut self.cluster);
+    }
+}
+
+impl Refers for WorkloadDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        f(&mut self.cluster);
+        f(&mut self.namespace);
+    }
+}
+
+impl Refers for ServiceDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        [&mut self.cluster, &mut self.namespace]
+            .into_iter()
+            .chain(self.cluster_addresses.iter_mut())
+            .chain(self.external_addresses.iter_mut())
+            .chain(self.workloads.iter_mut())
+            .for_each(f);
+    }
+}
+
+impl Refers for IngressDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        [&mut self.cluster, &mut self.namespace]
+            .into_iter()
+            .chain(self.addresses.iter_mut())
+            .for_each(f);
+    }
 }
 
 // ---------------------------------------------------------------- the collections
@@ -273,7 +316,9 @@ struct Sort {
 }
 
 /// A collection of mirrored objects: its type, table and filters.
-trait Mirror: Serialize + ToSchema + for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin + 'static {
+trait Mirror:
+    Serialize + ToSchema + Refers + for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin + 'static
+{
     /// Its type.
     const KIND: &'static str;
     /// Its table.
@@ -443,19 +488,19 @@ impl Cells<'_> {
         self.0.try_get(name)
     }
 
-    fn one(&self, name: &str) -> Result<IdRef, sqlx::Error> {
-        self.get(name).map(|id| IdRef { id })
+    fn one(&self, name: &str) -> Result<Summary, sqlx::Error> {
+        self.get(name).map(Summary::bare)
     }
 
-    fn optional(&self, name: &str) -> Result<Option<IdRef>, sqlx::Error> {
-        Ok(self.get::<Option<Uuid>>(name)?.map(|id| IdRef { id }))
+    fn optional(&self, name: &str) -> Result<Option<Summary>, sqlx::Error> {
+        Ok(self.get::<Option<Uuid>>(name)?.map(Summary::bare))
     }
 
-    fn many(&self, name: &str) -> Result<Vec<IdRef>, sqlx::Error> {
+    fn many(&self, name: &str) -> Result<Vec<Summary>, sqlx::Error> {
         Ok(self
             .get::<Vec<Uuid>>(name)?
             .into_iter()
-            .map(|id| IdRef { id })
+            .map(Summary::bare)
             .collect())
     }
 
@@ -826,6 +871,7 @@ async fn list<M: Mirror>(
         criteria(collection, &page, &moment),
     )
     .await?;
+    summarised(&api, &context, &mut rows, moment.valid_at, moment.as_of).await?;
     let items = kit::versioned(&rows, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -846,8 +892,16 @@ async fn show<M: Mirror>(
         select::<M>(),
         dated(M::TABLE, M::COLUMNS)
     );
-    let (body, version): (M, Uuid) = kit::read_one(&api, sql, id, &moment).await?;
+    let (mut body, version): (M, Uuid) = kit::read_one(&api, sql, id, &moment).await?;
     kit::record_read(&api, &context, M::KIND, &[id], json!({"id": id})).await?;
+    summarised(
+        &api,
+        &context,
+        std::slice::from_mut(&mut body),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
     Ok(kit::respond_object(&headers, &moment, version, &body))
 }
 

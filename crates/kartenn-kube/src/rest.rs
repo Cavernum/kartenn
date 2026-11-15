@@ -34,6 +34,7 @@ use kartenn_rest::kit::{
     self, Api, BatchViolation, ETag, Moment, Page, PageParams, Problem, ProblemKind, documented,
     next_href, op, respond, schemas_of,
 };
+use kartenn_rest::summary::{Summaries, Summary};
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
@@ -69,12 +70,45 @@ const BAD_REQUEST: &str = "bad-request";
 
 // ---------------------------------------------------------------- representations
 
-/// The identifier of an object of the cluster (006/H3).
+/// The identifier of an object of the cluster (006/H3), as a body written designates it.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 #[schema(as = KubeObjectRef)]
 struct IdRef {
     id: Uuid,
+}
+
+/// A representation whose references are rendered as summaries (spec 006, REQ-006-42),
+/// read as identifiers alone ([`Summary::bare`]) then completed together by [`summarised`].
+trait Refers {
+    /// Calls `f` on each of its references.
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary));
+}
+
+/// `items` with each of their references summarised as the caller of `context` may read
+/// it now, its key read at `valid_at` as asserted at `as_of`: one read of the keys for
+/// the page, of the core and of each module referred to, and one authorisation per kind
+/// ([`Summaries::read`]), never one per row. An object the caller may not read, unknown,
+/// or absent at those dates, leaves `{id}` alone.
+async fn summarised<T: Refers>(
+    api: &Api,
+    context: &RequestContext,
+    items: &mut [T],
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> Result<(), Problem> {
+    let mut ids = Vec::new();
+    for item in items.iter_mut() {
+        item.refs(&mut |summary| ids.push(summary.id));
+    }
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let summaries = Summaries::read(api, context, ids, valid_at, as_of).await?;
+    for item in items {
+        item.refs(&mut |summary| *summary = summaries.of(summary.id));
+    }
+    Ok(())
 }
 
 /// A pod seen, which opens an observation.
@@ -163,10 +197,10 @@ struct ObservationDto {
     pod_name: String,
     /// Its Kubernetes UID.
     pod_uid: Uuid,
-    /// The workload its `ownerReferences` climb to.
-    workload: Option<IdRef>,
-    /// The node it ran on.
-    node: Option<IdRef>,
+    /// The workload its `ownerReferences` climb to, summarised at the dates of the read.
+    workload: Option<Summary>,
+    /// The node it ran on, summarised at the dates of the read.
+    node: Option<Summary>,
     /// Its IP; `null` in `hostNetwork`, where the address is the node's.
     #[schema(value_type = Option<String>)]
     ip: Option<IpAddr>,
@@ -181,6 +215,15 @@ struct ObservationDto {
     opened_batch: Uuid,
     /// The batch that closed it.
     closed_batch: Option<Uuid>,
+}
+
+impl Refers for ObservationDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        self.workload
+            .iter_mut()
+            .chain(self.node.iter_mut())
+            .for_each(f);
+    }
 }
 
 /// Why a page of the journal is empty though rows may still be stored.
@@ -553,8 +596,8 @@ fn observation_dto(o: Observation) -> Result<ObservationDto, Problem> {
         namespace: o.namespace,
         pod_name: o.pod_name,
         pod_uid: o.pod_uid,
-        workload: o.workload.map(|id| IdRef { id }),
-        node: o.node.map(|id| IdRef { id }),
+        workload: o.workload.map(Summary::bare),
+        node: o.node.map(Summary::bare),
         ip: o.ip,
         host_network: o.host_network,
         from: rfc3339(o.from)?,
@@ -619,11 +662,13 @@ async fn answered(
         "valid_at": rfc3339(moment.valid_at)?,
     });
     kit::record_read(api, context, JOURNAL, &pods, criteria).await?;
+    let mut items: Vec<ObservationDto> = rows
+        .into_iter()
+        .map(observation_dto)
+        .collect::<Result<_, _>>()?;
+    summarised(api, context, &mut items, moment.valid_at, moment.as_of).await?;
     let body = ListingDto {
-        items: rows
-            .into_iter()
-            .map(observation_dto)
-            .collect::<Result<_, _>>()?,
+        items,
         links: ListingLinks {
             next: next.as_deref(),
         },

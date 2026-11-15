@@ -16,6 +16,7 @@ use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Page, PageParams, Problem, ProblemKind,
     documented, listing_of, next_href, op, presented, queryable, respond_page, schemas_of,
 };
+use kartenn_rest::summary::Summary;
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_store_pg::rbac::readable;
@@ -27,8 +28,8 @@ use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
 use uuid::Uuid;
 
-use super::IdRef;
 use super::reading::{criteria, dated, listed};
+use super::{IdRef, Refers, summarised};
 use crate::module::{CLUSTER, cluster_type};
 
 /// The collection, under `/v1`.
@@ -73,22 +74,22 @@ struct ClusterDto {
     /// Slug, unique among the living clusters.
     slug: String,
     /// Its resolved owner.
-    owner: Option<IdRef>,
+    owner: Option<Summary>,
     /// Its resolved site.
-    site: Option<IdRef>,
+    site: Option<Summary>,
     /// The addressing domain of its pods (and of its nodes and namespaces).
-    pod_domain: IdRef,
+    pod_domain: Summary,
     /// The addressing domain of its services.
-    service_domain: IdRef,
+    service_domain: Summary,
     /// The addressing domain of its `LoadBalancer` addresses and `externalIPs`; those of
     /// the services when `null`.
-    external_domain: Option<IdRef>,
+    external_domain: Option<Summary>,
     /// The containers of the core that hold its pod ranges.
-    pod_containers: Vec<IdRef>,
+    pod_containers: Vec<Summary>,
     /// The networks of the core of its services.
-    service_networks: Vec<IdRef>,
+    service_networks: Vec<Summary>,
     /// The cluster of machines (`machines.cluster`) it runs on, shown only.
-    machines_cluster: Option<IdRef>,
+    machines_cluster: Option<Summary>,
     /// The days its observations are kept, 1 to 400.
     retention_days: i16,
     /// The label keys it tracks beyond those of the module.
@@ -99,10 +100,25 @@ struct ClusterDto {
     batch_max_operations: i32,
     /// Whether a node with no machine creates one.
     create_node_machines: bool,
-    /// The group of kartenn of its connector.
+    /// The group of kartenn of its connector, by its identifier: a group of the rights,
+    /// not an object of the referential.
     connector_group: Option<IdRef>,
     /// Its URL.
     href: String,
+}
+
+impl Refers for ClusterDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        self.owner
+            .iter_mut()
+            .chain(self.site.iter_mut())
+            .chain([&mut self.pod_domain, &mut self.service_domain])
+            .chain(self.external_domain.iter_mut())
+            .chain(self.pod_containers.iter_mut())
+            .chain(self.service_networks.iter_mut())
+            .chain(self.machines_cluster.iter_mut())
+            .for_each(f);
+    }
 }
 
 /// The body of the declaration of a cluster.
@@ -225,15 +241,16 @@ struct ClusterRow(ClusterDto);
 
 impl<'r> sqlx::FromRow<'r, PgRow> for ClusterRow {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        let one = |name: &str| row.try_get::<Uuid, _>(name).map(|id| IdRef { id });
+        // The references as identifiers alone, until `summarised`.
+        let one = |name: &str| row.try_get::<Uuid, _>(name).map(Summary::bare);
         let optional = |name: &str| {
-            Ok::<_, sqlx::Error>(row.try_get::<Option<Uuid>, _>(name)?.map(|id| IdRef { id }))
+            Ok::<_, sqlx::Error>(row.try_get::<Option<Uuid>, _>(name)?.map(Summary::bare))
         };
         let many = |name: &str| {
             Ok::<_, sqlx::Error>(
                 row.try_get::<Vec<Uuid>, _>(name)?
                     .into_iter()
-                    .map(|id| IdRef { id })
+                    .map(Summary::bare)
                     .collect(),
             )
         };
@@ -254,7 +271,9 @@ impl<'r> sqlx::FromRow<'r, PgRow> for ClusterRow {
             batch_window_seconds: row.try_get("batch_window_seconds")?,
             batch_max_operations: row.try_get("batch_max_operations")?,
             create_node_machines: row.try_get("create_node_machines")?,
-            connector_group: optional("connector_group_id")?,
+            connector_group: row
+                .try_get::<Option<Uuid>, _>("connector_group_id")?
+                .map(|id| IdRef { id }),
             href: format!("/v1/{COLLECTION}/{id}"),
         }))
     }
@@ -348,7 +367,8 @@ async fn list(
         criteria(COLLECTION, &page, &moment),
     )
     .await?;
-    let items: Vec<ClusterDto> = rows.into_iter().map(|r| r.0).collect();
+    let mut items: Vec<ClusterDto> = rows.into_iter().map(|r| r.0).collect();
+    summarised(&api, &context, &mut items, moment.valid_at, moment.as_of).await?;
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -368,8 +388,16 @@ async fn show(
         "SELECT {SELECT} FROM {} x WHERE x.id = $3",
         dated(TABLE, COLUMNS)
     );
-    let (ClusterRow(body), version) = kit::read_one(&api, sql, id, &moment).await?;
+    let (ClusterRow(mut body), version) = kit::read_one(&api, sql, id, &moment).await?;
     kit::record_read(&api, &context, CLUSTER, &[id], json!({"id": id})).await?;
+    summarised(
+        &api,
+        &context,
+        std::slice::from_mut(&mut body),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
     Ok(kit::respond_object(&headers, &moment, version, &body))
 }
 

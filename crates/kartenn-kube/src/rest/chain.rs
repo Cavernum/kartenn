@@ -17,6 +17,7 @@ use kartenn_rest::ModuleRouter;
 use kartenn_rest::kit::{
     self, Api, Dates, ETag, Problem, ProblemKind, documented, op, respond, schemas_of,
 };
+use kartenn_rest::summary::Summary;
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use serde::Serialize;
@@ -24,7 +25,7 @@ use utoipa::openapi::path::HttpMethod;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use super::{IdRef, allowed, closed, gone};
+use super::{Refers, allowed, closed, gone, summarised};
 use crate::module::{OBSERVATION_READ_PERMISSION, WORKLOAD};
 use crate::read::{self, Chain, Cut, Link, Reading};
 
@@ -37,28 +38,32 @@ const WHAT: &str = "the workload or its cluster";
 #[derive(Debug, Serialize, ToSchema)]
 #[schema(as = KubeExecutionLink)]
 struct LinkDto {
-    /// The node, from the journal.
-    node: IdRef,
-    /// Its machine (`machines.machine`); `null` for a node matched to no machine, or a
-    /// machine the caller may not read.
+    /// The node, from the journal, summarised at the date of the chain (`{id}` alone for
+    /// a node the caller may not read or absent then).
+    node: Summary,
+    /// Its machine (`machines.machine`), summarised at the date; `null` for a node
+    /// matched to no machine, or a machine the caller may not read.
     #[schema(required = true)]
-    machine: Option<HostRef>,
-    /// The hypervisor (`machines.machine`) that hosts the machine; `null` without one, or
-    /// for one the caller may not read.
+    machine: Option<Summary>,
+    /// The hypervisor (`machines.machine`) that hosts the machine, summarised at the
+    /// date; `null` without one, or for one the caller may not read.
     #[schema(required = true)]
-    hypervisor: Option<HostRef>,
-    /// The cluster of virtualisation (`machines.cluster`) that hosts the machine; `null`
-    /// without one, or for one the caller may not read.
+    hypervisor: Option<Summary>,
+    /// The cluster of virtualisation (`machines.cluster`) that hosts the machine,
+    /// summarised at the date; `null` without one, or for one the caller may not read.
     #[schema(required = true)]
-    virtualization_cluster: Option<HostRef>,
+    virtualization_cluster: Option<Summary>,
 }
 
-/// An object of the module machines in a chain of execution, by its identifier.
-#[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-#[schema(as = ExecutionHostRef)]
-struct HostRef {
-    /// Identifier.
-    id: Uuid,
+impl Refers for LinkDto {
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary)) {
+        f(&mut self.node);
+        self.machine
+            .iter_mut()
+            .chain(self.hypervisor.iter_mut())
+            .chain(self.virtualization_cluster.iter_mut())
+            .for_each(f);
+    }
 }
 
 /// Why a chain is empty though the workload may have run.
@@ -94,13 +99,13 @@ struct ChainParams {
     valid_at: Option<String>,
 }
 
+/// The link, its references as identifiers alone until [`summarised`].
 fn link_dto(link: &Link) -> LinkDto {
-    let reference = |id: Option<Uuid>| id.map(|id| HostRef { id });
     LinkDto {
-        node: IdRef { id: link.node },
-        machine: reference(link.machine),
-        hypervisor: reference(link.hypervisor),
-        virtualization_cluster: reference(link.cluster),
+        node: Summary::bare(link.node),
+        machine: link.machine.map(Summary::bare),
+        hypervisor: link.hypervisor.map(Summary::bare),
+        virtualization_cluster: link.cluster.map(Summary::bare),
     }
 }
 
@@ -163,10 +168,10 @@ async fn chain(
         Some(Cut::Unobserved) => Some(ReasonDto::Unobserved),
         Some(Cut::Closed) => return Err(gone(WHAT)),
     };
-    let body = ChainDto {
-        links: links.iter().map(link_dto).collect(),
-        reason,
-    };
+    // A host the caller may not read is already `null` (Q-019-31): its kind is not said.
+    let mut links: Vec<LinkDto> = links.iter().map(link_dto).collect();
+    summarised(&api, &context, &mut links, moment.valid_at, None).await?;
+    let body = ChainDto { links, reason };
     let bytes = serde_json::to_vec(&body).map_err(|_| Problem::new(ProblemKind::Internal))?;
     let etag = ETag::page(&bytes);
     let response = ([(CONTENT_TYPE, "application/json")], bytes).into_response();

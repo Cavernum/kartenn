@@ -2550,6 +2550,23 @@ impl ModuleHandler for Handler {
         })
     }
 
+    /// The natural keys of the objects of the module, the `label` of their summaries
+    /// (spec 006, REQ-006-42): see [`crate::keys`].
+    fn keys<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        objects: &'a [Uuid],
+    ) -> BoxFuture<'a, Result<Vec<(Uuid, String)>, StoreError>> {
+        Box::pin(async move {
+            let (valid_at, as_of) = (read.valid_at(), read.as_of());
+            let conn = read
+                .connection()
+                .downcast_mut::<PgConnection>()
+                .ok_or_else(|| StoreError("not a PostgreSQL connection".into()))?;
+            crate::keys::of(conn, objects, valid_at, as_of).await
+        })
+    }
+
     /// The background tasks of the journal of observations (task 019-6c).
     fn run_job<'a>(
         &'a self,

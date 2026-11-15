@@ -15,7 +15,7 @@ use sqlx::types::time::OffsetDateTime;
 use tower::ServiceExt;
 
 use super::super::Env;
-use super::{app, person, principal, rfc3339};
+use super::{app, person, principal, rfc3339, slugged, summary};
 
 /// The answer of `method uri` with the JSON `body` of `media` and `headers`.
 async fn call(
@@ -130,13 +130,23 @@ async fn cluster_routes_round_trip(pool: PgPool) {
     let item = &page["items"][0];
     assert_eq!(item["id"], json!(id));
     assert_eq!(item["href"], json!(location));
-    assert_eq!(item["owner"], json!({"id": env.acme}));
+    // Its references by their summaries (spec 006, REQ-006-42).
+    assert_eq!(item["owner"], slugged("entities", env.acme, "acme"));
     assert_eq!(item["site"], Value::Null);
-    assert_eq!(item["pod_domain"], json!({"id": env.pods}));
-    assert_eq!(item["service_domain"], json!({"id": env.services}));
+    assert_eq!(item["pod_domain"], slugged("domains", env.pods, "pods"));
+    assert_eq!(
+        item["service_domain"],
+        slugged("domains", env.services, "services")
+    );
     assert_eq!(item["external_domain"], Value::Null);
-    assert_eq!(item["pod_containers"], json!([{"id": container}]));
-    assert_eq!(item["service_networks"], json!([{"id": network}]));
+    assert_eq!(
+        item["pod_containers"],
+        json!([summary("prefixes", container, "198.51.100.0/24")])
+    );
+    assert_eq!(
+        item["service_networks"],
+        json!([summary("prefixes", network, "203.0.113.0/26")])
+    );
     assert_eq!(item["retention_days"], 14);
     assert_eq!(item["tracked_label_keys"], json!(["app.example.org/tier"]));
     assert_eq!(item["batch_window_seconds"], 10);
