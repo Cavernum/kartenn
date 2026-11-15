@@ -443,12 +443,13 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - C. Droits des objets créés avant les écritures, leur portée tirée du plan (ancres,
       parent) : le plus gros changement (pipeline, spec 005, ADR 0026)
     - recommandation de l'agent : B dans cette tâche, et A pour les seuls hôtes et grappes
+      (`machines.read`, `machines.cluster.read` sur l'hôte et la grappe, extension de M16)
+      comme décision de la spec 009
     - arbitrage de l'utilisateur (2026-11-15) : B, et A limitée aux hôtes et aux grappes
       (désigner un hôte ou une grappe par `host` ou `member_of` exige le droit de les
       lire, vérifié avant les écritures, hors objets que le changeset crée) ; le modèle
-      des droits reste inchangé ailleurs ; A généralisée n'est pas retenue pour la v0.2
-      (`machines.read`, `machines.cluster.read` sur l'hôte et la grappe, extension de M16)
-      comme décision de la spec 009
+      des droits reste inchangé ailleurs pour la v0.2 ; A généralisée est retenue pour
+      plus tard, après la v0.2 (tâche 31)
 - [x] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
   vigueur au début de sa période (son objet existant, lu par la complétion, reste hors du
   contrôle, 29b2) — REQ-002-12 (amendée) — verify : test d'intégration rouge d'abord
@@ -513,6 +514,20 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   où : `crates/kartenn-store-pg/migrations/` (`0004_core_objects.sql:44-61` pour la forme
   des tables) ; `docs/spec/data.md` ; ADR 0014 et 0015 ; `docs/practices/`
   dépend de : 29
+- [ ] 31. (après la v0.2, arbitrage de l'utilisateur du 2026-11-15) Le droit de lire exigé
+  sur toute référence par identifiant (option A de la 29c2, généralisée) : désigner un
+  objet exige `<type>.read` sur lui, vérifié avant les écritures, hors objets que le
+  changeset crée ; ferme tout oracle d'existence par une référence, pour tous les modules,
+  et remplace l'exception posée par la 29c2 pour les seuls hôtes et grappes. Spec d'abord :
+  le modèle des droits (spec 005, M16 de la spec 009 généralisée), l'amendement 17 de
+  l'ADR 0026, REQ-002-12 ; à établir : les usages légitimes qui désignent un objet sans le
+  lire (propriétaire, site, adresse d'un rattachement) et ce qu'ils deviennent — verify :
+  un auteur sans `<type>.read` sur la cible reçoit des réponses égales pour une cible
+  hors de portée, inconnue, d'un autre type et close, pour chaque champ de référence de
+  chaque module ; `k-check`
+  où : `crates/kartenn-service/src/pipeline.rs` (`check_designations`, `read_permission`,
+  `stages`), `rights.rs` ; `specs/005-*/`, `specs/009-*/` (M16), `docs/adr/` (0026)
+  dépend de : 29c2, 29d ; publication de la v0.2
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 
