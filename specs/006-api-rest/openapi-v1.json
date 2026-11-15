@@ -15354,6 +15354,19 @@
         "operationId": "list_admissibility_conditions",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
             "name": "key",
@@ -21389,6 +21402,19 @@
         "operationId": "list_environments",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to, or held by, `value_key`.",
             "in": "query",
             "name": "key",
@@ -22255,6 +22281,19 @@
       "get": {
         "operationId": "list_flow_types",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
@@ -25800,6 +25839,19 @@
       "get": {
         "operationId": "list_inference_rules",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
@@ -34327,6 +34379,19 @@
         "operationId": "list_policy_axes",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to, or held by, `property_key`.",
             "in": "query",
             "name": "property",
@@ -35186,6 +35251,19 @@
       "get": {
         "operationId": "list_policy_exempt_roles",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `role_key`.",
             "in": "query",
@@ -36127,6 +36205,19 @@
       "get": {
         "operationId": "list_policy_patterns",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
@@ -37255,6 +37346,19 @@
         "operationId": "list_policy_rules",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
             "name": "key",
@@ -38150,6 +38254,19 @@
       "get": {
         "operationId": "list_policy_values",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `property_key`.",
             "in": "query",
@@ -41477,6 +41594,19 @@
         "operationId": "list_risk_signals",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to, or held by, `key`.",
             "in": "query",
             "name": "key",
@@ -43115,6 +43245,19 @@
       "get": {
         "operationId": "list_services",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to, or held by, `key`.",
             "in": "query",

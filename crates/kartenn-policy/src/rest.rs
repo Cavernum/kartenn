@@ -418,10 +418,18 @@ fn visible(kind: &str) -> String {
     )
 }
 
-/// The filters of `page`, each one of `c`, once.
-fn wanted<'a>(c: &Collection, page: &'a Page) -> Result<BTreeMap<&'a str, String>, Problem> {
-    let mut found = BTreeMap::new();
+/// The filters of a list by parameter, and the identifiers of its filter `id`.
+type Wanted<'a> = (BTreeMap<&'a str, String>, Vec<Uuid>);
+
+/// The filters of `page`, each one of `c`, once; the identifiers of its filter `id`
+/// (REQ-006-41), read in the same pass, each once.
+fn wanted<'a>(c: &Collection, page: &'a Page) -> Result<Wanted<'a>, Problem> {
+    let (mut found, mut ids) = (BTreeMap::new(), Vec::new());
     for (name, value) in &page.filters {
+        if name == "id" {
+            kartenn_rest::filter::push_id(&mut ids, value)?;
+            continue;
+        }
         let Some((_, _, _, id)) = c.filters.iter().find(|f| f.0 == name) else {
             return Err(kit::bad(format!("unknown parameter {name}")));
         };
@@ -437,7 +445,9 @@ fn wanted<'a>(c: &Collection, page: &'a Page) -> Result<BTreeMap<&'a str, String
             return Err(kit::bad(format!("{name} is given more than once")));
         }
     }
-    Ok(found)
+    ids.sort_unstable();
+    ids.dedup();
+    Ok((found, ids))
 }
 
 fn rfc3339(at: OffsetDateTime) -> String {
@@ -445,7 +455,8 @@ fn rfc3339(at: OffsetDateTime) -> String {
         .expect("an instant formats")
 }
 
-/// `GET`/`QUERY /v1/<collection>` of the module: by order, filtered in conjunction.
+/// `GET`/`QUERY /v1/<collection>` of the module: by order, filtered in conjunction;
+/// filtered by `id`, one page without a next one (REQ-006-41).
 async fn list(
     api: &Api,
     principal: &Principal,
@@ -455,7 +466,8 @@ async fn list(
     c: &'static Collection,
 ) -> Result<Response, Problem> {
     let page = Page::from_query(query, &api.ring, c.name)?;
-    let filters = wanted(c, &page)?;
+    let (filters, ids) = wanted(c, &page)?;
+    let (limit, size) = kartenn_rest::filter::window(&page, &ids)?;
     let after = page
         .after()
         .map(|key| serde_json::from_value::<(String, Uuid)>(key.clone()))
@@ -489,11 +501,14 @@ async fn list(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT x.id, x.sort, x.body FROM {} x
           WHERE (${n}::text IS NULL OR (x.sort, x.id) > (${n}, ${}::uuid)){filtered}
+            AND (cardinality(${}::uuid[]) = 0 OR x.id = ANY(${}))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.sort, x.id
           LIMIT ${}",
         dated(c),
         n + 1,
+        n + 3,
+        n + 3,
         visible(c.kind),
         n + 2,
     );
@@ -509,11 +524,11 @@ async fn list(
     let mut rows = statement
         .bind(after.as_ref().map(|(sort, _)| sort.clone()))
         .bind(after.as_ref().map(|(_, id)| *id))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
+        .bind(&ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -1856,7 +1871,8 @@ fn collection_routes(router: ModuleRouter, c: &'static Collection) -> ModuleRout
         &format!("list_{operation_name}"),
         "policy",
         &format!("The {name} of the policy."),
-    );
+    )
+    .ids();
     for (filter, member, _, _) in c.filters {
         list_op = list_op.query(filter, &format!("Equal to, or held by, `{member}`."));
     }
