@@ -6,8 +6,8 @@
 //!
 //! The rights are the routes' (task 011-9): these reads filter by the reader only what the
 //! routes give them — the [`Reader`] of a list of flows, whose predicate the query carries
-//! before it cuts the page (task 006-36), and the requester the non-conformities are
-//! narrowed to ([`NonconformityFilter::requester`], REQ-011-25).
+//! before it cuts the page (task 006-36), as does the query of the non-conformities
+//! ([`NonconformityFilter::reader`], task 006-37).
 
 use std::collections::HashMap;
 
@@ -103,9 +103,10 @@ pub struct Reader {
     /// Its read scope, the JSON argument of `kartenn_scopes`, which the query materialises
     /// as `s`; `None`: it reads every applied flow.
     pub scope: Option<Value>,
-    /// The condition, beside its requester, that the applied flow `f` is readable at `$1`
-    /// under the scopes `s`: SQL text built by the routes from the predicate of the core,
-    /// which cites no value of the request (every value is bound).
+    /// The condition, beside its requester, that the row is readable at `$1` under the
+    /// scopes `s` — the applied flow `f` of a list of flows, the non-conformity `n` (its
+    /// `entity` and `flow`, task 006-37): SQL text built by the routes from the predicate of
+    /// the core, which cites no value of the request (every value is bound).
     pub condition: String,
     /// Whether it reads every request pending a review named by its entity, under
     /// `flow.read` or `flow.review` (F19); otherwise, those of `review_entities`.
@@ -1190,6 +1191,10 @@ pub struct NonconformityFilter {
     /// The rows after this key, in the order of the list: the instant and the identifier
     /// ([`Nonconformity::key`]) of the last row of the previous page (task 021-29).
     pub after: Option<(OffsetDateTime, Uuid)>,
+    /// Who reads the list: the query keeps the rows it reads, its requests or under the
+    /// condition of its scopes, before it cuts the page (task 006-36, 006-37); `None`, or
+    /// no scope: every row.
+    pub reader: Option<Reader>,
 }
 
 /// A non-conformity (REQ-011-25): a request rejected at review, a flow `noncompliant` or
@@ -1250,10 +1255,19 @@ pub async fn nonconformities(
         "flow_evaluation",
         "t.flow_id, t.verdict, t.reason, t.decisive_id, t.valid_period",
     );
-    let mut q = dated_query(
-        dates,
-        &format!(
-            ", rows AS (
+    let mut q = dated_query(dates, "");
+    // The scopes of the reader, materialised once for the query (migration 0033).
+    let reader = filter
+        .reader
+        .as_ref()
+        .and_then(|r| r.scope.as_ref().map(|scope| (r, scope)));
+    if let Some((_, scope)) = reader {
+        q.push(", s AS MATERIALIZED (SELECT * FROM kartenn_scopes(");
+        q.push_bind(scope.clone());
+        q.push("::jsonb))");
+    }
+    q.push(format!(
+        ", rows AS (
                  SELECT 'rejected'::text AS state, NULL::uuid AS flow, r.changeset_id AS changeset,
                         r.requester_id AS requester, r.entity_id AS entity, r.reason AS motive,
                         r.rule_id AS rule, r.rejected_at AS at,
@@ -1263,13 +1277,13 @@ pub async fn nonconformities(
                  UNION ALL
                  SELECT CASE WHEN w.flow_id IS NULL THEN 'noncompliant' ELSE 'waived' END,
                         f.id, NULL, f.requester_id, f.entity_id,
-                        coalesce(w.reason, v.reason), v.decisive_id, lower(s.valid_period),
+                        coalesce(w.reason, v.reason), v.decisive_id, lower(sm.valid_period),
                         f.kind
-                   FROM {summary} s
+                   FROM {summary} sm
                    -- From the denied summaries, few, to their flow (task 011-10).
                    CROSS JOIN LATERAL (
                      SELECT t.* FROM {flow} t
-                      WHERE t.id = s.flow_id AND t.valid_period @> $1::timestamptz
+                      WHERE t.id = sm.flow_id AND t.valid_period @> $1::timestamptz
                       ORDER BY upper(t.valid_period) DESC NULLS FIRST LIMIT 1) f
                    LEFT JOIN {waiver} w ON w.flow_id = f.id AND w.valid_period @> $1::timestamptz
                    LEFT JOIN LATERAL (
@@ -1277,51 +1291,57 @@ pub async fn nonconformities(
                       WHERE e.flow_id = f.id AND e.valid_period @> $1::timestamptz
                         AND e.verdict = 'denied'
                       ORDER BY e.decisive_id NULLS LAST LIMIT 1) v ON TRUE
-                  WHERE s.valid_period @> $1::timestamptz AND s.summary = 'denied')
-             SELECT x.state, x.flow, x.changeset, x.requester, x.entity, x.motive, x.rule,
-                    pr.key, pr.texts, x.at, x.kind
-               FROM rows x
-               LEFT JOIN policy.policy_rule pr ON pr.id = x.rule
+                  WHERE sm.valid_period @> $1::timestamptz AND sm.summary = 'denied')
+             SELECT n.state, n.flow, n.changeset, n.requester, n.entity, n.motive, n.rule,
+                    pr.key, pr.texts, n.at, n.kind
+               FROM rows n
+               LEFT JOIN policy.policy_rule pr ON pr.id = n.rule
                 AND pr.valid_period @> $1::timestamptz
               WHERE TRUE"
-        ),
-    );
+    ));
+    // The rows the caller reads, before the page is cut (task 006-37): its own requests
+    // (REQ-011-25), or under the condition of its scopes.
+    if let Some((reader, _)) = reader {
+        q.push(" AND (n.requester = ");
+        q.push_bind(reader.identity);
+        q.push(format!(" OR {})", reader.condition));
+    }
     if let Some(requester) = filter.requester {
-        q.push(" AND x.requester = ");
+        q.push(" AND n.requester = ");
         q.push_bind(requester);
     }
     if let Some(entity) = filter.entity {
-        q.push(" AND x.entity = ");
+        q.push(" AND n.entity = ");
         q.push_bind(entity);
     }
     if let Some(rule) = filter.rule {
-        q.push(" AND x.rule = ");
+        q.push(" AND n.rule = ");
         q.push_bind(rule);
     }
     if let Some(from) = filter.from {
-        q.push(" AND x.at >= ");
+        q.push(" AND n.at >= ");
         q.push_bind(from);
     }
     if let Some(to) = filter.to {
-        q.push(" AND x.at < ");
+        q.push(" AND n.at < ");
         q.push_bind(to);
     }
     if let Some(state) = &filter.state {
-        q.push(" AND x.state = ");
+        q.push(" AND n.state = ");
         q.push_bind(state.clone());
     }
     if let Some(kind) = &filter.kind {
-        q.push(" AND x.kind = ");
+        q.push(" AND n.kind = ");
         q.push_bind(kind.clone());
     }
     if let Some((at, id)) = filter.after {
-        q.push(" AND (x.at, coalesce(x.flow, x.changeset)) < (");
+        q.push(" AND (n.at, coalesce(n.flow, n.changeset)) < (");
         q.push_bind(at);
         q.push(", ");
         q.push_bind(id);
         q.push(")");
     }
-    q.push(" ORDER BY x.at DESC, coalesce(x.flow, x.changeset) DESC LIMIT ");
+    q.push(" ORDER BY n.at DESC, coalesce(n.flow, n.changeset) DESC LIMIT ");
     q.push_bind(limit);
     let rows = q.build().fetch_all(conn).await.map_err(|e| store(&e))?;
     rows.iter()

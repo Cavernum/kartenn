@@ -92,13 +92,19 @@ impl Env {
 
     /// A person granted `entries` on the entity `entity`, everywhere when `None`.
     async fn granted_on(&self, entries: &[&str], entity: Option<Uuid>) -> Uuid {
-        let pool = &self.pool;
         let identity: Uuid = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
         )
-        .fetch_one(pool)
+        .fetch_one(&self.pool)
         .await
         .unwrap();
+        self.grant(identity, entries, entity).await;
+        identity
+    }
+
+    /// Grants `entries` to `identity` on the entity `entity`, everywhere when `None`.
+    async fn grant(&self, identity: Uuid, entries: &[&str], entity: Option<Uuid>) {
+        let pool = &self.pool;
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -128,7 +134,6 @@ impl Env {
             .execute(pool)
             .await
             .unwrap();
-        identity
     }
 }
 
@@ -771,6 +776,93 @@ async fn nonconformities_page_by_cursor(pool: PgPool) {
     let (status, problem) = call(&reader, Method::GET, &altered.unwrap(), None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
     assert_eq!(problem["type"], "urn:kartenn:problem:invalid-cursor");
+}
+
+/// Task 006-37: a page of non-conformities is cut on the rows the caller reads. Rejected
+/// requests of two requesters on two entities, in turn; a reader of one entity, and a
+/// requester who reads the other, page through the rows a reader of every flow is served,
+/// less those they do not read: no page shorter than asked with a next one, no cursor that
+/// carries the key of a row they do not read.
+#[kartenn_testing::pg_test]
+async fn a_page_of_nonconformities_is_cut_on_the_rows_the_caller_reads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.applied(vec![Operation::CreateEntity {
+        local: Some(1),
+        slug: "beta".into(),
+        parent: None,
+    }])
+    .await;
+    let beta = env.slugged("entity", "beta").await;
+    let (author, other) = (env.person().await, env.person().await);
+    // Newest first: the rows alternate between the requesters, and by pairs between the
+    // entities.
+    let mut rows = Vec::new();
+    for n in 0..8_i32 {
+        let changeset = Uuid::now_v7();
+        let requester = if n % 2 == 0 { author } else { other };
+        let entity = if n % 4 < 2 { env.acme } else { beta };
+        sqlx::query(
+            "INSERT INTO flow.flow_rejection (changeset_id, request, evaluation, reason,
+                                              reviewed_by, requester_id, entity_id, rejected_at)
+             VALUES ($1, '{}', '{}', 'non', $2, $2, $3, now() - make_interval(hours => $4))",
+        )
+        .bind(changeset)
+        .bind(requester)
+        .bind(entity)
+        .bind(n)
+        .execute(&pool)
+        .await
+        .unwrap();
+        rows.push((changeset.to_string(), requester, entity));
+    }
+    let everything = env.app(env.granted(&["flow.read"]).await);
+    let of_acme = env.app(env.granted_on(&["flow.read"], Some(env.acme)).await);
+    let (all, _) = pages(&everything, "/v1/flow-nonconformities?page_size=3").await;
+    let changeset = |row: &Value| row["changeset"].as_str().unwrap().to_owned();
+    assert_eq!(
+        all.iter().map(changeset).collect::<Vec<_>>(),
+        rows.iter().map(|r| r.0.clone()).collect::<Vec<_>>()
+    );
+    // The author holds `flow.read` on the other entity: it reads its own requests and the
+    // rows of that entity.
+    env.grant(author, &["flow.read"], Some(beta)).await;
+    let readers = [
+        (of_acme, rows.iter().map(|r| r.2 == env.acme).collect()),
+        (
+            env.app(author),
+            rows.iter().map(|r| r.1 == author || r.2 == beta).collect(),
+        ),
+    ];
+    for (app, reads) in &readers {
+        let reads: &Vec<bool> = reads;
+        let (expected, unread): (Vec<_>, Vec<_>) =
+            rows.iter().zip(reads).partition(|(_, reads)| **reads);
+        let expected: Vec<String> = expected.into_iter().map(|(r, _)| r.0.clone()).collect();
+        let unread: Vec<String> = unread.into_iter().map(|(r, _)| r.0.clone()).collect();
+        assert!(!expected.is_empty() && !unread.is_empty());
+        for size in 1..=3 {
+            let uri = format!("/v1/flow-nonconformities?page_size={size}");
+            let (read, cut) = pages(app, &uri).await;
+            assert_eq!(
+                read.iter().map(changeset).collect::<Vec<_>>(),
+                expected,
+                "{uri}"
+            );
+            for (served, cursor) in &cut {
+                let Some(cursor) = cursor else { continue };
+                assert_eq!(
+                    *served, size,
+                    "{uri}: a page shorter than asked has a next one"
+                );
+                for key in &unread {
+                    assert!(
+                        !cursor.contains(key),
+                        "{uri}: the cursor {cursor} names {key}"
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// A host address of the domain, in a network already created.
