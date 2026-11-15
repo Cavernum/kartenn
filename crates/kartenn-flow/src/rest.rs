@@ -7,7 +7,8 @@
 //! compliance of the 010 and, for each of its evaluations, the flows that open it.
 //!
 //! Rights (REQ-011-17): a flow is read under `flow.read` on its entity, by the
-//! predicate of the core (ADR 0021); its requester reads it too; so does a holder of
+//! predicate of the core (ADR 0021); its requester reads it too while it holds
+//! `flow.request` on that entity (task 006-38); so does a holder of
 //! `flow.read` on any perimeter who reads one of its endpoints (spec 027, REQ-027-1). A
 //! flow is served as is to every reader, whatever the way it is read (REQ-027-2): its
 //! endpoints by kind, identifier and value, its evaluations in full, and no datum of an
@@ -834,7 +835,8 @@ async fn endpoint_values(
 }
 
 /// The flows among `flows` (identifier, endpoints) the caller reads at `at`: under
-/// `flow.read` on their entity or as their requester (REQ-011-17), or, holding
+/// `flow.read` on their entity or as their requester holding `flow.request` on it
+/// (REQ-011-17, task 006-38), or, holding
 /// `flow.read` elsewhere, through one of their endpoints (REQ-027-1). When the caller does
 /// not read every object of `objects`, those a filter names, a flow read through its
 /// endpoints only is left out (REQ-027-3).
