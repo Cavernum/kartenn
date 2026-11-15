@@ -22,12 +22,10 @@ use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
     ProblemKind, documented, listing_of, next_href, op, queryable, respond_page, schemas_of,
 };
-use kartenn_rest::objects::Target;
-use kartenn_rest::summary::{Readable, Summaries, Summary};
+use kartenn_rest::summary::{Summaries, Summary};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
-use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::rbac::{ReadScope, readable};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -1496,9 +1494,9 @@ async fn show_machine(
             .map(|i| CardInterface {
                 addresses: addresses
                     .iter()
-                    .filter(|a| a.interface.id == i.id)
+                    .filter(|a| a.interface == i.id)
                     .map(|a| CardAddress {
-                        id: a.address.id,
+                        id: a.address,
                         value: a.value.clone(),
                         primary: a.primary,
                     })
@@ -1522,6 +1520,21 @@ fn interface_ids(rows: &[InterfaceRow]) -> Vec<Uuid> {
     rows.iter().map(|r| r.id).collect()
 }
 
+/// An address attached to an interface, as [`attached`] reads it.
+#[derive(Debug, sqlx::FromRow)]
+struct Attached {
+    /// The interface.
+    interface: Uuid,
+    /// Its name.
+    name: String,
+    /// The address of the core.
+    address: Uuid,
+    /// Its value, without prefix length.
+    value: String,
+    /// Whether it is the primary address of its family on the interface.
+    primary: bool,
+}
+
 /// The addresses the caller may read attached to `interfaces` at `moment`, by interface
 /// then value.
 async fn attached(
@@ -1529,11 +1542,11 @@ async fn attached(
     moment: &Moment,
     scope: &ReadScope,
     interfaces: &[Uuid],
-) -> Result<Vec<AddressDto>, Problem> {
-    type Row = (Uuid, String, Uuid, String, bool);
-    let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+) -> Result<Vec<Attached>, Problem> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
-         SELECT i.id, i.name, x.id, host(x.address), a.primary_for_family
+         SELECT i.id AS interface, i.name, x.id AS address, host(x.address) AS value,
+                a.primary_for_family AS primary
            FROM unnest($4::uuid[]) AS held(id)
            CROSS JOIN LATERAL {} i
            CROSS JOIN LATERAL {} a
@@ -1559,23 +1572,7 @@ async fn attached(
     .bind(interfaces)
     .fetch_all(&api.pool)
     .await
-    .map_err(|e| kit::store(&e))?;
-    // Both ends are read at the dates and under the scope of the caller by this query (and
-    // the interfaces by the one before it): their summaries are whole, without a read more.
-    let interface_type = Target::Module(crate::module::interface_type());
-    let address_type = Target::Core(Kind::Address);
-    let all = Readable::all();
-    Ok(rows
-        .into_iter()
-        .map(|(interface, name, address, value, primary)| AddressDto {
-            interface: Summary::labelled(interface_type, interface, Some(name.clone()), &all),
-            interface_name: name,
-            address: Summary::labelled(address_type, address, Some(value.clone()), &all),
-            value,
-            primary,
-            href: format!("/v1/addresses/{address}"),
-        })
-        .collect())
+    .map_err(|e| kit::store(&e))
 }
 
 /// `GET /v1/machines/{id}/addresses`: the addresses of the machine at the date, by
@@ -1605,7 +1602,27 @@ async fn machine_addresses(
     .fetch_all(&api.pool)
     .await
     .map_err(|e| kit::store(&e))?;
-    let items = attached(&api, &moment, &scope, &interfaces).await?;
+    let rows = attached(&api, &moment, &scope, &interfaces).await?;
+    // Summarised as every other reference (REQ-006-42): the key of an address as the core
+    // writes it, and its readability as `authorize_many` judges it.
+    let linked = linked(
+        &api,
+        &context,
+        &moment,
+        rows.iter().flat_map(|a| [a.interface, a.address]),
+    )
+    .await?;
+    let items: Vec<AddressDto> = rows
+        .into_iter()
+        .map(|a| AddressDto {
+            interface: linked.of(a.interface),
+            interface_name: a.name,
+            address: linked.of(a.address),
+            value: a.value,
+            primary: a.primary,
+            href: format!("/v1/addresses/{}", a.address),
+        })
+        .collect();
     let ids: Vec<Uuid> = items.iter().map(|a| a.address.id).collect();
     kit::record_read(
         &api,
