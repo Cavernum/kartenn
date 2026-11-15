@@ -7213,7 +7213,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `pointerdown` sur la barre de défilement n'est pas suivi d'un `pointerup` (à
       vérifier) ; aucun test pour `pointercancel`, le nettoyage au démontage ni l'absence
       de rendu au `scroll`.
-  - [ ] 22e-f. (C, à arbitrer) Le protocole du budget de l'arbre à 500 lignes/s : 10⁴
+  - [x] 22e-f. (C, retenue par l'utilisateur le 2026-11-15) Le protocole du budget de l'arbre à 500 lignes/s : 10⁴
     lignes en 20 s au lieu de 10, le budget (2 %, aucune tâche longue) inchangé
     (ce que l'utilisateur perd : rien dans le produit ; le banc ne garantit plus le
     défilement à 1 000 lignes/s, quatre fois le protocole du prototype D-1 au lieu de
@@ -7225,7 +7225,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       passes de référence dans ce fichier
     - taille : petite, mais un changement de spec (le protocole d'un budget) : décision
       de l'utilisateur
-    - dépend de : arbitrage de la 22e (C)
+    - dépend de : arbitrage de la 22e (C, retenue par l'utilisateur le 2026-11-15)
+    - fait le 2026-11-15 (agent) — `budgets.spec.ts` : `SCROLL_MS` (20 000 ms) mène
+      `scrollRows`, qui ne prend plus de nombre de lignes ; le relevé dit « 10000 rows in
+      20 s » ; les variantes `@500` du diagnostic `K_BENCH_TREE_AB` retirées (toutes ses
+      variantes passent désormais à 500 lignes/s). Le passage avec l'écrivain en
+      arrière-plan (A40, 22m) partage `scrollRows` : il défile au même protocole, sa
+      fenêtre double (≈ 40 changesets au lieu de 20). `design.md` § « Budgets » : la
+      vitesse et ses raisons. `tree-grid-work.test.ts` : commentaires seulement.
+      `k-web2-check --base main` : 1 293 Vitest ; 2 741 captures sur 2 741 (« tout » :
+      `budgets.spec.ts` est un fichier du projet des captures), rien de réécrit (une
+      première passe sous une charge de 24 : un test de `tree-grid-work` hors délai, passé
+      seul puis à la passe suivante).
+    - choix : le pas de `tree-grid-work.test.ts` gardé à 17 lignes par trame (1 000
+      lignes/s, deux fois le banc) : la borne vaut pour le défilement le plus rapide ; le
+      budget du `web/e2e` de l'ancien shell (spec 007) laissé tel quel ; aucun relecteur
+      d'interface (rien de rendu ne change).
+    - banc : non lancé par l'agent ; les deux passes filtrées du verify reviennent à la
+      session principale, sur le résultat fusionné.
+    - reste : la 22e-g (B1) n'a plus d'objet tant que le protocole reste à 500 lignes/s.
   - [ ] 22e-g. (B1, à arbitrer) Le « + » monté sur la seule ligne active (focus,
     sélection, survol) au lieu d'un bouton transparent sur chaque ligne (ce que
     l'utilisateur perd : en mode navigation, le lecteur d'écran ne lit plus le « + » des

@@ -9,8 +9,9 @@ import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 
 // The work of the tree of the topography as it scrolls (task 021-22e-c; budget « dropped
-// frames over 10⁴ rows in 10 s »): the real view, a container open with its children, the
-// tree virtualised, scrolled by the rows a frame of the bench brings (≈ 17 at 1 000 rows/s).
+// frames over 10⁴ rows in 20 s »): the real view, a container open with its children, the
+// tree virtualised, scrolled by the rows a frame brings at 1 000 rows/s (≈ 17), twice those
+// of the bench since the task 22e-f (500 rows/s): the bound holds for the faster scroll.
 // Each step renders the rows that come (recycled: their props change) and asks the host's
 // functions for them, never for the rows that stay; a step of the focus renders the row it
 // leaves and the row it reaches.
@@ -56,7 +57,7 @@ const C1 = "0b5e3c1a-0000-4000-8000-0000000000c1";
 const VERSION = "0b5e3c1a-0000-4000-8000-0000000000f1";
 /** The children of the container: past `VIRTUAL_ROWS`, the tree virtualised. */
 const CHILDREN = 1000;
-/** The rows a frame brings at 1 000 rows/s. */
+/** The rows a frame brings at 1 000 rows/s (twice the bench's 500). */
 const STEP = 17;
 const ROW = 28;
 const prefixRef = (id: string) => ({ id, href: `/v1/prefixes/${id}` });
