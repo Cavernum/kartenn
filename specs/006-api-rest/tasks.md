@@ -781,3 +781,81 @@ routeur complet, sauf mention « vrai TCP ».
   - où : `crates/kartenn-rest/src/` (résumé `domain` d'un préfixe comme modèle, H19),
     contrat OpenAPI ; 005 (prédicat de lecture)
   - dépend de : 31, 32 (le shell peut déjà grouper ses lectures sans elle)
+  Découpée en 33a–33f (2026-11-15) ; recensement des corps à référence incomplète :
+  noyau (`objects.rs` : `domain`, `parent`, en lecture, liste et historique, clé montrée
+  quel que soit le droit sur le lié) ; anomalies et écarts (`anomalies.rs`,
+  `properties.rs` : `ObjectRef {kind, id, href}` sans clé) et valeur d'une propriété de
+  type référence ; VLAN (`vlan.rs` : ancre, groupe, `IdRef`) ; machines
+  (`machines/src/rest.rs` : propriétaire, site, grappe, VLAN d'accès, natif et marqués,
+  machine d'une interface, interface et adresse d'un rattachement, fiche) ; kube
+  (`kube/src/rest.rs`, `rest/clusters.rs`, `rest/mirrors.rs`, `rest/chain.rs`) ; flux et
+  politique (`flow/src/rest.rs` : extrémités ; `policy/src/rest.rs` : extrémités, points,
+  résolution d'axe, sujet d'un rapport). Hors champ : changeset et auteur d'une version
+  (`{id, href}`, `{id, href, name}`), qui ne sont pas des objets du réseau. Commun :
+  lisibilité des liés d'une page par une autorisation groupée par type visé
+  (`summary::readable`, sur `authorize_many`), sans journal de refus ; clés naturelles
+  lues avec la page ou en une requête par type visé au plus ; illisible = absent aux
+  dates = `{id}` seul.
+- [x] 33a. Brique commune et résumés du noyau : `summary::readable` (par `Target`, noyau
+  et modules) ; `Summary` à `slug` et `href` facultatifs, omis ensemble ; `domain` et
+  `parent` des entités, sites, préfixes, plages et adresses, en lecture, liste et
+  historique — verify : `k-check -p kartenn-rest` (résumé complet pour un lié lisible ;
+  `{id}` seul et octets identiques pour un lié illisible et pour un lié absent aux
+  dates ; une page à liés lisibles et non ; ETag changé au renommage du lié)
+  - où : `crates/kartenn-rest/src/objects.rs` (`Summary`, `represent`, `list`, `object`,
+    `history`), `properties.rs` (`visible_nodes`, à imiter) ; tests
+    `rest/tests/it/objects.rs`
+  - dépend de : —
+  fait : `crates/kartenn-rest/src/summary.rs` (nouveau : `Summary` déplacé d'`objects.rs`
+  et réexporté, `Summary::of` complet si le lié existe aux dates et est lisible,
+  `Summary::bare` sinon ; `Readable`, ensemble des refus d'`authorize_many` cumulable par
+  `Target`, sans journal de refus ; `readable`) ; `objects.rs` (`link_ids`,
+  `linked_readable` : une autorisation par page, par objet ou par page d'historique,
+  pour le type lié ; `represent` et `version_of` prennent `Readable`) ; contrat et
+  `schema.d.ts` des deux SDK régénérés (`href` n'est plus requis ; `dated.ts` inchangé).
+  Tests : `summary.rs` `an_unreadable_object_and_an_absent_one_leave_the_same_bytes` ;
+  `rest/tests/it/objects.rs` `a_summary_leaves_alike_the_unreadable_and_the_unknown`
+  (lecture, liste et historique d'un préfixe par deux appelants, l'un sans
+  `core.domain.read` : même corps au résumé près ; domaine supprimé : statut, en-têtes
+  hors `request-id` et octets identiques pour les deux appelants à ceux de l'illisible),
+  `a_page_summarises_each_linked_object_as_its_caller_may_read_it` (préfixes de deux
+  domaines dont un seul lisible ; entités dont le parent racine est hors portée) ; ETag
+  au renommage du lié : `rest/tests/it/resources.rs`
+  `renaming_the_parent_changes_the_etag_of_the_child` (28), inchangé.
+  choix : `slug` et `href` omis (et non `null`) ensemble, la forme de H23 ; un lié absent
+  aux dates rend `{id}`, comme un illisible (il rendait `slug: null` avec `href`) ;
+  lisibilité « maintenant », comme le lot de la 31 ; requête sans sujet : tout lisible,
+  comme le lot ; la clé naturelle reste lue par la jointure de la page (aucune requête de
+  plus), seule l'autorisation s'ajoute ; helper de test `grant` (un rôle de plus pour une
+  même personne) et `journal_of` (historique d'une autre table).
+  reste : le filtre `domain=<slug>` (et `parent=<slug>`) d'une liste compare la clé d'un
+  lié que l'appelant ne lit peut-être pas : un oracle sur la clé d'un domaine illisible,
+  antérieur à cette tâche, à trancher (REQ-005, invisible égale absent).
+- [ ] 33b. Anomalies, écarts et valeurs de type référence : `object` d'une anomalie
+  (`anomalies.rs`) et d'un écart (`properties.rs`, `/v1/property-gaps`) avec sa clé
+  naturelle ; valeur `ref` d'une propriété résolue, unitaire et par lots (31) — verify :
+  `k-check -p kartenn-rest`
+  - où : `crates/kartenn-rest/src/anomalies.rs` (`ObjectRef`), `properties.rs`
+  - dépend de : 33a ; à trancher avant : nom du membre de la clé naturelle pour une
+    clé composée (préfixe, plage, adresse : `domain` et `value` ; VLAN : groupe et
+    `vid`) et pour un type d'un module
+- [ ] 33c. VLAN : ancre et groupe d'un VLAN et d'un groupe — verify :
+  `k-check -p kartenn-rest vlan`
+  - où : `crates/kartenn-rest/src/vlan.rs` (`IdRef`, `Anchor`)
+  - dépend de : 33a, 33b (forme de la clé)
+- [ ] 33d. Machines : références des grappes, machines, interfaces, rattachements et
+  fiche — verify : `k-check -p kartenn-machines`
+  - où : `crates/kartenn-machines/src/rest.rs` (`IdRef`, `HostRef`)
+  - dépend de : 33a, 33b
+- [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
+  `k-check -p kartenn-kube`
+  - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,
+    `rest/mirrors.rs`, `rest/chain.rs` (`HostRef`)
+  - dépend de : 33a, 33b
+- [ ] 33f. Flux et politique, et garde du contrat (aucun schéma de réponse ne porte une
+  référence `{id}` seule hors résumé) — verify : `k-check -p kartenn-flow`,
+  `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`
+  - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`),
+    `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
+    `PolicyAxisResolution`, `PolicyReportItem`)
+  - dépend de : 33a–33e
