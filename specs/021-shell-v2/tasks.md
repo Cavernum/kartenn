@@ -7824,7 +7824,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       plafonnée à `--k-size-list-max` (480 px) quelle que soit la hauteur de la fenêtre,
       comme au-delà de 200 lignes, et les grilles du plugin `machines` dans les onglets
       d'une fiche peuvent imbriquer deux défileurs (non vu en rendu).
-  - [ ] 22f-h. Hauteur d'une grille virtualisée : sur un écran de liste du shell, la grille
+  - [x] 22f-h. Hauteur d'une grille virtualisée : sur un écran de liste du shell, la grille
     prend la hauteur restante de la fenêtre et porte le seul défilement de l'écran (plus
     de boîte de 480 px dans une page qui défile elle aussi) ; avant la bascule et avant
     tout push de la 22f-f. Les six vues (`ListView`, `PropertiesView`, `AuditView`,
@@ -7847,6 +7847,67 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - taille : moyenne (un composant, six vues, captures) ; à découper si le cadre doit
       bouger
     - dépend de : 22f-f
+    - fait : en CSS seul, sans toucher la `DataGrid` ni le modèle de hauteur du cadre :
+      `ViewPanel` prend `list` (le panneau d'un écran de liste, `data-list` sur la section et
+      le corps), passé par les six vues ; son corps, quand il tient une grille virtualisée,
+      devient une colonne flexible où la racine de la grille prend le reste (`flex: 1 1 0`)
+      et la grille perd son plafond (`max-block-size: none`) ; la surface du cadre
+      (`.k-frame__surface:has(> [data-list] .k-data-grid[data-virtual])`, règle tenue dans
+      `ViewPanel.vue` avec les autres, en un seul endroit) donne alors à ce panneau sa
+      hauteur (`grid-template-rows: minmax(auto, 1fr)`), tout autre écran gardant la sienne ;
+      `ShellFrame` ne fait plus d'un pixel d'arrondi un défilement de la surface (son arrêt
+      de tabulation, `surfaceScrolls`), le panneau la remplissant exactement. Parcours `records.spec.ts` (« a list of more than one page
+      takes the rest of the window ») : à 1 200 px de haut, ni le document ni la surface ne
+      défilent, le panneau remplit la surface, la grille dépasse 800 px et défile seule ; à
+      320 px, la racine de la grille garde la hauteur d'un en-tête et de six lignes et la
+      surface défile ; la liste des
+      domaines, courte et entière, garde sa hauteur. Ligne `DataGrid` de l'inventaire
+      (design 020) et de la skill `kartenn-ui`.
+    - choix : la forme vérifiée d'abord sur une page d'essai dans Chromium et Firefox
+      (fenêtres de 1 440 × 1 200, 900, 640 × 512 et 320 × 256) : le rendu réel du shell v2
+      n'est pas joignable par le MCP `playwright` (le processus `web` sert l'ancien shell) ;
+      une propriété `list` plutôt que `main` seul : la fiche (`RecordView`, panneau
+      principal) peut tenir une grille virtualisée de plugin, qui ne doit pas remplir la
+      fenêtre ; ni propriété `--k-data-grid-max` dans la `DataGrid` (la règle
+      `kartenn/token-reference` n'admet pour une propriété locale qu'un jeton, pas `none`),
+      ni plus de trois sélecteurs composés (`selector-max-compound-selectors`) : le corps
+      porte donc lui aussi `data-list` ; hauteur minimale : un en-tête et six lignes de la
+      densité (`--k-header-height`, `--k-row-height`), soit 198 px en compacte, 256 en
+      confortable — à 1 280 × 1 024 zoomé à 200 % (640 × 512), la grille a encore environ
+      300 px sans que la surface défile ; plus bas, elle défile (1.4.10) ; une liste
+      virtualisée et non lue jusqu'au bout est toujours plus haute que la fenêtre ; une
+      liste non virtualisée, même longue (≤ 200 lignes, lue entière d'emblée), garde sa
+      hauteur et la surface défile (un seul défileur ; borner aussi celle-là en ferait un
+      défileur de plus, arrêt de tabulation dans Firefox, 22f-f) ; le test de géométrie
+      est un parcours, la mise en page n'existant pas sous Vitest (jsdom) ; aucune maquette
+      ne change (leurs listes sont courtes, leur cadre `EcranCadre` à part) ; relectures :
+      la hauteur minimale est celle d'un en-tête et de six lignes, posée sur la racine de la
+      grille (le sélecteur « Colonnes », montré sous 960 px de conteneur, et une liste
+      empilée, `stack`, y montrent moins de lignes), sans jeton nouveau (un jeton relancerait
+      toutes les captures pour une valeur locale) ; le squelette du chargement, non
+      virtualisé, garde sa hauteur propre : à l'arrivée d'une liste paginée, le panneau
+      s'allonge vers le bas (le pied seul bouge, les lignes restent à leur place) ; remplir
+      dès le chargement ferait remonter le pied d'une liste courte à son arrivée.
+    - reste : les grilles du plugin `machines` (22f-i, 22f-j).
+  - [ ] 22f-i. Écran de liste du plugin `machines` (`MachineList`, liste paginée virtualisée
+    dès sa première page) : il garde le plafond de 480 px dans une surface qui défile ; même
+    forme que les écrans de liste du shell (la grille au reste de la fenêtre), à porter dans
+    l'élément du plugin, que le shell héberge sans `ViewPanel` — verify : parcours
+    `machines.spec.ts`, à 1 200 px de haut un seul défileur ; `k-web2-check`, `k-web2-e2e`
+    - où : `web/v2/plugins/machines/src/MachineList.vue` (gabarit vers 395, `DataGrid` 429),
+      `MachinesView.vue`, `PageRoot.vue` ; l'hôte d'une page de plugin dans le shell
+      (`shell/src/plugins/`) ; règles de 22f-h (`shell/src/views/parts/ViewPanel.vue` :
+      `data-list`, `.k-frame__surface:has`)
+    - dépend de : 22f-h
+  - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
+    `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
+    défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà
+    de son plafond de pages) ; à trancher : garder la boîte (une fiche tient plusieurs
+    sections) ou donner à l'onglet ouvert le reste de la fenêtre — verify : vue en rendu à
+    1 200 et 600 px de haut ; parcours `machines.spec.ts` ; relecture `ui-reviewer`
+    - où : `web/v2/plugins/machines/src/{MachineRecord,ClusterRecord,InterfacesTab,InterfaceGrid}.vue` ;
+      `shell/src/views/RecordView.vue` (panneau principal de la fiche)
+    - dépend de : 22f-h
   - [x] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
     des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
     ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
