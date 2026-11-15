@@ -1489,7 +1489,7 @@ async fn gaps(
         &context,
         ids.iter().copied().chain(referred),
         moment.valid_at,
-        None,
+        moment.as_of,
     )
     .await?;
     let items: Vec<Gap> = found

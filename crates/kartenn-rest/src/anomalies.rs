@@ -258,8 +258,14 @@ async fn list(
     let next = anomaly_next(&api, &page, NAME, &moment, &mut found);
     crate::properties::mask_gaps(&api, &context, &mut found).await?;
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
-    let summaries =
-        Summaries::read(&api, &context, ids.iter().copied(), moment.valid_at, None).await?;
+    let summaries = Summaries::read(
+        &api,
+        &context,
+        ids.iter().copied(),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
     let items: Vec<AnomalyDto> = found
         .iter()
         .map(|(a, k)| represent(a, *k, &summaries))

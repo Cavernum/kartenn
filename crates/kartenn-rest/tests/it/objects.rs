@@ -2838,6 +2838,59 @@ async fn the_object_of_an_anomaly_and_of_a_deviation_carries_its_key(pool: PgPoo
 }
 
 #[kartenn_testing::pg_test]
+async fn an_anomaly_of_an_unreadable_object_and_of_a_gone_one_leave_the_same_bytes(pool: PgPool) {
+    // Task 006-33b, INV-63, REQ-006-42: the anomalies and the deviations of an object the
+    // caller may not read, then of the same object gone, answer alike for both callers:
+    // status, headers but `request-id`, and bytes.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "192.0.2.0/24").await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    anomaly(&pool, author, net, "core.test.net").await;
+    let gap = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
+    sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
+        .bind(gap)
+        .bind("policy.zone: resolved \"red\", expected \"blue\" by src@1 (rule)")
+        .bind(json!({
+            "property": "policy.zone", "resolved": "red", "expected": "blue",
+            "source": "src", "revision": "1",
+        }))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+    let blind = app(
+        &pool,
+        person(&pool, &["core.domain.read"], ("global", None)).await,
+    );
+    let uris = [
+        format!("/v1/anomalies?object={net}"),
+        format!("/v1/property-gaps?object={net}"),
+    ];
+    let mut before = Vec::new();
+    for uri in &uris {
+        let shown = ok(&reader, uri).await;
+        assert_eq!(
+            shown["items"][0]["object"]["label"], "192.0.2.0/24",
+            "{uri}: {shown}"
+        );
+        let unreadable = answer(&blind, uri).await;
+        assert_eq!(unreadable.0, StatusCode::OK, "{uri}");
+        before.push(unreadable);
+    }
+    sqlx::query("DELETE FROM prefix WHERE id = $1")
+        .bind(net)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (uri, unreadable) in uris.iter().zip(&before) {
+        for app in [&reader, &blind] {
+            let gone = answer(app, uri).await;
+            assert_eq!(&gone, unreadable, "{uri}: unreadable and gone");
+        }
+    }
+}
+
+#[kartenn_testing::pg_test]
 async fn a_value_of_type_reference_leaves_alike_the_unreadable_and_the_unknown(pool: PgPool) {
     // Task 006-33b, REQ-006-42, 005: the value of a reference, read alone and by batch, is
     // the summary of its object for a caller who may read it, its identifier alone for one
