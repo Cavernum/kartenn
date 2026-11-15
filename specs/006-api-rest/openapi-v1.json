@@ -1310,7 +1310,7 @@
           "owner": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved owner."
               },
               {
@@ -1321,7 +1321,7 @@
           "site": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved site."
               },
               {
@@ -3951,7 +3951,7 @@
             ]
           },
           "machine": {
-            "$ref": "#/components/schemas/MachinesObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its machine."
           },
           "name": {
@@ -4106,7 +4106,7 @@
           "access": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The VLAN of an access port."
               },
               {
@@ -4121,7 +4121,7 @@
           "native": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The untagged VLAN of a trunk."
               },
               {
@@ -4132,7 +4132,7 @@
           "tagged": {
             "description": "The tagged VLANs of a trunk.",
             "items": {
-              "$ref": "#/components/schemas/MachinesObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           }
@@ -7650,7 +7650,7 @@
           "host": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachineHost",
+                "$ref": "#/components/schemas/MachineHostSummary",
                 "description": "Its host."
               },
               {
@@ -7674,7 +7674,7 @@
           "member_of": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The cluster it is a member of."
               },
               {
@@ -7689,7 +7689,7 @@
           "owner": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved owner."
               },
               {
@@ -7700,7 +7700,7 @@
           "site": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved site."
               },
               {
@@ -7727,7 +7727,7 @@
         "description": "An address attached to an interface (REQ-009-16).",
         "properties": {
           "address": {
-            "$ref": "#/components/schemas/MachinesObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The address of the core."
           },
           "href": {
@@ -7735,7 +7735,7 @@
             "type": "string"
           },
           "interface": {
-            "$ref": "#/components/schemas/MachinesObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The interface that holds it."
           },
           "interface_name": {
@@ -7767,7 +7767,7 @@
           "host": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachineHost",
+                "$ref": "#/components/schemas/MachineHostSummary",
                 "description": "Its host."
               },
               {
@@ -7798,7 +7798,7 @@
           "member_of": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The cluster it is a member of."
               },
               {
@@ -7813,7 +7813,7 @@
           "owner": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved owner."
               },
               {
@@ -7824,7 +7824,7 @@
           "site": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/MachinesObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved site."
               },
               {
@@ -7992,7 +7992,7 @@
         "type": "object"
       },
       "MachineHost": {
-        "description": "The host of a virtual machine or a container (M5): a machine or a cluster.",
+        "description": "The host of a virtual machine or a container (M5) as a write names it: a machine or a\ncluster.",
         "oneOf": [
           {
             "description": "A machine.",
@@ -8021,6 +8021,40 @@
             "type": "object"
           }
         ]
+      },
+      "MachineHostKind": {
+        "description": "The kind of the host of a machine.",
+        "enum": [
+          "machine",
+          "cluster"
+        ],
+        "type": "string"
+      },
+      "MachineHostSummary": {
+        "description": "The host of a virtual machine or a container (M5) as a read refers to it (spec 006,\nREQ-006-42): the summary of a machine or a cluster with its kind; `{id}` alone for a\nhost the caller may not read or that was absent then, which says not its kind.",
+        "properties": {
+          "href": {
+            "description": "Its URL; absent with `label`.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MachineHostKind",
+            "description": "`machine` or `cluster`; absent with `label`."
+          },
+          "label": {
+            "description": "Its natural key: the name of a machine, the slug of a cluster; absent if the caller\nmay not read the host or if it was absent then.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
       },
       "MachinePatch": {
         "description": "The body of the modification of a machine (JSON Merge Patch); `host: null` and\n`member_of: null` remove them. Its owner and site change by the operations of the core.",

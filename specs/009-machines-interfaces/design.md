@@ -219,6 +219,19 @@ noyau (clé `machines.interface_role`).
 | `POST /v1/interfaces/{id}/attachments`, `DELETE /v1/interfaces/{id}/attachments/{address}` | `attach_address`, `detach_address` (changeset d'une opération, `If-Match` de l'interface) |
 | `GET /v1/machines?network=<prefix>` | machines d'un réseau |
 
+Références rendues (spec 006, REQ-006-42, tâche 006-33d) : le propriétaire et le site
+d'un cluster ou d'une machine, le cluster d'un membre, la machine et les VLAN (accès,
+natif, marqués) d'une interface, l'interface et l'adresse d'un rattachement sont des
+résumés `{id, label, href}` (`slug` en plus pour une entité ou un site), `{id}` seul pour
+un lié illisible ou absent aux dates. L'hôte se lit `{id, kind, label, href}` (`kind` :
+`machine` ou `cluster`), `{id}` seul s'il est illisible : son genre ne se dit pas ; en
+écriture, `host` reste `{machine|cluster: Ref}` (design 006, « un résumé se lit, une
+référence s'écrit par son identifiant ») : un `host` renvoyé tel que lu dans un Merge
+Patch est refusé, 422, violation `machines.operation.invalid` dont le détail commence par
+`host:`. Clés du module
+(`ModuleHandler::keys`) : le nom d'une machine, le slug d'un cluster, le nom seul d'une
+interface.
+
 Arêtes (REQ-009-17) déclarées au registre : `machines.has_address`, `machines.access`,
 `machines.tagged`, `machines.native`, `machines.hosted_on` (machine → machine hôte),
 `machines.hosted_in` (machine → cluster hôte), `machines.member_of`. Un type d'arête

@@ -1035,6 +1035,23 @@ impl ModuleHandler for Handler {
         })
     }
 
+    /// The keys of the machines, clusters and interfaces among `objects` (spec 006,
+    /// REQ-006-42), read by the port of reading in one query.
+    fn keys<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        objects: &'a [Uuid],
+    ) -> BoxFuture<'a, Result<Vec<(Uuid, String)>, StoreError>> {
+        Box::pin(async move {
+            let (valid_at, as_of) = (read.valid_at(), read.as_of());
+            let conn = read
+                .connection()
+                .downcast_mut::<PgConnection>()
+                .ok_or_else(|| StoreError("not a PostgreSQL connection".into()))?;
+            crate::read::keys_of(conn, objects, valid_at, as_of).await
+        })
+    }
+
     /// `machines.attachments` (REQ-009-23): each attachment of an address to an interface
     /// that the changeset makes or ends, with its machine and period.
     fn diff<'a>(

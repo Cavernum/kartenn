@@ -360,7 +360,7 @@ describe("the record of a machine (task 18cb)", () => {
   const listed = () =>
     page([
       machine(),
-      { ...machine("vm-a"), id: GUEST, kind: "virtual", host: { machine: { id: MACHINE } } },
+      { ...machine("vm-a"), id: GUEST, kind: "virtual", host: { id: MACHINE, kind: "machine" } },
       { ...machine("srv-b"), id: OTHER },
     ]);
   const simulation = (valid: boolean, violations: unknown[]) => ({

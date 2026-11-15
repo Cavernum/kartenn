@@ -73,7 +73,7 @@ const columns = computed<GridColumn[]>(() => [
 const rows = computed(() =>
   (list.value.items ?? []).map((m) => {
     const member = m.member_of?.id === props.id;
-    const hosted = !!m.host && "cluster" in m.host && m.host.cluster.id === props.id;
+    const hosted = m.host?.kind === "cluster" && m.host.id === props.id;
     const relation = [member && t("clusters.member"), hosted && t("clusters.hosted")]
       .filter(Boolean)
       .join(", ");

@@ -298,6 +298,13 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   schéma OpenAPI se dérive du DTO. Les types du noyau restent libres d'évoluer.
 - Résumé d'un objet lié : `{ id, <clé naturelle>, href }`, lu par la même requête
   (jointure fixe). Liens : `links.self`, `links.history`, et les liens de navigation.
+- **Un résumé se lit, une référence s'écrit par son identifiant** (H23, REQ-006-42,
+  tâche 006-33d) : la forme lue d'un lié n'est pas celle qu'une écriture attend
+  (`{id}`, ou l'enveloppe d'un lié de genre variable comme l'hôte d'une machine,
+  `{machine|cluster: {id}}`, quand la lecture rend `{id, kind, label, href}`, sans
+  `kind` pour un hôte illisible : une enveloppe dirait son genre). Un client qui renvoie
+  un tel membre tel que lu, en Merge Patch, est refusé : 422, violation
+  `<module>.operation.invalid` qui nomme le membre.
 - Valeurs canoniques en sortie (préfixes et adresses, REQ-002-6), dates RFC 3339 en UTC.
 - **Objets du noyau (arbitrage du 2026-10-18)** : `domains` `{id, slug}`, `entities`
   et `sites` `{id, slug, parent}`, `prefixes` `{id, domain, value, nature,

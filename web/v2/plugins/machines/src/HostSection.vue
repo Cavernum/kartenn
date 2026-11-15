@@ -88,10 +88,13 @@ interface Host {
   type?: string;
 }
 
-/** The host of a machine as a value of the list: `machine:<id>`, `cluster:<id>`, `none`. */
+/**
+ * The host of a machine as a value of the list: `machine:<id>`, `cluster:<id>`, `none`; a
+ * host the caller may not read, whose kind is not said (REQ-006-42), is none of those offered.
+ */
 function valueOf(host: Machine["host"]): string {
   if (!host) return "none";
-  return "machine" in host ? `machine:${host.machine.id}` : `cluster:${host.cluster.id}`;
+  return host.kind ? `${host.kind}:${host.id}` : `unreadable:${host.id}`;
 }
 
 /** The hosts offered: none, the clusters by slug, the machines by name. */
@@ -120,7 +123,7 @@ const hosts = computed<Host[]>(() => [
 const env = computed(() => {
   const up = new Map<string, string>();
   for (const m of machines.state.value.items ?? []) {
-    if (m.host && "machine" in m.host) up.set(m.id, m.host.machine.id);
+    if (m.host?.kind === "machine") up.set(m.id, m.host.id);
   }
   const user = context.value.user;
   const now = context.value.time.present;

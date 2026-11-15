@@ -978,7 +978,7 @@ test.describe("the host of a machine", () => {
       id: string;
       name: string;
       kind: Kind;
-      host?: { machine?: { id: string }; cluster?: { id: string } } | null;
+      host?: { id: string; kind?: "machine" | "cluster" } | null;
     };
     const mine = async (): Promise<Served[]> =>
       (
@@ -1003,7 +1003,7 @@ test.describe("the host of a machine", () => {
       const labelOf = new Map(nodes.map((n) => [n.id, n.label]));
       const hostOf = new Map<string, string | null>(clusters.map((c) => [c.label, null]));
       for (const m of await mine()) {
-        const host = m.host?.machine?.id ?? m.host?.cluster?.id;
+        const host = m.host?.id;
         hostOf.set(m.name, host ? labelOf.get(host)! : null);
       }
       const levelOf = (label: string): number => {
