@@ -288,7 +288,8 @@ propose`, évaluées sur le périmètre hérité ; rattacher ou détacher une ad
 `machines.interface.write` sur l'interface et `core.address.read` sur l'adresse ; poser
 un VLAN exige `vlan.read` sur le VLAN ; désigner un hôte ou une grappe (`host`,
 `member_of`) exige `machines.read` sur la machine hôte ou `machines.cluster.read` sur
-la grappe, sauf si le changeset la crée (M16, extension du 2026-11-15).
+la grappe, et créer une interface exige `machines.read` sur sa machine, sauf si le
+changeset la crée (M16, extension du 2026-11-15).
 
 Acceptation :
 - Un écrivain des machines de E sans droit sur l'adressage rattache une adresse qu'il
@@ -296,7 +297,8 @@ Acceptation :
   du changeset (422 ; 403 reste le refus d'une route entière, 008/V16).
 - Héberger une machine sur un hôte ou une grappe qu'on ne lit pas, ou la rendre membre
   d'une grappe qu'on ne lit pas : `core.object.forbidden`, la même réponse que pour un
-  hôte inconnu, d'un autre type ou clos ; rien n'est écrit.
+  hôte inconnu, d'un autre type ou clos ; rien n'est écrit. De même pour une interface
+  créée sur une machine qu'on ne lit pas, même sous un nom qu'elle porte déjà.
 
 #### REQ-009-19 — Imports
 kartenn doit accepter les opérations du module dans les imports par morceaux de la 006,

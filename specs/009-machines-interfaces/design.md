@@ -229,7 +229,8 @@ l'interface et `core.address.read` sur l'adresse ; le gestionnaire ajoute ce sec
 contrôle par `WriteTx::rbac_outside` sur l'adresse avec la permission de lecture. Poser
 un VLAN exige `vlan.read` sur chaque VLAN cité. Désigner un hôte ou une grappe
 (`host.machine`, `host.cluster`, `member_of`) exige `machines.read` ou
-`machines.cluster.read` sur l'objet désigné (extension de M16, 2026-11-15) ; ces
+`machines.cluster.read` sur l'objet désigné, créer une interface `machines.read` sur sa
+machine (`machine`) (extension de M16, 2026-11-15) ; ces
 lectures, déclarées par `ModuleHandler::reads`, sont vérifiées avant les écritures, sauf
 sur un objet que le changeset crée (ADR 0026, amendement 17).
 

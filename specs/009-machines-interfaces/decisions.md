@@ -32,7 +32,8 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
 - M14 API, permissions, plugin : `/v1/machines`, `/v1/interfaces`, `/v1/clusters`.
 - M15 budgets : 10⁵ machines, 3·10⁵ interfaces, 3·10⁵ rattachements.
 - M16 droits d'un rattachement : écriture sur l'interface et lecture de l'adresse ;
-  lecture de l'hôte et de la grappe désignés (extension du 2026-11-15).
+  lecture de l'hôte et de la grappe désignés, et de la machine qui porte une interface
+  créée (extension du 2026-11-15).
 
 ## M1 — Périmètre
 - Décision : **modèle logique et hébergement**. Machines (physiques, virtuelles,
@@ -197,10 +198,17 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
   reads`, ADR 0026, amendement 17), sauf sur une machine ou une grappe que le changeset
   crée. Sans ce droit, l'hôte hors de portée est refusé comme un hôte inconnu, d'un autre
   type ou clos (`core.object.forbidden`), et ni l'existence ni le type d'un hôte
-  illisible ne se lisent par les règles d'hébergement.
+  illisible ne se lisent par les règles d'hébergement. De même, créer une interface
+  exige `machines.read` sur la machine qui la porte (`machine`), sauf si le changeset
+  la crée : on ne pose rien sur une machine qu'on ne lit pas.
 - Pourquoi : sans droit exigé sur l'hôte, un hôte hors de portée était accepté et un
   hôte inconnu refusé, ce qui révélait l'existence de machines et de grappes illisibles
-  (et leur type, par `machines.host.invalid`).
+  (et leur type, par `machines.host.invalid`) ; sans droit sur la machine porteuse,
+  l'écriture d'une interface hors de portée refusait un nom pris
+  (`machines.interface.duplicate`) avant le droit sur l'interface créée, révélant la
+  machine et le nom de son interface.
+- Décision de la session principale (2026-11-15, relecture de la tâche 002-29c2) pour la
+  machine porteuse, dans l'esprit de l'arbitrage de l'hôte.
 - Une première étape : la généralisation du droit de lire à toute référence par
   identifiant est prévue après la v0.2 (tâche 002-31) ; le gestionnaire nomme les champs
   soumis au droit dans une liste (`READ_CHECKED`), qu'il suffira d'étendre.

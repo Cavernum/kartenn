@@ -171,13 +171,15 @@ crée ; un refus de droits avant écriture arrête le changeset avant toute écr
 affectation dont la valeur est une désignation cachée à l'auteur n'est pas contrôlée à
 l'écriture : le changeset est refusé plus loin, par ses droits ou par
 `core.reference.unknown`. Les désignations cachées sont refusées sitôt les droits
-accordés, avant les règles des modules. Pour un auteur sans droit, une référence hors de
-sa portée, inconnue, d'un autre type ou close reçoit donc la même réponse (règles,
-messages, nombre d'objets, ordre), requêtes à plusieurs opérations comprises. Une
-référence sur laquelle aucun droit n'est exigé reste un oracle d'existence : hors de
-portée, l'écriture passe ; cachée, elle est refusée. Le droit de lire l'hôte et la
-grappe qu'une machine désigne (009/M16) en est une première étape ; sa généralisation à
-toute référence par identifiant est prévue après la v0.2 (tâche 002-31).
+accordés, avant les règles des modules. Pour un auteur sans droit, une référence soumise
+à un droit de lire, hors de sa portée, inconnue, d'un autre type ou close, reçoit donc
+la même réponse (règles, messages, nombre d'objets, ordre), requêtes à plusieurs
+opérations comprises. Une référence sur laquelle aucun droit n'est exigé reste un
+oracle d'existence : hors de portée, l'écriture passe ; cachée, elle est refusée. Le
+droit de lire l'hôte et la grappe qu'une machine désigne, et la machine qui porte une
+interface créée (009/M16), en est une première étape ; sa généralisation à toute
+référence par identifiant est prévue après la v0.2 (tâche 002-31). La lecture d'un
+objet existant se juge sur sa portée d'avant le changeset, même si celui-ci le déplace.
 
 ### D. Préfixes
 

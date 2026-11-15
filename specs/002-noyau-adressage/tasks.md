@@ -461,7 +461,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     désignations cachées sont refusées sitôt les droits accordés, avant les sections et
     les règles des modules. `kartenn-machines` : `host.machine`, `host.cluster` et
     `member_of` exigent `machines.read` / `machines.cluster.read`. Test
-    `no_right_reaches_through_a_hidden_reference` vert, sans `#[ignore]` : 14 cas d'une
+    `no_right_reaches_through_a_hidden_reference` vert, sans `#[ignore]` : 15 cas (après relecture) d'une
     opération (dont hôte d'un autre type hors de portée, `host_kinds` ; hôte grappe ;
     `member_of` à la création et à la mise à jour), 3 requêtes de plusieurs opérations
     (mêmes règles, messages, opérations, nombres, dans le même ordre), hôte et grappe
@@ -481,6 +481,23 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     refusé par `core.reference.unknown`), comme toute référence sans droit exigé ; fermé
     par la tâche 31. `dead_hosts` et `host_kinds` ne voient plus d'hôte caché, laissés
     tels quels
+  - corrigé après relecture (2026-11-15) : la machine qui porte une interface créée
+    (`machine` de `create_interface`) entre dans `READ_CHECKED` (`machines.read`,
+    décision de la session principale) : hors de portée, une interface sous un nom pris
+    répondait `machines.interface.duplicate` à l'écriture (cas
+    `interface.machine.taken`, rouge d'abord). Autres champs relus : les `id`
+    d'`update_*` et l'`interface` d'un rattachement sont les objets écrits, leur droit
+    passe déjà avant les écritures. Tests ajoutés : en validation
+    (`a_validation_refuses_alike_a_host_out_of_reach_or_closed`) ; machine ramenée chez
+    l'auteur puis désignée comme hôte (`a_machine_brought_back_hosts_from_the_next_changeset`)
+  - reste (relecture) : la lecture d'un objet existant se juge sur sa portée d'avant le
+    changeset : ramener une machine chez soi et la désigner comme hôte dans le même
+    changeset est refusé (`core.object.forbidden`, `machines.read`), en deux changesets
+    accepté ; refus sûr, à revoir avec la tâche 31 si le cas se présente. Le slug d'une
+    grappe, unique à tout instant, est refusé à l'écriture (`machines.cluster.duplicate`)
+    pour qui ne lit pas la grappe qui le porte : oracle d'unicité, pas une référence, à la
+    tâche 31. Les tuples `(changeset, hidden)` des signatures d'`apply`, `assignment` et
+    `resolution::assign` : versés à la revue 017-26
 - [x] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
   vigueur au début de sa période (son objet existant, lu par la complétion, reste hors du
   contrôle, 29b2) — REQ-002-12 (amendée) — verify : test d'intégration rouge d'abord
