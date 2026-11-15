@@ -309,7 +309,10 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   sont pas dans l'objet : `links.properties` mène aux valeurs résolues (006-13). Filtres
   de clé naturelle : `slug` ; `parent` (slug) pour les entités et les sites ; `domain`
   (slug) et `value` (`first` pour une plage) pour les objets d'adressage ; une valeur
-  répétée vaut « l'une de ». Les listes sont triées par clé naturelle puis UUID.
+  répétée vaut « l'une de ». `domain` et `parent` ne retiennent qu'un lié que l'appelant
+  lit aux dates de la lecture (prédicat de lecture dans la requête qui résout la clé) :
+  la clé d'un lié illisible répond comme une clé inconnue, mêmes octets (tâche 35). Les
+  listes sont triées par clé naturelle puis UUID.
 - **Historique** : `GET …/{id}/history` rend `{items: [{valid_from, valid_to,
   asserted_from, asserted_to, changeset: {id, href}, motive, author: {id, href, name},
   object}]}` (`valid_to` et `asserted_to` `null` quand ouverts ; `motive` et `author`,
