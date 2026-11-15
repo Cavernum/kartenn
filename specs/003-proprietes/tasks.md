@@ -160,3 +160,21 @@ voir [`../README.md`](../README.md).
     pour ses cinq premières exécutions) ; les arbres d'ancrage (`segments_anchor!`, préparés)
     gardent leur CTE `w` : citée une fois, elle est fondue dans la requête, et leur plan
     générique ne connaît pas `$3` de toute façon.
+- [ ] 21. Affectations laissées en vigueur à la clôture d'une entité ou d'un site
+  (intégrité, antérieur, relevé par la 004-26 et sa revue) : `pipeline::close` retire les
+  affectations des préfixes, plages, adresses, VLAN, groupes et objets de module qu'il
+  clôt, pas celles d'une entité ni d'un site ; après la clôture, des affectations restent
+  en vigueur sans objet porteur. Aucune clause de la spec ne le veut (le design ne cite
+  que l'adressage ; REQ-003-10 ne vise que les références). À établir d'abord : ce que
+  dit la spec pour une entité et un site (clôture refusée tant qu'ils portent des
+  affectations, ou affectations closes avec eux, comme les autres types : ce second sens
+  est le défaut proposé) ; puis l'annulation de cette clôture, qui doit les rétablir
+  (ordre de `undo::inverse`, 004-26) — verify : test d'intégration rouge d'abord (clore
+  une entité qui porte une affectation : plus aucune affectation en vigueur sur elle ;
+  annuler : l'entité et son affectation de retour) ; `k-check -p kartenn-service`
+  - où : `crates/kartenn-service/src/pipeline.rs` (`close`, vers 2143-2168),
+    `crates/kartenn-service/src/undo.rs` (`inverse`) ; tests
+    `crates/kartenn-service/tests/it/undo.rs`
+    (`an_object_created_with_its_assignment_is_undone`, à imiter) ;
+    `specs/003-proprietes/requirements.md`, `design.md`
+  - dépend de : 004-26

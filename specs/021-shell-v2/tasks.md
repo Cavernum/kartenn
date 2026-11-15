@@ -8783,6 +8783,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     est « sans pendant » quand aucune de ses lignes ne nomme un parcours de `web/v2/e2e/`.
   - cochée le 2026-11-03 : 116 lignes portées, 6 retirées par une spec, aucune à porter ;
     `web/v2/shell/test/parity.test.ts` vert sans `todo` (chaque parcours ancien a son pendant)
+- [ ] 26b. Parcours instables sous charge, Firefox : `journeys/moves.spec.ts` (« the host
+  of a machine ») et `journeys/machines.spec.ts` échouent quand la machine est chargée
+  (charge de 20 et plus, trois apparitions relevées par les tâches 11p10, 004-26 et la
+  session principale) et repassent seuls (26 sur 26). À établir : une attente fondée sur
+  le temps ou sur un état pas encore posé (plugin `machines` pas encore monté, lecture en
+  vol), ou un vrai défaut d'ordre que la charge révèle ; un parcours instable masque une
+  régression avant la bascule — verify : les deux fichiers passés vingt fois de suite
+  sous Firefox avec la machine chargée (`--repeat-each 20`, un `k-check` en parallèle),
+  sans échec ; la cause dite
+  - où : `web/v2/e2e/journeys/moves.spec.ts`, `journeys/machines.spec.ts` ;
+    `web/v2/plugins/machines/src/` (montage du plugin, lectures des hôtes) ; attentes
+    voisines de `web/v2/e2e/budgets/budgets.spec.ts` (plugins posés avant de mesurer,
+    22f-g, à imiter)
+  - dépend de : —
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
