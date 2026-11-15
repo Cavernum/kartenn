@@ -446,3 +446,269 @@ async fn reader_reads_workloads_not_observations(pool: PgPool) {
     let (code, _, problem) = get(&theirs, &format!("/v1/workloads/{}/observations", env.web)).await;
     assert_eq!(code, StatusCode::FORBIDDEN, "{problem}");
 }
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let request = Request::builder()
+        .uri(uri)
+        .header(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer test"),
+        )
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// `QUERY /v1/{collection}` filtered by the identifiers `ids`.
+async fn query_ids(app: &Router, collection: &str, ids: &[Uuid]) -> (StatusCode, Value) {
+    let ids: Vec<String> = ids.iter().map(Uuid::to_string).collect();
+    let body = json!({"filters": [{"field": "id", "value": ids}]});
+    let request = Request::builder()
+        .method("QUERY")
+        .uri(format!("/v1/{collection}"))
+        .header(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer test"),
+        )
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// The identifiers of a page, in its order.
+fn ids_of(page: &Value) -> Vec<Uuid> {
+    page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["id"].as_str().unwrap().parse().unwrap())
+        .collect()
+}
+
+/// The filter `id` of the clusters and of the mirrored objects (REQ-006-41, task
+/// 006-32c): the objects among the identifiers the caller reads, in conjunction with the
+/// other filters, in one page without a next one; an unreadable one is absent as an unknown
+/// one, headers and bytes included; refused beside `page_size` or a cursor.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // six collections, their conjunctions, page and refusals
+async fn clusters_and_mirrors_filtered_by_identifier(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.furnished().await;
+    // A cluster `stage` of the entity `beta`, populated as `prod` is.
+    env.applied(
+        env.admin,
+        vec![kartenn_service::Operation::CreateEntity {
+            local: Some(1),
+            slug: "beta".into(),
+            parent: None,
+        }],
+    )
+    .await;
+    let beta = env.id("entity", "slug", "beta").await;
+    let (other, group) = crate::support::connector(&pool, "other").await;
+    let prefix = |domain: Uuid| {
+        sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM prefix WHERE domain_id = $1 AND valid_period @> now()",
+        )
+        .bind(domain)
+        .fetch_one(&pool)
+    };
+    let (container, network) = (
+        prefix(env.pods).await.unwrap(),
+        prefix(env.services).await.unwrap(),
+    );
+    env.applied(
+        env.admin,
+        vec![op(
+            "create_cluster",
+            json!({
+                "slug": "stage",
+                "owner": {"id": beta},
+                "pod_domain": {"id": env.pods},
+                "service_domain": {"id": env.services},
+                "pod_containers": [{"id": container}],
+                "service_networks": [{"id": network}],
+                "connector_group": {"id": group},
+            }),
+        )],
+    )
+    .await;
+    let stage = env.id("kube.cluster", "slug", "stage").await;
+    let (stage_node, stage_web) = env.populated(stage, other, "198.51.100.64/26").await;
+    let one = |sql: &'static str| sqlx::query_scalar::<_, Uuid>(sql).fetch_one(&pool);
+    let db = one("SELECT id FROM kube.workload WHERE name = 'db'")
+        .await
+        .unwrap();
+    let frontend = one("SELECT id FROM kube.service WHERE name = 'frontend'")
+        .await
+        .unwrap();
+    let shop = one("SELECT id FROM kube.ingress WHERE name = 'shop'")
+        .await
+        .unwrap();
+    let payments = namespace(&pool, env.prod, "payments").await;
+    let stage_payments = namespace(&pool, stage, "payments").await;
+    let everything = [
+        "kube.cluster.read",
+        "kube.node.read",
+        "kube.namespace.read",
+        "kube.workload.read",
+        "kube.service.read",
+        "kube.ingress.read",
+    ];
+    // What `acme` owns: `prod` and its objects, not `stage`.
+    let reader = person_on(&pool, &everything, ("entity", Some(env.acme))).await;
+    let reader = app(&pool, principal(reader, IdentityKind::Person), None);
+    let admin = person(&pool, &["*"]).await;
+    let admin = app(&pool, principal(admin, IdentityKind::Person), None);
+    let unknown = Uuid::now_v7();
+    let shop_namespace = namespace(&pool, env.prod, "shop").await;
+    for (app, uri, expected) in [
+        (
+            &reader,
+            format!("/v1/kube-clusters?id={stage}&id={}", env.prod),
+            vec![env.prod],
+        ),
+        (
+            &admin,
+            format!("/v1/kube-clusters?id={stage}&id={}&id={stage}", env.prod),
+            vec![env.prod, stage],
+        ),
+        (
+            &admin,
+            format!("/v1/kube-clusters?id={stage}&id={}&slug=stage", env.prod),
+            vec![stage],
+        ),
+        (
+            &admin,
+            format!("/v1/kube-nodes?id={stage_node}&id={}", env.node),
+            vec![env.node, stage_node],
+        ),
+        (
+            &admin,
+            format!(
+                "/v1/kube-nodes?id={stage_node}&id={}&cluster={stage}",
+                env.node
+            ),
+            vec![stage_node],
+        ),
+        (
+            &reader,
+            format!("/v1/kube-nodes?id={stage_node}&id={}", env.node),
+            vec![env.node],
+        ),
+        (
+            &reader,
+            format!("/v1/workloads?id={stage_web}&id={}&id={db}", env.web),
+            vec![env.web, db],
+        ),
+        (
+            &admin,
+            format!(
+                "/v1/workloads?id={stage_web}&id={}&id={db}&kind=deployment",
+                env.web
+            ),
+            vec![env.web, stage_web],
+        ),
+        (
+            &admin,
+            format!(
+                "/v1/kube-namespaces?id={stage_payments}&id={payments}&id={shop_namespace}\
+                 &label=app=shop"
+            ),
+            vec![shop_namespace],
+        ),
+        (
+            &admin,
+            format!("/v1/kube-services?id={frontend}&type=node_port"),
+            vec![frontend],
+        ),
+        (
+            &admin,
+            format!("/v1/ingresses?id={shop}&id={db}"),
+            vec![shop],
+        ),
+    ] {
+        let page = page(app, &uri).await;
+        let (mut got, mut expected) = (ids_of(&page), expected);
+        got.sort();
+        expected.sort();
+        assert_eq!(got, expected, "{uri}: {page}");
+        assert!(page["links"]["next"].is_null(), "{uri}");
+    }
+    // The unreadable object leaves the answer of an unknown identifier, in one page.
+    for (collection, unreadable, known) in [
+        ("kube-clusters", stage, env.prod),
+        ("kube-nodes", stage_node, env.node),
+        ("workloads", stage_web, env.web),
+    ] {
+        let mut answers = Vec::new();
+        for absent in [unknown, unreadable] {
+            let uri = format!("/v1/{collection}?id={absent}&id={known}");
+            answers.push(answer(&reader, &uri).await);
+        }
+        assert_eq!(
+            answers[0], answers[1],
+            "{collection}: unknown and unreadable"
+        );
+        assert_eq!(answers[0].0, StatusCode::OK, "{collection}");
+        assert!(answers[0].1.get("link").is_none(), "{collection}");
+    }
+    // Past the default size of a page, one page without a next one.
+    let many: Vec<_> = (0..101)
+        .map(|n| sync("namespace", env.prod, &format!("ns{n:03}"), json!({})))
+        .collect();
+    env.applied(env.connector, many).await;
+    let wanted: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM kube.namespace
+          WHERE name LIKE 'ns%' AND valid_period @> now() ORDER BY name",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(wanted.len(), 101);
+    let (status, body) = query_ids(&reader, "kube-namespaces", &wanted).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids_of(&body), wanted);
+    assert!(body["links"]["next"].is_null(), "{}", body["links"]);
+    // `page_size` or a cursor beside `id`, or a value that is not an identifier → 400
+    // naming it.
+    let first = page(&admin, "/v1/kube-namespaces?page_size=1").await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    let clusters = page(&admin, "/v1/kube-clusters?page_size=1").await;
+    let clusters_next = clusters["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (
+            format!("/v1/kube-clusters?id={stage}&page_size=5"),
+            "page_size",
+        ),
+        (
+            format!("/v1/kube-namespaces?id={payments}&page_size=5"),
+            "page_size",
+        ),
+        (format!("{next}&id={payments}"), "cursor"),
+        (format!("{clusters_next}&id={stage}"), "cursor"),
+        ("/v1/kube-clusters?id=prod".to_owned(), "id"),
+        ("/v1/workloads?id=web".to_owned(), "id"),
+    ] {
+        let (status, _, problem) = get(&admin, &uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {problem}");
+        assert!(
+            problem["detail"].to_string().contains(named),
+            "{uri}: {problem}"
+        );
+    }
+}

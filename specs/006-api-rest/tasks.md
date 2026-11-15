@@ -789,7 +789,7 @@ routeur complet, sauf mention « vrai TCP ».
   ou l'identifiant sondé à chaque ligne, sans partir de `attachment_by_address` ni de la
   clé primaire — un parcours complet des interfaces quand peu d'entre elles répondent, à
   mesurer au banc HTTP avant d'écrire une branche propre au filtre sélectif.
-- [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
+- [x] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
   `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
   conjonction ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400, par
   `filter::window`)
@@ -798,6 +798,53 @@ routeur complet, sauf mention « vrai TCP ».
     suivis (à repérer) ; `crates/kartenn-flow/src/rest.rs` (`page_of`, `list`, vers les
     lignes 901 et 1062)
   - dépend de : 32a
+  inventaire : kube sert sept listes d'objets, les grappes (`clusters.rs`) et les cinq
+  collections miroirs (`mirrors.rs`, `list<M>` : nœuds, namespaces, workloads, services,
+  ingresses) ; les correspondances de labels, valeurs admises et labels suivis
+  (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) n'ont pas de
+  liste, seulement les routes génériques de propriétés et d'historique, rien à filtrer ;
+  les observations (`kube-clusters/{id}/observations`, `workloads/{id}/observations`) ne
+  sont pas des objets. Côté flux, seule `/v1/flows` est une collection d'objets : les
+  non-conformités n'ont pas d'identifiant, `flow-checks` est une question, `flow-types`
+  revient à la politique (32d), les sous-listes `/{collection}/{id}/flows` gardent leurs
+  seuls filtres (aucun : `id` y est refusé, 400, comme tout paramètre inconnu).
+  fait : `clusters.rs` (`list` lit `id` par `filter::push_id` dans le même parcours que
+  `slug`, dédoublonné ; `filter::window` ; `cardinality($9::uuid[]) = 0 OR x.id = ANY($9)`
+  sous le prédicat de lecture ; `Op::ids` en tête), `mirrors.rs` (`Filter.ids` lu par
+  `filter_of`, `$14` dans `page_sql` sous le prédicat de lecture, `filter::window` dans
+  `list<M>`, `Op::ids` en tête des cinq listes), `kartenn-flow/src/rest.rs` (`ids_of` et
+  `filter::window` dans `page_of`, qui passe les `id` à `fetch` ; `list` les met dans
+  `FlowFilter.ids` par `among`, le prédicat `f.id = ANY(…)` déjà écrit dans la requête
+  des flux appliqués ; `wanted` saute `id` quand la route le nomme, `page_of` l'ayant lu ;
+  `of_object` le refuse par son nom ; `Op::ids` et la description de la liste) ; contrat
+  et types des deux SDK régénérés (`schema.d.ts`, `filters.ts`). Tests :
+  `kube/tests/it/observations/route/mirrors.rs`
+  `clusters_and_mirrors_filtered_by_identifier` (grappe `stage` d'une autre entité et ses
+  objets : illisibles = inconnus sur les grappes, nœuds et workloads, statut, en-têtes hors
+  `request-id` et octets ; conjonction avec `slug`, `cluster`, `kind`, `label`, `type` sur
+  les six listes ; 101 namespaces par `QUERY` : une page sans suite ; `page_size` ou
+  curseur avec `id` → 400 qui le nomme ; UUID mal formé → 400),
+  `flow/tests/it/rest.rs` `flows_filtered_by_identifier` (flux d'une autre entité :
+  illisible = inconnu, octets compris ; conjonction avec `entity`, `state=active` ;
+  101 flux par `QUERY` : une page sans suite ; `page_size`, curseur, `state=requested`,
+  `state=active,requested`, `review=pending`, `changeset`, UUID mal formé, `id` sur
+  `/v1/addresses/{id}/flows` → 400 qui les nomme).
+  choix (après revue) : filtrée par `id`, `/v1/flows` lit des flux appliqués ; un filtre
+  qui lit les demandes en attente de revue (`review`, `changeset`, l'état `requested`, seul
+  ou parmi d'autres) ne va pas avec `id` : 400 qui le nomme (`among`), plutôt qu'une page
+  qui tairait la révision en attente d'un flux demandé — une demande nouvelle n'a pas
+  encore d'identifiant, une révision ne se lit pas par celui du flux ; aucun écran ni
+  greffon ne fait cette lecture. `/{collection}/{id}/flows` refuse `id` par son nom. Le
+  prédicat `id` est dans la requête, comme les autres filtres, et la page lit autant de
+  lignes que d'identifiants ; le filtre de lecture des flux reste celui du module, après
+  la requête (`flows_seen`, REQ-027-1), ce qui est sans effet sous `id` (une page, sans
+  curseur) mais pas sans lui (tâche 36).
+  reste : l'idiome `cardinality($n::uuid[]) = 0 OR x.id = ANY($n)` (32a, 32b, 32c) garde le
+  plan de la liste sous le plan générique des requêtes préparées : sans index sondé par
+  l'identifiant, une liste filtrée par quelques `id` parcourt la collection dans l'ordre
+  de la page ; à mesurer au banc HTTP sur les charges de travail (les workloads, la plus
+  grande des collections de kube) avant d'écrire une branche propre au filtre `id`. La
+  coupe de la page des flux avant leur filtre de lecture, antérieure : tâche 36.
 - [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
   politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
   d'objets, kube compris — verify : `k-check -p kartenn-policy` (filtrée par `id`, une
@@ -805,7 +852,11 @@ routeur complet, sauf mention « vrai TCP ».
   `k-check -p kartenn-rest contract`
   - où : `crates/kartenn-policy/src/rest.rs` (`list`, vers la ligne 449),
     `crates/kartenn-rest/tests/it/contract.rs`
-    (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter)
+    (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter) ; le test
+    énumère les listes réelles (le `GET` d'une collection dans l'OpenAPI), pas les types
+    déclarés : les correspondances de labels, valeurs admises et labels suivis de kube
+    (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) sont des types
+    globaux sans route de liste (inventaire de la 32c)
   - dépend de : 32a, 32b, 32c
 - [x] 32e. Adresses demandées rendues sous le filtre `address` (constat de la 021-11p10-e,
   arbitrage du 2026-11-15) : `GET /v1/interfaces?address=a&address=b` ne dit pas quelle
@@ -977,3 +1028,26 @@ routeur complet, sauf mention « vrai TCP ».
     et `parent`), `crates/kartenn-rest/src/filter.rs` ;
     `crates/kartenn-machines/src/rest.rs` (`holds_requested`, sous `address_visible`, à
     imiter)
+- [ ] 36. Page des flux coupée avant le filtre de lecture (sécurité, antérieur à la 32c,
+  relevé par sa revue) : sans `id`, `/v1/flows` (et `/{collection}/{id}/flows`) lit la
+  page et une ligne de plus, coupe la page et calcule son curseur sur les lignes brutes,
+  puis seulement écarte les flux que l'appelant ne lit pas (`flows_seen`,
+  `reviews_seen`). Le dernier rang brut peut être un flux illisible : le curseur, signé
+  mais lisible (`cursor.rs`, en tête : « readable, not forgeable »), en livre l'`f.id` ;
+  les pages sont courtes ou vides avec une suite, ce qui trahit le nombre de flux
+  illisibles entre deux flux lisibles. À faire : le prédicat de lecture dans la requête
+  (sous `flow.read` par le prédicat du noyau sur l'entité, comme demandeur, ou par une
+  extrémité lue, REQ-027-1), la page et son curseur calculés sur les seules lignes
+  lisibles, comme les autres listes à SQL propre — verify : `k-check -p kartenn-flow`
+  (deux appelants, l'un lisant tous les flux, l'autre une partie, page après page : les
+  pages du second sont celles du premier privées des flux qu'il ne lit pas ; aucun
+  curseur ne porte l'identifiant d'un flux illisible ; aucune page courte avec une suite,
+  ni page vide avec une suite)
+  - où : `crates/kartenn-flow/src/rest.rs` (`page_of`, la coupe et le curseur avant
+    `flows_seen` et `reviews_seen`, vers les lignes 946-1000 ; `visible`,
+    `through_endpoints`, `endpoint_readable`, à porter dans la requête),
+    `crates/kartenn-flow/src/read.rs` (`flows`, `applied`, `pending`) ;
+    `crates/kartenn-kube/src/rest/mirrors.rs` (`page_sql`, prédicat `readable` sous les
+    filtres, à imiter) ; tests `flow/tests/it/rest.rs`
+    (`pending_requests_are_paged_after_the_applied_flows`, à imiter)
+  - dépend de : —
