@@ -159,7 +159,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <ViewPanel :title="title" :detail="total" main flush list>
     <template #actions>
       <Button variant="ghost" :loading="exporting" @click="onExport">{{
         t("admin.audit.export")

@@ -109,7 +109,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <ViewPanel :title="title" :detail="total" main flush list>
     <template #actions>
       <Button v-if="me" variant="ghost" icon="user" :pressed="mine" @click="toggleMine">{{
         t("changesets.mine")

@@ -206,8 +206,11 @@ let surfacePages: MutationObserver | undefined;
 onMounted(() => {
   const el = surface.value;
   if (!el || typeof ResizeObserver === "undefined") return;
+  // A pixel of rounding is no scroll: a list screen's panel fills the surface exactly, its
+  // fractional height (a zoom) rounded up by `scrollHeight` (021-22f-h).
   const measure = () =>
-    (surfaceScrolls.value = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+    (surfaceScrolls.value =
+      el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth);
   surfaceSizes = new ResizeObserver(measure);
   const observe = () => {
     surfaceSizes?.disconnect();

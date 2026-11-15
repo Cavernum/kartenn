@@ -317,7 +317,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <ViewPanel :title="title" :detail="total" main flush list>
     <template #toolbar>
       <FilterPicker
         ref="picker"

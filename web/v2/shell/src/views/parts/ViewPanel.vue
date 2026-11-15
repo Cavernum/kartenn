@@ -16,6 +16,12 @@ const props = withDefaults(
     main?: boolean;
     /** A body without padding (grids, trees, lists that draw their own lines). */
     flush?: boolean;
+    /**
+     * The main panel of a list screen, its one `DataGrid` a child of its body (never
+     * wrapped): once virtualised, the grid takes the rest of the window and is the one
+     * scroller of the screen (021-22f-h).
+     */
+    list?: boolean;
   }>(),
   { detail: undefined },
 );
@@ -27,6 +33,7 @@ const id = useId();
     class="k-view-panel"
     :aria-labelledby="props.main ? id : undefined"
     :data-main="props.main ? 'true' : undefined"
+    :data-list="props.list ? 'true' : undefined"
   >
     <header class="k-view-panel__header">
       <!-- The detail beside the heading, not in it: the heading (and the region it names)
@@ -40,7 +47,11 @@ const id = useId();
       <div v-if="$slots.actions" class="k-view-panel__actions"><slot name="actions" /></div>
     </header>
     <div v-if="$slots.toolbar" class="k-view-panel__toolbar"><slot name="toolbar" /></div>
-    <div class="k-view-panel__body" :data-flush="props.flush ? 'true' : undefined">
+    <div
+      class="k-view-panel__body"
+      :data-flush="props.flush ? 'true' : undefined"
+      :data-list="props.list ? 'true' : undefined"
+    >
       <slot />
     </div>
     <footer v-if="$slots.footer" class="k-view-panel__footer"><slot name="footer" /></footer>
@@ -147,6 +158,60 @@ const id = useId();
 
   .k-view-panel__body[data-flush] {
     padding: 0;
+  }
+
+  /* The panel of a list screen (`list`, its grid a child of its body) whose grid is
+   * virtualised (a list of more than one page, or of more than 200 rows) takes the height
+   * of the surface of the frame (`ShellFrame`), not less than its content, and its grid the
+   * rest of the panel, a list's height no longer: the grid is the one scroller of the
+   * screen, no box in a page that scrolls too. The alerts above it keep their height. Not
+   * below the height of a header and six rows (a short or zoomed window, WCAG 1.4.10): the
+   * surface scrolls then. A list not virtualised keeps its own height, and every other
+   * screen its own (021-22f-h). The rules of the height are all here. */
+  /* Each part of a list panel in its own row, present or not: the body always in the
+   * elastic one, a toolbar or a footer missing (the other panels, never stretched to the
+   * surface, keep their placement). */
+  .k-view-panel[data-list] {
+    grid-template-areas: "header" "toolbar" "body" "footer";
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__header {
+    grid-area: header;
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__toolbar {
+    grid-area: toolbar;
+  }
+
+  .k-view-panel__body[data-list] {
+    grid-area: body;
+  }
+
+  .k-view-panel[data-list] > .k-view-panel__footer {
+    grid-area: footer;
+  }
+
+  /* stylelint-disable-next-line selector-max-compound-selectors -- the chain of the body's rules below, whole, so that the surface never fills alone */
+  .k-frame__surface:has(> [data-list] > .k-view-panel__body > .k-data-grid-frame > [data-virtual]) {
+    grid-template-rows: minmax(auto, 1fr);
+  }
+
+  .k-view-panel__body[data-list]:has(> .k-data-grid-frame > [data-virtual]) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .k-view-panel__body[data-list] > * {
+    flex: none;
+  }
+
+  .k-view-panel__body[data-list] > .k-data-grid-frame:has(> [data-virtual]) {
+    flex: 1 1 0;
+    min-block-size: calc(var(--k-header-height) + 6 * var(--k-row-height));
+  }
+
+  .k-view-panel__body[data-list] > .k-data-grid-frame > [data-virtual] {
+    max-block-size: none;
   }
 
   /* A grid or a tree in a flush panel: the panel draws the outer border. */
