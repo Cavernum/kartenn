@@ -19,9 +19,10 @@ export type Vlan = components["schemas"]["Vlan"];
 export const KINDS = ["physical", "virtual", "container", "appliance"] as const;
 
 /**
- * At most this many reads of names and cells at once: a list shows dozens of rows, and one
- * read per row all at once overflows the server's shedding limit (REQ-006-30) and the
- * reader's quota, refusing the other requests of the page with them.
+ * At most this many reads of names at once: a list shows dozens of rows, and one read per
+ * row all at once overflows the server's shedding limit (REQ-006-30) and the reader's quota,
+ * refusing the other requests of the page with them. The interfaces of the machine column
+ * are read by window instead (`holders.ts`).
  */
 export const READS_AT_ONCE = 4;
 let reading = 0;

@@ -2060,7 +2060,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     - où : `shell/src/views/record/ObjectName.vue`, `plugins/machines/src/
       {MachineColumn.vue,reads.ts}`, le regroupeur de la 11p10-c
     - dépend de : 006-32, 11p10-c
-  - [ ] 11p10-e. Interfaces des lignes d'une liste d'adresses lues par fenêtre (mesure de
+  - [x] 11p10-e. Interfaces des lignes d'une liste d'adresses lues par fenêtre (mesure de
     la 11p10-b2, inscrite le 2026-11-15) : la colonne machine des listes d'adresses
     (`MachineColumn.vue`) lit une liste d'interfaces par ligne derrière sa propre porte
     de 4, environ 1 000 `GET /v1/interfaces?address=` pour dix pages, au-dessus du quota
@@ -2077,6 +2077,45 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       InterfaceSearch.vue}` (qui partagent la clé `/v1/interfaces?address=`),
       `web/v2/e2e/journeys/quota.spec.ts`
     - dépend de : 006-32b, 006-32e, 11p10-b2
+    - fait le 2026-11-15 : `plugins/machines/src/holders.ts` (`createHolders`,
+      `HOLDERS_WINDOW` = 10 ms, `HOLDERS_MAX` = 64, `HOLDERS_FLIGHTS` = 4, `HOLDERS_PAGE` =
+      1 000 ; `heldBy(address)`) : la liste `reads.list("/v1/interfaces", { address: [id] })`
+      sous sa clé, sa première page lue par le regroupeur ; une fenêtre par dates, fermée à son
+      délai ou à 64 adresses, sa requête `GET /v1/interfaces?address=…&page_size=1000` suivie
+      par `links.next` jusqu'au bout, chaque interface rangée sous la clé de chacune des
+      adresses demandées qu'elle porte (`addresses`), avec cette seule adresse, comme la
+      lecture unitaire la rend ; une page sans suite ni ETag ; une adresse qu'aucune ne porte,
+      une page vide (jamais relue). Lecture seule dans sa fenêtre : la lecture unitaire, son
+      `If-None-Match` ; lecture abandonnée : sortie de son lot ; lot refusé : rendu à toutes
+      sous le même problème, relu en lot (la gigue de `retryDelay`, une par refus) ; quatre
+      lots en vol, une fenêtre sans créneau ouverte encore. `MachineColumn.vue` sans la porte
+      `limited` (gardée pour les noms, 11p10-d). Tests : `plugins/machines/test/
+      holders.test.ts` (100 colonnes montées : **2** requêtes de 64 et 36 adresses, le même
+      test sur la colonne de main 318bf19f en compte **100** ; chaque ligne sous la clé
+      unitaire, une adresse sans interface vide et non relue ; une interface à deux adresses
+      demandées sur ses deux lignes ; deux pages suivies ; un 429 `Retry-After: 1` : deux lots
+      de 40 ; une ligne retirée avant la fenêtre non demandée) ; `machines.test.ts` inchangé
+      (une colonne seule : la lecture unitaire). `e2e/journeys/quota.spec.ts` durci : aucun
+      429 ni 503 vu par la page, au plus `PER_PAGE` = 30 requêtes sous `/v1/` par page lue ;
+      chaque pas attend deux images après le défilement (la grille plus rapide sautait un écran
+      de lignes encore non dessinées : 984 sur 1 000 sous Chromium) ; il imprime aussi pas et
+      lignes dessinées. Mesure (quatre passes, deux par navigateur) : 156 à 177 requêtes sous
+      `/v1/` (avant : 1 064 à 1 258), par page lue 7 à 21 (avant : 55 à 178), 64 à 81
+      `/v1/interfaces` (avant : 967 à 1 166), 70 lots de propriétés, **0** refus (avant :
+      Chromium 75 à 102 429) ; défilement 6,7 à 7,2 s sous Chromium, 15,3 à 17,7 s sous
+      Firefox. Design 021 « Interfaces par fenêtre ». Vérification : `k-web2-check --base
+      main` (1 289 tests, 0 captures sur 2 741 : aucune touchée) ; `k-web2-e2e` complet vert
+      (289, 12,1 min) ; poids : plugin machines 23,1 Ko (avant 22,1, budget 50), shell
+      initial 239,0 Ko (budget 300).
+    - choix : le regroupeur dans le plugin, copié du modèle `batch.ts` et non factorisé :
+      le plugin ne voit le SDK que par ses exportations, et en ajouter une ferait du
+      regroupeur une API des plugins (choix de la 11p10-a) ; `page_size` 1 000 (le plafond
+      de REQ-006-7 : une page d'ordinaire pour 64 adresses) ; la page rangée sans suite, même
+      pour une adresse partagée par plus d'interfaces qu'une page (toutes lues par le lot) ;
+      aucune relecture d'interface (`ui-reviewer`, `a11y-auditor`) : rien de visible ne change.
+    - reste : la 11p10 reste ouverte sur la 11p10-d (les noms des machines par fenêtre, la
+      porte `limited` du plugin) ; son verify (le parcours au quota par défaut sans erreur)
+      est tenu.
 - [x] 11p11. Parcours `vlan` et `tree` rouges sous Firefox sur main (hors numéro, inscrite
   le 2026-11-14) : `k-web2-e2e` complet à fb651314, machine calme, Chromium vert, sept
   échecs Firefox — `vlan.spec.ts:102` (description du VID vide au lieu de
