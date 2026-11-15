@@ -1088,6 +1088,28 @@ fn held_in_network(param: &str) -> String {
     )
 }
 
+/// The condition that the interface `x` holds one of the requested addresses `$7` that the
+/// caller may read, at (`$1`, `$2`): an address it may not read matches as an unknown one
+/// (ADR 0021, task 006-32e), alone or among others.
+fn holds_requested() -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM {t} t
+                   CROSS JOIN LATERAL {a} a
+                  WHERE $3::jsonb IS NULL OR {visible})",
+        t = dated_where(
+            "machines.attachment",
+            "address_id",
+            "interface_id = x.id AND address_id = ANY($7)"
+        ),
+        a = dated_where(
+            "public.address",
+            "id, domain_id, address",
+            "id = t.address_id"
+        ),
+        visible = address_visible("a"),
+    )
+}
+
 /// The addresses held by the interface `x` that answer the filters `network` (`$15`) and
 /// `address` (`$7`) and that the caller may read, by value, as a JSON array of
 /// [`CardAddress`]: those of the network, those among the requested ones, those of both
@@ -1097,7 +1119,7 @@ fn held_in_network(param: &str) -> String {
 fn held_addresses() -> String {
     let card = "jsonb_agg(jsonb_build_object('id', a.id, 'value', host(a.address),
                                            'primary', t.primary_for_family)
-                        ORDER BY a.address)";
+                        ORDER BY a.address, a.id)";
     format!(
         "CASE WHEN $15::uuid IS NOT NULL THEN coalesce(
            (SELECT {card}
@@ -1182,6 +1204,7 @@ async fn list_interfaces(
     let media = media_is("$14");
     let in_network = in_network();
     let addresses = held_addresses();
+    let holds_requested = holds_requested();
     // The page in a subquery, its addresses computed on its rows only, after its `LIMIT`.
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
@@ -1191,9 +1214,7 @@ async fn list_interfaces(
           WHERE ($4::uuid IS NULL OR x.machine_id = $4)
             AND ($5::text IS NULL OR x.name = $5)
             AND ($6::macaddr IS NULL OR x.mac = $6::macaddr)
-            AND (cardinality($7::uuid[]) = 0 OR EXISTS (
-                     SELECT 1 FROM {} a
-                      WHERE a.interface_id = x.id AND a.address_id = ANY($7)))
+            AND (cardinality($7::uuid[]) = 0 OR {holds_requested})
             AND ($8::uuid IS NULL OR x.access_vlan_id = $8 OR x.native_vlan_id = $8
                  OR $8 = ANY(x.tagged_vlan_ids))
             AND ($9::uuid IS NULL OR (x.machine_id, x.name, x.id) > ($9, $10::text, $11::uuid))
@@ -1210,7 +1231,6 @@ async fn list_interfaces(
             INTERFACE_COLUMNS,
             moment.as_of.is_none()
         ),
-        dated("machines.attachment", "interface_id, address_id"),
         visible("x", INTERFACE),
     );
     // The rows of the page and their versions are read in one snapshot (task 021-11c).

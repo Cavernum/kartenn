@@ -1917,8 +1917,8 @@ async fn interfaces_filtered_by_address_carry_the_requested_ones(pool: PgPool) {
         .collect();
     assert_eq!(journaled, last);
 
-    // A requested address the caller does not read is left out of `addresses`; the
-    // interface that holds only it is still served (task 006-35).
+    // A requested address the caller does not read is left out of `addresses`, and matches
+    // no interface: it answers as an unknown one (ADR 0021, task 006-35).
     let narrow = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
@@ -1944,12 +1944,34 @@ async fn interfaces_filtered_by_address_carry_the_requested_ones(pool: PgPool) {
             (eth1, &["10.0.0.17", "10.0.0.18"]),
             (eth2, &["10.0.0.17"]),
             (eth3, &["10.0.0.18"]),
-            (eth4, &[]),
         ])
     );
+    // Whoever reads it sees the interfaces that hold it.
     let all = held_values(&every_page(&admin, &three).await);
     assert_eq!(all[&eth2.to_string()], ["10.0.0.17", "10.0.0.40"]);
     assert_eq!(all[&eth4.to_string()], ["10.0.0.40"]);
+    // For the reader, the unreadable address answers as an unknown one, status, headers
+    // and bytes: alone, beside a readable one, and among 64 (no dichotomy finds it).
+    let reading = env.app(reader);
+    let unknown = Uuid::now_v7();
+    let probes: Vec<Uuid> = (0..63).map(|_| Uuid::now_v7()).collect();
+    for wanted in [vec![], vec![first], probes] {
+        let mut answers = Vec::new();
+        for absent in [hidden, unknown] {
+            let query = wanted
+                .iter()
+                .chain([&absent])
+                .map(|a| format!("&address={a}"))
+                .collect::<Vec<_>>()
+                .concat();
+            answers.push(answer(&reading, &format!("/v1/interfaces?page_size=10{query}")).await);
+        }
+        assert_eq!(answers[0], answers[1], "{} addresses", wanted.len() + 1);
+        assert_eq!(answers[0].0, StatusCode::OK);
+    }
+    let (_, _, alone) = answer(&reading, &format!("/v1/interfaces?address={hidden}")).await;
+    let alone: Value = serde_json::from_slice(&alone).unwrap();
+    assert_eq!(alone["items"], json!([]));
 
     // With `network`: the interfaces holding a requested address and one of the network,
     // each with the requested addresses in the network.
@@ -1965,4 +1987,33 @@ async fn interfaces_filtered_by_address_carry_the_requested_ones(pool: PgPool) {
     let uri = format!("/v1/interfaces?network={network}&address={first}");
     let items = every_page(&admin, &uri).await;
     assert_eq!(held_values(&items), map(&[(eth1, &[])]));
+
+    // At a date: the requested addresses each interface held then.
+    let between: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    env.applied(vec![
+        op(
+            "detach_address",
+            json!({"interface": {"id": eth1}, "address": {"id": first}}),
+        ),
+        attach(eth3, first),
+    ])
+    .await;
+    let at = between
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    let then = every_page(&admin, &format!("{both}&valid_at={at}")).await;
+    assert_eq!(held_values(&then), expected);
+    let now = every_page(&admin, &both).await;
+    assert_eq!(
+        held_values(&now),
+        map(&[
+            (eth1, &["10.0.0.18"]),
+            (eth2, &["10.0.0.17"]),
+            (eth3, &["10.0.0.17", "10.0.0.18"]),
+        ])
+    );
 }

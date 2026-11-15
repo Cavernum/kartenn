@@ -835,16 +835,20 @@ routeur complet, sauf mention « vrai TCP ».
   `interfaces_filtered_by_address_carry_the_requested_ones` (deux adresses partagées
   demandées, trois interfaces : chacune rend exactement les demandées qu'elle tient, en
   une page puis page à page ; une adresse tenue non demandée absente ; journal de la
-  dernière page ; une demandée illisible omise, l'interface qui ne tient qu'elle rendue
-  avec `addresses: []` ; `network` et `address` ensemble).
+  dernière page ; une demandée illisible omise ; `network` et `address` ensemble).
   choix : avec `network` et `address` ensemble, `addresses` rend l'intersection
   (demandées et dans le réseau) : la réponse reste répartissable par adresse demandée ;
   les filtres de ligne restent indépendants, une interface gardée peut donc rendre
   `addresses: []` (une demandée hors du réseau, une autre du réseau non demandée).
-  reste : l'interface lisible qui ne tient qu'une adresse demandée illisible est rendue
-  avec `addresses: []`, ce qui révèle que l'adresse existe et lui est rattachée (oracle
-  de la 35, inchangé dans sa portée ; `addresses: []` désigne en plus, ligne à ligne,
-  les interfaces qui tiennent au moins une demandée illisible).
+  après revue : le filtre de lignes `address` (`holds_requested`) joint l'adresse, datée,
+  sous le prédicat de lecture : une interface n'est appariée que par une adresse demandée
+  lisible, et une adresse illisible répond comme une inconnue (statut, en-têtes, octets ;
+  seule, à côté d'une lisible, parmi 64). C'est le même code à une valeur : l'oracle de
+  la 32b (`address=<uuid>`) est fermé pour les interfaces, la 35 garde `domain=<slug>`
+  et `parent=<slug>`. `addresses` trié par valeur puis identifiant (deux adresses de
+  même valeur dans deux domaines). Tests ajoutés au même test : réponses identiques pour
+  le lecteur restreint, l'administrateur voyant les interfaces qui la tiennent ; à une
+  date passée (`valid_at`), les demandées tenues alors.
 - [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
   référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
   d'une propriété de type référence), puis `{id, clé naturelle, href}`, réduit à `{id}`
@@ -964,17 +968,12 @@ routeur complet, sauf mention « vrai TCP ».
     (décision de cache, ligne ≈ 442), `web/v2/sdk/src/data/cache.ts` (déconnexion)
 - [ ] 35. Oracle des filtres par clé d'un objet lié (antérieur, relevé par la 33a) :
   `domain=<slug>` et `parent=<slug>` répondent sur la clé d'un lié que l'appelant ne peut
-  pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu. De
-  même `GET /v1/interfaces?address=<uuid>` (relevé par la 32b) : sur une adresse que
-  l'appelant ne lit pas, l'interface lisible qui la tient est rendue, ce qui révèle que
-  l'adresse existe et à quelle interface elle est rattachée ; la répétition d'`address`
-  permet d'en sonder 64 par requête, et une dichotomie sur les réponses non vides
-  retrouve laquelle ; depuis la 32e, une interface rendue avec `addresses: []` sous
-  `address` dit qu'elle tient au moins une des adresses demandées illisibles — verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée
-  par la clé d'un domaine illisible et par une clé inconnue : mêmes octets),
-  `k-check -p kartenn-machines` (interfaces filtrées par une adresse illisible et par une
-  adresse inconnue : mêmes octets)
+  pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu.
+  L'oracle de `GET /v1/interfaces?address=<uuid>` (relevé par la 32b) est fermé par la
+  32e : une interface n'est appariée que par une adresse demandée lisible, à une valeur
+  comme à 64 — verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée par la
+  clé d'un domaine illisible et par une clé inconnue : mêmes octets)
   - où : `crates/kartenn-rest/src/objects.rs` (`declare_filters`, résolution de `domain`
-    et `parent`), `crates/kartenn-rest/src/filter.rs`,
-    `crates/kartenn-machines/src/rest.rs` (`list_interfaces`, condition sur `$7` ;
-    `address_visible`, à imiter)
+    et `parent`), `crates/kartenn-rest/src/filter.rs` ;
+    `crates/kartenn-machines/src/rest.rs` (`holds_requested`, sous `address_visible`, à
+    imiter)
