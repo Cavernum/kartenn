@@ -9600,14 +9600,10 @@ export interface components {
       /** @description The axis. */
       axis: string;
       /** @description The objects walked to the origin (`tree`). */
-      chain?: string[];
+      chain?: components["schemas"]["Summary"][];
       /** @description The machines carrying a value (`machine`). */
-      machines?: string[];
-      /**
-       * Format: uuid
-       * @description The object carrying the assignment (`tree`), absent in a reduced explanation.
-       */
-      origin?: string | null;
+      machines?: components["schemas"]["Summary"][];
+      origin?: components["schemas"]["Summary"] | null;
       /** @description `tree` or `machine`. */
       source: string;
       /** @description Its values, empty when not classified. */
@@ -9746,11 +9742,7 @@ export interface components {
     PolicyPoint: {
       /** @description Its values per axis. */
       axes: components["schemas"]["PolicyAxisResolution"][];
-      /**
-       * Format: uuid
-       * @description The address or the prefix; absent in a reduced explanation.
-       */
-      id?: string | null;
+      object?: components["schemas"]["Summary"] | null;
     };
     /** @description A report of the policy (REQ-010-23). */
     PolicyReport: {
@@ -9791,11 +9783,7 @@ export interface components {
        * @description Rank within the rubric, from 1.
        */
       seq: number;
-      /**
-       * Format: uuid
-       * @description The object the item is about, if one.
-       */
-      subject?: string | null;
+      subject?: components["schemas"]["Summary"] | null;
     };
     /** @description The body of `POST /v1/policy-reports`. */
     PolicyReportRequest: {

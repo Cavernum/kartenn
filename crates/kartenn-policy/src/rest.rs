@@ -25,6 +25,7 @@ use kartenn_rest::kit::{
     ProblemKind, documented, listing_of, next_href, op, queryable, respond, respond_page,
     schemas_of,
 };
+use kartenn_rest::summary::{Summaries, Summary};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
@@ -860,13 +861,13 @@ pub struct AxisDto {
     source: String,
     /// The object carrying the assignment (`tree`), absent in a reduced explanation.
     #[serde(skip_serializing_if = "Option::is_none")]
-    origin: Option<Uuid>,
+    origin: Option<Summary>,
     /// The objects walked to the origin (`tree`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    chain: Vec<Uuid>,
+    chain: Vec<Summary>,
     /// The machines carrying a value (`machine`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    machines: Vec<Uuid>,
+    machines: Vec<Summary>,
 }
 
 /// A point of an endpoint: an address or a prefix and its values.
@@ -875,7 +876,7 @@ pub struct AxisDto {
 pub struct PointDto {
     /// The address or the prefix; absent in a reduced explanation.
     #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<Uuid>,
+    object: Option<Summary>,
     /// Its values per axis.
     axes: Vec<AxisDto>,
 }
@@ -1105,9 +1106,29 @@ fn evaluation(source: usize, destination: usize, e: Evaluation) -> EvaluationDto
     }
 }
 
-fn point(point: Point) -> PointDto {
+/// Every object of the referential the points of `answer` name: the points, the origins,
+/// the chains and the machines (none in a reduced answer).
+fn named(answer: &Answer) -> Vec<Uuid> {
+    let mut ids = Vec::new();
+    for p in answer.sources.iter().chain(&answer.destinations) {
+        ids.extend(p.id);
+        for a in &p.axes {
+            match &a.source {
+                Source::Tree { origin, chain } => {
+                    ids.extend(*origin);
+                    ids.extend(chain);
+                }
+                Source::Machine { machines } => ids.extend(machines),
+            }
+        }
+    }
+    ids
+}
+
+fn point(point: Point, summaries: &Summaries) -> PointDto {
+    let of = |id: Uuid| summaries.of(id);
     PointDto {
-        id: point.id,
+        object: point.id.map(of),
         axes: point
             .axes
             .into_iter()
@@ -1123,12 +1144,12 @@ fn point(point: Point) -> PointDto {
                 match a.source {
                     Source::Tree { origin, chain } => {
                         dto.source = "tree".into();
-                        dto.origin = origin;
-                        dto.chain = chain;
+                        dto.origin = origin.map(of);
+                        dto.chain = chain.into_iter().map(of).collect();
                     }
                     Source::Machine { machines } => {
                         dto.source = "machine".into();
-                        dto.machines = machines;
+                        dto.machines = machines.into_iter().map(of).collect();
                     }
                 }
                 dto
@@ -1151,10 +1172,25 @@ fn synthesis(s: Synthesis) -> SynthesisDto {
     }
 }
 
-/// The answer as the contract gives it (`PolicyVerdict`).
-#[must_use]
-pub fn verdict_dto(answer: Answer) -> VerdictDto {
-    VerdictDto {
+/// The answer as the contract gives it (`PolicyVerdict`) to the caller of `context`: each
+/// object of the referential it names summarised as the caller may read it now, its key
+/// read at the dates of the query (`moment`), together for the answer
+/// ([`Summaries::read`]: one read of the keys of the core and of each module named, one
+/// authorisation per kind); an object the caller may not read leaves `{id}` alone.
+///
+/// # Errors
+///
+/// The store's or the authoriser's error.
+pub async fn verdict_dto(
+    api: &Api,
+    context: &RequestContext,
+    moment: &Moment,
+    answer: Answer,
+) -> Result<VerdictDto, Problem> {
+    let summaries =
+        Summaries::read(api, context, named(&answer), moment.valid_at, moment.as_of).await?;
+    let point = |p| point(p, &summaries);
+    Ok(VerdictDto {
         access: match answer.access {
             Access::Full => "full",
             Access::Reduced => "reduced",
@@ -1173,7 +1209,7 @@ pub fn verdict_dto(answer: Answer) -> VerdictDto {
             Empty::NoAddress => "no_address".to_owned(),
         }),
         hidden: answer.hidden,
-    }
+    })
 }
 
 fn endpoint(name: &str, dto: &EndpointDto) -> Result<EndpointRef, Problem> {
@@ -1352,7 +1388,7 @@ async fn answer(
         json!({ "verdict": ids, "valid_at": rfc3339(moment.valid_at) }),
     )
     .await?;
-    let mut response = Json(verdict_dto(answer)).into_response();
+    let mut response = Json(verdict_dto(api, context, &moment, answer).await?).into_response();
     response.headers_mut().insert(
         header::CACHE_CONTROL,
         axum::http::HeaderValue::from_static("no-store"),
@@ -1594,8 +1630,9 @@ pub struct ItemDto {
     rubric: String,
     /// Rank within the rubric, from 1.
     seq: i64,
-    /// The object the item is about, if one.
-    subject: Option<Uuid>,
+    /// The object the item is about, if one, as its caller may read it now, its key read
+    /// at the date the report describes.
+    subject: Option<Summary>,
     /// What the item says.
     detail: Value,
 }
@@ -1764,10 +1801,12 @@ async fn show_report(
 }
 
 /// `GET /v1/policy-reports/{id}/items?rubric=…&after=…`: the items of a rubric by rank,
-/// [`ITEMS_PAGE`] at most, the next page linked.
+/// [`ITEMS_PAGE`] at most, the next page linked; their subjects summarised together for
+/// the page ([`Summaries::read`]), their keys at the date of the report.
 async fn report_items(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
     Path(id): Path<Uuid>,
     RawQuery(raw): RawQuery,
 ) -> Result<Response, Problem> {
@@ -1786,13 +1825,10 @@ async fn report_items(
         return Err(kit::bad(format!("unknown rubric {rubric}")));
     }
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
-    if crate::report::report(&mut conn, id)
+    let report = crate::report::report(&mut conn, id)
         .await
         .map_err(Problem::from)?
-        .is_none()
-    {
-        return Err(Problem::new(ProblemKind::NotFound));
-    }
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let mut items = crate::report::items(&mut conn, id, &rubric, after, ITEMS_PAGE + 1)
         .await
         .map_err(Problem::from)?;
@@ -1803,12 +1839,15 @@ async fn report_items(
             items.last().map_or(0, |i| i.seq)
         )
     });
+    drop(conn);
+    let subjects = items.iter().filter_map(|i| i.subject);
+    let summaries = Summaries::read(&api, &context, subjects, report.valid_at, None).await?;
     let items: Vec<ItemDto> = items
         .into_iter()
         .map(|i| ItemDto {
             rubric: i.rubric,
             seq: i.seq,
-            subject: i.subject,
+            subject: i.subject.map(|s| summaries.of(s)),
             detail: i.detail,
         })
         .collect();

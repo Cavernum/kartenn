@@ -1081,3 +1081,210 @@ async fn the_preview_masks_the_values_of_a_sensitive_axis(pool: PgPool) {
     let row = declared_dev(&preview_nodes(&read["rows"]));
     assert_eq!(row["after"]["expected"], json!(["prod"]), "{row}");
 }
+
+/// `body` with each summary of one of `cut` reduced to its identifier, as a caller who
+/// may not read it gets it.
+fn cut(body: &Value, cut: &[Uuid]) -> Value {
+    match body {
+        Value::Object(members) => {
+            let id = members.get("id").and_then(Value::as_str);
+            if members.contains_key("href")
+                && id.is_some_and(|id| cut.iter().any(|c| c.to_string() == id))
+            {
+                return json!({ "id": id });
+            }
+            Value::Object(
+                members
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self::cut(v, cut)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(items.iter().map(|v| self::cut(v, cut)).collect()),
+        other => other.clone(),
+    }
+}
+
+/// REQ-006-42, INV-63 (task 006-33f2): a verdict names its points, the origin and the
+/// chain of each value by their summaries, as its caller may read them; an object the
+/// caller may not read leaves `{id}` alone.
+#[kartenn_testing::pg_test]
+async fn a_verdict_summarises_what_its_caller_may_read(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    policy(&env).await;
+    let source = env.host("10.1.0.0/24", "prod", "10.1.0.5").await;
+    let destination = env.host("10.2.0.0/24", "dev", "10.2.0.7").await;
+    let network: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.1.0.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let all = env.app(
+        env.person(&[
+            "policy.verdict.read",
+            "core.address.read",
+            "core.prefix.read",
+        ])
+        .await,
+    );
+    let some = env.app(
+        env.person(&["policy.verdict.read", "core.address.read"])
+            .await,
+    );
+    let uri = format!(
+        "/v1/verdicts?source=address:{source}&destination=address:{destination}&service=ssh"
+    );
+    let (status, _, full) = call(&all, Method::GET, &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{full}");
+    let point = &full["sources"][0];
+    assert_eq!(
+        point["object"],
+        json!({ "id": source, "label": "10.1.0.5", "href": format!("/v1/addresses/{source}") })
+    );
+    let environment = point["axes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["axis"] == "policy.environment")
+        .unwrap();
+    assert_eq!(environment["source"], "tree", "{environment}");
+    assert_eq!(
+        environment["origin"],
+        json!({ "id": network, "label": "10.1.0.0/24", "href": format!("/v1/prefixes/{network}") })
+    );
+    assert!(
+        environment["chain"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["label"].is_string()),
+        "{environment}"
+    );
+    // Without the reading of the prefixes: every summary of a prefix is `{id}` alone, the
+    // rest of the answer the same.
+    let (status, _, reduced) = call(&some, Method::GET, &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{reduced}");
+    let destination_network: Uuid =
+        sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.2.0.0/24'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(reduced, cut(&full, &[network, destination_network]));
+    assert_eq!(
+        reduced["sources"][0]["axes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["axis"] == "policy.environment")
+            .unwrap()["origin"],
+        json!({ "id": network })
+    );
+}
+
+/// REQ-006-42, INV-63 (task 006-33f2): the subject of an item of a report is summarised
+/// as its caller may read it, its key at the date of the report, an object of the policy
+/// by the key of the module; a subject the caller may not read, one absent at the date
+/// of the report and an unknown one leave `{id}` alone, the same bytes.
+#[kartenn_testing::pg_test]
+async fn a_report_item_leaves_alike_an_unreadable_subject_and_an_absent_one(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    policy(&env).await;
+    env.host("10.1.0.0/24", "prod", "10.1.0.5").await;
+    let network: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.1.0.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let key = |sql: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, Uuid>(sql)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    let rule = key("SELECT id FROM policy.policy_rule WHERE key = 'prod-dev'").await;
+    let prod = key("SELECT id FROM policy.policy_value WHERE value_key = 'prod'").await;
+    let service = key("SELECT id FROM policy.policy_service WHERE key = 'ssh'").await;
+    let flow_type = key("SELECT id FROM policy.policy_flow_type WHERE key = 'admin'").await;
+    let unknown = Uuid::now_v7();
+    // Two reports done: one now, one before anything existed.
+    let report = |years_ago: i32, subjects: Vec<Uuid>| {
+        let pool = pool.clone();
+        async move {
+            let id = Uuid::now_v7();
+            sqlx::query(
+                "INSERT INTO policy.policy_report (id, valid_at, state, done_at)
+                 VALUES ($1, now() - make_interval(years => $2), 'done', now())",
+            )
+            .bind(id)
+            .bind(years_ago)
+            .execute(&pool)
+            .await
+            .unwrap();
+            for (seq, subject) in (1_i64..).zip(subjects) {
+                sqlx::query(
+                    "INSERT INTO policy.policy_report_item (report_id, rubric, seq, subject)
+                     VALUES ($1, 'unclassified', $2, $3)",
+                )
+                .bind(id)
+                .bind(seq)
+                .bind(subject)
+                .execute(&pool)
+                .await
+                .unwrap();
+            }
+            format!("/v1/policy-reports/{id}/items?rubric=unclassified")
+        }
+    };
+    let now = report(0, vec![network, unknown, rule, prod, service, flow_type]).await;
+    let reader = env.app(
+        env.person(&[
+            "policy.rule.admin",
+            "core.prefix.read",
+            "policy.catalogue.read",
+        ])
+        .await,
+    );
+    let (status, _, items) = call(&reader, Method::GET, &now, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{items}");
+    let subjects: Vec<&Value> = items["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| &i["subject"])
+        .collect();
+    assert_eq!(
+        subjects[0],
+        &json!({ "id": network, "label": "10.1.0.0/24", "href": format!("/v1/prefixes/{network}") })
+    );
+    assert_eq!(subjects[1], &json!({ "id": unknown }));
+    let labels: Vec<&Value> = subjects[2..].iter().map(|s| &s["label"]).collect();
+    assert_eq!(
+        labels,
+        [
+            &json!("prod-dev"),
+            &json!("prod"),
+            &json!("ssh"),
+            &json!("admin")
+        ]
+    );
+    assert_eq!(
+        subjects[2]["href"],
+        json!(format!("/v1/policy-rules/{rule}"))
+    );
+
+    // The prefix unreadable now, or absent at the date of the report: the same bytes.
+    let before = report(10, vec![network]).await;
+    let alone = report(0, vec![network]).await;
+    let stranger = env.app(env.person(&["policy.rule.admin"]).await);
+    let unreadable = answer(&stranger, &alone).await;
+    let absent = answer(&reader, &before).await;
+    assert_eq!(unreadable.0, StatusCode::OK);
+    assert_eq!((unreadable.0, &unreadable.1), (absent.0, &absent.1));
+    assert_eq!(
+        String::from_utf8(unreadable.2).unwrap(),
+        String::from_utf8(absent.2).unwrap()
+    );
+    let (_, _, shown) = call(&stranger, Method::GET, &alone, None, &[]).await;
+    assert_eq!(shown["items"][0]["subject"], json!({ "id": network }));
+}

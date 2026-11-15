@@ -399,7 +399,11 @@ dossier seulement : pas de repli sur l'entité de rattachement de l'appelant, ch
 010-13), sinon 404 ; l'explication réduite ne nomme aucun objet du référentiel (points
 repérés par leur rang) ; dans le premier cas, les adresses
 développées d'une machine lisible mais non lisibles une à une sont omises et comptées
-(`hidden`). Un compte de service transmet « pour le compte de » (N31).
+(`hidden`). Dans l'explication complète, le point (`object`), l'objet d'origine, la
+chaîne et les machines d'une valeur sont des résumés (006, REQ-006-42) : `{id, label,
+href}` pour un objet que l'appelant lit, `{id}` seul sinon ; de même le sujet d'une
+ligne de rapport, sa clé lue à la date du rapport. Un compte de service transmet « pour
+le compte de » (N31).
 
 ### API (REQ-010-27)
 

@@ -10907,25 +10907,26 @@
           "chain": {
             "description": "The objects walked to the origin (`tree`).",
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
           "machines": {
             "description": "The machines carrying a value (`machine`).",
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
           "origin": {
-            "description": "The object carrying the assignment (`tree`), absent in a reduced explanation.",
-            "format": "uuid",
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Summary",
+                "description": "The object carrying the assignment (`tree`), absent in a reduced explanation."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "source": {
@@ -11294,12 +11295,15 @@
             },
             "type": "array"
           },
-          "id": {
-            "description": "The address or the prefix; absent in a reduced explanation.",
-            "format": "uuid",
-            "type": [
-              "string",
-              "null"
+          "object": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Summary",
+                "description": "The address or the prefix; absent in a reduced explanation."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -11383,11 +11387,14 @@
             "type": "integer"
           },
           "subject": {
-            "description": "The object the item is about, if one.",
-            "format": "uuid",
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Summary",
+                "description": "The object the item is about, if one, as its caller may read it now, its key read\nat the date the report describes."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
