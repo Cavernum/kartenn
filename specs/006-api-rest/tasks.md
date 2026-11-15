@@ -1163,7 +1163,7 @@ routeur complet, sauf mention « vrai TCP ».
   design 011 (« Non-conformités ») dit encore « demandeur de la ligne avec
   `flow.request` », alors que la route ne vérifie pas `flow.request` (antérieur, inchangé ;
   tâche 38).
-- [ ] 38. (à arbitrer) Lecture de ses propres demandes sans `flow.request` (droits,
+- [x] 38. Lecture de ses propres demandes sans `flow.request` (droits,
   antérieur, relevé par la revue de la 37) : REQ-011-17 et le design 011 (« Demandes »,
   « Non-conformités ») rangent la lecture de ses propres demandes sous `flow.request` ;
   deux routes acceptent le demandeur sans le vérifier, `GET /v1/flows` (`read.rs`,
@@ -1180,3 +1180,31 @@ routeur complet, sauf mention « vrai TCP ».
     `specs/011-registre-flux/design.md` (lignes 140 et 189) ; tests
     `flow/tests/it/requests.rs`
   - dépend de : arbitrage de l'utilisateur (droits)
+  arbitrage (2026-11-15) : option A, le code suit la spec (REQ-011-17, design 011) : le
+  demandeur ne lit ses propres lignes que s'il tient encore `flow.request`.
+  fait : `crates/kartenn-flow/src/read.rs` (`Reader::requested_on`, `Reader::push_own`,
+  `read::requested_on` ; `Reader::reads` pour les demandes en attente, la requête des flux
+  appliqués et celle des non-conformités) ; `crates/kartenn-flow/src/rest.rs`
+  (`requested_on`, servi à `reader_of`, `nonconformity_reader`, `visible` — donc
+  `flows_seen` et le test d'une connexion — et `access` — `GET /v1/flows/{id}` et
+  `/evaluations`) ; `crates/kartenn-flow/src/stats.rs` (compteur des flux de l'accueil,
+  `GET /v1/stats`) et `kartenn-service` `StatsScope::subject` (au lieu de `identity`),
+  rempli par `kartenn-rest/src/stats.rs` ; `handler::REQUEST` ; design 011 (« Demandes »,
+  « Non-conformités »). Test : `flow/tests/it/rest.rs`
+  `a_requester_without_flow_request_reads_its_rows_as_absent` (rouge avant : le demandeur
+  privé du droit lisait son flux) — flux appliqués, demandes en attente et rejetées d'un
+  demandeur sur `acme` et d'un autre sur `beta`, en alternance ; le premier perd
+  `flow.request` : sur `/v1/flows` (avec et sans `requested`), `/v1/addresses/{id}/flows`
+  et `/v1/flow-nonconformities`, en pages de 1 et 2, ses corps (lignes, curseurs, nombre)
+  égalent ceux d'une personne aux mêmes autres droits ; par identifiant, 404 comme elle ;
+  `GET /v1/stats` : mêmes compteurs ; `flow.read` sur `acme` lui rend ses lignes. Le test
+  de la 37 donne désormais `flow.request` au demandeur.
+  choix : portée du droit sur l'entité de la ligne (REQ-011-17 : « portées sur l'entité du
+  flux ») — l'entité de la demande en attente, de la version du flux dont il est demandeur,
+  de la ligne de non-conformité ; demande en attente sans entité lue par son demandeur
+  seulement s'il tient `flow.request` partout ; droit lu à l'instant de la requête (comme
+  la portée de lecture), borné par le confinement de l'émetteur ; constante
+  `handler::REQUEST` réemployée par `POST /v1/flows`.
+  reste : aucun parcours du shell ne lit ses demandes sans le droit (maquettes seules) ; le
+  compteur de l'accueil se met en cache par portée de lecture et par sujet : un retrait de
+  `flow.request` s'y voit au recalcul suivant (révision), non mesuré.

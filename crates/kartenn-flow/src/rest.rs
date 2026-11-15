@@ -39,7 +39,7 @@ use utoipa::openapi::path::HttpMethod;
 use utoipa::openapi::{RefOr, Schema};
 use uuid::Uuid;
 
-use crate::handler::REVIEW;
+use crate::handler::{REQUEST, REVIEW};
 use crate::model::EndpointKind;
 use crate::module::{FLOW, flow_type};
 use crate::read::{
@@ -635,8 +635,19 @@ fn filter_of(wanted: &BTreeMap<&str, &str>) -> Result<FlowFilter, Problem> {
     Ok(filter)
 }
 
+/// The entities where the caller holds `flow.request` now, as [`Reader::requested_on`]
+/// reads them: it reads the rows it requested on these only (REQ-011-17, task 006-38).
+async fn requested_on(api: &Api, principal: &Principal) -> Result<Option<Vec<Uuid>>, Problem> {
+    let visibility = api
+        .authorizer()
+        .visibility(&principal.subject(), REQUEST, kit::now(api).await?)
+        .await?;
+    Ok(read::requested_on(visibility))
+}
+
 /// The flows of `ids` the caller reads at `at`: under `flow.read` by the predicate
-/// of the core on their entity (ADR 0021), or as their requester (REQ-011-17).
+/// of the core on their entity (ADR 0021), or as their requester holding `flow.request`
+/// on their entity (REQ-011-17, task 006-38).
 async fn visible(
     api: &Api,
     scope: &ReadScope,
@@ -652,7 +663,8 @@ async fn visible(
          SELECT x.id FROM unnest($3::uuid[]) AS x(id)
           WHERE $2::jsonb IS NULL OR {}
              OR EXISTS (SELECT 1 FROM flow.flow f
-                         WHERE f.id = x.id AND f.requester_id = $4)",
+                         WHERE f.id = x.id AND f.requester_id = $4
+                           AND ($5::uuid[] IS NULL OR f.entity_id = ANY ($5)))",
         flow_readable("x.id")
     );
     let rows: Vec<(Uuid,)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
@@ -660,6 +672,7 @@ async fn visible(
         .bind(scope.to_json())
         .bind(ids)
         .bind(principal.identity)
+        .bind(requested_on(api, principal).await?)
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -859,11 +872,13 @@ async fn flows_seen(
 
 /// The caller of a list of flows as its query reads it (task 006-36): the rows it reads
 /// are kept before the page is cut, as [`flows_seen`] keeps them from a set. An applied
-/// flow under `flow.read` on its entity or as its requester (REQ-011-17), or, holding
+/// flow under `flow.read` on its entity or as its requester holding `flow.request` on its
+/// entity (REQ-011-17, task 006-38), or, holding
 /// `flow.read` elsewhere, through one of its endpoints (REQ-027-1), unless the caller does
 /// not read every object of `objects`, those a filter names (REQ-027-3); a request pending
-/// a review under `flow.read` or `flow.review` on its entity, or as its requester (F19).
-/// `pending`: whether the list reads the requests pending a review.
+/// a review under `flow.read` or `flow.review` on its entity, or as its requester under
+/// `flow.request` on it (F19). `pending`: whether the list reads the requests pending a
+/// review.
 async fn reader_of(
     api: &Api,
     scope: &ReadScope,
@@ -904,6 +919,7 @@ async fn reader_of(
     }
     Ok(Reader {
         identity: principal.identity,
+        requested_on: requested_on(api, principal).await?,
         scope: scope.to_json(),
         condition,
         every_review,
@@ -1189,8 +1205,9 @@ async fn of_object(
 }
 
 /// Whether the caller reads the flow `id` at `at` (REQ-011-17, REQ-027-1): under
-/// `flow.read` on its entity, as its requester, or through one of its endpoints. The way
-/// it is read changes nothing of what is served (REQ-027-2).
+/// `flow.read` on its entity, as its requester holding `flow.request` on its entity (task
+/// 006-38), or through one of its endpoints. The way it is read changes nothing of what is
+/// served (REQ-027-2).
 async fn access(
     api: &Api,
     principal: &Principal,
@@ -1205,11 +1222,15 @@ async fn access(
         Err(problem) => return Err(problem),
     }
     let row: Option<Row> = sqlx::query_as(
-        "SELECT requester_id = $2, source_kind, source_id, destination_kind, destination_id
-           FROM flow.flow WHERE id = $1 ORDER BY requester_id = $2 DESC LIMIT 1",
+        "SELECT o.own, source_kind, source_id, destination_kind, destination_id
+           FROM flow.flow
+          CROSS JOIN LATERAL (
+            SELECT requester_id = $2 AND ($3::uuid[] IS NULL OR entity_id = ANY ($3)) AS own) o
+          WHERE id = $1 ORDER BY o.own DESC LIMIT 1",
     )
     .bind(id)
     .bind(principal.identity)
+    .bind(requested_on(api, principal).await?)
     .fetch_optional(&api.pool)
     .await
     .map_err(|e| kit::store(&e))?;
@@ -1365,7 +1386,11 @@ async fn nonconformities(
         })
         .transpose()?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
-    filter.reader = Some(nonconformity_reader(&scope, &principal));
+    filter.reader = Some(nonconformity_reader(
+        &scope,
+        &principal,
+        requested_on(&api, &principal).await?,
+    ));
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
     let mut rows =
@@ -1401,11 +1426,16 @@ async fn nonconformities(
 }
 
 /// The caller of the list of non-conformities as its query reads it (task 006-37): the
-/// rows of its own requests, those of the entities where the scope of `flow.read` reaches
+/// rows of its own requests on the entities of `requested_on`, where it holds
+/// `flow.request` (task 006-38), those of the entities where the scope of `flow.read` reaches
 /// (globally, or the entity granted: a flow is anchored on its entity, ADR 0026), and,
 /// holding `flow.read` elsewhere, those of the flows it reads through one of their
 /// endpoints (REQ-027-1), at any of their versions. The condition names the row `n`.
-fn nonconformity_reader(scope: &ReadScope, principal: &Principal) -> Reader {
+fn nonconformity_reader(
+    scope: &ReadScope,
+    principal: &Principal,
+    requested_on: Option<Vec<Uuid>>,
+) -> Reader {
     let mut condition = format!(
         "(EXISTS (SELECT 1 FROM s
                    WHERE s.kind = '{FLOW}' AND (s.global OR n.entity = ANY (s.entities)))"
@@ -1423,6 +1453,7 @@ fn nonconformity_reader(scope: &ReadScope, principal: &Principal) -> Reader {
     condition.push(')');
     Reader {
         identity: principal.identity,
+        requested_on,
         scope: scope.to_json(),
         condition,
         every_review: false,
@@ -1446,7 +1477,7 @@ async fn request(
         &headers,
         &raw,
         flow_type(),
-        "flow.request",
+        REQUEST,
         REQUEST_MEMBERS,
     )
     .await?;
