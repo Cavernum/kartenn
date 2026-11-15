@@ -77,9 +77,11 @@ const host = computed(() => {
   if (h.kind === "cluster") {
     return { type: "machines.cluster" as const, id: h.id, page: PAGES.cluster(h.id) };
   }
-  // A host the caller may not read says not its kind (REQ-006-42): no page then.
-  const page = h.kind === "machine" ? PAGES.machine(h.id) : undefined;
-  return { type: "machines.machine" as const, id: h.id, page };
+  if (h.kind === "machine") {
+    return { type: "machines.machine" as const, id: h.id, page: PAGES.machine(h.id) };
+  }
+  // A host the caller may not read says not its kind (REQ-006-42): its id alone.
+  return { type: undefined, id: h.id, page: undefined };
 });
 /** Its attributes, each by its slot; one absent (no owner, no host…) said by the list. */
 const attributes = computed<AttributeItem[]>(() => [

@@ -301,9 +301,15 @@ function onActivate(cell: CellRef): void {
   arrival.byLink = true;
   followLink(element, recordOf(row));
 }
-// A host the caller may not read says not its kind (REQ-006-42): no page then.
+// A host the caller may not read says not its kind (REQ-006-42): no type nor page then.
 const hostPage = (host: Row["host"]) =>
   host?.kind && (host.kind === "machine" ? PAGES.machine(host.id) : PAGES.cluster(host.id));
+const hostType = (host: Row["host"]) =>
+  host?.kind === "cluster"
+    ? ("machines.cluster" as const)
+    : host?.kind === "machine"
+      ? ("machines.machine" as const)
+      : undefined;
 
 const failure = computed(() => (state.value.items === undefined ? state.value.error : null));
 const nextFailure = computed(() => (state.value.items !== undefined ? state.value.error : null));
@@ -464,7 +470,7 @@ function added(): void {
               v-else-if="column.id === 'host'"
               :id="row.host?.id"
               :names="names"
-              :type="row.host?.kind === 'cluster' ? 'machines.cluster' : 'machines.machine'"
+              :type="hostType(row.host)"
               :page="hostPage(row.host) ?? undefined"
             />
           </template>

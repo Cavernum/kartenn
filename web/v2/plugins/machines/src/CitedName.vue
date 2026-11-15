@@ -16,14 +16,17 @@ import type { Names } from "./reads.ts";
 
 const props = defineProps<{
   names: () => Names;
-  type: Parameters<Names["of"]>[0];
+  /** Its type; unknown for an object the caller may not read (REQ-006-42): its id alone. */
+  type: Parameters<Names["of"]>[0] | undefined;
   id: string | null | undefined;
   /** The page of its record, if it has one. */
   page?: string | undefined;
 }>();
 
 const { context } = useHosted();
-const name = computed(() => (props.id ? props.names().of(props.type, props.id) : null));
+const name = computed(() =>
+  props.id && props.type ? props.names().of(props.type, props.id) : null,
+);
 const href = computed(() => {
   // The links carry the dates of the context (W9).
   void context.value.time;
@@ -32,7 +35,8 @@ const href = computed(() => {
 </script>
 
 <template>
-  <NoValue v-if="!name" />
+  <span v-if="props.id && !props.type" class="k-mono">{{ props.id }}</span>
+  <NoValue v-else-if="!name" />
   <Skeleton v-else-if="name.state === 'reading'" variant="cell" />
   <template v-else-if="name.state === 'failed'">
     <a v-if="href" :href="href" class="k-mono">{{ props.id }}</a>
