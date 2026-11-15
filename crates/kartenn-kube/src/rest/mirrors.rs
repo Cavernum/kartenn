@@ -606,6 +606,8 @@ struct Filter<'a> {
     machine: Option<Uuid>,
     /// Absent from its cluster (`true`) or present (`false`).
     absent: Option<bool>,
+    /// Among these objects, each once (H23, REQ-006-41); empty: no such filter.
+    ids: Vec<Uuid>,
 }
 
 fn uuid(wanted: &BTreeMap<&str, &str>, name: &str) -> Result<Option<Uuid>, Problem> {
@@ -618,8 +620,9 @@ fn uuid(wanted: &BTreeMap<&str, &str>, name: &str) -> Result<Option<Uuid>, Probl
         .transpose()
 }
 
-/// The filters of `page` on `M`: each at most once; 400 for an unknown one or a value
-/// that does not read.
+/// The filters of `page` on `M`: each at most once, `id` once per value
+/// ([`kartenn_rest::cursor::MAX_SIZE`] at most); 400 for an unknown one or a value that
+/// does not read.
 fn filter_of<M: Mirror>(page: &Page) -> Result<Filter<'_>, Problem> {
     let mut names = vec!["q", "name", "cluster", ABSENT];
     if M::NAMESPACED {
@@ -634,8 +637,12 @@ fn filter_of<M: Mirror>(page: &Page) -> Result<Filter<'_>, Problem> {
     if M::MACHINE {
         names.push("machine");
     }
-    let mut wanted = BTreeMap::new();
+    let (mut wanted, mut ids) = (BTreeMap::new(), Vec::new());
     for (name, value) in &page.filters {
+        if name == "id" {
+            kartenn_rest::filter::push_id(&mut ids, value)?;
+            continue;
+        }
         if !names.contains(&name.as_str()) {
             return Err(kit::bad(format!("unknown parameter {name}")));
         }
@@ -671,6 +678,8 @@ fn filter_of<M: Mirror>(page: &Page) -> Result<Filter<'_>, Problem> {
             _ => Err(kit::bad(format!("{ABSENT} expects true or false"))),
         })
         .transpose()?;
+    ids.sort_unstable();
+    ids.dedup();
     Ok(Filter {
         name: wanted.get("name").copied(),
         cluster: uuid(&wanted, "cluster")?,
@@ -679,11 +688,12 @@ fn filter_of<M: Mirror>(page: &Page) -> Result<Filter<'_>, Problem> {
         label,
         machine: uuid(&wanted, "machine")?,
         absent,
+        ids,
     })
 }
 
 /// The statement of a page of `M`: the relation of the dates (`$1`, `$2`), the read scope
-/// (`$3`), the filters (`$4`, `$8` to `$13`), the cursor (`$5`, `$6`) and the size (`$7`).
+/// (`$3`), the filters (`$4`, `$8` to `$14`), the cursor (`$5`, `$6`) and the size (`$7`).
 /// A filter `M` does not serve is refused before; its parameter is read all the same.
 fn page_sql<M: Mirror>(current: bool, absent: Option<bool>) -> String {
     // Written in the text, not bound: a statement of its own for each.
@@ -740,6 +750,7 @@ fn page_sql<M: Mirror>(current: bool, absent: Option<bool>) -> String {
             AND ($11::text IS NULL OR {sort})
             AND ($12::jsonb IS NULL OR {label})
             AND ($13::uuid IS NULL OR {machine})
+            AND (cardinality($14::uuid[]) = 0 OR x.id = ANY($14))
             {absent}
             AND ($3::jsonb IS NULL OR {visible})
           ORDER BY x.name, x.id
@@ -749,7 +760,8 @@ fn page_sql<M: Mirror>(current: bool, absent: Option<bool>) -> String {
     )
 }
 
-/// `GET`/`QUERY` of the collection of `M`: by name, filtered in conjunction.
+/// `GET`/`QUERY` of the collection of `M`: by name, filtered in conjunction; filtered by
+/// `id`, one page without a next one (REQ-006-41).
 async fn list<M: Mirror>(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -760,6 +772,7 @@ async fn list<M: Mirror>(
     let collection = type_of(M::KIND).collection;
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, collection)?)?;
     let filter = filter_of::<M>(&page)?;
+    let (limit, size) = kartenn_rest::filter::window(&page, &filter.ids)?;
     let after = page
         .after()
         .map(|key| serde_json::from_value::<(String, Uuid)>(key.clone()))
@@ -780,17 +793,17 @@ async fn list<M: Mirror>(
         .bind(filter.name)
         .bind(after.as_ref().map(|(name, _)| name.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
         .bind(filter.cluster)
         .bind(filter.namespace)
         .bind(filter.sort)
         .bind(filter.label)
         .bind(filter.machine)
+        .bind(&filter.ids)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1];
@@ -857,6 +870,7 @@ fn collection<M: Mirror>(router: ModuleRouter) -> ModuleRouter {
     schemas_of::<M>(&mut schemas);
     schemas.push(listing_of::<M>());
     let mut list_op = op(&format!("list_{}", M::MANY), "kube", M::SUMMARY)
+        .ids()
         .query("name", "Equal to.")
         .suggestion("the name");
     list_op = by_id(list_op, "cluster", "In this cluster.", "/v1/kube-clusters");

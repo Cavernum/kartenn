@@ -122,6 +122,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/flow-types": [{ name: "key", type: "string" }],
   "/v1/flow-types/{id}/history": [],
   "/v1/flows": [
+    { name: "id", type: "array" },
     { name: "endpoint", type: "string" },
     { name: "prefix", type: "string" },
     { name: "machine", type: "string" },
@@ -154,6 +155,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/inference-rules/{id}/history": [],
   "/v1/ingresses": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "q", type: "string" },
     { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
@@ -177,6 +179,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/issuer-attachments": [],
   "/v1/kube-admitted-values/{id}/history": [],
   "/v1/kube-clusters": [
+    { name: "id", type: "array" },
     { name: "slug", type: "string" },
     { name: "q", type: "string" },
   ],
@@ -187,6 +190,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/kube-label-mappings/{id}/history": [],
   "/v1/kube-namespaces": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "q", type: "string" },
     { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
@@ -195,6 +199,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/kube-namespaces/{id}/history": [],
   "/v1/kube-nodes": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "q", type: "string" },
     { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
@@ -203,6 +208,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/kube-nodes/{id}/history": [],
   "/v1/kube-services": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "q", type: "string" },
     { name: "cluster", type: "string", collection: "/v1/kube-clusters" },
@@ -386,6 +392,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   "/v1/vlans/{id}/history": [],
   "/v1/vlans/{id}/prefixes": [],
   "/v1/workloads": [
+    { name: "id", type: "array" },
     { name: "name", type: "string" },
     { name: "q", type: "string" },
     { name: "cluster", type: "string", collection: "/v1/kube-clusters" },

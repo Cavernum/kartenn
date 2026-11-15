@@ -530,10 +530,14 @@ fn state(name: &str) -> Option<FlowState> {
     })
 }
 
-/// The filters of a page, each known and given once.
+/// The filters of a page, each known and given once; `id`, when it is one of `names`, is
+/// read by [`page_of`] and left out of them.
 fn wanted<'a>(page: &'a Page, names: &[&str]) -> Result<BTreeMap<&'a str, &'a str>, Problem> {
     let mut found = BTreeMap::new();
     for (name, value) in &page.filters {
+        if name == "id" && names.contains(&"id") {
+            continue;
+        }
         if !names.contains(&name.as_str()) {
             return Err(kit::bad(format!("unknown parameter {name}")));
         }
@@ -896,7 +900,22 @@ async fn snapshot(pool: &sqlx::PgPool) -> Result<kit::Snapshot, Problem> {
         .map_err(|e| kit::store(&e))
 }
 
+/// The identifiers of the filter `id` of `page` (H23, REQ-006-41), each once,
+/// [`kartenn_rest::cursor::MAX_SIZE`] at most; empty: no such filter.
+fn ids_of(page: &Page) -> Result<Vec<Uuid>, Problem> {
+    let mut ids = Vec::new();
+    for (_, value) in page.filters.iter().filter(|(name, _)| name == "id") {
+        kartenn_rest::filter::push_id(&mut ids, value)?;
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    Ok(ids)
+}
+
 /// A page of flows read by `fetch` after the cursor, kept to those the caller reads.
+/// `fetch` is given the identifiers of the filter `id`, which only a route that names it
+/// among its filters accepts (see [`wanted`]): filtered by them, the page is one, without
+/// a next one ([`kartenn_rest::filter::window`]).
 #[allow(clippy::too_many_arguments)] // the request, then what the route reads
 async fn page_of<F, Fut>(
     api: &Api,
@@ -909,20 +928,21 @@ async fn page_of<F, Fut>(
     fetch: F,
 ) -> Result<Response, Problem>
 where
-    F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
+    F: FnOnce(Dates, Option<Cursor>, i64, Vec<Uuid>, Page) -> Fut,
     Fut: std::future::Future<
             Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>, kit::Snapshot), Problem>,
         >,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
+    let ids = ids_of(&page)?;
+    let (limit, size) = kartenn_rest::filter::window(&page, &ids)?;
     let after = page.after().map(cursor_of).transpose()?;
     let (moment, scope) = reading(api, principal, &page).await?;
-    let size = usize::from(page.size);
     // The rows of the page and the versions of its flows in force are read in one
     // snapshot, which `fetch` begins once its filters are valid, reads in and gives
     // back (task 021-11c).
     let (mut rows, page, objects, mut snapshot) =
-        fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
+        fetch(dates(&moment), after, limit, ids, page).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let cursor = page.next(
@@ -1058,7 +1078,9 @@ async fn reviews_seen(
         .collect())
 }
 
-/// `GET`/`QUERY /v1/flows`: by identifier, filtered (REQ-011-14), those the caller reads.
+/// `GET`/`QUERY /v1/flows`: by identifier, filtered (REQ-011-14), those the caller reads;
+/// filtered by `id`, the flows applied among them, in one page (REQ-006-41), in
+/// conjunction with the other filters, no request pending a review (it is not yet a flow).
 async fn list(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -1066,7 +1088,9 @@ async fn list(
     ListQuery(query): ListQuery,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let names: Vec<&str> = FILTERS.iter().map(|(n, _)| *n).collect();
+    let names: Vec<&str> = std::iter::once("id")
+        .chain(FILTERS.iter().map(|(n, _)| *n))
+        .collect();
     let pool = api.pool.clone();
     page_of(
         &api,
@@ -1076,8 +1100,9 @@ async fn list(
         &query,
         COLLECTION,
         "/v1/flows",
-        |dates, after, limit, page| async move {
-            let filter = filter_of(&wanted(&page, &names)?)?;
+        |dates, after, limit, ids, page| async move {
+            let mut filter = filter_of(&wanted(&page, &names)?)?;
+            filter.ids = (!ids.is_empty()).then_some(ids);
             let objects: Vec<Endpoint> = filter
                 .endpoint
                 .map(|(kind, id)| (crate::pg::kind_name(kind).to_owned(), id))
@@ -1116,7 +1141,8 @@ async fn of_object(
         query.as_deref().unwrap_or_default(),
         &name,
         &path,
-        |dates, after, limit, page| async move {
+        |dates, after, limit, _ids, page| async move {
+            // `id` too is unknown here: the flows of an object are not filtered by it.
             wanted(&page, &[])?;
             let after = match after {
                 None => None,
@@ -1799,8 +1825,10 @@ pub fn routes() -> ModuleRouter {
     let mut list_op = op(
         "list_flows",
         "flow",
-        "The flows the caller may read (REQ-011-14).",
-    );
+        "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied \
+         among them: no request pending a review, which is not yet a flow.",
+    )
+    .ids();
     for (filter, description) in FILTERS {
         list_op = list_op.query(filter, description);
     }

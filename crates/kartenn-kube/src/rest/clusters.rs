@@ -1,6 +1,6 @@
 //! The collection of the clusters (task 019-8a; REQ-019-5, 38; design « Routes »,
-//! « Données »): `GET, POST /v1/kube-clusters` (filter `?slug=`, suggestion `q`) and
-//! `GET, PATCH, DELETE /v1/kube-clusters/{id}`. Reads dated (`valid_at`, `as_of`), under
+//! « Données »): `GET, POST /v1/kube-clusters` (filters `?id=`, `?slug=`, suggestion
+//! `q`) and `GET, PATCH, DELETE /v1/kube-clusters/{id}`. Reads dated (`valid_at`, `as_of`), under
 //! the rights of the caller (`kube.cluster.read`, on its owner and site: a cluster is
 //! anchored in no domain) and journaled; writes by changeset, `kube.create_cluster` and
 //! `kube.update_cluster` in JSON Merge Patch under `If-Match`, the closure by the core.
@@ -263,7 +263,8 @@ impl<'r> sqlx::FromRow<'r, PgRow> for ClusterRow {
 /// The table of the clusters.
 const TABLE: &str = "kube.cluster";
 
-/// `GET`/`QUERY /v1/kube-clusters`: by slug, filtered by `slug`, suggested by `q`.
+/// `GET`/`QUERY /v1/kube-clusters`: by slug, filtered by `id` (repeated, one page,
+/// REQ-006-41) and `slug`, suggested by `q`.
 async fn list(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -272,15 +273,19 @@ async fn list(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, COLLECTION)?)?;
-    let mut slug = None;
+    let (mut slug, mut wanted) = (None, Vec::new());
     for (name, value) in &page.filters {
         match name.as_str() {
+            "id" => kartenn_rest::filter::push_id(&mut wanted, value)?,
             "slug" if slug.is_none() => slug = Some(value.as_str()),
             "slug" => return Err(kit::bad("slug is given more than once")),
             "q" => {}
             _ => return Err(kit::bad(format!("unknown parameter {name}"))),
         }
     }
+    wanted.sort_unstable();
+    wanted.dedup();
+    let (limit, size) = kartenn_rest::filter::window(&page, &wanted)?;
     let after = page
         .after()
         .map(|key| serde_json::from_value::<(String, Uuid)>(key.clone()))
@@ -296,6 +301,7 @@ async fn list(
           WHERE ($4::text IS NULL OR x.slug = $4)
             AND ($5::text IS NULL OR (x.slug, x.id) > ($5, $6::uuid))
             AND ($8::text IS NULL OR x.slug LIKE $8)
+            AND (cardinality($9::uuid[]) = 0 OR x.id = ANY($9))
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $7",
@@ -319,12 +325,12 @@ async fn list(
         .bind(slug)
         .bind(after.as_ref().map(|(slug, _)| slug.as_str()))
         .bind(after.as_ref().map(|(_, id)| *id))
-        .bind(i64::from(page.size) + 1)
+        .bind(limit)
         .bind(prefix.as_deref())
+        .bind(&wanted)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
-    let size = usize::from(page.size);
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let last = &rows[size - 1].0;
@@ -383,6 +389,7 @@ pub(super) fn routes(router: ModuleRouter) -> ModuleRouter {
         "kube",
         "The clusters the caller may read (REQ-019-38), by slug.",
     )
+    .ids()
     .query("slug", "Equal to.")
     .suggestion("the slug")
     .params::<DatesParams>()

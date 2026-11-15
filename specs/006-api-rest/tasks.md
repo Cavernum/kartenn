@@ -789,7 +789,7 @@ routeur complet, sauf mention « vrai TCP ».
   ou l'identifiant sondé à chaque ligne, sans partir de `attachment_by_address` ni de la
   clé primaire — un parcours complet des interfaces quand peu d'entre elles répondent, à
   mesurer au banc HTTP avant d'écrire une branche propre au filtre sélectif.
-- [ ] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
+- [x] 32c. Listes de kube et des flux — verify : `k-check -p kartenn-kube`,
   `k-check -p kartenn-flow` (deux identifiants dont un illisible : un seul rendu ;
   conjonction ; filtrée par `id`, une page sans suite, `page_size` ou curseur → 400, par
   `filter::window`)
@@ -798,6 +798,44 @@ routeur complet, sauf mention « vrai TCP ».
     suivis (à repérer) ; `crates/kartenn-flow/src/rest.rs` (`page_of`, `list`, vers les
     lignes 901 et 1062)
   - dépend de : 32a
+  inventaire : kube sert sept listes d'objets, les grappes (`clusters.rs`) et les cinq
+  collections miroirs (`mirrors.rs`, `list<M>` : nœuds, namespaces, workloads, services,
+  ingresses) ; les correspondances de labels, valeurs admises et labels suivis
+  (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) n'ont pas de
+  liste, seulement les routes génériques de propriétés et d'historique, rien à filtrer ;
+  les observations (`kube-clusters/{id}/observations`, `workloads/{id}/observations`) ne
+  sont pas des objets. Côté flux, seule `/v1/flows` est une collection d'objets : les
+  non-conformités n'ont pas d'identifiant, `flow-checks` est une question, `flow-types`
+  revient à la politique (32d), les sous-listes `/{collection}/{id}/flows` gardent leurs
+  seuls filtres (aucun : `id` y est refusé, 400, comme tout paramètre inconnu).
+  fait : `clusters.rs` (`list` lit `id` par `filter::push_id` dans le même parcours que
+  `slug`, dédoublonné ; `filter::window` ; `cardinality($9::uuid[]) = 0 OR x.id = ANY($9)`
+  sous le prédicat de lecture ; `Op::ids` en tête), `mirrors.rs` (`Filter.ids` lu par
+  `filter_of`, `$14` dans `page_sql` sous le prédicat de lecture, `filter::window` dans
+  `list<M>`, `Op::ids` en tête des cinq listes), `kartenn-flow/src/rest.rs` (`ids_of` et
+  `filter::window` dans `page_of`, qui passe les `id` à `fetch` ; `list` les met dans
+  `FlowFilter.ids`, le prédicat `f.id = ANY(…)` déjà écrit dans la requête des flux
+  appliqués ; `wanted` laisse passer `id` quand la route le nomme ; `Op::ids` et la
+  description de la liste), `read.rs` (`wants_pending` faux sous `ids` : la requête des
+  demandes en attente n'est plus lue pour rien) ; contrat et types des deux SDK régénérés
+  (`schema.d.ts`, `filters.ts`). Tests : `kube/tests/it/observations/route/mirrors.rs`
+  `clusters_and_mirrors_filtered_by_identifier` (grappe `stage` d'une autre entité et ses
+  objets : illisibles = inconnus sur les grappes, nœuds et workloads, statut, en-têtes hors
+  `request-id` et octets ; conjonction avec `slug`, `cluster`, `kind`, `label`, `type` sur
+  les six listes ; 101 namespaces par `QUERY` : une page sans suite ; `page_size` ou
+  curseur avec `id` → 400 qui le nomme ; UUID mal formé → 400),
+  `flow/tests/it/rest.rs` `flows_filtered_by_identifier` (flux d'une autre entité :
+  illisible = inconnu, octets compris ; conjonction avec `entity`, `state`, `review` ;
+  101 flux par `QUERY` : une page sans suite ; `page_size`, curseur, UUID mal formé, `id`
+  sur `/v1/addresses/{id}/flows` → 400).
+  choix : filtrée par `id`, `/v1/flows` ne rend que des flux appliqués, aucune demande en
+  attente de revue (elle n'est pas encore un flux ; `FlowFilter.passes` l'écartait déjà
+  sous `ids`, pour le test d'une connexion) : `state=requested`, `review=pending` ou
+  `changeset` avec `id` répondent une page vide ; dit dans la description de la liste.
+  Le filtre de lecture des flux reste celui du module, après la requête
+  (`flows_seen`, REQ-027-1) : le prédicat `id` est dans la requête, comme les autres
+  filtres, et la page lit autant de lignes que d'identifiants.
+  reste : —
 - [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
   politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
   d'objets, kube compris — verify : `k-check -p kartenn-policy` (filtrée par `id`, une

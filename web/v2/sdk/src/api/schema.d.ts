@@ -1418,7 +1418,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The flows the caller may read (REQ-011-14). */
+    /** The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow. */
     get: operations["list_flows"];
     put?: never;
     /** Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`). */
@@ -15846,6 +15846,8 @@ export interface operations {
   list_flows: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, whatever the caller reads of the objects (a value is a datum of the flow). */
         endpoint?: string;
         /** @description A prefix: the flows with an endpoint address in its subtree; as `endpoint` for a prefix the caller does not read. */
@@ -17868,6 +17870,8 @@ export interface operations {
   list_kube_ingresses: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -19170,6 +19174,8 @@ export interface operations {
   list_kube_clusters: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         slug?: string;
         /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -19942,6 +19948,8 @@ export interface operations {
   list_kube_namespaces: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -20242,6 +20250,8 @@ export interface operations {
   list_kube_nodes: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -20542,6 +20552,8 @@ export interface operations {
   list_kube_services: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -28627,6 +28639,8 @@ export interface operations {
   list_kube_workloads: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */

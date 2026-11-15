@@ -95,7 +95,9 @@ impl FlowFilter {
     #[must_use]
     pub fn wants_pending(&self) -> bool {
         let requested = self.states.contains(&FlowState::Requested);
-        (self.states.is_empty() || requested)
+        // Among identifiers, only applied flows (see `passes`): nothing pending is read.
+        self.ids.is_none()
+            && (self.states.is_empty() || requested)
             && (requested || self.review_pending || self.changeset.is_some())
     }
 

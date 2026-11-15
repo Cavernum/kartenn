@@ -26,7 +26,9 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 use tower::ServiceExt;
 
-use crate::requests::Env;
+use kartenn_service::Operation;
+
+use crate::requests::{Env, flow};
 
 /// Any `Bearer` token is this principal.
 struct As(Principal);
@@ -860,4 +862,149 @@ async fn acceptance_of_req_011_26_open_and_conformant(pool: PgPool) {
         before + 1,
         "only the dated flow was requested"
     );
+}
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let request = Request::get(uri)
+        .header(header::AUTHORIZATION, "Bearer t")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// The filter `id` of the flows (REQ-006-41, task 006-32c): the flows applied among the
+/// identifiers that the caller reads, in conjunction with the other filters, in one page
+/// without a next one; an unreadable one is absent as an unknown one, headers and bytes
+/// included; no request pending a review; refused beside `page_size`, a cursor, and on the
+/// flows of an object.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // the filter, its conjunctions, its page and its refusals
+async fn flows_filtered_by_identifier(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    env.applied(vec![Operation::CreateEntity {
+        local: Some(1),
+        slug: "beta".into(),
+        parent: None,
+    }])
+    .await;
+    let beta: Uuid = sqlx::query_scalar("SELECT id FROM entity WHERE slug = 'beta'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Past the default size of a page: 101 flows of `acme`, one of `beta`.
+    let mut fields = env.fields(prod, dev).await;
+    fields.as_object_mut().unwrap().remove("local");
+    let mut theirs = fields.clone();
+    theirs["entity"] = json!({ "id": beta });
+    let many: Vec<Operation> = std::iter::repeat_n(fields, 101)
+        .chain([theirs])
+        .map(|fields| flow("request", fields))
+        .collect();
+    env.applied(many).await;
+    let of = |entity: Uuid| {
+        sqlx::query_scalar::<_, Uuid>(
+            "SELECT DISTINCT id FROM flow.flow WHERE entity_id = $1 ORDER BY id",
+        )
+        .bind(entity)
+        .fetch_all(&pool)
+    };
+    let ours = of(env.acme).await.unwrap();
+    assert_eq!(ours.len(), 101);
+    let foreign = of(beta).await.unwrap()[0];
+    let (a, b) = (ours[0], ours[1]);
+    // A request held for a review: not a flow, never among identifiers.
+    let requester = env.app(env.granted(crate::requests::REQUEST).await);
+    let (status, held) = call(
+        &requester,
+        Method::POST,
+        "/v1/flows",
+        Some(body(&env, dev, prod).await),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{held}");
+
+    let reader = env.app(env.granted_on(&["flow.read"], Some(env.acme)).await);
+    let admin = env.app(env.granted(&["flow.read"]).await);
+    let unknown = Uuid::now_v7();
+    let text = |ids: &[Uuid]| -> Vec<String> {
+        let mut text: Vec<String> = ids.iter().map(Uuid::to_string).collect();
+        text.sort();
+        text
+    };
+    for (app, uri, expected) in [
+        (
+            &reader,
+            format!("/v1/flows?id={b}&id={a}&id={b}"),
+            vec![a, b],
+        ),
+        (&reader, format!("/v1/flows?id={foreign}&id={a}"), vec![a]),
+        (
+            &admin,
+            format!("/v1/flows?id={foreign}&id={a}"),
+            vec![a, foreign],
+        ),
+        (
+            &admin,
+            format!("/v1/flows?id={foreign}&id={a}&entity={beta}"),
+            vec![foreign],
+        ),
+        (&admin, format!("/v1/flows?id={a}&entity={beta}"), vec![]),
+        (
+            &admin,
+            format!("/v1/flows?id={a}&id={b}&state=active,requested"),
+            vec![a, b],
+        ),
+        (&admin, format!("/v1/flows?id={a}&state=requested"), vec![]),
+        (&admin, format!("/v1/flows?id={a}&review=pending"), vec![]),
+    ] {
+        let (status, page) = call(app, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {page}");
+        assert_eq!(ids(&page), text(&expected), "{uri}");
+    }
+    // The unreadable flow leaves the answer of an unknown identifier, in one page.
+    let mut answers = Vec::new();
+    for absent in [unknown, foreign] {
+        answers.push(answer(&reader, &format!("/v1/flows?id={absent}&id={a}")).await);
+    }
+    assert_eq!(answers[0], answers[1], "unknown and unreadable");
+    assert_eq!(answers[0].0, StatusCode::OK);
+    assert!(answers[0].1.get("link").is_none());
+    // Past the default size of a page, one page without a next one.
+    let query = json!({"filters": [{"field": "id", "value": text(&ours)}]});
+    let (status, page) = call(
+        &reader,
+        Method::from_bytes(b"QUERY").unwrap(),
+        "/v1/flows",
+        Some(query),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(ids(&page), text(&ours));
+    assert!(page["links"]["next"].is_null(), "{}", page["links"]);
+    // `page_size` or a cursor beside `id`, a value that is not an identifier, or `id` on
+    // the flows of an object → 400 naming it.
+    let (_, first) = call(&reader, Method::GET, "/v1/flows?page_size=1", None).await;
+    let next = first["links"]["next"].as_str().unwrap().to_owned();
+    for (uri, named) in [
+        (format!("/v1/flows?id={a}&page_size=5"), "page_size"),
+        (format!("{next}&id={a}"), "cursor"),
+        ("/v1/flows?id=a".to_owned(), "id"),
+        (format!("/v1/addresses/{prod}/flows?id={a}"), "id"),
+    ] {
+        let (status, problem) = call(&reader, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {problem}");
+        assert!(
+            problem["detail"].to_string().contains(named),
+            "{uri}: {problem}"
+        );
+    }
 }

@@ -23115,6 +23115,19 @@
         "operationId": "list_flows",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, whatever the caller reads of the objects (a value is a datum of the flow).",
             "in": "query",
             "name": "endpoint",
@@ -23340,7 +23353,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The flows the caller may read (REQ-011-14).",
+        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow.",
         "tags": [
           "flow"
         ]
@@ -23489,7 +23502,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The flows the caller may read (REQ-011-14).",
+        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow.",
         "tags": [
           "flow"
         ]
@@ -26676,6 +26689,19 @@
         "operationId": "list_kube_ingresses",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to.",
             "in": "query",
             "name": "name",
@@ -29181,6 +29207,19 @@
         "operationId": "list_kube_clusters",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to.",
             "in": "query",
             "name": "slug",
@@ -30586,6 +30625,19 @@
         "operationId": "list_kube_namespaces",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to.",
             "in": "query",
             "name": "name",
@@ -31200,6 +31252,19 @@
       "get": {
         "operationId": "list_kube_nodes",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to.",
             "in": "query",
@@ -31819,6 +31884,19 @@
       "get": {
         "operationId": "list_kube_services",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to.",
             "in": "query",
@@ -47055,6 +47133,19 @@
       "get": {
         "operationId": "list_kube_workloads",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to.",
             "in": "query",
