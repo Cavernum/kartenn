@@ -179,9 +179,16 @@ pub async fn inverse<S: Store>(
     let Some(facts) = store.undo_facts(changeset).await? else {
         return Ok(None);
     };
-    // The assignments it made are removed first, while their object is still there: once
-    // closed, an object it created refuses the removal (`changeset.operation.no_version`,
-    // task 004-26). The rest keeps the order of the kinds.
+    // The assignments it made on an object it created are removed first, while that object
+    // is still there: once closed, it refuses the removal (`changeset.operation.no_version`,
+    // task 004-26). The rest keeps the order of the kinds, an object given back before its
+    // assignments are removed.
+    let created: std::collections::HashSet<Uuid> = facts
+        .touched
+        .iter()
+        .filter(|t| t.created && t.property.is_none() && t.later.is_none())
+        .map(|t| t.id)
+        .collect();
     let (mut unassigned, mut rest) = (Vec::new(), Vec::new());
     let mut conflicts = Vec::new();
     for t in facts.touched {
@@ -201,11 +208,18 @@ pub async fn inverse<S: Store>(
                 expected: None,
                 cascade: false,
             }),
-            (true, Some(property)) => unassigned.push(Operation::UnassignProperty {
-                object: Ref::Id(t.id),
-                kind: t.kind,
-                property: Ref::Id(property),
-            }),
+            (true, Some(property)) => {
+                let unassign = Operation::UnassignProperty {
+                    object: Ref::Id(t.id),
+                    kind: t.kind,
+                    property: Ref::Id(property),
+                };
+                if created.contains(&t.id) {
+                    unassigned.push(unassign);
+                } else {
+                    rest.push(unassign);
+                }
+            }
             (false, property) => rest.push(Operation::Restore {
                 kind: t.kind,
                 id: Ref::Id(t.id),

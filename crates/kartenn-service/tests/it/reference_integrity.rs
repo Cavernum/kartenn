@@ -971,3 +971,55 @@ async fn the_creation_of_a_group_is_undone(pool: PgPool) {
         (0, 0, 0)
     );
 }
+
+/// Undoing the move of a VLAN into a group created beside it gives the VLAN back to its
+/// former group and closes the new one (REQ-004-34, task 004-26).
+#[kartenn_testing::pg_test]
+async fn a_move_into_a_new_group_is_undone(pool: PgPool) {
+    let f = Fixture::with_modules(&pool).await;
+    let acme = f.id("entity", "acme").await;
+    let group = |slug: &str| {
+        module(
+            "create_vlan_group",
+            json!({"local": 1, "slug": slug, "anchor": {"entity": by_id(acme)}}),
+        )
+    };
+    f.applied(
+        vec![
+            group("edge"),
+            module(
+                "create_vlan",
+                json!({"group": Ref::Local(1), "vid": 10, "name": "v10"}),
+            ),
+        ],
+        None,
+    )
+    .await;
+    let edge = f.id("vlan_group", "edge").await;
+    let v10: Uuid = sqlx::query_scalar("SELECT id FROM vlan WHERE name = 'v10'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let moved = f
+        .applied(
+            vec![
+                group("core"),
+                module(
+                    "update_vlan",
+                    json!({"id": by_id(v10), "group": Ref::Local(1)}),
+                ),
+            ],
+            None,
+        )
+        .await;
+    f.undo(moved).await;
+    let now: (Uuid, i64) = sqlx::query_as(
+        "SELECT (SELECT group_id FROM vlan WHERE id = $1 AND valid_period @> now()),
+                (SELECT count(*) FROM vlan_group WHERE valid_period @> now())",
+    )
+    .bind(v10)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(now, (edge, 1));
+}
