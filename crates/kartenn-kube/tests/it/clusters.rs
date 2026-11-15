@@ -2873,3 +2873,125 @@ async fn section_lists_changed_objects(pool: PgPool) {
         json!({"app": "shop"})
     );
 }
+
+impl Env {
+    /// Every row of the versions a batch writes, of the module and of the core, as text.
+    async fn versions(&self) -> Vec<String> {
+        let mut versions = Vec::new();
+        for table in [
+            "kube.node",
+            "kube.namespace",
+            "kube.workload",
+            "kube.service",
+            "kube.ingress",
+            "module_object",
+            "prefix",
+            "address",
+            "property_assignment",
+        ] {
+            let rows: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT '{table} ' || t::text FROM {table} t ORDER BY 1"
+            )))
+            .fetch_all(&self.pool)
+            .await
+            .unwrap();
+            versions.extend(rows);
+        }
+        versions
+    }
+}
+
+/// REQ-002-12 (amended), ADR 0026 amendment 17 (task 002-29c3): a batch of the connector
+/// antedated before the objects it would write does not reach them. The object of its
+/// identity, which its completion finds and which the reference check leaves aside, is
+/// looked for at the start of its period: not yet in force there, a closure or a mark of
+/// absence finds nothing, an upsert would create another object whose name is taken over
+/// the period. A reference it resolves (the machine of a node) is read at that start, a
+/// cluster not yet in force there is not a living one. Nothing is written.
+#[kartenn_testing::pg_test]
+async fn an_antedated_batch_reaches_nothing_not_yet_in_force(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let early = env.new_cluster("early").await;
+    env.applied(vec![sync("upsert", "namespace", early, "shop", json!({}))])
+        .await;
+    let start: i64 =
+        sqlx::query_scalar("SELECT (extract(epoch FROM clock_timestamp()) * 1000000)::bigint")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    // From `start` on: after the cluster `early` and its namespace, before the rest.
+    let within = |operation: Operation| Operation::Within {
+        period: kartenn_service::operations::PeriodSpec { start, end: None },
+        operation: Box::new(operation),
+    };
+    let late = env.new_cluster("late").await;
+    let server = env.machine("server-1", "physical").await;
+    env.applied(vec![
+        sync("upsert", "node", early, "worker-1", json!({})),
+        workload("upsert", early, "shop", "deployment", "web", json!({})),
+        service("upsert", early, "shop", "front", json!({})),
+        ingress("upsert", early, "shop", "entry", json!({})),
+    ])
+    .await;
+    let before = env.versions().await;
+    let node = |action: &str, extra: Value| sync(action, "node", early, "worker-1", extra);
+    let deployment = |action: &str| workload(action, early, "shop", "deployment", "web", json!({}));
+    let cases: Vec<(Operation, &str)> = vec![
+        (node("close", json!({})), "kube.operation.invalid"),
+        (node("mark_absent", json!({})), "kube.operation.invalid"),
+        (
+            node("upsert", json!({"zone": "zone-a"})),
+            "kube.node.duplicate",
+        ),
+        (deployment("close"), "kube.operation.invalid"),
+        (deployment("upsert"), "kube.workload.duplicate"),
+        (
+            service("close", early, "shop", "front", json!({})),
+            "kube.operation.invalid",
+        ),
+        (
+            service("upsert", early, "shop", "front", json!({})),
+            "kube.service.duplicate",
+        ),
+        (
+            ingress("close", early, "shop", "entry", json!({})),
+            "kube.operation.invalid",
+        ),
+        (
+            ingress("upsert", early, "shop", "entry", json!({})),
+            "kube.ingress.duplicate",
+        ),
+        (
+            sync(
+                "upsert",
+                "node",
+                early,
+                "worker-2",
+                json!({"machine": {"id": server}}),
+            ),
+            "core.reference.unknown",
+        ),
+        (
+            sync("upsert", "namespace", late, "shop", json!({})),
+            "kube.operation.invalid",
+        ),
+    ];
+    for (operation, rule) in cases {
+        let outcome = env
+            .submit_by(env.connector, vec![within(operation.clone())])
+            .await;
+        assert!(rules(&outcome).contains(&rule), "{rule}: {outcome:?}");
+        if rule == "core.reference.unknown" {
+            let Outcome::Refused { violations, .. } = &outcome else {
+                unreachable!()
+            };
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.detail.as_ref().is_some_and(|d| d["field"] == "machine")),
+                "{outcome:?}"
+            );
+        }
+        assert_eq!(env.versions().await, before, "{operation:?}");
+    }
+}
