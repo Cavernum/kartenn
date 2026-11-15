@@ -7122,7 +7122,7 @@ export interface components {
        * @description The window of a batch of its connector, in seconds, 1 to 300.
        */
       batch_window_seconds: number;
-      connector_group?: components["schemas"]["KubeObjectRef"] | null;
+      connector_group?: components["schemas"]["RightsGroupRef"] | null;
       /** @description Whether a node with no machine creates one. */
       create_node_machines: boolean;
       external_domain?: components["schemas"]["Summary"] | null;
@@ -10189,6 +10189,17 @@ export interface components {
       object: string;
       /** @description These values. */
       self: string;
+    };
+    /**
+     * @description A group of the rights by its identifier alone: no object of the referential, it has no
+     *     summary (spec 006, task 33e; the guard of task 33f exempts it).
+     */
+    RightsGroupRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
     };
     /** @description A role. */
     RoleItem: {

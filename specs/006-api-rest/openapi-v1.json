@@ -4282,7 +4282,7 @@
           "connector_group": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/RightsGroupRef",
                 "description": "The group of kartenn of its connector, by its identifier: a group of the rights,\nnot an object of the referential."
               },
               {
@@ -5161,7 +5161,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Summary",
-                "description": "The node it ran on, summarised at the dates of the read."
+                "description": "The node it ran on, summarised as it was at the same instant."
               },
               {
                 "type": "null"
@@ -5193,7 +5193,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Summary",
-                "description": "The workload its `ownerReferences` climb to, summarised at the dates of the read."
+                "description": "The workload its `ownerReferences` climb to, summarised as it was at the instant\nasked (`at`), else when the pod was seen (`from`)."
               },
               {
                 "type": "null"
@@ -12427,6 +12427,20 @@
         "required": [
           "self",
           "object"
+        ],
+        "type": "object"
+      },
+      "RightsGroupRef": {
+        "description": "A group of the rights by its identifier alone: no object of the referential, it has no\nsummary (spec 006, task 33e; the guard of task 33f exempts it).",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
