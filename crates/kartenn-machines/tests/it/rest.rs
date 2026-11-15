@@ -2229,3 +2229,153 @@ async fn a_reference_leaves_alike_the_unreadable_and_the_absent(pool: PgPool) {
         assert_eq!(&absent, unreadable, "{uri}: unreadable and absent");
     }
 }
+
+#[kartenn_testing::pg_test]
+async fn the_addresses_of_a_machine_are_summarised_as_the_core_reads_them(pool: PgPool) {
+    // REQ-006-42 (task 006-33d): the interface and the address of an attachment are
+    // summarised as every other reference, the label of an address being its value as the
+    // core gives it (IPv6 included), and a caller sees in full only
+    // what it may read.
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (srv, eth0) = env.machine("srv", acme).await;
+    // Two zero runs of the same length: RFC 5952 §4.2.3 compresses the first. (No
+    // IPv4-mapped address is stored, REQ-002-31.)
+    let values = ["10.0.0.20", "2001:db8::20", "2001:db8:0:0:1:0:0:1"];
+    env.applied(vec![Operation::CreatePrefix {
+        local: None,
+        domain: Ref::Id(env.domain().await),
+        prefix: "2001:db8::/64".into(),
+        nature: Nature::Network,
+        point_to_point: false,
+        anycast: false,
+    }])
+    .await;
+    let mut addresses = Vec::new();
+    for value in values {
+        addresses.push(env.address(value).await);
+    }
+    env.applied(addresses.iter().map(|a| attach(eth0, *a)).collect())
+        .await;
+    let reader = env.app(env.admin().await);
+    // The machines, every interface; the addresses of the network 10.0.0.0/24 only.
+    let some = env
+        .person(&["machines.read", "machines.interface.read"], None)
+        .await;
+    env.grant_on(
+        some,
+        &["core.address.read"],
+        "prefix",
+        Some(env.network().await),
+    )
+    .await;
+    let some = env.app(some);
+    // The machines, not their interfaces.
+    let none = env.app(
+        env.person(&["machines.read", "core.address.read"], None)
+            .await,
+    );
+    let uri = format!("/v1/machines/{srv}/addresses");
+    let interface = json!({"id": eth0, "label": "eth0", "href": format!("/v1/interfaces/{eth0}")});
+    for (app, expected) in [(&reader, 3), (&some, 1), (&none, 0)] {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let items = body["items"].as_array().unwrap();
+        assert_eq!(items.len(), expected, "{body}");
+        for item in items {
+            assert_eq!(item["interface"], interface, "{item}");
+            let id = item["address"]["id"].as_str().unwrap().to_owned();
+            // Listed only if the core serves it to this caller, with the very value.
+            let (status, _, core) =
+                call(app, "GET", &format!("/v1/addresses/{id}"), None, &[]).await;
+            assert_eq!(status, StatusCode::OK, "{item}");
+            assert_eq!(
+                item["address"],
+                json!({"id": id, "label": core["value"], "href": format!("/v1/addresses/{id}")}),
+                "{item}"
+            );
+        }
+    }
+    // What the reader is not served, the other one may not read either.
+    for address in &addresses[1..] {
+        let (status, _, _) =
+            call(&some, "GET", &format!("/v1/addresses/{address}"), None, &[]).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}
+
+/// A virtual machine `vm` hosted by the physical machine `hv`, both of `acme`.
+async fn hosted(env: &Env) -> (Uuid, Uuid) {
+    let acme = env.entity("acme").await;
+    env.applied(vec![
+        op(
+            "create_machine",
+            json!({"local": 1, "name": "hv", "kind": "physical", "owner": {"id": acme}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm", "kind": "virtual", "owner": {"id": acme},
+                   "host": {"machine": {"local": 1}}}),
+        ),
+    ])
+    .await;
+    let machine = |name| env.id("SELECT id FROM machines.machine WHERE name = $1", name);
+    (machine("hv").await, machine("vm").await)
+}
+
+#[kartenn_testing::pg_test]
+async fn a_host_as_read_is_refused_as_a_write(pool: PgPool) {
+    // Design 006 (H23) and 009 « Routes »: a summary is read, a reference is written by its
+    // identifier; the host sent back as read, in a Merge Patch, is refused, the member named.
+    let env = Env::new(&pool).await;
+    let (_, vm) = hosted(&env).await;
+    let app = env.app(env.admin().await);
+    let uri = format!("/v1/machines/{vm}");
+    let (_, headers, read) = call(&app, "GET", &uri, None, &[]).await;
+    let etag = headers[header::ETAG].to_str().unwrap().to_owned();
+    let patch = json!({"motive": "back as read", "host": read["host"]});
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(("application/merge-patch+json", patch)),
+        &[("If-Match", etag)],
+    )
+    .await;
+    assert!(
+        matches!(
+            status,
+            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY
+        ),
+        "{status}: {body}"
+    );
+    assert_eq!(body["status"], status.as_u16(), "{body}");
+    // Refused by the operation itself, which names the member.
+    let violation = &body["violations"][0];
+    assert_eq!(violation["rule"], "machines.operation.invalid", "{body}");
+    assert!(
+        violation["detail"].as_str().unwrap().starts_with("host:"),
+        "{body}"
+    );
+    let (_, _, after) = call(&app, "GET", &uri, None, &[]).await;
+    assert_eq!(after["host"], read["host"]);
+}
+
+#[kartenn_testing::pg_test]
+async fn renaming_the_host_changes_the_etag_of_its_guest(pool: PgPool) {
+    // REQ-006-42: the label of a linked object is in the body, and so in its ETag.
+    let env = Env::new(&pool).await;
+    let (hv, vm) = hosted(&env).await;
+    let app = env.app(env.admin().await);
+    let uri = format!("/v1/machines/{vm}");
+    let before = etag_of(&app, &uri).await;
+    env.applied(vec![op(
+        "update_machine",
+        json!({"id": {"id": hv}, "name": "hv2"}),
+    )])
+    .await;
+    let (status, body) = revalidated(&app, &uri, &before).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["host"]["label"], "hv2");
+    assert_ne!(etag_of(&app, &uri).await, before);
+}
