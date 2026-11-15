@@ -859,3 +859,39 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
     `PolicyAxisResolution`, `PolicyReportItem`)
   - dépend de : 33a–33e
+- [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
+  (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées
+  aujourd'hui selon la lisibilité de l'objet et non de la cible (revue de la 33a : hors
+  du recensement 33b–33f, et la garde du contrat de la 33f échouerait sur eux) — verify :
+  `k-check -p kartenn-rest` (différentiel lu par deux appelants : cible illisible et
+  cible inconnue rendues à l'identique, octets compris)
+  - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`),
+    `crates/kartenn-rest/src/operation.rs` (`RefDto`), `summary.rs` (`Readable`)
+  - dépend de : 33a, 33b
+- [ ] 33h. Restes de la revue de la 33a — le schéma `Summary` du contrat dit
+  `["string","null"]` alors que `slug` et `href` sont omis et jamais `null` ; H23 ne dit
+  pas qu'un lié masqué n'est pas un refus de droit au sens de REQ-012 (« tout refus de
+  droit est audité ») : l'écrire dans H23, ou journaliser — verify : `k-check -p
+  kartenn-rest contract`
+  - où : `crates/kartenn-rest/src/summary.rs` (27-31, 83), `specs/006-api-rest/decisions.md`
+    (H23)
+- [ ] 34. Cache des réponses qui dépendent des droits (sécurité, antérieur à la 33a,
+  relevé par sa revue) : `FROZEN` (`private, immutable`, un an, `dated.rs:30`) s'applique
+  à des corps qui dépendent des droits de l'appelant « maintenant » (porte de l'objet,
+  lot de la 31, résumés de la 33a), et aucune réponse ne porte `Vary` sur
+  l'authentification. Après un retrait de droit, le navigateur garde l'ancien corps un
+  an ; sur un navigateur partagé, un second utilisateur peut recevoir du cache le corps
+  calculé pour le premier. À arbitrer avant le code (contrat de cache, H-décision) :
+  borner ou retirer `immutable` pour tout corps dépendant des droits, clé de cache liée
+  au sujet, purge à la déconnexion côté shell — verify : `k-check -p kartenn-rest` (deux
+  appelants, même URL datée : aucun en-tête ne permet à un cache de servir à l'un le
+  corps de l'autre ; un droit retiré ne laisse pas de corps servi sans revalidation)
+  - où : `crates/kartenn-rest/src/dated.rs` (30-34, 340), `specs/006-api-rest/decisions.md`
+    (décision de cache, ligne ≈ 442), `web/v2/sdk/src/data/cache.ts` (déconnexion)
+- [ ] 35. Oracle des filtres par clé d'un objet lié (antérieur, relevé par la 33a) :
+  `domain=<slug>` et `parent=<slug>` répondent sur la clé d'un lié que l'appelant ne peut
+  pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu —
+  verify : `k-check -p kartenn-rest` (deux appelants, liste filtrée par la clé d'un
+  domaine illisible et par une clé inconnue : mêmes octets)
+  - où : `crates/kartenn-rest/src/objects.rs` (`declare_filters`, résolution de `domain`
+    et `parent`), `crates/kartenn-rest/src/filter.rs`
