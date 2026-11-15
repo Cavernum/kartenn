@@ -23353,7 +23353,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow.",
+        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: `id` goes with neither `review`, `changeset` nor the state `requested` (400), the requests pending a review being read without it.",
         "tags": [
           "flow"
         ]
@@ -23502,7 +23502,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow.",
+        "summary": "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: `id` goes with neither `review`, `changeset` nor the state `requested` (400), the requests pending a review being read without it.",
         "tags": [
           "flow"
         ]

@@ -814,28 +814,37 @@ routeur complet, sauf mention « vrai TCP ».
   `filter_of`, `$14` dans `page_sql` sous le prédicat de lecture, `filter::window` dans
   `list<M>`, `Op::ids` en tête des cinq listes), `kartenn-flow/src/rest.rs` (`ids_of` et
   `filter::window` dans `page_of`, qui passe les `id` à `fetch` ; `list` les met dans
-  `FlowFilter.ids`, le prédicat `f.id = ANY(…)` déjà écrit dans la requête des flux
-  appliqués ; `wanted` laisse passer `id` quand la route le nomme ; `Op::ids` et la
-  description de la liste), `read.rs` (`wants_pending` faux sous `ids` : la requête des
-  demandes en attente n'est plus lue pour rien) ; contrat et types des deux SDK régénérés
-  (`schema.d.ts`, `filters.ts`). Tests : `kube/tests/it/observations/route/mirrors.rs`
+  `FlowFilter.ids` par `among`, le prédicat `f.id = ANY(…)` déjà écrit dans la requête
+  des flux appliqués ; `wanted` saute `id` quand la route le nomme, `page_of` l'ayant lu ;
+  `of_object` le refuse par son nom ; `Op::ids` et la description de la liste) ; contrat
+  et types des deux SDK régénérés (`schema.d.ts`, `filters.ts`). Tests :
+  `kube/tests/it/observations/route/mirrors.rs`
   `clusters_and_mirrors_filtered_by_identifier` (grappe `stage` d'une autre entité et ses
   objets : illisibles = inconnus sur les grappes, nœuds et workloads, statut, en-têtes hors
   `request-id` et octets ; conjonction avec `slug`, `cluster`, `kind`, `label`, `type` sur
   les six listes ; 101 namespaces par `QUERY` : une page sans suite ; `page_size` ou
   curseur avec `id` → 400 qui le nomme ; UUID mal formé → 400),
   `flow/tests/it/rest.rs` `flows_filtered_by_identifier` (flux d'une autre entité :
-  illisible = inconnu, octets compris ; conjonction avec `entity`, `state`, `review` ;
-  101 flux par `QUERY` : une page sans suite ; `page_size`, curseur, UUID mal formé, `id`
-  sur `/v1/addresses/{id}/flows` → 400).
-  choix : filtrée par `id`, `/v1/flows` ne rend que des flux appliqués, aucune demande en
-  attente de revue (elle n'est pas encore un flux ; `FlowFilter.passes` l'écartait déjà
-  sous `ids`, pour le test d'une connexion) : `state=requested`, `review=pending` ou
-  `changeset` avec `id` répondent une page vide ; dit dans la description de la liste.
-  Le filtre de lecture des flux reste celui du module, après la requête
-  (`flows_seen`, REQ-027-1) : le prédicat `id` est dans la requête, comme les autres
-  filtres, et la page lit autant de lignes que d'identifiants.
-  reste : —
+  illisible = inconnu, octets compris ; conjonction avec `entity`, `state=active` ;
+  101 flux par `QUERY` : une page sans suite ; `page_size`, curseur, `state=requested`,
+  `state=active,requested`, `review=pending`, `changeset`, UUID mal formé, `id` sur
+  `/v1/addresses/{id}/flows` → 400 qui les nomme).
+  choix (après revue) : filtrée par `id`, `/v1/flows` lit des flux appliqués ; un filtre
+  qui lit les demandes en attente de revue (`review`, `changeset`, l'état `requested`, seul
+  ou parmi d'autres) ne va pas avec `id` : 400 qui le nomme (`among`), plutôt qu'une page
+  qui tairait la révision en attente d'un flux demandé — une demande nouvelle n'a pas
+  encore d'identifiant, une révision ne se lit pas par celui du flux ; aucun écran ni
+  greffon ne fait cette lecture. `/{collection}/{id}/flows` refuse `id` par son nom. Le
+  prédicat `id` est dans la requête, comme les autres filtres, et la page lit autant de
+  lignes que d'identifiants ; le filtre de lecture des flux reste celui du module, après
+  la requête (`flows_seen`, REQ-027-1), ce qui est sans effet sous `id` (une page, sans
+  curseur) mais pas sans lui (tâche 36).
+  reste : l'idiome `cardinality($n::uuid[]) = 0 OR x.id = ANY($n)` (32a, 32b, 32c) garde le
+  plan de la liste sous le plan générique des requêtes préparées : sans index sondé par
+  l'identifiant, une liste filtrée par quelques `id` parcourt la collection dans l'ordre
+  de la page ; à mesurer au banc HTTP sur les charges de travail (les workloads, la plus
+  grande des collections de kube) avant d'écrire une branche propre au filtre `id`. La
+  coupe de la page des flux avant leur filtre de lecture, antérieure : tâche 36.
 - [ ] 32d. Listes de la politique et garde du contrat : `id` sur la liste générique de la
   politique ; test du contrat : `id` aux `parameters` de chaque liste d'une collection
   d'objets, kube compris — verify : `k-check -p kartenn-policy` (filtrée par `id`, une
@@ -843,7 +852,11 @@ routeur complet, sauf mention « vrai TCP ».
   `k-check -p kartenn-rest contract`
   - où : `crates/kartenn-policy/src/rest.rs` (`list`, vers la ligne 449),
     `crates/kartenn-rest/tests/it/contract.rs`
-    (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter)
+    (`every_collection_tells_the_clients_its_key_and_its_columns`, à imiter) ; le test
+    énumère les listes réelles (le `GET` d'une collection dans l'OpenAPI), pas les types
+    déclarés : les correspondances de labels, valeurs admises et labels suivis de kube
+    (`kube-label-mappings`, `kube-admitted-values`, `kube-tracked-labels`) sont des types
+    globaux sans route de liste (inventaire de la 32c)
   - dépend de : 32a, 32b, 32c
 - [ ] 33. Résumé de toute référence rendue : recensement des corps qui portent une
   référence nue (objet d'une anomalie et d'un écart, ancre et groupe d'un VLAN, valeur
@@ -977,3 +990,26 @@ routeur complet, sauf mention « vrai TCP ».
     et `parent`), `crates/kartenn-rest/src/filter.rs`,
     `crates/kartenn-machines/src/rest.rs` (`list_interfaces`, condition sur `$7` ;
     `address_visible`, à imiter)
+- [ ] 36. Page des flux coupée avant le filtre de lecture (sécurité, antérieur à la 32c,
+  relevé par sa revue) : sans `id`, `/v1/flows` (et `/{collection}/{id}/flows`) lit la
+  page et une ligne de plus, coupe la page et calcule son curseur sur les lignes brutes,
+  puis seulement écarte les flux que l'appelant ne lit pas (`flows_seen`,
+  `reviews_seen`). Le dernier rang brut peut être un flux illisible : le curseur, signé
+  mais lisible (`cursor.rs`, en tête : « readable, not forgeable »), en livre l'`f.id` ;
+  les pages sont courtes ou vides avec une suite, ce qui trahit le nombre de flux
+  illisibles entre deux flux lisibles. À faire : le prédicat de lecture dans la requête
+  (sous `flow.read` par le prédicat du noyau sur l'entité, comme demandeur, ou par une
+  extrémité lue, REQ-027-1), la page et son curseur calculés sur les seules lignes
+  lisibles, comme les autres listes à SQL propre — verify : `k-check -p kartenn-flow`
+  (deux appelants, l'un lisant tous les flux, l'autre une partie, page après page : les
+  pages du second sont celles du premier privées des flux qu'il ne lit pas ; aucun
+  curseur ne porte l'identifiant d'un flux illisible ; aucune page courte avec une suite,
+  ni page vide avec une suite)
+  - où : `crates/kartenn-flow/src/rest.rs` (`page_of`, la coupe et le curseur avant
+    `flows_seen` et `reviews_seen`, vers les lignes 946-1000 ; `visible`,
+    `through_endpoints`, `endpoint_readable`, à porter dans la requête),
+    `crates/kartenn-flow/src/read.rs` (`flows`, `applied`, `pending`) ;
+    `crates/kartenn-kube/src/rest/mirrors.rs` (`page_sql`, prédicat `readable` sous les
+    filtres, à imiter) ; tests `flow/tests/it/rest.rs`
+    (`pending_requests_are_paged_after_the_applied_flows`, à imiter)
+  - dépend de : —

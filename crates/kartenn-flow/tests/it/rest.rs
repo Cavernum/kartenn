@@ -960,11 +960,9 @@ async fn flows_filtered_by_identifier(pool: PgPool) {
         (&admin, format!("/v1/flows?id={a}&entity={beta}"), vec![]),
         (
             &admin,
-            format!("/v1/flows?id={a}&id={b}&state=active,requested"),
+            format!("/v1/flows?id={a}&id={b}&state=active"),
             vec![a, b],
         ),
-        (&admin, format!("/v1/flows?id={a}&state=requested"), vec![]),
-        (&admin, format!("/v1/flows?id={a}&review=pending"), vec![]),
     ] {
         let (status, page) = call(app, Method::GET, &uri, None).await;
         assert_eq!(status, StatusCode::OK, "{uri}: {page}");
@@ -990,13 +988,21 @@ async fn flows_filtered_by_identifier(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "{page}");
     assert_eq!(ids(&page), text(&ours));
     assert!(page["links"]["next"].is_null(), "{}", page["links"]);
-    // `page_size` or a cursor beside `id`, a value that is not an identifier, or `id` on
-    // the flows of an object → 400 naming it.
+    // `page_size` or a cursor beside `id`, a filter that reads the requests pending a
+    // review (they have no identifier yet, and a flow may have one pending), a value that
+    // is not an identifier, or `id` on the flows of an object → 400 naming it.
     let (_, first) = call(&reader, Method::GET, "/v1/flows?page_size=1", None).await;
     let next = first["links"]["next"].as_str().unwrap().to_owned();
     for (uri, named) in [
         (format!("/v1/flows?id={a}&page_size=5"), "page_size"),
         (format!("{next}&id={a}"), "cursor"),
+        (format!("/v1/flows?id={a}&state=requested"), "requested"),
+        (
+            format!("/v1/flows?id={a}&state=active,requested"),
+            "requested",
+        ),
+        (format!("/v1/flows?id={a}&review=pending"), "review"),
+        (format!("/v1/flows?id={a}&changeset={unknown}"), "changeset"),
         ("/v1/flows?id=a".to_owned(), "id"),
         (format!("/v1/addresses/{prod}/flows?id={a}"), "id"),
     ] {

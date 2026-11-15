@@ -530,8 +530,10 @@ fn state(name: &str) -> Option<FlowState> {
     })
 }
 
-/// The filters of a page, each known and given once; `id`, when it is one of `names`, is
-/// read by [`page_of`] and left out of them.
+/// The filters of a page, each known and given once. `id`, when it is one of `names`, is
+/// skipped here: [`page_of`] reads it and hands it to the route, which either keeps it
+/// ([`among`]) or refuses it by name; a route that does not name it refuses it here, as
+/// any unknown parameter.
 fn wanted<'a>(page: &'a Page, names: &[&str]) -> Result<BTreeMap<&'a str, &'a str>, Problem> {
     let mut found = BTreeMap::new();
     for (name, value) in &page.filters {
@@ -1078,9 +1080,42 @@ async fn reviews_seen(
         .collect())
 }
 
+/// `filter` kept to the flows `ids` (REQ-006-41), when there are any: applied flows, read
+/// by their identifier. A request pending a review has none yet, and the review of a flow
+/// pending is not read by its identifier: a filter that reads them (`review`, `changeset`,
+/// the state `requested`) does not go with `id`, rather than answer a page that leaves
+/// them out.
+///
+/// # Errors
+///
+/// 400 `bad-request` naming `review`, `changeset` or the state `requested` beside `id`.
+fn among(mut filter: FlowFilter, ids: Vec<Uuid>) -> Result<FlowFilter, Problem> {
+    if ids.is_empty() {
+        return Ok(filter);
+    }
+    let pending = if filter.review_pending {
+        Some("review")
+    } else if filter.changeset.is_some() {
+        Some("changeset")
+    } else if filter.states.contains(&FlowState::Requested) {
+        Some("the state requested")
+    } else {
+        None
+    };
+    if let Some(named) = pending {
+        return Err(kit::bad(format!(
+            "{named} does not go with id: the requests pending a review are not read by \
+             identifier"
+        )));
+    }
+    filter.ids = Some(ids);
+    Ok(filter)
+}
+
 /// `GET`/`QUERY /v1/flows`: by identifier, filtered (REQ-011-14), those the caller reads;
 /// filtered by `id`, the flows applied among them, in one page (REQ-006-41), in
-/// conjunction with the other filters, no request pending a review (it is not yet a flow).
+/// conjunction with the other filters but those of the requests pending a review (see
+/// [`among`]).
 async fn list(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -1101,8 +1136,7 @@ async fn list(
         COLLECTION,
         "/v1/flows",
         |dates, after, limit, ids, page| async move {
-            let mut filter = filter_of(&wanted(&page, &names)?)?;
-            filter.ids = (!ids.is_empty()).then_some(ids);
+            let filter = among(filter_of(&wanted(&page, &names)?)?, ids)?;
             let objects: Vec<Endpoint> = filter
                 .endpoint
                 .map(|(kind, id)| (crate::pg::kind_name(kind).to_owned(), id))
@@ -1141,8 +1175,12 @@ async fn of_object(
         query.as_deref().unwrap_or_default(),
         &name,
         &path,
-        |dates, after, limit, _ids, page| async move {
-            // `id` too is unknown here: the flows of an object are not filtered by it.
+        |dates, after, limit, ids, page| async move {
+            if !ids.is_empty() {
+                return Err(kit::bad(
+                    "id does not go with the flows of an object: /v1/flows is filtered by id",
+                ));
+            }
             wanted(&page, &[])?;
             let after = match after {
                 None => None,
@@ -1826,7 +1864,8 @@ pub fn routes() -> ModuleRouter {
         "list_flows",
         "flow",
         "The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied \
-         among them: no request pending a review, which is not yet a flow.",
+         among them: `id` goes with neither `review`, `changeset` nor the state \
+         `requested` (400), the requests pending a review being read without it.",
     )
     .ids();
     for (filter, description) in FILTERS {

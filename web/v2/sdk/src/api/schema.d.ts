@@ -1418,7 +1418,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: no request pending a review, which is not yet a flow. */
+    /** The flows the caller may read (REQ-011-14). Filtered by `id`, the flows applied among them: `id` goes with neither `review`, `changeset` nor the state `requested` (400), the requests pending a review being read without it. */
     get: operations["list_flows"];
     put?: never;
     /** Requests a flow, triaged against the policy (REQ-011-21); once applied, the answer carries the flow and its evaluations (members `flow`, `evaluations`). */
