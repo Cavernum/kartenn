@@ -7256,7 +7256,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       dans une grille p75 15,3 ms, navigation en cache médiane 70,7 ms : tenus.
     - reste : la 22e-g (B1) n'a plus d'objet tant que le protocole reste à 500 lignes/s ;
       la tâche longue du premier défilement à la 22e-i.
-  - [ ] 22e-i. Tâche longue du premier défilement de l'arbre : une tâche de 270 à 280 ms,
+  - [x] 22e-i. Tâche longue du premier défilement de l'arbre : une tâche de 270 à 280 ms,
     une seule, au premier défilement scénarisé de 10⁴ lignes (deux passes sur
     `6cf6a991`), absente du second défilement de la même page ; elle fait à elle seule
     échouer le budget (aucune tâche longue, 2 % de trames). Sonde d'abord, aucune
@@ -7274,6 +7274,83 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `scroll`, `data-scrolling`), `ui/src/components/internal/virtualRows.ts` ; méthode
       de la 22e-d et de la 22f-e (lignes `INFO` par échantillon, essai de contrôle)
     - dépend de : 22e-f
+    - fait le 2026-11-15 (agent, sonde sur `9443151a`, machine libre, sept passes filtrées
+      `bench-web small -g "container of 10⁵"`) — **la tâche n'est pas celle du défilement** :
+      c'est le minuteur de fraîcheur du cache. Le niveau des enfants du conteneur devient
+      périmé 30 s après sa dernière lecture (`FRESHNESS.children`, `sdk/src/data/cache.ts`) ;
+      l'`InfiniteQueryObserver` de la topographie le notifie (`#updateStaleTimeout` de
+      query-core, un `setTimeout`), `observe` range le résultat entier dans `results`
+      (`TopologyView.vue`, `shallowReactive`), et tout ce qui lit `results` se recalcule :
+      `laid` rebâtit les 10⁴ nœuds (`nodesOf`, `nodeOf`), `items`, `itemById`,
+      `shownById`, puis le rendu — alors que rien n'a changé que `isStale`, que la vue ne
+      lit pas. Le chargement du banc finit 10,4 à 11,4 s avant la fenêtre : 30 s tombent à
+      +18,6 à +19,7 s de la fenêtre de 20 s du premier défilement ; au second, le niveau est
+      déjà périmé, rien ne se notifie.
+      Attribution, deux traces CDP (`devtools.timeline`, `v8.gc`, `cpu_profiler`) et le
+      `long-animation-frame` du navigateur : une tâche `TimerHandler:setTimeout` de
+      query-core, 272 et 276 ms dont 263 et 265 de microtâches (l'effet de rendu de Vue) ;
+      ramasse-miettes 5 ms (mineur) ; style et mise en page ≤ 1 ms ; aucun écouteur
+      `scroll`, aucune mesure de `useVirtualRows`, aucun plugin. Échantillons (924) : rendu
+      de `TopologyView` 87 %, dont `nodesOf`/`nodeOf` 68 % ; vue-i18n (`t`, `te` de
+      `detailWords`, `keyLabel`) ≈ 35 %, `keyLabel` par le cache de requêtes
+      (`defaultQueryOptions`, `URLSearchParams`) ≈ 8 %. Hypothèses écartées : code froid du
+      recyclage, `data-scrolling`, plugin en montage, mesure de `useVirtualRows`, saut de
+      `scrollTop`.
+      | variante (première fenêtre) | trames perdues | tâches longues |
+      |---|---|---|
+      | protocole, trace (2 passes) | 5,89 ; 3,12 % | 1 (271 ms) ; 2 (276 ms) |
+      | molette simulée (`mouse.wheel`, même vitesse ; 2 passes) | 2,92 ; 1,94 % | 1 (339 ms) ; 2 (261 ms) |
+      | aucun défilement, 20 s d'attente (1 passe) | 1,22 % | 1 (270 ms) |
+      | contrôle : notification « périmé seul » non rangée (2 passes) | **1,27 ; 1,10 %** | **0 ; 0** |
+      Un utilisateur la subit : elle ne dépend d'aucun geste, ni du banc ; elle tombe
+      30 s après la dernière page lue de chaque niveau de 10⁴ lignes, qu'il fasse défiler à
+      la molette, à la barre ou rien du tout (≈ 270 ms au CPU ×4). Le banc ne la voyait que
+      parce que sa fenêtre couvrait ce moment.
+      `budgets.spec.ts` : deux lignes `INFO` gardées, les longues trames d'une fenêtre
+      (≥ 100 ms, leurs scripts nommés, au premier et au second défilement) et l'écart entre
+      la dernière lecture des enfants et la fenêtre. `k-web2-check --base main` : 1 298
+      Vitest ; 2 741 captures sur 2 741 (« tout » : `budgets.spec.ts` est un fichier du
+      projet des captures), rien de réécrit.
+    - choix : contrôle par un interrupteur de sonde dans `observe` (une notification dont
+      seules les clés `isStale` diffèrent n'est pas rangée), retiré avant le commit, comme
+      les variantes `trace`, `wheel` et `idle` du banc.
+    - reste : deux mesures d'une passe chacune, non expliquées : après la variante sans
+      défilement, le défilement suivant (écrivain en arrière-plan, premier vrai passage dans
+      le milieu des lignes) 6,95 % et une tâche de 52 ms ; après la molette, pointeur
+      laissé sur l'arbre, 15,37 % et deux tâches de 58 ms au plus. Option C du protocole,
+      à arbitrer et non recommandée : laisser le niveau se périmer avant la fenêtre (≥ 30 s
+      d'attente) tiendrait le budget en cachant un gel que l'utilisateur subit.
+  - [ ] 22e-j. Le niveau périmé sans rendu : `observe` de la topographie ne range pas une
+    notification de l'observateur qui ne change que `isStale` (ou une liste
+    `notifyOnChangeProps` des seules clés que la vue lit) ; ce que l'utilisateur gagne :
+    plus de gel de ≈ 270 ms (CPU ×4) 30 s après la dernière lecture d'un niveau de 10⁴
+    lignes ; ce qu'il perd : rien (aucune lecture de `isStale` dans `web/v2`) — verify :
+    test Vitest (minuteries simulées, 30 s : `nodes` garde son identité, aucun rendu),
+    passe filtrée du banc deux fois, ≤ 2 % et aucune tâche longue (contrôle de la 22e-i :
+    1,27 et 1,10 %, aucune)
+    - où : `web/v2/shell/src/views/TopologyView.vue` (`observe`, `results`) ; test voisin
+      `shell/test/topology.test.ts` ; `FRESHNESS` de `sdk/src/data/cache.ts` à lire, pas à
+      changer
+    - taille : petite (une fonction, un test)
+    - dépend de : 22e-i
+  - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
+    objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
+    brouillon de `shownById`), les mots d'un genre et d'une nature lus une fois par langue
+    (`keyLabel("kind", …)`, `detailWords`), plutôt que trois appels de vue-i18n et une
+    lecture du cache de requêtes par nœud ; ce que l'utilisateur gagne : toute autre
+    notification d'un niveau de 10⁴ (chaque page lue au chargement, une relecture après
+    invalidation par un événement du domaine — `isFetching` posé puis levé —, un autre
+    nœud ouvert) ne coûte plus ≈ 190 ms de `nodesOf` (68 % de la tâche de la 22e-i) ; ce
+    qu'il perd : rien de visible, un cache de plus à invalider juste — verify : tests de
+    `topology.test.ts` inchangés et un test de l'invalidation (langue, brouillon), une
+    mesure `INFO` du banc d'un niveau de 10⁴ invalidé pendant la fenêtre (à écrire), passe
+    filtrée deux fois
+    - où : `web/v2/shell/src/views/TopologyView.vue` (`nodeOf`, `detailWords`, `laid`,
+      `shownById`), `shell/src/views/topology.ts` (`nodesOf`), `shell/src/views/data.ts`
+      (`useKeyLabel`) ; test voisin `shell/test/topology.test.ts`
+    - taille : moyenne (une vue, deux modules, des tests) ; à mesurer avant (le banc n'écrit
+      pas le domaine du conteneur pendant la fenêtre)
+    - dépend de : 22e-j
   - [ ] 22e-g. (B1, à arbitrer) Le « + » monté sur la seule ligne active (focus,
     sélection, survol) au lieu d'un bouton transparent sur chaque ligne (ce que
     l'utilisateur perd : en mode navigation, le lecteur d'écran ne lit plus le « + » des
