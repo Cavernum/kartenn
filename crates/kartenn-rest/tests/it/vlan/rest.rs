@@ -1130,3 +1130,106 @@ async fn a_vlan_created_for_a_network_by_its_local_name(pool: PgPool) {
     assert_eq!(status, StatusCode::CREATED, "{body}");
     assert!(env.vlan_set_on(second, "core", 10).await);
 }
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let request = crate::common::bearer(Request::get(uri).body(Body::empty()).unwrap());
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// Task 006-33c, REQ-006-42, 005: the anchor of a group and the group of a VLAN, read alone
+/// and by page, are the summary of their object for a caller who may read it, its
+/// identifier alone for one who may not; the object gone, the same bytes for both, as for
+/// an object that never was. The occupancy and the next free VID of a group summarise the
+/// group they serve.
+#[kartenn_testing::pg_test]
+async fn the_anchor_and_the_group_leave_alike_the_unreadable_and_the_unknown(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active")],
+        )
+        .await;
+    let vlan = env.vlan_of(group, 10).await;
+    let vlans = ["core.vlan.read", "core.vlan_group.read"];
+    let everything = [&vlans[..], &["core.domain.read"]].concat();
+    let reader = env.app(env.person(&everything, None).await);
+    // The anchor: a reader of the groups who may not read the domains.
+    let no_domain = env.app(env.person(&vlans, None).await);
+    // The group: a reader of the VLANs who may not read their groups.
+    let no_group = env.app(env.person(&vlans[..1], None).await);
+    let full = |collection: &str, id: Uuid, slug: &str| {
+        format!(
+            r#"{{"href":"/v1/{collection}/{id}","id":"{id}","label":"{slug}","slug":"{slug}"}}"#
+        )
+    };
+    let cases = [
+        (
+            [
+                format!("/v1/vlan-groups/{group}"),
+                "/v1/vlan-groups".to_owned(),
+            ],
+            format!(r#""anchor":{{"domain":{}}}"#, full("domains", lab, "lab")),
+            format!(r#""anchor":{{"domain":{{"id":"{lab}"}}}}"#),
+            &no_domain,
+            "addressing_domain",
+            lab,
+        ),
+        (
+            [format!("/v1/vlans/{vlan}"), "/v1/vlans".to_owned()],
+            format!(r#""group":{}"#, full("vlan-groups", group, "edge")),
+            format!(r#""group":{{"id":"{group}"}}"#),
+            &no_group,
+            "vlan_group",
+            group,
+        ),
+    ];
+    for (uris, full, bare, blind, table, linked) in &cases {
+        let mut before = Vec::new();
+        for uri in uris {
+            let (status, _, shown) = answer(&reader, uri).await;
+            assert_eq!(status, StatusCode::OK, "{uri}");
+            let shown = String::from_utf8(shown).unwrap();
+            assert!(shown.contains(full.as_str()), "{uri}: {shown}");
+            let unreadable = answer(blind, uri).await;
+            let body = String::from_utf8(unreadable.2.clone()).unwrap();
+            // The same body but the summary, cut to its identifier.
+            assert_eq!(body, shown.replace(full.as_str(), bare), "{uri}");
+            before.push(unreadable);
+        }
+        if *table == "vlan_group" {
+            // The group served by its own routes, which the caller reads.
+            let summary = json!({"id": group, "slug": "edge", "label": "edge",
+                                 "href": format!("/v1/vlan-groups/{group}")});
+            for route in ["occupancy", "next-free"] {
+                let uri = format!("/v1/vlan-groups/{group}/{route}");
+                let (status, _, body) = call(&reader, "GET", &uri, None, &[]).await;
+                assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+                assert_eq!(body["group"], summary, "{uri}");
+            }
+        }
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE id = $1"
+        )))
+        .bind(linked)
+        .execute(&pool)
+        .await
+        .unwrap();
+        for (uri, unreadable) in uris.iter().zip(&before) {
+            for app in [&reader, *blind] {
+                let unknown = answer(app, uri).await;
+                assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
+            }
+        }
+    }
+}
