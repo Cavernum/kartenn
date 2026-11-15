@@ -7171,7 +7171,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       20 s) pour chiffrer C contre les options ; aucun relecteur d'interface (rien de
       livré ne change).
     - reste : rien ; les corrections attendent l'arbitrage (22e-e à 22e-h).
-  - [ ] 22e-e. (B3, à arbitrer) Le survol suspendu pendant un défilement de l'arbre : le
+  - [x] 22e-e. (B3) Le survol suspendu pendant un défilement de l'arbre : le
     corps sans `pointer-events` du premier `scroll` jusqu'à 150 ms après le dernier (ce que
     l'utilisateur perd : le fond de survol, le « + » et l'infobulle d'une raison ne suivent
     pas le pointeur pendant le défilement ; un clic dans les 150 ms qui suivent tombe sur
@@ -7186,7 +7186,26 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `ui/test/trees-mounted.test.ts` ; ligne `TreeGrid` de l'inventaire de
       `specs/020-systeme-de-design/design.md` et de la skill `kartenn-ui`
     - taille : petite (un composant, une règle, un test) ; aucun contrat changé
-    - dépend de : arbitrage de la 22e (B3)
+    - dépend de : arbitrage de la 22e (B3, retenu par la session principale)
+    - fait le 2026-11-15 (agent) — `TreeGrid` : écouteur `scroll` passif sur la grille,
+      `data-scrolling` posé sur l'élément (sans rendu de l'arbre) au premier `scroll`,
+      retiré 150 ms après le dernier ; règle `pointer-events: none` sur le corps ; quatre
+      tests dans `trees-mounted.test.ts` (minuteries simulées). `k-web2-check --base main` :
+      1 293 Vitest ; ciblé : 1 246 captures sur 2 741, rien de réécrit (une première passe
+      sous une charge de 22 : un test de `tree-grid-work` hors délai, passé seul puis à la
+      passe suivante).
+    - choix : le clic perdu réduit, sans autre minuterie — un `pointermove` 50 ms ou plus
+      après le dernier `scroll` rend le survol aussitôt (un pointeur qui bouge vise ; un
+      `pointermove` pendant le défilement, molette tournée en bougeant, ne le rend pas) ;
+      seul un clic sans aucun mouvement dans les 150 ms tombe encore sur le défileur.
+      Jamais de marque tant qu'un bouton est appuyé dans l'arbre (`pointerdown`, relâché
+      par `pointerup` ou `pointercancel` sur `window`) : sinon un clic dont le focus fait
+      défiler sa ligne en vue perdrait sa ligne (relecture d'interface) ; ni pendant un
+      glisser (la cible du dépôt sous le défilement du navigateur). Relectures
+      `ui-reviewer` et `a11y-auditor` : rien de bloquant.
+    - reste : passe filtrée du banc (≈ 7 % à 1 000 lignes/s, < 1 % à 500), à la session
+      principale sur le résultat fusionné ; `Tree` et `DataGrid` sans la marque (hors périmètre, `useVirtualRows` si
+      elles doivent suivre).
   - [ ] 22e-f. (C, à arbitrer) Le protocole du budget de l'arbre à 500 lignes/s : 10⁴
     lignes en 20 s au lieu de 10, le budget (2 %, aucune tâche longue) inchangé
     (ce que l'utilisateur perd : rien dans le produit ; le banc ne garantit plus le
