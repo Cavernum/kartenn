@@ -7888,6 +7888,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       virtualisé, garde sa hauteur propre : à l'arrivée d'une liste paginée, le panneau
       s'allonge vers le bas (le pied seul bouge, les lignes restent à leur place) ; remplir
       dès le chargement ferait remonter le pied d'une liste courte à son arrivée.
+    - passe de corrections de la revue : chaque partie d'un `ViewPanel` `list` dans sa
+      rangée nommée (`grid-template-areas` : en-tête, barre d'outils, corps, pied), le corps
+      toujours dans la rangée élastique (les autres panneaux gardent leur placement : sur
+      tous, le pied des tuiles de l'accueil et de la palette, étirées, descendait au bas de
+      la tuile, 92 captures) ; sans barre d'outils (propriétés, imports, propositions), il
+      tombait dans une rangée `auto` et la grille à sa hauteur minimale (198 px, mesurés
+      rouges d'abord) ; la règle de la surface reprend la chaîne entière de celles du corps
+      (une exception à `selector-max-compound-selectors`, dite à sa ligne), pour ne jamais
+      remplir seule ; la tolérance d'un pixel de `surfaceScrolls` vaut pour la hauteur
+      seule. Parcours `records.spec.ts` (« the list screens without a toolbar or a footer
+      fill the window as well ») : les déclarations de propriétés (ni barre d'outils ni
+      pied) et les changesets (les deux), une page suivante annoncée par une route du
+      parcours (`links.next`, sa lecture laissée en attente), la grille au-delà de 800 px.
     - reste : les grilles du plugin `machines` (22f-i, 22f-j).
   - [ ] 22f-i. Écran de liste du plugin `machines` (`MachineList`, liste paginée virtualisée
     dès sa première page) : il garde le plafond de 480 px dans une surface qui défile ; même
