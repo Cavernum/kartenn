@@ -72,8 +72,11 @@ afterEach(() => {
     delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
 });
 
-/** A grid of 1 000 rows (ten pages) mounted, its props reactive, its models followed. */
-async function mountGrid() {
+/**
+ * A grid of 1 000 rows (ten pages) mounted, its props reactive, its models followed; or of
+ * the props `given` (other rows, a `rowCount`).
+ */
+async function mountGrid(given: Record<string, unknown> = {}) {
   const props = shallowReactive<Record<string, unknown>>({
     label: "Adresses",
     columns,
@@ -82,6 +85,7 @@ async function mountGrid() {
     editable: () => true,
     active: undefined as CellRef | undefined,
     editing: undefined as CellRef | undefined,
+    ...given,
   });
   const root = document.createElement("div");
   document.body.append(root);
@@ -100,7 +104,7 @@ async function mountGrid() {
   app.mount(root);
   await settle();
   const grid = root.querySelector<HTMLElement>("[role='grid']")!;
-  expect(grid.dataset.virtual).toBe("true");
+  if (given.rows === undefined) expect(grid.dataset.virtual).toBe("true");
   return { props, grid };
 }
 
@@ -254,6 +258,50 @@ describe("DataGrid: a page dropped at the head of a paged list (task 021-22f)", 
     expect(input.value).toBe("Renommée");
     expect(props.editing).toEqual({ row: edited.key, column: "label" });
     expect(rowUnder(grid, 280 + ROW)).toEqual(edited);
+  });
+});
+
+// A paged list virtualised from its first page (task 021-22f-f): before, the grid mounted
+// the 100 rows of the second page at once (200 rows, below `VIRTUAL_ROWS`), then unmounted
+// 190 of them as the third crossed it, the two slow pages of the bench of a page.
+describe("DataGrid: a list that announces a next page, virtualised from its first row (task 021-22f-f)", () => {
+  /** The rows of the body in the document. */
+  const mounted = (grid: HTMLElement) =>
+    grid.querySelectorAll(".k-data-grid__body [role='row']").length;
+
+  it("mounts its window alone at 100 rows, and keeps to it at 200 then 300", async () => {
+    const { props, grid } = await mountGrid({ rows: rowsOf(0, 100), rowCount: -1 });
+    expect(grid.dataset.virtual).toBe("true");
+    expect(grid.getAttribute("aria-rowcount")).toBe("-1");
+    const window = mounted(grid);
+    expect(window).toBeGreaterThan(0);
+    expect(window).toBeLessThan(50);
+    expect(grid.querySelector("[data-row='a0']")).not.toBeNull();
+    for (const to of [200, 300]) {
+      props.rows = rowsOf(0, to);
+      await settle();
+      expect(grid.dataset.virtual, `${to} rows`).toBe("true");
+      expect(mounted(grid), `${to} rows`).toBe(window);
+    }
+    // The last page read: the whole count, still beyond `VIRTUAL_ROWS`.
+    props.rows = rowsOf(0, 350);
+    props.rowCount = 350;
+    await settle();
+    expect(grid.dataset.virtual).toBe("true");
+    expect(grid.getAttribute("aria-rowcount")).toBe("351");
+  });
+
+  it("keeps every row below 200 of a list without a next page, a paged list once read", async () => {
+    const whole = await mountGrid({ rows: rowsOf(0, 100) });
+    expect(whole.grid.dataset.virtual).toBeUndefined();
+    expect(mounted(whole.grid)).toBe(100);
+    // Its count known (`rowCount`), a list read to its end is not virtualised either.
+    const { props, grid } = await mountGrid({ rows: rowsOf(0, 150), rowCount: -1 });
+    expect(grid.dataset.virtual).toBe("true");
+    props.rowCount = 150;
+    await settle();
+    expect(grid.dataset.virtual).toBeUndefined();
+    expect(mounted(grid)).toBe(150);
   });
 });
 

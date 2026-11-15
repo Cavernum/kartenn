@@ -381,7 +381,7 @@ function clearFilters(): void {
       :loading="list.isPending.value"
       :loading-rows="8"
       :filtered="filtered"
-      :row-count="complete ? rows.length : undefined"
+      :row-count="complete ? rows.length : -1"
       :element-props="elementProps"
       :editable="cells.editable"
       :readonly-reason="cells.readonlyReason"

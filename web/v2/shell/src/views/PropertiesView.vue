@@ -111,7 +111,7 @@ const gaps = (key: string) =>
       row-key="id"
       :loading="list.isPending.value"
       :loading-rows="8"
-      :row-count="complete ? rows.length : undefined"
+      :row-count="complete ? rows.length : -1"
       @window="onWindow"
     >
       <template #cell="{ row, column }">

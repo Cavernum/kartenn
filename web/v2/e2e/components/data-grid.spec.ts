@@ -573,7 +573,11 @@ test.describe("DataGrid (APG Grid)", () => {
     expect(count).toBeGreaterThan(5);
     expect(count).toBeLessThan(300);
     await expect(page.locator("[data-demo='window']")).toContainText("lignes 1 à");
+    // One tab stop, the header's: the grid scrolls, yet is no stop of its own (Firefox
+    // makes a scroller one, task 021-22f-f).
     await tabIn(page);
+    await expect(page.locator(":focus")).toHaveAttribute("role", "columnheader");
+    await expect(grid).toHaveAttribute("tabindex", "-1");
     await page.keyboard.press("ArrowDown");
     // 500 presses in a row: the focus on the 500th row exactly.
     for (let i = 0; i < 500; i++) await page.keyboard.press("ArrowDown");
