@@ -137,8 +137,10 @@ d'adresses développées avant l'application). Pagination : avec `requested` seu
 demandes par proposition) ; `requested` combiné à
 d'autres états : les lignes en attente suivent les flux appliqués. Droits : prédicat
 RBAC sur l'entité de la demande pour `flow.read` et `flow.review`, ou
-demandeur de la ligne (`flow.request`) ; triage réduit (REQ-010-25) pour qui ne
-lit pas les extrémités.
+demandeur de la ligne qui tient encore `flow.request` sur cette entité (arbitrage du
+2026-11-15, tâche 006-38 ; de même pour un flux appliqué, sa liste par objet, sa
+lecture par identifiant et le compteur de l'accueil) ; triage réduit (REQ-010-25) pour
+qui ne lit pas les extrémités.
 
 ### Réévaluation (REQ-011-11 à 13)
 
@@ -186,7 +188,8 @@ Vue de lecture : union de `flow_rejection` (demandes rejetées), des flux dont l
 dérivé est `noncompliant` (avec l'anomalie `flow.verdict.denied`, acquittable) et des
 flux `waived` ; chaque ligne porte le motif ou l'élément décisif, la règle et son texte
 pédagogique (lus dans l'instantané à la date). Droits : lecture de l'entité, ou
-demandeur de la ligne avec `flow.request`.
+demandeur de la ligne qui tient encore `flow.request` sur l'entité de la ligne (tâche
+006-38).
 
 ### Lecture et filtres (REQ-011-14 à 16)
 

@@ -44,6 +44,10 @@ use crate::rules::{
 /// The permission whose holder reviews a request (REQ-011-22).
 pub const REVIEW: &str = "flow.review";
 
+/// The permission whose holder requests a flow and reads its own requests, on their entity
+/// (REQ-011-17).
+pub const REQUEST: &str = "flow.request";
+
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Handler;

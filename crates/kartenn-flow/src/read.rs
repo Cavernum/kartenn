@@ -98,8 +98,12 @@ pub struct FlowFilter {
 /// rows only, an unreadable row answered as an absent one.
 #[derive(Debug, Clone)]
 pub struct Reader {
-    /// The caller: it reads the flows and the requests it made (REQ-011-17).
+    /// The caller: it reads the flows and the requests it made (REQ-011-17), on the
+    /// entities of `requested_on`.
     pub identity: Uuid,
+    /// The entities where it holds `flow.request` (REQ-011-17, task 006-38): it reads the
+    /// rows it requested on these only; `None`: on every entity.
+    pub requested_on: Option<Vec<Uuid>>,
     /// Its read scope, the JSON argument of `kartenn_scopes`, which the query materialises
     /// as `s`; `None`: it reads every applied flow.
     pub scope: Option<Value>,
@@ -116,14 +120,54 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// Whether it reads a request pending `review` (F19, REQ-011-17): as its requester, or
-    /// by the entity the request names.
+    /// Whether it reads a request pending `review` (F19, REQ-011-17): as its requester
+    /// holding `flow.request` on the entity the request names, or by that entity.
     fn reads(&self, review: &Review) -> bool {
-        review.requester == self.identity
+        let requested = match (&self.requested_on, review.entity) {
+            (None, _) => true,
+            (Some(on), Some(e)) => on.contains(&e),
+            (Some(_), None) => false,
+        };
+        (review.requester == self.identity && requested)
             || review
                 .entity
                 .is_some_and(|e| self.every_review || self.review_entities.contains(&e))
     }
+
+    /// Pushes the condition that the row of `requester` on `entity` (SQL expressions) is
+    /// one of its own requests it reads: on an entity where it holds `flow.request`
+    /// (REQ-011-17, task 006-38).
+    fn push_own(&self, q: &mut QueryBuilder<Postgres>, requester: &str, entity: &str) {
+        match &self.requested_on {
+            Some(on) if on.is_empty() => {
+                q.push("FALSE");
+            }
+            on => {
+                q.push(format!("({requester} = "));
+                q.push_bind(self.identity);
+                if let Some(on) = on {
+                    q.push(format!(" AND {entity} = ANY("));
+                    q.push_bind(on.clone());
+                    q.push(")");
+                }
+                q.push(")");
+            }
+        }
+    }
+}
+
+/// The entities where `visibility` grants `flow.request`, as [`Reader::requested_on`]
+/// reads them: within the confinement of the issuer; `None`, everywhere.
+#[must_use]
+pub fn requested_on(visibility: kartenn_store_pg::rbac::Visibility) -> Option<Vec<Uuid>> {
+    if visibility.global {
+        return visibility.confinement;
+    }
+    let mut on = visibility.entities;
+    if let Some(bound) = &visibility.confinement {
+        on.retain(|e| bound.contains(e));
+    }
+    Some(on)
 }
 
 impl FlowFilter {
@@ -885,13 +929,11 @@ async fn applied(
         q.push(")");
     }
     // The flows the caller reads, before the page is cut (task 006-36): its own requests
-    // (REQ-011-17), or under the condition of its scopes.
+    // under `flow.request` on their entity (REQ-011-17, task 006-38), or under the
+    // condition of its scopes.
     if let Some((reader, _)) = reader {
-        q.push(
-            " AND (EXISTS (SELECT 1 FROM flow.flow r
-                            WHERE r.id = f.id AND r.requester_id = ",
-        );
-        q.push_bind(reader.identity);
+        q.push(" AND (EXISTS (SELECT 1 FROM flow.flow r WHERE r.id = f.id AND ");
+        reader.push_own(&mut q, "r.requester_id", "r.entity_id");
         q.push(format!(") OR {})", reader.condition));
     }
     if let Some(after) = after {
@@ -1300,10 +1342,11 @@ pub async fn nonconformities(
               WHERE TRUE"
     ));
     // The rows the caller reads, before the page is cut (task 006-37): its own requests
-    // (REQ-011-25), or under the condition of its scopes.
+    // under `flow.request` on their entity (REQ-011-25, task 006-38), or under the
+    // condition of its scopes.
     if let Some((reader, _)) = reader {
-        q.push(" AND (n.requester = ");
-        q.push_bind(reader.identity);
+        q.push(" AND (");
+        reader.push_own(&mut q, "n.requester", "n.entity");
         q.push(format!(" OR {})", reader.condition));
     }
     if let Some(requester) = filter.requester {

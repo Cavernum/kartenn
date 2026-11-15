@@ -885,8 +885,9 @@ pub trait Module: Send + Sync + fmt::Debug + 'static {
 
 /// The rights a module counts under (spec 024, REQ-024-15).
 pub struct StatsScope<'a> {
-    /// The caller, for what it reads as itself (the flows it requested).
-    pub identity: Option<Uuid>,
+    /// The caller, for what it reads as itself (the flows it requested, under a right it
+    /// still holds).
+    pub subject: Option<&'a crate::authz::Subject>,
     /// The argument of `kartenn_scopes` (migration 0033), the predicate of the lists;
     /// `None` reads everything.
     pub scope: Option<&'a serde_json::Value>,
@@ -898,7 +899,7 @@ pub struct StatsScope<'a> {
 impl fmt::Debug for StatsScope<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("StatsScope")
-            .field("identity", &self.identity)
+            .field("subject", &self.subject.map(|s| s.id))
             .field("scope", &self.scope)
             .finish_non_exhaustive()
     }

@@ -823,8 +823,9 @@ async fn a_page_of_nonconformities_is_cut_on_the_rows_the_caller_reads(pool: PgP
         all.iter().map(changeset).collect::<Vec<_>>(),
         rows.iter().map(|r| r.0.clone()).collect::<Vec<_>>()
     );
-    // The author holds `flow.read` on the other entity: it reads its own requests and the
-    // rows of that entity.
+    // The author holds `flow.request` on `acme` and `flow.read` on the other entity: it
+    // reads its own requests and the rows of that entity (task 006-38).
+    env.grant(author, &["flow.request"], Some(env.acme)).await;
     env.grant(author, &["flow.read"], Some(beta)).await;
     let readers = [
         (of_acme, rows.iter().map(|r| r.2 == env.acme).collect()),
@@ -863,6 +864,155 @@ async fn a_page_of_nonconformities_is_cut_on_the_rows_the_caller_reads(pool: PgP
             }
         }
     }
+}
+
+/// A list read page after page from `uri`: the body of each page.
+async fn bodies(app: &Router, uri: &str) -> Vec<Value> {
+    let (mut uri, mut bodies) = (uri.to_owned(), Vec::new());
+    loop {
+        let (status, page) = call(app, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {page}");
+        let next = page["links"]["next"].as_str().map(str::to_owned);
+        bodies.push(page);
+        match next {
+            Some(next) => uri = next,
+            None => return bodies,
+        }
+    }
+}
+
+/// Task 006-38 (REQ-011-17, INV-63): the requester reads its own rows only while it holds
+/// `flow.request` on their entity. A requester who lost it is served, on the lists of
+/// flows, of the flows of an object and of the non-conformities, and by identifier, what a
+/// person of the same other rights is served, for whom those rows do not exist: the same
+/// bodies, cursors and counts. `flow.read` on the entity still reads them.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // the rows, then each list and each read by identifier
+async fn a_requester_without_flow_request_reads_its_rows_as_absent(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.applied(vec![Operation::CreateEntity {
+        local: Some(1),
+        slug: "beta".into(),
+        parent: None,
+    }])
+    .await;
+    let beta = env.slugged("entity", "beta").await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let (author, other) = (
+        env.granted(crate::requests::REQUEST).await,
+        env.granted(crate::requests::REQUEST).await,
+    );
+    let (mine, theirs) = (env.app(author), env.app(other));
+    // The author's rows on `acme`, the other's on `beta`, in turn: applied flows, requests
+    // pending a review, rejected requests.
+    let mut flows = Vec::new();
+    for (source, destination, status) in [
+        (prod, dev, StatusCode::CREATED),
+        (dev, prod, StatusCode::ACCEPTED),
+    ] {
+        for _ in 0..2 {
+            for (app, entity) in [(&mine, env.acme), (&theirs, beta)] {
+                let mut fields = body(&env, source, destination).await;
+                fields["entity"] = json!({ "id": entity });
+                let (got, answer) = call(app, Method::POST, "/v1/flows", Some(fields)).await;
+                assert_eq!(got, status, "{answer}");
+                if status == StatusCode::CREATED {
+                    flows.push((entity, answer["flow"]["id"].as_str().unwrap().to_owned()));
+                }
+            }
+        }
+    }
+    for n in 0..4_i32 {
+        let (requester, entity) = if n % 2 == 0 {
+            (author, env.acme)
+        } else {
+            (other, beta)
+        };
+        sqlx::query(
+            "INSERT INTO flow.flow_rejection (changeset_id, request, evaluation, reason,
+                                              reviewed_by, requester_id, entity_id, rejected_at)
+             VALUES ($1, '{}', '{}', 'non', $2, $2, $3, now() - make_interval(hours => $4))",
+        )
+        .bind(Uuid::now_v7())
+        .bind(requester)
+        .bind(entity)
+        .bind(n)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    // The author loses `flow.request`; it and a stranger of the same other rights read
+    // `beta`.
+    sqlx::query(
+        "DELETE FROM role_permission
+          WHERE permission = 'flow.request'
+            AND role_id IN (SELECT b.role_id FROM binding b
+                              JOIN group_member m ON m.group_id = b.group_id
+                             WHERE m.identity_id = $1)",
+    )
+    .bind(author)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let rest: Vec<&str> = crate::requests::REQUEST
+        .iter()
+        .copied()
+        .filter(|p| *p != "flow.request")
+        .collect();
+    let stranger = env.granted(&rest).await;
+    for identity in [author, stranger] {
+        env.grant(identity, &["flow.read"], Some(beta)).await;
+    }
+    let (mine, strange) = (env.app(author), env.app(stranger));
+    let at = instant(&pool).await;
+    let dated = |uri: &str| {
+        let separator = if uri.contains('?') { '&' } else { '?' };
+        format!("{uri}{separator}valid_at={at}&as_of={at}")
+    };
+    let everything = env.app(env.granted(&["flow.read", "flow.review"]).await);
+    for uri in [
+        "/v1/flows?page_size=1",
+        "/v1/flows?state=active,requested&page_size=1",
+        "/v1/flows?state=active,requested&page_size=2",
+        "/v1/flows?state=requested&page_size=1",
+        &*format!("/v1/addresses/{prod}/flows?page_size=1"),
+        "/v1/flow-nonconformities?page_size=1",
+        "/v1/flow-nonconformities?page_size=2",
+    ] {
+        let uri = dated(uri);
+        let served = bodies(&mine, &uri).await;
+        assert_eq!(served, bodies(&strange, &uri).await, "{uri}");
+        // The rows of `beta` only, those of `acme` served to a reader of everything.
+        let rows = |pages: &[Value]| -> usize { pages.iter().map(|p| items(p).len()).sum() };
+        let all = rows(&bodies(&everything, &uri).await);
+        assert!(rows(&served) > 0 && rows(&served) < all, "{uri}");
+    }
+    for (entity, id) in &flows {
+        for uri in [
+            format!("/v1/flows/{id}"),
+            format!("/v1/flows/{id}/evaluations"),
+        ] {
+            let (status, _) = call(&mine, Method::GET, &uri, None).await;
+            let (expected, _) = call(&strange, Method::GET, &uri, None).await;
+            assert_eq!(status, expected, "{uri}");
+            let readable = if *entity == beta {
+                StatusCode::OK
+            } else {
+                StatusCode::NOT_FOUND
+            };
+            assert_eq!(status, readable, "{uri}");
+        }
+    }
+    let (status, stats) = call(&mine, Method::GET, "/v1/stats", None).await;
+    assert_eq!(status, StatusCode::OK, "{stats}");
+    let (_, expected) = call(&strange, Method::GET, "/v1/stats", None).await;
+    assert_eq!(stats["objects"], expected["objects"]);
+    assert_eq!(stats["modules"], expected["modules"]);
+    // `flow.read` on `acme` reads them again.
+    env.grant(author, &["flow.read"], Some(env.acme)).await;
+    let uri = dated("/v1/flow-nonconformities?page_size=10");
+    assert_eq!(items(&bodies(&mine, &uri).await[0]).len(), 4, "{uri}");
 }
 
 /// A host address of the domain, in a network already created.

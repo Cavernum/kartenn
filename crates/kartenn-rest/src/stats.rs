@@ -667,7 +667,7 @@ async fn contributions(
     let json = scope.to_json();
     let reads = |kind: &str| scope.reads(kind);
     let stats_scope = StatsScope {
-        identity: Some(subject.id),
+        subject: Some(subject),
         scope: json.as_ref(),
         reads: &reads,
     };

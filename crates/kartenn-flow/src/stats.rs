@@ -1,16 +1,19 @@
 //! The counters of the module on the home page (feature `rest`; spec 024, REQ-024-14,
 //! 15), under the predicate of the list of the flows: `flow.read` on their entity, or
-//! their requester (REQ-011-17). The flows themselves are counted here, in place of the
+//! their requester holding `flow.request` on it (REQ-011-17, task 006-38). The flows
+//! themselves are counted here, in place of the
 //! count of the core, which knows `flow.read` only; with them, the flows whose evaluation
 //! is not compliant and those whose waiver ends within 30 days.
 
 use kartenn_service::module::{BoxFuture, Contribution, ModuleRead, StatsContributor, StatsScope};
 use kartenn_service::port::StoreError;
-use kartenn_store_pg::rbac::readable;
+use kartenn_store_pg::rbac::{readable, visibility_on};
 use sqlx::PgConnection;
 use time::OffsetDateTime;
 
+use crate::handler::REQUEST;
 use crate::module::FLOW;
+use crate::read;
 
 /// The contributor of the module.
 #[derive(Debug)]
@@ -31,12 +34,22 @@ impl StatsContributor for Stats {
                 .downcast_mut::<PgConnection>()
                 .ok_or_else(|| StoreError("not a PostgreSQL connection".into()))?;
             let reads = (scope.reads)(FLOW);
+            // Its own flows, on the entities where it still holds `flow.request` (task
+            // 006-38).
+            let (identity, requested_on) = match scope.subject {
+                Some(subject) => (
+                    Some(subject.id),
+                    read::requested_on(visibility_on(&mut *conn, subject, REQUEST, at).await?),
+                ),
+                None => (None, None),
+            };
             let sql = format!(
                 "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2)),
                       f AS (SELECT x.id FROM flow.flow x
                              WHERE x.valid_period @> $1
                                AND (($3 AND ($2::jsonb IS NULL OR {}))
-                                    OR x.requester_id = $4))
+                                    OR (x.requester_id = $4
+                                        AND ($5::uuid[] IS NULL OR x.entity_id = ANY ($5)))))
                  SELECT (SELECT count(*) FROM f),
                         (SELECT count(*) FROM f JOIN flow.flow_summary m
                              ON m.flow_id = f.id AND m.valid_period @> $1
@@ -58,7 +71,8 @@ impl StatsContributor for Stats {
                     .bind(at)
                     .bind(scope.scope)
                     .bind(reads)
-                    .bind(scope.identity)
+                    .bind(identity)
+                    .bind(requested_on)
                     .fetch_one(conn)
                     .await
                     .map_err(|e| StoreError(e.to_string()))?;
