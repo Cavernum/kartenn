@@ -1301,4 +1301,30 @@ routeur complet, sauf mention « vrai TCP ».
   l'empreinte diffère) ; horloge du cache, hors de cette tâche : un compteur que la seule
   date change (flux échu, dérogation qui entre dans les 30 jours) attend une écriture ou
   le jour UTC suivant (proposition : un âge maximal d'instantané, quelques minutes, dans
-  `Snapshots::due`).
+  `Snapshots::due`). Les deux vont à la tâche 40.
+- [ ] 40. Instantanés des compteurs de l'accueil : recalcul lié aux droits de sa clé, âge
+  maximal, droits du compteur `to_apply` (restes de la 39, relevés par sa revue) :
+  (a) le recalcul d'arrière-plan d'une clé `Own` (`Own::compute`, par `contributions`)
+  relit `flow.request` en direct, sans lien avec l'empreinte de la clé (`Origin` =
+  `(Subject, ReadScope)`) : droit retiré (la clé « sans » naît), rendu dans les dix
+  minutes, l'outbox avance, la clé « sans » est recalculée avec le droit, droit retiré à
+  nouveau : elle sert le nombre fait avec le droit, une fois si l'outbox avance, jusqu'à
+  l'écriture suivante ou au jour UTC suivant si la liaison finit par sa seule date — à
+  faire : l'empreinte dans l'origine de la clé, un recalcul dont l'empreinte diffère est
+  abandonné ; (b) un compteur que la seule date change (flux échu, dérogation qui entre
+  dans les trente jours, liaison échue) attend une écriture ou le jour UTC suivant — à
+  faire : un âge maximal d'instantané de quelques minutes dans `Snapshots::due` ;
+  (c) à vérifier : la clé `Own` ne porte pas les droits dont dépend `proposals_for`
+  (compteur `to_apply`) ; le retrait d'un droit d'application laisserait ce compteur
+  périmé de la même façon — à faire : test rouge, puis ces droits déclarés par
+  `StatsContributor::permissions()`. La fuite se limite à des nombres — verify :
+  `k-check -p kartenn-rest stats`, `k-check -p kartenn-flow requester` (la séquence
+  retiré, rendu, retiré sert le nombre sans le droit ; un flux échu par la date sort du
+  compteur dans l'âge maximal, sans écriture ; un droit d'application retiré sort
+  `to_apply` à la requête suivante)
+  - où : `crates/kartenn-rest/src/stats.rs` (`Origin` vers 240, `Own::compute`, `held`,
+    `subject_key`, `Snapshots::due`, `make_room` vers 323),
+    `crates/kartenn-service/src/module.rs` (`StatsContributor::permissions`),
+    `crates/kartenn-flow/src/stats.rs` (`proposals_for`) ; tests voisins
+    `crates/kartenn-flow/tests/it/requester.rs` ; design 024 « Instantanés »
+  - dépend de : 39
