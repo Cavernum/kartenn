@@ -401,6 +401,71 @@ const scrollRows = (page: Page) =>
     [ROWS, SCROLL_MS] as const,
   );
 
+/** The long animation frames of the page watched from now on (task 021-22e-i). */
+const watchFrames = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __kLoaf?: PerformanceEntry[] };
+    if (w.__kLoaf) return;
+    const seen: PerformanceEntry[] = [];
+    w.__kLoaf = seen;
+    new PerformanceObserver((list) => seen.push(...list.getEntries())).observe({
+      type: "long-animation-frame",
+    });
+  });
+
+/**
+ * The animation frames of 100 ms or more that started between `from` and `to` (clock of the
+ * page), printed with where their time went (task 021-22e-i): tasks before the frame, its
+ * `requestAnimationFrame` callbacks, style and layout, and the scripts the browser names.
+ */
+async function longFramesBetween(page: Page, what: string, from: number, to: number) {
+  const lines = await page.evaluate(
+    ([f, t]) => {
+      interface Script {
+        invoker: string;
+        invokerType: string;
+        sourceFunctionName: string;
+        sourceURL: string;
+        sourceCharPosition: number;
+        duration: number;
+        forcedStyleAndLayoutDuration: number;
+      }
+      type Loaf = PerformanceEntry & {
+        renderStart: number;
+        styleAndLayoutStart: number;
+        blockingDuration: number;
+        scripts: Script[];
+      };
+      const all = ((window as unknown as { __kLoaf?: Loaf[] }).__kLoaf ?? []) as Loaf[];
+      const ms = (v: number) => Math.max(0, v).toFixed(0);
+      return all
+        .filter((e) => e.startTime >= f && e.startTime <= t && e.duration >= 100)
+        .map((e) => {
+          const end = e.startTime + e.duration;
+          const render = e.renderStart || end;
+          const style = e.styleAndLayoutStart || end;
+          const scripts = e.scripts
+            .map(
+              (s) =>
+                `${s.invokerType} ${s.invoker} ${s.sourceFunctionName || "?"}` +
+                `@${s.sourceURL.split("/").at(-1)}:${s.sourceCharPosition}` +
+                ` ${ms(s.duration)} ms (forced style and layout ${ms(s.forcedStyleAndLayoutDuration)})`,
+            )
+            .join("; ");
+          return (
+            `at +${ms(e.startTime - f)} ms, ${ms(e.duration)} ms (blocking ${ms(e.blockingDuration)}):` +
+            ` tasks ${ms(render - e.startTime)}, frame callbacks ${ms(style - render)},` +
+            ` style and layout ${ms(end - style)}; ${scripts || "no script named"}`
+          );
+        });
+    },
+    [from, to] as const,
+  );
+  console.log(
+    `INFO long frames ${what}: ${lines.length === 0 ? "none" : `${lines.length}; ${lines.join(" | ")}`}`,
+  );
+}
+
 /**
  * The reads under /v1/ that started between `from` and `to` (clock of the page), printed by
  * where they come from: the container's own pages (read again: a refetch) or other nodes.
@@ -463,11 +528,13 @@ async function scrollWhileWritten(page: Page): Promise<void> {
       else await page.waitForTimeout(100);
     }
     const before = writer.writes.written;
+    const opened = await page.evaluate(() => performance.now());
     frames = await framed(page, async () => {
       span = await scrollRows(page);
       return [];
     });
     duringWindow = writer.writes.written - before;
+    await longFramesBetween(page, `while scrolling, ${OTHER_DOMAIN} written`, opened, span[1]);
   } finally {
     writes = await writer.stop();
   }
@@ -991,13 +1058,32 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   expect.soft(loaded, "children loaded before scrolling").toBe(true);
   await settle(page);
   await slowDown(cdp);
+  await watchFrames(page);
   // 10⁴ rows in 20 s (`scrollRows`, 500 rows/s), on a quiet instance: the window measures
   // the drawing alone, and the reads it would set off are counted.
   let span: [number, number] = [0, 0];
+  const opened = await page.evaluate(() => performance.now());
   const frames = await framed(page, async () => {
     span = await scrollRows(page);
     return [];
   });
+  // The levels of the tree go stale 30 s after their last read (`FRESHNESS.children`), and
+  // the topography rebuilt every node then (task 021-22e-i): when, against the window.
+  const lastRead = await page.evaluate(
+    (path) =>
+      Math.max(
+        ...performance
+          .getEntriesByType("resource")
+          .filter((e) => new URL(e.name).pathname === path)
+          .map((e) => (e as PerformanceResourceTiming).responseEnd),
+      ),
+    children,
+  );
+  console.log(
+    `INFO the last read of the container's children ended ${((opened - lastRead) / 1000).toFixed(1)} s` +
+      ` before the window opened`,
+  );
+  await longFramesBetween(page, "while scrolling", opened, span[1]);
   const reads = await readsWhile(page, "while scrolling", container, span);
   await streamBetween(page, "while scrolling", ...span);
   check("reads of children while scrolling", reads.children, 0, "");
