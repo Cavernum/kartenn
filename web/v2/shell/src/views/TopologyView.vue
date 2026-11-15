@@ -99,6 +99,7 @@ import {
   overlay,
   PREVIEW,
   previewOf,
+  staleOnly,
   type LevelReader,
   type Preview,
   type Shift,
@@ -184,7 +185,10 @@ function observe(parent: string | null): void {
   const options = queryClient.defaultQueryOptions(optionsOf(parent) as never);
   const observer = new InfiniteQueryObserver<Pages>(queryClient, options as never);
   results.set(parent, observer.getOptimisticResult(options as never) as Result);
-  const stop = observer.subscribe((result) => results.set(parent, result as Result));
+  // A level turned stale says only that (`staleOnly`, task 22e-j): kept, nothing rebuilt.
+  const stop = observer.subscribe((result) => {
+    if (!staleOnly(results.get(parent), result)) results.set(parent, result as Result);
+  });
   observers.set(parent, { observer, stop });
 }
 function reset(): void {

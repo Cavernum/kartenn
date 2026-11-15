@@ -52,6 +52,26 @@ export function levelOfPages<I>(
   };
 }
 
+/**
+ * Whether the notification `next` of a level's observer differs from the result `kept`
+ * by `isStale` alone (task 021-22e-j): its reads turned stale (`FRESHNESS.children`, 30 s
+ * after the last), which nothing of the view reads. Kept, the result would build every
+ * node of the level again and render the tree (≈ 270 ms on a level of 10⁴, task 22e-i);
+ * any other key that changes — a page, a read under way, an error — is a change. Compared
+ * key by key rather than through a list of the keys the view reads (`notifyOnChangeProps`),
+ * which a new read of the view would have to keep in step.
+ */
+export function staleOnly(kept: object | undefined, next: object): boolean {
+  if (!kept) return false;
+  const before = kept as Record<string, unknown>;
+  const after = next as Record<string, unknown>;
+  const keys = Object.keys(after);
+  if (keys.length !== Object.keys(before).length) return false;
+  return keys.every(
+    (key) => key === "isStale" || (key in before && Object.is(before[key], after[key])),
+  );
+}
+
 /** The observer of a level's pages as the tree asks it (`InfiniteQueryObserver`). */
 export interface LevelReader<I> {
   getCurrentResult(): LevelPages<I> & { isFetching: boolean; isError: boolean };

@@ -7320,7 +7320,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       laissé sur l'arbre, 15,37 % et deux tâches de 58 ms au plus. Option C du protocole,
       à arbitrer et non recommandée : laisser le niveau se périmer avant la fenêtre (≥ 30 s
       d'attente) tiendrait le budget en cachant un gel que l'utilisateur subit.
-  - [ ] 22e-j. Le niveau périmé sans rendu : `observe` de la topographie ne range pas une
+  - [x] 22e-j. Le niveau périmé sans rendu : `observe` de la topographie ne range pas une
     notification de l'observateur qui ne change que `isStale` (ou une liste
     `notifyOnChangeProps` des seules clés que la vue lit) ; ce que l'utilisateur gagne :
     plus de gel de ≈ 270 ms (CPU ×4) 30 s après la dernière lecture d'un niveau de 10⁴
@@ -7333,6 +7333,37 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       changer
     - taille : petite (une fonction, un test)
     - dépend de : 22e-i
+    - fait le 2026-11-15 (agent, sur `1379e494`) : `staleOnly` (`topology.ts`) compare la
+      notification au résultat rangé clé par clé, `isStale` à part ; `observe` ne range pas
+      celle qui ne change que `isStale`. Test `shell/test/topology-stale.test.ts` (vue
+      montée, minuteries simulées avec `Date`) : rouge avant (nœuds rebâtis), vert après —
+      30 s après la dernière lecture, le niveau est périmé dans le cache, `nodes` du
+      `TreeGrid` garde son identité, aucun composant ne se rend, aucune lecture de l'arbre ;
+      un niveau invalidé (comme par le flux) relu, son nouveau nœud montré ; le premier
+      niveau périmé relu et refusé, l'arbre le dit ; la vue démontée puis remontée relit le
+      premier niveau périmé. Banc filtré `bench-web small -g "container of 10⁵"`, machine
+      libre, deux passes : **1,20 % et 0,94 %** de trames perdues, **aucune tâche longue**
+      (longues trames : aucune ; écrivain en arrière-plan 1,29 %, aucune). `k-web2-check
+      --base main` : 1 302 Vitest ; ciblé : 0 captures sur 2 741 (aucune touchée).
+      `k-web2-e2e` : trois échecs au premier passage (`records.spec.ts` 252 en chromium,
+      `route.fetch: Test ended` ; 221 en firefox, empreinte SRI d'un fragment qui ne
+      correspond pas ; `tree.spec.ts` 116 en firefox, délai d'un clic), tous verts au second
+      passage de `records.spec.ts` et `tree.spec.ts` (36 sur 36).
+    - choix : la comparaison de ce que l'observateur rend plutôt que `notifyOnChangeProps` :
+      plus étroite (seule la notification « périmé seul » est écartée, toute autre clé
+      passe), sans liste des clés lues à tenir au pas de `levelOfPages`, `rowsOf`,
+      `isFetching`, `isError` ; le résultat gardé a `isStale` faux, que rien ne lit dans
+      `web/v2`. Test dans un fichier à lui (`happy-dom`, vue montée) plutôt que dans
+      `topology.test.ts`, qui ne monte rien. Pas de relecture `ui-reviewer` ni
+      `a11y-auditor` : rien de rendu ne change (aucune capture tirée).
+    - reste : le même motif hors de la topographie, d'autre code, inscrit sans correction —
+      `useQueries` (`shell/src/data/queries.ts`) remplace le tableau entier à chaque
+      notification, une péremption comprise (consommateurs : `views/data.ts`,
+      `propertyColumns.ts`) ; `plugins/machines/src/data.ts` (`set` : `shape(result)` neuf
+      dans un `shallowRef`). `useQuery`/`useInfiniteQuery` du shell n'en sont pas : clé par
+      clé (`tracked`), `isStale` ne réveille que ses lecteurs ; le plugin d'exemple ne
+      redessine que ce qui change de texte. À mesurer avant de corriger (listes de pages
+      bornées, coût probablement faible).
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
     objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
     brouillon de `shownById`), les mots d'un genre et d'une nature lus une fois par langue
