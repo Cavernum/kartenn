@@ -360,7 +360,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     d'écriture qui cumule ses violations) peuvent différer de ceux d'une référence hors de
     portée et révéler l'absence ; non observé sur les modules de test, à vérifier par
     module en 29c et 29d
-- [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
+- [x] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
   machine ou grappe, `member_of`, machine, interface, adresse), typées par la 29b1 : tests
   de refus et cas particuliers — REQ-002-12 (amendée) — verify : une
   interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
@@ -397,8 +397,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   - choix : la marche vit dans `kartenn-machines` et non dans celle de `kartenn-service`
     (`every_reference_of_every_module_operation_is_checked`), qui ne peut dépendre du
     module sans cycle de dépendances de test
-- [ ] 29c2. Fuites vers un auteur sans droit sur une référence cachée de `kartenn-machines`
-  (INV-63, legs de la 29b2) — **en attente d'arbitrage** — REQ-002-12 (amendée) —
+- [x] 29c2. Fuites vers un auteur sans droit sur une référence cachée de `kartenn-machines`
+  (INV-63, legs de la 29b2) — arbitrée le 2026-11-15 — REQ-002-12 (amendée) —
   verify : test rouge `no_right_reaches_through_a_hidden_reference` (`machines.rs`, sous
   `#[ignore]` jusqu'à l'arbitrage) rendu vert ; `k-check`
   où : `crates/kartenn-service/src/pipeline.rs` (`stages` : droits avant écriture vers
@@ -450,6 +450,37 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       lire, vérifié avant les écritures, hors objets que le changeset crée) ; le modèle
       des droits reste inchangé ailleurs pour la v0.2 ; A généralisée est retenue pour
       plus tard, après la v0.2 (tâche 31)
+  - fait le 2026-11-15 : spec d'abord (REQ-002-12, précision du 2026-11-15 ; ADR 0026,
+    amendement 17, précision du 2026-11-15 ; 009/M16 étendue, REQ-009-18 et son
+    acceptation, design § Droits). Pipeline (`stages`) : les lectures exigées par un
+    module (`ModuleHandler::reads`) sur les objets qui existent passent avant les
+    écritures, avec les droits sur les objets clos ou changés
+    (`rights::check_guards`, `Phase::Before`), celles sur un objet que le changeset crée
+    (`resolution::created`) après ; une valeur d'affectation qui nomme une désignation
+    cachée n'est pas contrôlée à l'écriture (`resolution::parse_hiding`) ; les
+    désignations cachées sont refusées sitôt les droits accordés, avant les sections et
+    les règles des modules. `kartenn-machines` : `host.machine`, `host.cluster` et
+    `member_of` exigent `machines.read` / `machines.cluster.read`. Test
+    `no_right_reaches_through_a_hidden_reference` vert, sans `#[ignore]` : 14 cas d'une
+    opération (dont hôte d'un autre type hors de portée, `host_kinds` ; hôte grappe ;
+    `member_of` à la création et à la mise à jour), 3 requêtes de plusieurs opérations
+    (mêmes règles, messages, opérations, nombres, dans le même ordre), hôte et grappe
+    créés dans le changeset acceptés
+  - choix : les champs soumis au droit de lire sont une liste (`READ_CHECKED` de
+    `handler.rs`), relevés par une enveloppe de `resolve` dans `ModuleHandler::plan` :
+    la tâche 31 n'aura qu'à l'étendre ; la valeur cachée d'une affectation est écrite
+    sans contrôle plutôt que sautée (sautée, `core.owner` manquant répondait
+    `prop.assignment.required`), le changeset étant refusé de toute façon ; les gardes
+    `Expect` restent vérifiées après les écritures (hors de l'arbitrage) ; un auteur à
+    qui manquent la lecture d'un objet cité et l'édition d'un objet créé ne lit plus que
+    la première (le changeset s'arrête avant les écritures) : le test
+    `label_mapping_needs_kube_settings` accorde la lecture de l'espace de noms pour
+    garder sa preuve de `kube.settings.edit`
+  - reste : sous B, le site (`site` de `create_machine`, `create_cluster`,
+    `update_cluster`) reste un oracle d'existence (hors de portée appliqué, caché
+    refusé par `core.reference.unknown`), comme toute référence sans droit exigé ; fermé
+    par la tâche 31. `dead_hosts` et `host_kinds` ne voient plus d'hôte caché, laissés
+    tels quels
 - [x] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
   vigueur au début de sa période (son objet existant, lu par la complétion, reste hors du
   contrôle, 29b2) — REQ-002-12 (amendée) — verify : test d'intégration rouge d'abord
