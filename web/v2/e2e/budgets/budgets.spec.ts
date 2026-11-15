@@ -9,7 +9,7 @@ import {
 } from "@playwright/test";
 import { benchPage, framed, heap, quantile, settle, timed, type Frames } from "../bench/measure.ts";
 import { BASE_URL, isBatch, readsOf, STATE } from "../fixtures/env.ts";
-import { loginIn } from "../fixtures/journeys.ts";
+import { atRest, loginIn } from "../fixtures/journeys.ts";
 import { OTHER_DOMAIN } from "./global-setup.ts";
 
 // The budgets of the browser for the new shell (spec 021, REQ-021-30, design « Budgets »),
@@ -720,9 +720,25 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
   await page.addInitScript(watchSpans);
   await loginIn(page, "alice");
   await slowDown(cdp);
+  // The warning of the shell once it sets `slow` aside (shell/src/plugins/loader.ts).
+  let setAside = false;
+  page.on("console", (m) => {
+    if (/^kartenn: plugin slow .* set aside/.test(m.text())) setAside = true;
+  });
   await page.goto("/addresses");
   const grid = page.getByRole("grid", { name: "Adresses" });
   await expect(grid.locator("[role='gridcell']").first()).toBeVisible();
+  // The plugins settled before the first scroll (021-22f-g): their fetches over (the
+  // shell's mark), the columns of `machines` and `example` in the header, `slow` set aside
+  // at 5 s (its warning), then two frames. Their start belongs to the budget of the first
+  // screen, not to that of a page: scrolled at the first cell, the first page waited 139 to
+  // 158 ms behind their evaluation (22f-e), and a page drawn as `slow` is set aside waited
+  // 124 ms behind a timer task of 155 ms (22f-g, a rest of 3 s without this wait).
+  await atRest(page);
+  for (const column of ["x.machines.machine", "x.example.usage"])
+    await expect(grid.locator(`[role='columnheader'][data-column='${column}']`)).toBeVisible();
+  await expect.poll(() => setAside, { timeout: 15_000 }).toBe(true);
+  await settle(page);
   // The first frame each row of the grid is in the document: a row is its cells'
   // `data-row`, the key of its object (`row-key="id"`); those already drawn are not new.
   await grid.evaluate((el) => {
