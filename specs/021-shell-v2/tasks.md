@@ -7776,9 +7776,17 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       shell qui passaient `undefined` tant que la liste n'était pas lue entière
       (`ListView`, `PropertiesView`, `AuditView`, `ImportsView`, `ChangesetsView`,
       `ProposalsView`) passent `-1` (leur `aria-rowcount` dit désormais « inconnu » au
-      lieu du nombre de lignes chargées plus un) ; lue entière, une liste de 200 lignes au
-      plus redevient entière (seuil de 200, tel qu'arbitré : à sa dernière page, une liste
-      de 101 à 200 lignes monte d'un coup les lignes hors fenêtre) ; le test dans
+      lieu du nombre de lignes chargées plus un), et `InterfaceGrid` du plugin `machines`
+      ne passe plus `-1` pendant son chargement, seulement pour une page suivante ; lue
+      entière, la même liste reste virtualisée (passe de corrections de la revue : revenue
+      à toutes ses lignes, une liste de 101 à 200 lignes perdait à sa dernière page la
+      hauteur de sa grille, son défilement et la vue de la cellule du focus) : l'état
+      collant de `useVirtualRows` tient tant que les clés continuent la liste (`sameList` :
+      mêmes lignes, une page de plus à la fin, une page lâchée ou revenue en tête), remis à
+      zéro par une autre liste (une autre lecture, un filtre, un tri), une liste vide ou un
+      chargement ; un appui sur un blanc de la grille virtualisée, ou sur sa barre de
+      défilement dans Firefox, qui lui donne le focus, le rend à la cellule du point
+      d'arrêt (`onFocusin`, sans défilement) ; le test dans
       `ui/test/data-grid-mounted.test.ts` (son banc de hauteurs) plutôt que dans
       `data-grid-rows-mounted.test.ts` (sans hauteurs, où une grille virtualisée ne montre
       aucune ligne) ; les tests sans mise en page dont la liste annonce une page suivante
@@ -7793,13 +7801,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - reste : la passe filtrée du banc (`bench-web small -g "page of 100 rows"`, trois
       fois, pages 1 et 2 sous 100 ms, p95 ≤ 100 ; attendu vers 78 ms) par la session
       principale sur le résultat fusionné, non lancée par l'agent (d'autres agents
-      tournaient). À trancher (relecture `ui-reviewer`) : virtualisée dès sa première page,
-      une liste principale paginée défile dans sa grille, plafonnée à `--k-size-list-max`
-      (480 px) quelle que soit la hauteur de la fenêtre, comme au-delà de 200 lignes : une
-      hauteur liée à la fenêtre, posée par l'hôte de l'écran de liste (le commentaire de
-      `.k-data-grid[data-virtual]` le prévoit), serait une tâche à part ; de même les grilles
-      du plugin `machines` dans les onglets d'une fiche (défileurs imbriqués, non vu en
-      rendu).
+      tournaient). La hauteur de la grille va à la 22f-h (relecture `ui-reviewer`) :
+      virtualisée dès sa première page, une liste principale paginée défile dans sa grille,
+      plafonnée à `--k-size-list-max` (480 px) quelle que soit la hauteur de la fenêtre,
+      comme au-delà de 200 lignes, et les grilles du plugin `machines` dans les onglets
+      d'une fiche peuvent imbriquer deux défileurs (non vu en rendu).
   - [x] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
     des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
     ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
