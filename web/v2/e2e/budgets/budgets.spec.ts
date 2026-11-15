@@ -363,12 +363,19 @@ function backgroundWriter(
 }
 
 /**
- * `ROWS` rows of the tree in 10 s: down and up the rows in memory, the position by the
- * clock (the protocol of the prototype: a dropped frame does not lengthen the run), short
- * of the last rows, so that the row which reads the next page never comes into view. The
- * window of the scroll (clock of the page).
+ * How long `scrollRows` takes over its `ROWS` rows, in ms: 500 rows/s (task 021-22e-f,
+ * arbitration C), half the speed of the prototype's protocol at eight times its rows
+ * (021 design, « Budgets »).
  */
-const scrollRows = (page: Page, rows: number = ROWS) =>
+const SCROLL_MS = 20_000;
+
+/**
+ * `ROWS` rows of the tree in `SCROLL_MS`: down and up the rows in memory, the position by
+ * the clock (the protocol of the prototype: a dropped frame does not lengthen the run),
+ * short of the last rows, so that the row which reads the next page never comes into view.
+ * The window of the scroll (clock of the page).
+ */
+const scrollRows = (page: Page) =>
   tree(page).evaluate(
     async (el, [rows, duration]) => {
       let scroller = el as HTMLElement;
@@ -391,7 +398,7 @@ const scrollRows = (page: Page, rows: number = ROWS) =>
       });
       return [start, performance.now()] as [number, number];
     },
-    [rows, 10_000] as const,
+    [ROWS, SCROLL_MS] as const,
   );
 
 /**
@@ -984,8 +991,8 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   expect.soft(loaded, "children loaded before scrolling").toBe(true);
   await settle(page);
   await slowDown(cdp);
-  // 10⁴ rows in 10 s (`scrollRows`), on a quiet instance: the window measures the drawing
-  // alone, and the reads it would set off are counted.
+  // 10⁴ rows in 20 s (`scrollRows`, 500 rows/s), on a quiet instance: the window measures
+  // the drawing alone, and the reads it would set off are counted.
   let span: [number, number] = [0, 0];
   const frames = await framed(page, async () => {
     span = await scrollRows(page);
@@ -994,16 +1001,18 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   const reads = await readsWhile(page, "while scrolling", container, span);
   await streamBetween(page, "while scrolling", ...span);
   check("reads of children while scrolling", reads.children, 0, "");
-  check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
+  check(`dropped frames over ${ROWS} rows in ${SCROLL_MS / 1000} s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
   // A diagnosis, off by default (`K_BENCH_TREE_AB=1`, tasks 021-22e-c and 22e-d): the same
   // scroll again under sheets that stand for the options of the arbitration B, its dropped
   // frames printed. Never a verdict: the sheets change what the rows show. B1: the « + »
   // shown only on the active row (focus, selection, hover); B2: each icon one box painted
-  // through a CSS mask, no SVG; B3: no hover while scrolling. `@500`: 500 rows/s (the
-  // arbitration C). B4 (fixed slots, rows placed by an inline style) needs the code of
-  // the tree changed: see the task 22e-d, its figures in tasks.md.
+  // through a CSS mask, no SVG; B3: no hover while scrolling (in the tree since the task
+  // 22e-e: its sheet only holds the hover off for the whole pass). Each at the speed of the
+  // budget, 500 rows/s since the task 22e-f (the variants `@500` gone with it). B4 (fixed
+  // slots, rows placed by an inline style) needs the code of the tree changed: see the
+  // task 22e-d, its figures in tasks.md.
   if (process.env.K_BENCH_TREE_AB) {
     const B = ".k-tree-grid__body";
     const mask = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")`;
@@ -1024,9 +1033,6 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
       ["B1+B2+B3", [B1, B2, B3].join("\n")],
       // What the rows cost at most: no icon and no hover at all.
       ["no svg, no pointer", `${B} svg{display:none!important}\n${B3}`],
-      ["base @500", ""],
-      ["B3 @500", B3],
-      ["B1+B3 @500", [B1, B3].join("\n")],
       // The spread of two identical passes.
       ["base again", ""],
     ];
@@ -1042,7 +1048,7 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
       }, css);
       await settle(page);
       const ab = await framed(page, async () => {
-        await scrollRows(page, name.endsWith("@500") ? ROWS / 2 : ROWS);
+        await scrollRows(page);
         return [];
       });
       console.log(
