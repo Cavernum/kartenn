@@ -2484,20 +2484,6 @@
         ],
         "type": "object"
       },
-      "ExecutionHostRef": {
-        "description": "An object of the module machines in a chain of execution, by its identifier.",
-        "properties": {
-          "id": {
-            "description": "Identifier.",
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
       "Expected": {
         "description": "The source of the expected values of a property (REQ-003-23).",
         "properties": {
@@ -4296,8 +4282,8 @@
           "connector_group": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "The group of kartenn of its connector."
+                "$ref": "#/components/schemas/RightsGroupRef",
+                "description": "The group of kartenn of its connector, by its identifier: a group of the rights,\nnot an object of the referential."
               },
               {
                 "type": "null"
@@ -4311,7 +4297,7 @@
           "external_domain": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The addressing domain of its `LoadBalancer` addresses and `externalIPs`; those of\nthe services when `null`."
               },
               {
@@ -4331,7 +4317,7 @@
           "machines_cluster": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The cluster of machines (`machines.cluster`) it runs on, shown only."
               },
               {
@@ -4342,7 +4328,7 @@
           "owner": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved owner."
               },
               {
@@ -4353,12 +4339,12 @@
           "pod_containers": {
             "description": "The containers of the core that hold its pod ranges.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
           "pod_domain": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The addressing domain of its pods (and of its nodes and namespaces)."
           },
           "retention_days": {
@@ -4367,20 +4353,20 @@
             "type": "integer"
           },
           "service_domain": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The addressing domain of its services."
           },
           "service_networks": {
             "description": "The networks of the core of its services.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
           "site": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "Its resolved site."
               },
               {
@@ -4788,8 +4774,8 @@
           "hypervisor": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ExecutionHostRef",
-                "description": "The hypervisor (`machines.machine`) that hosts the machine; `null` without one, or\nfor one the caller may not read."
+                "$ref": "#/components/schemas/Summary",
+                "description": "The hypervisor (`machines.machine`) that hosts the machine, summarised at the\ndate; `null` without one, or for one the caller may not read."
               },
               {
                 "type": "null"
@@ -4799,8 +4785,8 @@
           "machine": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ExecutionHostRef",
-                "description": "Its machine (`machines.machine`); `null` for a node matched to no machine, or a\nmachine the caller may not read."
+                "$ref": "#/components/schemas/Summary",
+                "description": "Its machine (`machines.machine`), summarised at the date; `null` for a node\nmatched to no machine, or a machine the caller may not read."
               },
               {
                 "type": "null"
@@ -4808,14 +4794,14 @@
             ]
           },
           "node": {
-            "$ref": "#/components/schemas/KubeObjectRef",
-            "description": "The node, from the journal."
+            "$ref": "#/components/schemas/Summary",
+            "description": "The node, from the journal, summarised at the date of the chain (`{id}` alone for\na node the caller may not read or absent then)."
           },
           "virtualization_cluster": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ExecutionHostRef",
-                "description": "The cluster of virtualisation (`machines.cluster`) that hosts the machine; `null`\nwithout one, or for one the caller may not read."
+                "$ref": "#/components/schemas/Summary",
+                "description": "The cluster of virtualisation (`machines.cluster`) that hosts the machine,\nsummarised at the date; `null` without one, or for one the caller may not read."
               },
               {
                 "type": "null"
@@ -4844,7 +4830,7 @@
           "addresses": {
             "description": "Its addresses of the core, in the external domain of its cluster, else its service\ndomain.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
@@ -4856,7 +4842,7 @@
             ]
           },
           "cluster": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The cluster of its namespace."
           },
           "href": {
@@ -4873,7 +4859,7 @@
             "type": "string"
           },
           "namespace": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its namespace."
           },
           "rules": {
@@ -4967,7 +4953,7 @@
             ]
           },
           "cluster": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its cluster."
           },
           "href": {
@@ -5035,7 +5021,7 @@
             "type": "array"
           },
           "cluster": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its cluster."
           },
           "href": {
@@ -5050,7 +5036,7 @@
           "machine": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
+                "$ref": "#/components/schemas/Summary",
                 "description": "The machine (`machines.machine`, physical or virtual) it is."
               },
               {
@@ -5072,7 +5058,7 @@
           "ranges": {
             "description": "The networks of the core of its pod ranges.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
@@ -5129,7 +5115,7 @@
       },
       "KubeObjectRef": {
         "additionalProperties": false,
-        "description": "The identifier of an object of the cluster (006/H3).",
+        "description": "The identifier of an object of the cluster (006/H3), as a body written designates it.",
         "properties": {
           "id": {
             "format": "uuid",
@@ -5174,8 +5160,8 @@
           "node": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "The node it ran on."
+                "$ref": "#/components/schemas/Summary",
+                "description": "The node it ran on, summarised as it was at the same instant."
               },
               {
                 "type": "null"
@@ -5206,8 +5192,8 @@
           "workload": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/KubeObjectRef",
-                "description": "The workload its `ownerReferences` climb to."
+                "$ref": "#/components/schemas/Summary",
+                "description": "The workload its `ownerReferences` climb to, summarised as it was at the instant\nasked (`at`), else when the pod was seen (`from`)."
               },
               {
                 "type": "null"
@@ -5396,20 +5382,20 @@
             ]
           },
           "cluster": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The cluster of its namespace."
           },
           "cluster_addresses": {
             "description": "Its addresses of the core in the service domain of its cluster.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
           "external_addresses": {
             "description": "Its `LoadBalancer` addresses and `externalIPs`, addresses of the core.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           },
@@ -5438,7 +5424,7 @@
             "type": "string"
           },
           "namespace": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its namespace."
           },
           "ports": {
@@ -5469,7 +5455,7 @@
           "workloads": {
             "description": "The workloads it selects, as the connector computed them.",
             "items": {
-              "$ref": "#/components/schemas/KubeObjectRef"
+              "$ref": "#/components/schemas/Summary"
             },
             "type": "array"
           }
@@ -5569,7 +5555,7 @@
             ]
           },
           "cluster": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "The cluster of its namespace."
           },
           "host_network": {
@@ -5604,7 +5590,7 @@
             "type": "string"
           },
           "namespace": {
-            "$ref": "#/components/schemas/KubeObjectRef",
+            "$ref": "#/components/schemas/Summary",
             "description": "Its namespace."
           },
           "ports": {
@@ -12441,6 +12427,20 @@
         "required": [
           "self",
           "object"
+        ],
+        "type": "object"
+      },
+      "RightsGroupRef": {
+        "description": "A group of the rights by its identifier alone: no object of the referential, it has no\nsummary (spec 006, task 33e; the guard of task 33f exempts it).",
+        "properties": {
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },

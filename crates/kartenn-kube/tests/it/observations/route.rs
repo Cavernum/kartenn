@@ -50,6 +50,19 @@ mod clusters;
 mod mirrors;
 /// The reads of the same journal (task 019-6d).
 mod read;
+/// The references of the bodies of the module rendered as summaries (spec 006, task 33e).
+mod summaries;
+
+/// The summary of the object `id` of `collection` whose key reads `label`, for a caller
+/// who may read it (spec 006, REQ-006-42).
+fn summary(collection: &str, id: Uuid, label: &str) -> Value {
+    json!({"id": id, "label": label, "href": format!("/v1/{collection}/{id}")})
+}
+
+/// The summary of the object `id` of `collection`, of a kind with a slug.
+fn slugged(collection: &str, id: Uuid, slug: &str) -> Value {
+    json!({"id": id, "slug": slug, "label": slug, "href": format!("/v1/{collection}/{id}")})
+}
 
 /// Any `Bearer` token is this principal.
 struct As(Principal);

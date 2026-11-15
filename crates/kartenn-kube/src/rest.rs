@@ -31,9 +31,10 @@ use kartenn_core::family::ALL;
 use kartenn_rest::ModuleRouter;
 use kartenn_rest::cursor::ListingLinks;
 use kartenn_rest::kit::{
-    self, Api, BatchViolation, ETag, Moment, Page, PageParams, Problem, ProblemKind, documented,
-    next_href, op, respond, schemas_of,
+    self, Api, BatchViolation, ETag, Moment, Page, PageParams, Problem, ProblemKind, Target,
+    documented, next_href, op, respond, schemas_of,
 };
+use kartenn_rest::summary::{self, Summaries, Summary};
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
@@ -47,7 +48,7 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::module::{
-    CLUSTER, OBSERVATION_READ_PERMISSION, OBSERVATION_RECORD_PERMISSION, WORKLOAD,
+    CLUSTER, NODE, OBSERVATION_READ_PERMISSION, OBSERVATION_RECORD_PERMISSION, WORKLOAD, type_of,
 };
 use crate::observations::{self, Batch, Closing, Invalid, JOURNAL, Line, Opening, RecordError};
 use crate::read::{self, Key, Observation};
@@ -69,12 +70,45 @@ const BAD_REQUEST: &str = "bad-request";
 
 // ---------------------------------------------------------------- representations
 
-/// The identifier of an object of the cluster (006/H3).
+/// The identifier of an object of the cluster (006/H3), as a body written designates it.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 #[schema(as = KubeObjectRef)]
 struct IdRef {
     id: Uuid,
+}
+
+/// A representation whose references are rendered as summaries (spec 006, REQ-006-42),
+/// read as identifiers alone ([`Summary::bare`]) then completed together by [`summarised`].
+trait Refers {
+    /// Calls `f` on each of its references.
+    fn refs(&mut self, f: &mut dyn FnMut(&mut Summary));
+}
+
+/// `items` with each of their references summarised as the caller of `context` may read
+/// it now, its key read at `valid_at` as asserted at `as_of`: one read of the keys for
+/// the page, of the core and of each module referred to, and one authorisation per kind
+/// ([`Summaries::read`]), never one per row. An object the caller may not read, unknown,
+/// or absent at those dates, leaves `{id}` alone.
+async fn summarised<T: Refers>(
+    api: &Api,
+    context: &RequestContext,
+    items: &mut [T],
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> Result<(), Problem> {
+    let mut ids = Vec::new();
+    for item in items.iter_mut() {
+        item.refs(&mut |summary| ids.push(summary.id));
+    }
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let summaries = Summaries::read(api, context, ids, valid_at, as_of).await?;
+    for item in items {
+        item.refs(&mut |summary| *summary = summaries.of(summary.id));
+    }
+    Ok(())
 }
 
 /// A pod seen, which opens an observation.
@@ -163,10 +197,11 @@ struct ObservationDto {
     pod_name: String,
     /// Its Kubernetes UID.
     pod_uid: Uuid,
-    /// The workload its `ownerReferences` climb to.
-    workload: Option<IdRef>,
-    /// The node it ran on.
-    node: Option<IdRef>,
+    /// The workload its `ownerReferences` climb to, summarised as it was at the instant
+    /// asked (`at`), else when the pod was seen (`from`).
+    workload: Option<Summary>,
+    /// The node it ran on, summarised as it was at the same instant.
+    node: Option<Summary>,
     /// Its IP; `null` in `hostNetwork`, where the address is the node's.
     #[schema(value_type = Option<String>)]
     ip: Option<IpAddr>,
@@ -553,8 +588,8 @@ fn observation_dto(o: Observation) -> Result<ObservationDto, Problem> {
         namespace: o.namespace,
         pod_name: o.pod_name,
         pod_uid: o.pod_uid,
-        workload: o.workload.map(|id| IdRef { id }),
-        node: o.node.map(|id| IdRef { id }),
+        workload: o.workload.map(Summary::bare),
+        node: o.node.map(Summary::bare),
         ip: o.ip,
         host_network: o.host_network,
         from: rfc3339(o.from)?,
@@ -576,11 +611,71 @@ fn gone(what: &str) -> Problem {
         .detail(format!("{what} is closed: its journal is no longer read"))
 }
 
-/// A read of the journal: the page asked for in `collection`, read at `moment`.
+/// A read of the journal: the page asked for in `collection`, read at `moment`, about the
+/// instant `at` (the question « who had this address then »), or about each pod when it
+/// was seen.
 struct Asked<'a> {
     page: &'a Page,
     collection: &'a str,
     moment: &'a Moment,
+    at: Option<OffsetDateTime>,
+}
+
+/// `items`, the observations `rows`, with their workload and node summarised as they were
+/// at `at`, else when each pod was seen, and as the caller of `context` may read them now
+/// (spec 006, REQ-006-42; the readability as everywhere, task 33a): their keys in one
+/// statement for the page however many instants, one authorisation per type. One gone
+/// then, or unknown, leaves `{id}` alone, as one the caller may not read.
+async fn journal_summaries(
+    api: &Api,
+    context: &RequestContext,
+    rows: &[Observation],
+    items: &mut [ObservationDto],
+    at: Option<OffsetDateTime>,
+) -> Result<(), Problem> {
+    let asked: Vec<(Uuid, OffsetDateTime)> = rows
+        .iter()
+        .flat_map(|o| {
+            let then = at.unwrap_or(o.from);
+            o.workload
+                .into_iter()
+                .chain(o.node)
+                .map(move |id| (id, then))
+        })
+        .collect();
+    let mut keys: std::collections::HashMap<(Uuid, OffsetDateTime), String> =
+        std::collections::HashMap::new();
+    for (n, key) in crate::keys::at_instants(&api.pool, &asked)
+        .await
+        .map_err(|e| kit::store(&e))?
+    {
+        if let Some(pair) = asked.get(n) {
+            keys.insert(*pair, key);
+        }
+    }
+    let (workload, node) = (
+        Target::Module(type_of(WORKLOAD)),
+        Target::Module(type_of(NODE)),
+    );
+    let workloads = summary::readable(
+        api,
+        context,
+        workload,
+        rows.iter().filter_map(|o| o.workload),
+    )
+    .await?;
+    let nodes = summary::readable(api, context, node, rows.iter().filter_map(|o| o.node)).await?;
+    for (o, item) in rows.iter().zip(items) {
+        let then = at.unwrap_or(o.from);
+        let key = |id: Uuid| keys.get(&(id, then)).cloned();
+        item.workload = o
+            .workload
+            .map(|id| Summary::labelled(workload, id, key(id), &workloads));
+        item.node = o
+            .node
+            .map(|id| Summary::labelled(node, id, key(id), &nodes));
+    }
+    Ok(())
 }
 
 /// The page of `rows` (one more than its size when another page follows), journaled as
@@ -598,6 +693,7 @@ async fn answered(
         page,
         collection,
         moment,
+        at,
     } = *asked;
     let size = usize::from(page.size);
     let mut next = None;
@@ -619,11 +715,14 @@ async fn answered(
         "valid_at": rfc3339(moment.valid_at)?,
     });
     kit::record_read(api, context, JOURNAL, &pods, criteria).await?;
+    let mut items: Vec<ObservationDto> = rows
+        .iter()
+        .cloned()
+        .map(observation_dto)
+        .collect::<Result<_, _>>()?;
+    journal_summaries(api, context, &rows, &mut items, at).await?;
     let body = ListingDto {
-        items: rows
-            .into_iter()
-            .map(observation_dto)
-            .collect::<Result<_, _>>()?,
+        items,
         links: ListingLinks {
             next: next.as_deref(),
         },
@@ -696,6 +795,7 @@ async fn cluster_observations(
         page: &page,
         collection: &collection,
         moment: &moment,
+        at: Some(at),
     };
     answered(&api, &context, &headers, &asked, rows, reason).await
 }
@@ -758,6 +858,7 @@ async fn workload_observations(
         page: &page,
         collection: &collection,
         moment: &moment,
+        at: None,
     };
     answered(&api, &context, &headers, &asked, rows, None).await
 }

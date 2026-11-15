@@ -6363,14 +6363,6 @@ export interface components {
       /** @description Open streams per identity. */
       streams_per_identity: number;
     };
-    /** @description An object of the module machines in a chain of execution, by its identifier. */
-    ExecutionHostRef: {
-      /**
-       * Format: uuid
-       * @description Identifier.
-       */
-      id: string;
-    };
     /** @description The source of the expected values of a property (REQ-003-23). */
     Expected: {
       /** @description How its values apply. */
@@ -7130,10 +7122,10 @@ export interface components {
        * @description The window of a batch of its connector, in seconds, 1 to 300.
        */
       batch_window_seconds: number;
-      connector_group?: components["schemas"]["KubeObjectRef"] | null;
+      connector_group?: components["schemas"]["RightsGroupRef"] | null;
       /** @description Whether a node with no machine creates one. */
       create_node_machines: boolean;
-      external_domain?: components["schemas"]["KubeObjectRef"] | null;
+      external_domain?: components["schemas"]["Summary"] | null;
       /** @description Its URL. */
       href: string;
       /**
@@ -7141,22 +7133,22 @@ export interface components {
        * @description Identifier.
        */
       id: string;
-      machines_cluster?: components["schemas"]["KubeObjectRef"] | null;
-      owner?: components["schemas"]["KubeObjectRef"] | null;
+      machines_cluster?: components["schemas"]["Summary"] | null;
+      owner?: components["schemas"]["Summary"] | null;
       /** @description The containers of the core that hold its pod ranges. */
-      pod_containers: components["schemas"]["KubeObjectRef"][];
+      pod_containers: components["schemas"]["Summary"][];
       /** @description The addressing domain of its pods (and of its nodes and namespaces). */
-      pod_domain: components["schemas"]["KubeObjectRef"];
+      pod_domain: components["schemas"]["Summary"];
       /**
        * Format: int32
        * @description The days its observations are kept, 1 to 400.
        */
       retention_days: number;
       /** @description The addressing domain of its services. */
-      service_domain: components["schemas"]["KubeObjectRef"];
+      service_domain: components["schemas"]["Summary"];
       /** @description The networks of the core of its services. */
-      service_networks: components["schemas"]["KubeObjectRef"][];
-      site?: components["schemas"]["KubeObjectRef"] | null;
+      service_networks: components["schemas"]["Summary"][];
+      site?: components["schemas"]["Summary"] | null;
       /** @description Slug, unique among the living clusters. */
       slug: string;
       /** @description The label keys it tracks beyond those of the module. */
@@ -7272,11 +7264,14 @@ export interface components {
      *     `machines.hosted_in`), all at the date.
      */
     KubeExecutionLink: {
-      hypervisor: components["schemas"]["ExecutionHostRef"] | null;
-      machine: components["schemas"]["ExecutionHostRef"] | null;
-      /** @description The node, from the journal. */
-      node: components["schemas"]["KubeObjectRef"];
-      virtualization_cluster: components["schemas"]["ExecutionHostRef"] | null;
+      hypervisor: components["schemas"]["Summary"] | null;
+      machine: components["schemas"]["Summary"] | null;
+      /**
+       * @description The node, from the journal, summarised at the date of the chain (`{id}` alone for
+       *     a node the caller may not read or absent then).
+       */
+      node: components["schemas"]["Summary"];
+      virtualization_cluster: components["schemas"]["Summary"] | null;
     };
     /** @description An ingress of a namespace (REQ-019-10). */
     KubeIngress: {
@@ -7286,11 +7281,11 @@ export interface components {
        * @description Its addresses of the core, in the external domain of its cluster, else its service
        *     domain.
        */
-      addresses: components["schemas"]["KubeObjectRef"][];
+      addresses: components["schemas"]["Summary"][];
       /** @description Its class (`ingressClassName`). */
       class?: string | null;
       /** @description The cluster of its namespace. */
-      cluster: components["schemas"]["KubeObjectRef"];
+      cluster: components["schemas"]["Summary"];
       /** @description Its URL. */
       href: string;
       /**
@@ -7301,7 +7296,7 @@ export interface components {
       /** @description Its name, unique in its namespace at every instant. */
       name: string;
       /** @description Its namespace. */
-      namespace: components["schemas"]["KubeObjectRef"];
+      namespace: components["schemas"]["Summary"];
       /** @description Its routes, a sorted set. */
       rules: components["schemas"]["KubeIngressRoute"][];
       /** @description The hosts of its TLS. */
@@ -7335,7 +7330,7 @@ export interface components {
       /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
       absent_since?: string | null;
       /** @description Its cluster. */
-      cluster: components["schemas"]["KubeObjectRef"];
+      cluster: components["schemas"]["Summary"];
       /** @description Its URL. */
       href: string;
       /**
@@ -7367,7 +7362,7 @@ export interface components {
       /** @description Its addresses as read. */
       addresses: components["schemas"]["KubeNodeAddress"][];
       /** @description Its cluster. */
-      cluster: components["schemas"]["KubeObjectRef"];
+      cluster: components["schemas"]["Summary"];
       /** @description Its URL. */
       href: string;
       /**
@@ -7375,13 +7370,13 @@ export interface components {
        * @description Identifier.
        */
       id: string;
-      machine?: components["schemas"]["KubeObjectRef"] | null;
+      machine?: components["schemas"]["Summary"] | null;
       /** @description Its name, unique in its cluster at every instant. */
       name: string;
       /** @description Its pod ranges as read (`spec.podCIDRs`). */
       pod_cidrs: string[];
       /** @description The networks of the core of its pod ranges. */
-      ranges: components["schemas"]["KubeObjectRef"][];
+      ranges: components["schemas"]["Summary"][];
       /**
        * Format: uuid
        * @description Its `uid` in Kubernetes.
@@ -7402,7 +7397,7 @@ export interface components {
       /** @description The address or the name. */
       value: string;
     };
-    /** @description The identifier of an object of the cluster (006/H3). */
+    /** @description The identifier of an object of the cluster (006/H3), as a body written designates it. */
     KubeObjectRef: {
       /** Format: uuid */
       id: string;
@@ -7422,7 +7417,7 @@ export interface components {
       ip?: string | null;
       /** @description Its namespace, by name. */
       namespace: string;
-      node?: components["schemas"]["KubeObjectRef"] | null;
+      node?: components["schemas"]["Summary"] | null;
       /**
        * Format: uuid
        * @description The batch that opened the observation, as its event `observation.batch.recorded`
@@ -7438,7 +7433,7 @@ export interface components {
       pod_uid: string;
       /** @description When it was gone (RFC 3339); `null` while it is still seen. */
       until?: string | null;
-      workload?: components["schemas"]["KubeObjectRef"] | null;
+      workload?: components["schemas"]["Summary"] | null;
     };
     /**
      * @description A batch of the connector of a cluster: at most `batch_max_operations` lines of the
@@ -7527,11 +7522,11 @@ export interface components {
       /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
       absent_since?: string | null;
       /** @description The cluster of its namespace. */
-      cluster: components["schemas"]["KubeObjectRef"];
+      cluster: components["schemas"]["Summary"];
       /** @description Its addresses of the core in the service domain of its cluster. */
-      cluster_addresses: components["schemas"]["KubeObjectRef"][];
+      cluster_addresses: components["schemas"]["Summary"][];
       /** @description Its `LoadBalancer` addresses and `externalIPs`, addresses of the core. */
-      external_addresses: components["schemas"]["KubeObjectRef"][];
+      external_addresses: components["schemas"]["Summary"][];
       /** @description The name it stands for, of an `external_name` service. */
       external_name?: string | null;
       /** @description Without a cluster address (`clusterIP: None`). */
@@ -7546,7 +7541,7 @@ export interface components {
       /** @description Its name, unique in its namespace at every instant. */
       name: string;
       /** @description Its namespace. */
-      namespace: components["schemas"]["KubeObjectRef"];
+      namespace: components["schemas"]["Summary"];
       /** @description Its ports, a sorted set. */
       ports: components["schemas"]["KubeServicePort"][];
       /** @description `cluster_ip`, `node_port`, `load_balancer` or `external_name`. */
@@ -7562,7 +7557,7 @@ export interface components {
        */
       readonly version?: string;
       /** @description The workloads it selects, as the connector computed them. */
-      workloads: components["schemas"]["KubeObjectRef"][];
+      workloads: components["schemas"]["Summary"][];
     };
     /** @description A port of a service (`spec.ports`). */
     KubeServicePort: {
@@ -7591,7 +7586,7 @@ export interface components {
       /** @description Since when it is absent from its cluster, RFC 3339; `null` while present. */
       absent_since?: string | null;
       /** @description The cluster of its namespace. */
-      cluster: components["schemas"]["KubeObjectRef"];
+      cluster: components["schemas"]["Summary"];
       /** @description Whether its pods share the network of their node (`hostNetwork`). */
       host_network: boolean;
       /** @description Its URL. */
@@ -7610,7 +7605,7 @@ export interface components {
       /** @description Its name, unique by kind in its namespace at every instant. */
       name: string;
       /** @description Its namespace. */
-      namespace: components["schemas"]["KubeObjectRef"];
+      namespace: components["schemas"]["Summary"];
       /** @description The ports its containers declare, a sorted set. */
       ports: components["schemas"]["KubeWorkloadPort"][];
       /** @description Its service account. */
@@ -10194,6 +10189,17 @@ export interface components {
       object: string;
       /** @description These values. */
       self: string;
+    };
+    /**
+     * @description A group of the rights by its identifier alone: no object of the referential, it has no
+     *     summary (spec 006, task 33e; the guard of task 33f exempts it).
+     */
+    RightsGroupRef: {
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
     };
     /** @description A role. */
     RoleItem: {

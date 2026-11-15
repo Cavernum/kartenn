@@ -1114,12 +1114,44 @@ routeur complet, sauf mention « vrai TCP ».
   dit le message de serde (« invalid value: map, expected map with a single key ») avec
   un `pointer` vide, au lieu de `/host` et de la forme attendue (dans `handler.rs`,
   hors de cette tâche).
-- [ ] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
+- [x] 33e. Kube : grappes, miroirs, chaîne d'exécution, observations — verify :
   `k-check -p kartenn-kube`
   - où : `crates/kartenn-kube/src/rest.rs` (`IdRef`), `rest/clusters.rs`,
     `rest/mirrors.rs`, `rest/chain.rs` (`HostRef`) ; `ModuleHandler::keys` et
     `Summary::labelled` comme la 33d
   - dépend de : 33a, 33b
+  fait : `crates/kartenn-kube/src/keys.rs` (nouveau : clés des objets du module aux dates,
+  une requête pour tous) et `handler.rs` (`ModuleHandler::keys`) ; `rest.rs` (`Refers`,
+  `summarised` : les références d'une page lues `{id}` puis résumées ensemble par
+  `Summaries::read`, une lecture des clés et une autorisation par type pour la page ;
+  `journal_summaries` : `ObservationDto` résumé par `keys::at_instants`, une requête
+  pour la page quel que soit le nombre d'instants, et `summary::readable` par type) ;
+  `rest/clusters.rs`, `rest/mirrors.rs` (lecture et liste de la grappe et des cinq
+  miroirs), `rest/chain.rs` (`HostRef` retiré, `LinkDto` en résumés) ; `IdRef`
+  (`KubeObjectRef`) ne reste qu'aux corps écrits ; `connector_group` d'une grappe en
+  `RightsGroupRef` ; contrat et `schema.d.ts` des deux SDK régénérés. Tests :
+  `tests/it/observations/route/summaries.rs` `a_mirror_summarises_what_its_caller_may_read`
+  (charge, nœud, service, espace de noms), `a_cluster_leaves_alike_an_unreadable_reference_and_an_absent_one`,
+  `a_journal_names_its_objects_as_they_were_at_the_instant_asked`,
+  `a_chain_leaves_alike_an_unreadable_node_and_a_gone_one` (statut, en-têtes hors
+  `request-id` et octets identiques), `an_anomaly_of_a_setting_carries_the_key_of_the_module`
+  (clé d'un réglage par `/v1/anomalies`) ; `route/clusters.rs`, `route/mirrors.rs`,
+  `route/chain.rs` mis à jour.
+  choix : clé d'un objet du module = son seul nom (nœud, espace de noms, charge, service,
+  ingress), sans grappe ni espace de noms, la charge sans sa sorte (son `href` la dit) ;
+  slug pour une grappe, rendu en `label` seul (le crochet `keys` ne donne qu'un `label`,
+  pas de `slug` pour un type de module) ; réglages : `label_key` (étiquette suivie),
+  `axis_key` (valeurs admises, sans l'espace de noms), `<clé>=<valeur> → <axe>`
+  (correspondance) ; `Summaries::read` plutôt qu'une jointure par lié (les liés couvrent
+  noyau, kube et machines) ; clés lues aux dates de la route, sauf le journal (revue,
+  décision de la session principale) : ses clés à l'instant `at` de la question (route
+  de la grappe), à défaut à l'instant où chaque pod fut vu (`from`, route d'une charge),
+  par les assertions courantes, la lisibilité jugée maintenant comme ailleurs (33a) ; un
+  hôte illisible de la chaîne reste `null` (Q-019-31), son type ne se dit pas ;
+  `connector_group`, un groupe des droits et non un objet du référentiel, reste `{id}`
+  sous un schéma distinct, `RightsGroupRef` (décision provisoire, voir 33f).
+  reste : les machines d'un nœud et de la chaîne restent `{id}` jusqu'à la fusion de la
+  33d (`keys` de `machines`).
 - [ ] 33f. Flux et politique, et garde du contrat (aucun schéma de réponse ne porte une
   référence `{id}` seule hors résumé) — verify : `k-check -p kartenn-flow`,
   `k-check -p kartenn-policy`, `k-check -p kartenn-rest contract`
@@ -1128,6 +1160,11 @@ routeur complet, sauf mention « vrai TCP ».
     `PolicyAxisResolution`, `PolicyReportItem`) ; et l'explication d'une valeur
     (`crates/kartenn-rest/src/properties.rs`, `explanation`, `raw_value`) dont une
     référence est encore brute (reste de la 33b) : `Summaries::read`
+  - exemption de la garde : `RightsGroupRef` (le groupe de connecteur d'une grappe kube,
+    33e), un groupe des droits qui n'est pas un objet du référentiel et n'a pas de
+    résumé ; la garde l'exempte avec cette raison. Question laissée ouverte (antérieure
+    à la 33e) : un lecteur de la grappe sans droit sur les droits voit l'identifiant du
+    groupe.
   - dépend de : 33a–33e
 - [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
   (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées

@@ -25,6 +25,8 @@ pub mod handler;
 #[cfg(feature = "pg")]
 pub mod jobs;
 #[cfg(feature = "pg")]
+mod keys;
+#[cfg(feature = "pg")]
 mod lookalike;
 #[cfg(feature = "pg")]
 pub mod observations;
