@@ -1208,7 +1208,7 @@ routeur complet, sauf mention « vrai TCP ».
   reste : aucun parcours du shell ne lit ses demandes sans le droit (maquettes seules) ; le
   compteur de l'accueil se met en cache par portée de lecture et par sujet : un retrait de
   `flow.request` s'y voit au recalcul suivant (révision), non mesuré (tâche 39).
-- [ ] 39. Compteur de l'accueil après un droit retiré, et tests manquants de la 38 (relevés
+- [x] 39. Compteur de l'accueil après un droit retiré, et tests manquants de la 38 (relevés
   par sa revue) : la clé `Own` du cache de `GET /v1/stats` ne porte pas les entités où le
   sujet tient `flow.request` ; un retrait ne se voit qu'au recalcul suivant (au moins
   30 s, et seulement quand la révision de l'outbox avance), et une liaison qui arrive à
@@ -1226,3 +1226,30 @@ routeur complet, sauf mention « vrai TCP ».
     (`requested_on`, doc du module ligne 10, `flows_seen` vers 837) ; test voisin
     `flow/tests/it/rest.rs` `a_requester_without_flow_request_reads_its_rows_as_absent`
   - dépend de : 38
+  fait : `kartenn-service` `StatsContributor::permissions` (méthode par défaut, vide) ;
+  `kartenn-flow/src/stats.rs` la rend (`flow.request`) ; `kartenn-rest/src/stats.rs`
+  `held` (là où le sujet tient ces droits à la requête, `rbac::visibilities_on`, en
+  empreinte) dans `subject_key`, la clé `Own` ; commentaires de `kartenn-flow/src/rest.rs`
+  (module, `flows_seen`) ; design 024 (« Instantanés »). Tests :
+  `flow/tests/it/requester.rs` — `the_home_counter_follows_a_withdrawn_flow_request` et
+  `the_home_counter_follows_a_binding_ended_by_its_date` (rouges avant : le compteur
+  servi juste après le retrait, ou après la fin de la liaison par sa seule date, restait
+  celui de l'instantané fait avec le droit ; le cas « à vérifier » est donc réel, et la clé
+  le couvre : le droit se lit à la requête) ; `a_right_on_another_entity_reads_none_of_the_rows`
+  (refus partiel), `the_confinement_of_the_issuer_bounds_the_rows_of_the_requester`,
+  `a_request_naming_no_entity_is_read_with_the_right_everywhere` (verts d'emblée : le code
+  de la 38 tenait).
+  choix : un port générique (les modules déclarent les droits dont leurs compteurs
+  dépendent) plutôt que `flow.request` codé dans `kartenn-rest` ; empreinte de la
+  visibilité entière (portées et confinement, triés) plutôt que des seules entités ; une
+  requête de plus par appel de `GET /v1/stats`, une seule pour tous les droits ; demande
+  sans entité simulée par une référence locale (`{"local": 1}`) dans la proposition gardée,
+  `POST /v1/flows` exigeant l'entité ; aucun corps ni contrat changé.
+  reste : un recalcul en arrière-plan d'une clé relit les droits à son heure, pas ceux de
+  la clé : un droit retiré puis rendu puis retiré dans les 10 min où la clé reste active
+  peut resservir une fois le compteur fait avec le droit (fuite d'un nombre, fenêtre
+  étroite ; fermer : porter l'empreinte dans l'origine et jeter un recalcul dont
+  l'empreinte diffère) ; horloge du cache, hors de cette tâche : un compteur que la seule
+  date change (flux échu, dérogation qui entre dans les 30 jours) attend une écriture ou
+  le jour UTC suivant (proposition : un âge maximal d'instantané, quelques minutes, dans
+  `Snapshots::due`).
