@@ -10700,8 +10700,11 @@ export interface components {
     };
     /** @description A VLAN (REQ-008-14). */
     Vlan: {
-      /** @description Its group. */
-      group: components["schemas"]["VlanObjectRef"];
+      /**
+       * @description Its group, `{id}` alone if the caller may not read it or if it was absent at the
+       *     dates of the read (REQ-006-42).
+       */
+      group: components["schemas"]["Summary"];
       /** @description Its URL. */
       href: string;
       /**
@@ -10770,7 +10773,7 @@ export interface components {
     /** @description A group of VLANs (REQ-008-12). */
     VlanGroup: {
       /** @description Anchor. */
-      anchor: components["schemas"]["VlanGroupAnchor"];
+      anchor: components["schemas"]["VlanGroupAnchorSummary"];
       /** @description Its URL. */
       href: string;
       /**
@@ -10796,7 +10799,10 @@ export interface components {
        */
       vid_min: number;
     };
-    /** @description The anchor of a group (V3): an entity, a site or an addressing domain. */
+    /**
+     * @description The anchor of a group (V3), as a write names it: an entity, a site or an addressing
+     *     domain.
+     */
     VlanGroupAnchor:
       | {
           /** @description An entity. */
@@ -10809,6 +10815,24 @@ export interface components {
       | {
           /** @description An addressing domain. */
           domain: components["schemas"]["VlanObjectRef"];
+        };
+    /**
+     * @description The anchor of a group (V3) as a read serves it: the summary of its entity, site or
+     *     addressing domain (REQ-006-42), `{id}` alone if the caller may not read it or if it
+     *     was absent at the dates of the read.
+     */
+    VlanGroupAnchorSummary:
+      | {
+          /** @description An entity. */
+          entity: components["schemas"]["Summary"];
+        }
+      | {
+          /** @description A site. */
+          site: components["schemas"]["Summary"];
+        }
+      | {
+          /** @description An addressing domain. */
+          domain: components["schemas"]["Summary"];
         };
     /** @description The body of the creation of a group. */
     VlanGroupCreation: {
@@ -10872,14 +10896,14 @@ export interface components {
     /** @description The next free VID of a group (REQ-008-20). */
     VlanNextFree: {
       /** @description The group. */
-      group: components["schemas"]["VlanObjectRef"];
+      group: components["schemas"]["Summary"];
       /**
        * Format: int32
        * @description The smallest free VID, at or after `from`.
        */
       vid: number;
     };
-    /** @description The identifier of an object, as the operations name it. */
+    /** @description The identifier of an object, as the operations name it (in the body of a write). */
     VlanObjectRef: {
       /**
        * Format: uuid
@@ -10895,7 +10919,7 @@ export interface components {
        */
       free: number;
       /** @description The group. */
-      group: components["schemas"]["VlanObjectRef"];
+      group: components["schemas"]["Summary"];
       /**
        * Format: int32
        * @description VIDs of reserved VLANs.
