@@ -36,7 +36,7 @@ const card: MachineCard = {
   kind: "virtual",
   href: `/v1/machines/${M1}`,
   site: { id: S1 },
-  host: { cluster: { id: "not-a-uuid" } },
+  host: { id: "not-a-uuid", kind: "cluster" },
   interfaces: [
     {
       id: I1,

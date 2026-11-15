@@ -643,6 +643,42 @@ pub async fn edges_of(
         .collect())
 }
 
+/// The natural key, as a human reads it, of each of `objects` that is a machine, a cluster
+/// or an interface valid at `valid_at` as asserted at `as_of` (spec 006, REQ-006-42): the
+/// name of a machine, the slug of a cluster, the name of an interface alone (its machine
+/// is another object). One query for them all; an object of no such type, or absent then,
+/// is left out.
+///
+/// # Errors
+///
+/// The store's error.
+pub async fn keys_of(
+    conn: &mut PgConnection,
+    objects: &[Uuid],
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<(Uuid, String)>, StoreError> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let machine = snapshot("machines.machine", "id, name");
+    let cluster = snapshot("machines.cluster", "id, slug");
+    let interface = snapshot("machines.interface", "id, name");
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT id, name::text FROM {machine} m WHERE id = ANY($3)
+         UNION ALL
+         SELECT id, slug::text FROM {cluster} c WHERE id = ANY($3)
+         UNION ALL
+         SELECT id, name::text FROM {interface} i WHERE id = ANY($3)"
+    )))
+    .bind(time(valid_at))
+    .bind(as_of.map(time))
+    .bind(objects)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// An instant of PostgreSQL as the core reads it.
 #[must_use]
 pub fn instant(t: OffsetDateTime) -> Instant {

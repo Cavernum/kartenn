@@ -5912,8 +5912,8 @@ export interface components {
        * @description Identifier.
        */
       id: string;
-      owner?: components["schemas"]["MachinesObjectRef"] | null;
-      site?: components["schemas"]["MachinesObjectRef"] | null;
+      owner?: components["schemas"]["Summary"] | null;
+      site?: components["schemas"]["Summary"] | null;
       /** @description Slug, unique among the living clusters. */
       slug: string;
       /**
@@ -7018,7 +7018,7 @@ export interface components {
       /** @description Its EUI-48, canonical (`aa:bb:cc:dd:ee:ff`). */
       mac?: string | null;
       /** @description Its machine. */
-      machine: components["schemas"]["MachinesObjectRef"];
+      machine: components["schemas"]["Summary"];
       /** @description Its name, unique on its machine. */
       name: string;
       /**
@@ -7068,12 +7068,12 @@ export interface components {
     };
     /** @description The 802.1Q mode of an interface (REQ-009-12). */
     InterfaceVlan: {
-      access?: components["schemas"]["MachinesObjectRef"] | null;
+      access?: components["schemas"]["Summary"] | null;
       /** @description `none`, `access` or `trunk`. */
       mode: string;
-      native?: components["schemas"]["MachinesObjectRef"] | null;
+      native?: components["schemas"]["Summary"] | null;
       /** @description The tagged VLANs of a trunk. */
-      tagged: components["schemas"]["MachinesObjectRef"][];
+      tagged: components["schemas"]["Summary"][];
     };
     /** @description The 802.1Q mode of an interface, as written. */
     InterfaceVlanInput: {
@@ -8400,7 +8400,7 @@ export interface components {
     };
     /** @description A machine (REQ-009-2). */
     Machine: {
-      host?: components["schemas"]["MachineHost"] | null;
+      host?: components["schemas"]["MachineHostSummary"] | null;
       /** @description Its URL. */
       href: string;
       /**
@@ -8410,11 +8410,11 @@ export interface components {
       id: string;
       /** @description `physical`, `virtual`, `container` or `appliance`. */
       kind: string;
-      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      member_of?: components["schemas"]["Summary"] | null;
       /** @description Host name, lower case, unique per resolved owner. */
       name: string;
-      owner?: components["schemas"]["MachinesObjectRef"] | null;
-      site?: components["schemas"]["MachinesObjectRef"] | null;
+      owner?: components["schemas"]["Summary"] | null;
+      site?: components["schemas"]["Summary"] | null;
       /**
        * Format: uuid
        * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
@@ -8424,11 +8424,11 @@ export interface components {
     /** @description An address attached to an interface (REQ-009-16). */
     MachineAddress: {
       /** @description The address of the core. */
-      address: components["schemas"]["MachinesObjectRef"];
+      address: components["schemas"]["Summary"];
       /** @description The URL of the address. */
       href: string;
       /** @description The interface that holds it. */
-      interface: components["schemas"]["MachinesObjectRef"];
+      interface: components["schemas"]["Summary"];
       /** @description The name of the interface. */
       interface_name: string;
       /** @description Whether it is the primary address of its family on the interface. */
@@ -8438,7 +8438,7 @@ export interface components {
     };
     /** @description The card of a machine: the machine, its interfaces and their addresses (REQ-009-15). */
     MachineCard: {
-      host?: components["schemas"]["MachineHost"] | null;
+      host?: components["schemas"]["MachineHostSummary"] | null;
       /** @description Its URL. */
       href: string;
       /**
@@ -8450,11 +8450,11 @@ export interface components {
       interfaces: components["schemas"]["MachineCardInterface"][];
       /** @description Its kind. */
       kind: string;
-      member_of?: components["schemas"]["MachinesObjectRef"] | null;
+      member_of?: components["schemas"]["Summary"] | null;
       /** @description Host name. */
       name: string;
-      owner?: components["schemas"]["MachinesObjectRef"] | null;
-      site?: components["schemas"]["MachinesObjectRef"] | null;
+      owner?: components["schemas"]["Summary"] | null;
+      site?: components["schemas"]["Summary"] | null;
       /**
        * Format: uuid
        * @description The version of the object: the changeset that last wrote it or its properties, the version `If-Match` names (the first part of its `ETag`), compared with the `changeset` of an event. Stated by the read by identifier and the pages of its collection.
@@ -8509,7 +8509,10 @@ export interface components {
       /** @description The end of the period of the write, RFC 3339; unbounded by default. */
       valid_to?: string | null;
     };
-    /** @description The host of a virtual machine or a container (M5): a machine or a cluster. */
+    /**
+     * @description The host of a virtual machine or a container (M5) as a write names it: a machine or a
+     *     cluster.
+     */
     MachineHost:
       | {
           /** @description A machine. */
@@ -8519,6 +8522,32 @@ export interface components {
           /** @description A cluster. */
           cluster: components["schemas"]["MachinesObjectRef"];
         };
+    /**
+     * @description The kind of the host of a machine.
+     * @enum {string}
+     */
+    MachineHostKind: "machine" | "cluster";
+    /**
+     * @description The host of a virtual machine or a container (M5) as a read refers to it (spec 006,
+     *     REQ-006-42): the summary of a machine or a cluster with its kind; `{id}` alone for a
+     *     host the caller may not read or that was absent then, which says not its kind.
+     */
+    MachineHostSummary: {
+      /** @description Its URL; absent with `label`. */
+      href?: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description `machine` or `cluster`; absent with `label`. */
+      kind?: components["schemas"]["MachineHostKind"];
+      /**
+       * @description Its natural key: the name of a machine, the slug of a cluster; absent if the caller
+       *     may not read the host or if it was absent then.
+       */
+      label?: string;
+    };
     /**
      * @description The body of the modification of a machine (JSON Merge Patch); `host: null` and
      *     `member_of: null` remove them. Its owner and site change by the operations of the core.

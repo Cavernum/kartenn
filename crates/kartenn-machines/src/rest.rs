@@ -22,9 +22,12 @@ use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
     ProblemKind, documented, listing_of, next_href, op, queryable, respond_page, schemas_of,
 };
+use kartenn_rest::objects::Target;
+use kartenn_rest::summary::{Readable, Summaries, Summary};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
+use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::rbac::{ReadScope, readable};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -60,11 +63,8 @@ pub struct IdRef {
     pub id: Uuid,
 }
 
-fn id_ref(id: Option<Uuid>) -> Option<IdRef> {
-    id.map(|id| IdRef { id })
-}
-
-/// The host of a virtual machine or a container (M5): a machine or a cluster.
+/// The host of a virtual machine or a container (M5) as a write names it: a machine or a
+/// cluster.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schema(as = MachineHost)]
@@ -73,6 +73,40 @@ pub enum HostRef {
     Machine(IdRef),
     /// A cluster.
     Cluster(IdRef),
+}
+
+/// The kind of the host of a machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = MachineHostKind)]
+pub enum HostKind {
+    /// A machine.
+    Machine,
+    /// A cluster.
+    Cluster,
+}
+
+/// The host of a virtual machine or a container (M5) as a read refers to it (spec 006,
+/// REQ-006-42): the summary of a machine or a cluster with its kind; `{id}` alone for a
+/// host the caller may not read or that was absent then, which says not its kind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = MachineHostSummary)]
+pub struct HostSummary {
+    /// Identifier.
+    pub id: Uuid,
+    /// `machine` or `cluster`; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub kind: Option<HostKind>,
+    /// Its natural key: the name of a machine, the slug of a cluster; absent if the caller
+    /// may not read the host or if it was absent then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub label: Option<String>,
+    /// Its URL; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub href: Option<String>,
 }
 
 /// A cluster of machines (REQ-009-3).
@@ -84,9 +118,9 @@ pub struct ClusterDto {
     /// Slug, unique among the living clusters.
     pub slug: String,
     /// Its resolved owner.
-    pub owner: Option<IdRef>,
+    pub owner: Option<Summary>,
     /// Its resolved site.
-    pub site: Option<IdRef>,
+    pub site: Option<Summary>,
     /// Its URL.
     pub href: String,
 }
@@ -102,13 +136,13 @@ pub struct MachineDto {
     /// `physical`, `virtual`, `container` or `appliance`.
     pub kind: String,
     /// Its host.
-    pub host: Option<HostRef>,
+    pub host: Option<HostSummary>,
     /// The cluster it is a member of.
-    pub member_of: Option<IdRef>,
+    pub member_of: Option<Summary>,
     /// Its resolved owner.
-    pub owner: Option<IdRef>,
+    pub owner: Option<Summary>,
     /// Its resolved site.
-    pub site: Option<IdRef>,
+    pub site: Option<Summary>,
     /// Its URL.
     pub href: String,
 }
@@ -120,11 +154,11 @@ pub struct VlanDto {
     /// `none`, `access` or `trunk`.
     pub mode: String,
     /// The VLAN of an access port.
-    pub access: Option<IdRef>,
+    pub access: Option<Summary>,
     /// The untagged VLAN of a trunk.
-    pub native: Option<IdRef>,
+    pub native: Option<Summary>,
     /// The tagged VLANs of a trunk.
-    pub tagged: Vec<IdRef>,
+    pub tagged: Vec<Summary>,
 }
 
 /// An interface of a machine (REQ-009-6).
@@ -134,7 +168,7 @@ pub struct InterfaceDto {
     /// Identifier.
     pub id: Uuid,
     /// Its machine.
-    pub machine: IdRef,
+    pub machine: Summary,
     /// Its name, unique on its machine.
     pub name: String,
     /// Its EUI-48, canonical (`aa:bb:cc:dd:ee:ff`).
@@ -158,11 +192,11 @@ pub struct InterfaceDto {
 #[schema(as = MachineAddress)]
 pub struct AddressDto {
     /// The interface that holds it.
-    pub interface: IdRef,
+    pub interface: Summary,
     /// The name of the interface.
     pub interface_name: String,
     /// The address of the core.
-    pub address: IdRef,
+    pub address: Summary,
     /// Its value, without prefix length.
     pub value: String,
     /// Whether it is the primary address of its family on the interface.
@@ -212,13 +246,13 @@ pub struct MachineCard {
     /// Its kind.
     pub kind: String,
     /// Its host.
-    pub host: Option<HostRef>,
+    pub host: Option<HostSummary>,
     /// The cluster it is a member of.
-    pub member_of: Option<IdRef>,
+    pub member_of: Option<Summary>,
     /// Its resolved owner.
-    pub owner: Option<IdRef>,
+    pub owner: Option<Summary>,
     /// Its resolved site.
-    pub site: Option<IdRef>,
+    pub site: Option<Summary>,
     /// Its interfaces the caller may read, by name.
     pub interfaces: Vec<CardInterface>,
     /// Its URL.
@@ -525,53 +559,93 @@ const CLUSTER_SELECT: &str = "x.id, x.slug, kartenn_owner(x.id, $1), kartenn_sit
 const INTERFACE_SELECT: &str = "x.id, x.machine_id, x.name, x.mac::text AS mac, x.enabled, \
      x.vlan_mode, x.access_vlan_id, x.native_vlan_id, x.tagged_vlan_ids";
 
-fn cluster_dto((id, slug, owner, site): ClusterRow) -> ClusterDto {
+/// The summaries of the objects that rows read at `moment` refer to, `links` (spec 006,
+/// REQ-006-42): their keys read together, one query for the core and one per module, and
+/// one authorisation per kind, whatever the number of rows; `{id}` alone for an object the
+/// caller may not read or absent at the dates of the read.
+async fn linked(
+    api: &Api,
+    context: &RequestContext,
+    moment: &Moment,
+    links: impl IntoIterator<Item = Uuid>,
+) -> Result<Summaries, Problem> {
+    Summaries::read(api, context, links, moment.valid_at, moment.as_of).await
+}
+
+/// The objects a cluster refers to: its owner and its site.
+fn cluster_links(row: &ClusterRow) -> impl Iterator<Item = Uuid> {
+    [row.2, row.3].into_iter().flatten()
+}
+
+/// The objects a machine refers to: its host, its cluster, its owner and its site.
+fn machine_links(row: &MachineRow) -> impl Iterator<Item = Uuid> {
+    [row.3, row.4, row.5, row.6, row.7].into_iter().flatten()
+}
+
+/// The objects an interface refers to: its machine and its VLANs.
+fn interface_links(row: &InterfaceRow) -> impl Iterator<Item = Uuid> + '_ {
+    [Some(row.machine_id), row.access_vlan_id, row.native_vlan_id]
+        .into_iter()
+        .flatten()
+        .chain(row.tagged_vlan_ids.iter().copied())
+}
+
+fn cluster_dto((id, slug, owner, site): ClusterRow, linked: &Summaries) -> ClusterDto {
     ClusterDto {
         id,
         slug,
-        owner: id_ref(owner),
-        site: id_ref(site),
+        owner: owner.map(|id| linked.of(id)),
+        site: site.map(|id| linked.of(id)),
         href: format!("/v1/clusters/{id}"),
     }
 }
 
-fn host(machine: Option<Uuid>, cluster: Option<Uuid>) -> Option<HostRef> {
-    match (machine, cluster) {
-        (Some(id), _) => Some(HostRef::Machine(IdRef { id })),
-        (None, Some(id)) => Some(HostRef::Cluster(IdRef { id })),
-        (None, None) => None,
-    }
+/// The host of a machine, by its column: its kind said with its key only, for a host the
+/// caller may read.
+fn host(machine: Option<Uuid>, cluster: Option<Uuid>, linked: &Summaries) -> Option<HostSummary> {
+    let (id, kind) = match (machine, cluster) {
+        (Some(id), _) => (id, HostKind::Machine),
+        (None, Some(id)) => (id, HostKind::Cluster),
+        (None, None) => return None,
+    };
+    let Summary { label, href, .. } = linked.of(id);
+    Some(HostSummary {
+        id,
+        kind: label.is_some().then_some(kind),
+        label,
+        href,
+    })
 }
 
-fn machine_dto(row: MachineRow) -> MachineDto {
+fn machine_dto(row: MachineRow, linked: &Summaries) -> MachineDto {
     let (id, name, kind, host_machine, host_cluster, member, owner, site) = row;
     MachineDto {
         id,
         name,
         kind,
-        host: host(host_machine, host_cluster),
-        member_of: id_ref(member),
-        owner: id_ref(owner),
-        site: id_ref(site),
+        host: host(host_machine, host_cluster, linked),
+        member_of: member.map(|id| linked.of(id)),
+        owner: owner.map(|id| linked.of(id)),
+        site: site.map(|id| linked.of(id)),
         href: format!("/v1/machines/{id}"),
     }
 }
 
-fn interface_dto(row: InterfaceRow) -> InterfaceDto {
+fn interface_dto(row: InterfaceRow, linked: &Summaries) -> InterfaceDto {
     InterfaceDto {
         id: row.id,
-        machine: IdRef { id: row.machine_id },
+        machine: linked.of(row.machine_id),
         name: row.name,
         mac: row.mac,
         enabled: row.enabled,
         vlan: VlanDto {
             mode: row.vlan_mode,
-            access: id_ref(row.access_vlan_id),
-            native: id_ref(row.native_vlan_id),
+            access: row.access_vlan_id.map(|id| linked.of(id)),
+            native: row.native_vlan_id.map(|id| linked.of(id)),
             tagged: row
                 .tagged_vlan_ids
                 .into_iter()
-                .map(|id| IdRef { id })
+                .map(|id| linked.of(id))
                 .collect(),
         },
         addresses: row.addresses.map(|held| held.0),
@@ -746,7 +820,11 @@ async fn list_clusters(
         criteria(NAME, &page, &moment),
     )
     .await?;
-    let items: Vec<ClusterDto> = rows.into_iter().map(cluster_dto).collect();
+    let linked = linked(&api, &context, &moment, rows.iter().flat_map(cluster_links)).await?;
+    let items: Vec<ClusterDto> = rows
+        .into_iter()
+        .map(|row| cluster_dto(row, &linked))
+        .collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -903,7 +981,11 @@ async fn machines_page(
     let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
     kit::release(snapshot);
     kit::record_read(api, context, MACHINE, &ids, criteria(path, page, &moment)).await?;
-    let items: Vec<MachineDto> = rows.into_iter().map(machine_dto).collect();
+    let linked = linked(api, context, &moment, rows.iter().flat_map(machine_links)).await?;
+    let items: Vec<MachineDto> = rows
+        .into_iter()
+        .map(|row| machine_dto(row, &linked))
+        .collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
@@ -1295,7 +1377,17 @@ async fn list_interfaces(
         )
         .await?;
     }
-    let items: Vec<InterfaceDto> = rows.into_iter().map(interface_dto).collect();
+    let linked = linked(
+        &api,
+        &context,
+        &moment,
+        rows.iter().flat_map(interface_links),
+    )
+    .await?;
+    let items: Vec<InterfaceDto> = rows
+        .into_iter()
+        .map(|row| interface_dto(row, &linked))
+        .collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -1344,7 +1436,8 @@ async fn show_cluster(
         dated("machines.cluster", CLUSTER_COLUMNS)
     );
     let (row, version): (ClusterRow, _) = kit::read_one(&api, sql, id, &moment).await?;
-    let body = cluster_dto(row);
+    let linked = linked(&api, &context, &moment, cluster_links(&row)).await?;
+    let body = cluster_dto(row, &linked);
     answer(
         &api, &context, &headers, CLUSTER, id, &moment, version, body,
     )
@@ -1388,7 +1481,8 @@ async fn show_machine(
     .map_err(|e| kit::store(&e))?;
     let held = interface_ids(&interfaces);
     let addresses = attached(&api, &moment, &scope, &held).await?;
-    let machine = machine_dto(row);
+    let linked = linked(&api, &context, &moment, machine_links(&row)).await?;
+    let machine = machine_dto(row, &linked);
     let card = MachineCard {
         id: machine.id,
         name: machine.name,
@@ -1466,12 +1560,17 @@ async fn attached(
     .fetch_all(&api.pool)
     .await
     .map_err(|e| kit::store(&e))?;
+    // Both ends are read at the dates and under the scope of the caller by this query (and
+    // the interfaces by the one before it): their summaries are whole, without a read more.
+    let interface_type = Target::Module(crate::module::interface_type());
+    let address_type = Target::Core(Kind::Address);
+    let all = Readable::all();
     Ok(rows
         .into_iter()
         .map(|(interface, name, address, value, primary)| AddressDto {
-            interface: IdRef { id: interface },
+            interface: Summary::labelled(interface_type, interface, Some(name.clone()), &all),
             interface_name: name,
-            address: IdRef { id: address },
+            address: Summary::labelled(address_type, address, Some(value.clone()), &all),
             value,
             primary,
             href: format!("/v1/addresses/{address}"),
@@ -1533,7 +1632,8 @@ async fn show_interface(
         dated("machines.interface", INTERFACE_COLUMNS)
     );
     let (row, version): (InterfaceRow, _) = kit::read_one(&api, sql, id, &moment).await?;
-    let body = interface_dto(row);
+    let linked = linked(&api, &context, &moment, interface_links(&row)).await?;
+    let body = interface_dto(row, &linked);
     answer(
         &api, &context, &headers, INTERFACE, id, &moment, version, body,
     )

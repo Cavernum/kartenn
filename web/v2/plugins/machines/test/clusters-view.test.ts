@@ -42,7 +42,7 @@ const cluster = {
   slug: "grappe",
   owner: { id: ENTITY },
 };
-const HOSTED = machine(GUEST, "vm-a", "virtual", { machine: { id: HOST } });
+const HOSTED = machine(GUEST, "vm-a", "virtual", { id: HOST, kind: "machine" });
 const MACHINES = [machine(HOST, "srv-a", "physical"), HOSTED, machine(AWAY, "vm-b", "virtual")];
 const page = <T>(items: T[], next?: string) => ({ items, links: next ? { next } : {} }) as never;
 
@@ -588,7 +588,7 @@ describe("the record of a cluster (task 18cd)", () => {
         "GET /v1/clusters/{id}/machines": () =>
           page([
             { ...machine(HOST, "srv-a", "physical"), member_of: { id: CLUSTER } },
-            machine(GUEST, "vm-a", "virtual", { cluster: { id: CLUSTER } }),
+            machine(GUEST, "vm-a", "virtual", { id: CLUSTER, kind: "cluster" }),
           ]),
         "GET /v1/entities/{id}": () =>
           ({ id: ENTITY, slug: "exemple", href: `/v1/entities/${ENTITY}` }) as never,
