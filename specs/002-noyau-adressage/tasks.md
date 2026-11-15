@@ -374,6 +374,84 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
   `crates/kartenn-machines/tests/it/machines.rs`
   dépend de : 29b1
+  - découpée le 2026-11-15 (relevé par l'agent de la tâche, après les tests) en 29c1,
+    29c2 et 29c3 : les tests de refus passent sans code, mais un auteur sans droit reçoit
+    d'autres réponses pour une référence cachée que pour une référence hors de portée, et
+    les fermer change l'ordre des droits et des écritures ou le modèle des droits (choix
+    structurant) ; l'observation `kube` antidatée est d'une autre crate.
+- [x] 29c1. Tests de refus et marche sur les types d'opération de `kartenn-machines` —
+  REQ-002-12 (amendée) — verify : une interface sur une machine inconnue, une adresse
+  d'interface d'un autre type : 422 `core.reference.unknown` ; marche sur chaque type
+  d'opération du module ; `k-check`
+  où : `crates/kartenn-machines/tests/it/machines.rs`
+  dépend de : 29b1
+  - fait le 2026-11-15 : aucun code changé, les 14 résolutions de la 29b1 suffisent.
+    Tests `every_reference_of_every_operation_is_checked` (11 exemples pour les 8 types
+    d'opération du module, chaque hôte et chaque mode 802.1Q avec ses références ; un
+    type nouveau échoue tant qu'il n'a pas d'exemple ; chaque `Ref::Id` refusé par
+    `core.reference.unknown`) et `the_references_of_the_module_designate_objects_in_force`
+    (interface sur une machine inconnue, sur une adresse, sur une machine close ; adresse
+    attachée qui est une machine, un site ou rien ; hôte `machine` qui est une grappe,
+    hôte `cluster` qui est une machine, hôte clos ; `member_of` qui nomme une machine :
+    422 `core.reference.unknown`, rien d'écrit)
+  - choix : la marche vit dans `kartenn-machines` et non dans celle de `kartenn-service`
+    (`every_reference_of_every_module_operation_is_checked`), qui ne peut dépendre du
+    module sans cycle de dépendances de test
+- [ ] 29c2. Fuites vers un auteur sans droit sur une référence cachée de `kartenn-machines`
+  (INV-63, legs de la 29b2) — **en attente d'arbitrage** — REQ-002-12 (amendée) —
+  verify : test rouge `no_right_reaches_through_a_hidden_reference` (`machines.rs`, sous
+  `#[ignore]` jusqu'à l'arbitrage) rendu vert ; `k-check`
+  où : `crates/kartenn-service/src/pipeline.rs` (`stages` : droits avant écriture vers
+  2861-2900, écritures 2918-2954, droits après 2956, `check_modules` 3012, désignations
+  cachées 3025), `rights.rs` (`check_guards`, `Phase`), `crates/kartenn-machines/src/handler.rs`
+  (`apply_attachment`, `check` : `dead_hosts`, `host_kinds`)
+  dépend de : 29c1
+  - constats du 2026-11-15 (auteur titulaire de tous les droits du module, des VLAN, des
+    adresses et de `core.owner`/`core.site` sur `acme` ; cachée = inconnue, d'un autre
+    type ou close ; hors de portée = en vigueur sous `other`) :
+    - propriétaire ou site de `create_machine`/`create_cluster` caché :
+      `prop.assignment.invalid_value` à l'écriture de l'affectation que le plan ajoute,
+      avant les droits, dont le message dit « does not exist » ou « is a site, not a
+      entity » ; hors de portée : `prop.assignment.forbidden_effect` et
+      `core.object.forbidden` (propriétaire), appliqué (site) ;
+    - adresse cachée d'un `attach_address` : `machines.address.closed`, levé à
+      l'écriture ; hors de portée : `core.object.forbidden` (`core.address.read`), car les
+      lectures exigées par le module (`ModuleHandler::reads`, M16) ne sont vérifiées
+      qu'après les écritures ;
+    - hôte ou `member_of` caché (création et mise à jour) : `machines.host.invalid`
+      (« does not live », `dead_hosts`), car les règles du module passent avant la
+      révélation des désignations cachées ; hors de portée : appliqué, aucun droit n'étant
+      exigé sur l'hôte, si bien que l'existence se lit quelle que soit la règle ;
+    - vu au code seulement, non testé : `host_kinds` dirait le type d'un hôte illisible
+      (`machines.host.invalid` « une machine virtual ne peut pas être hébergée par une
+      machine container ») ;
+    - sans fuite : interface sur une machine cachée, VLAN d'une interface (création et
+      mise à jour), interface d'un attachement
+  - options :
+    - A. Une référence par identifiant exige le droit de lire son objet (`<type>.read`),
+      vérifié avant les écritures (hors objets que le changeset crée) : ferme tout,
+      l'oracle des hôtes compris ; change le modèle des droits (spec 005, M16 de la
+      spec 009 généralisée), l'amendement 17 de l'ADR 0026 et REQ-002-12 ; héberger une
+      machine sur un hôte qu'on ne lit pas devient refusé
+    - B. Modèle des droits inchangé : les lectures exigées par un module sur des objets
+      qui existent déjà passent avant les écritures (comme la 29b2 pour les objets clos ou
+      changés) ; une affectation dont la valeur est une désignation cachée n'est pas
+      contrôlée à l'écriture (le changeset est refusé plus loin de toute façon) ; les
+      désignations cachées sont révélées avant les règles des modules. Ferme les deux
+      premières fuites et donne `core.reference.unknown` pour l'hôte ; l'oracle des hôtes
+      reste (hors de portée appliqué, inconnu refusé) ; précision de l'amendement 17
+    - C. Droits des objets créés avant les écritures, leur portée tirée du plan (ancres,
+      parent) : le plus gros changement (pipeline, spec 005, ADR 0026)
+    - recommandation de l'agent : B dans cette tâche, et A pour les seuls hôtes et grappes
+      (`machines.read`, `machines.cluster.read` sur l'hôte et la grappe, extension de M16)
+      comme décision de la spec 009
+- [ ] 29c3. Une observation `kube` antidatée ne vise pas un objet qui n'est pas encore en
+  vigueur au début de sa période (son objet existant, lu par la complétion, reste hors du
+  contrôle, 29b2) — REQ-002-12 (amendée) — verify : test d'intégration rouge d'abord
+  (`kartenn-kube`) ; `k-check -p kartenn-kube`
+  où : `crates/kartenn-kube/src/handler.rs` (complétion des observations), tests
+  `crates/kartenn-kube/tests/it/`
+  dépend de : 29b1
 - [ ] 29d. Références des opérations de `kartenn-kube`, `kartenn-flow` et `kartenn-policy`,
   typées par la 29b1 : tests de refus et cas particuliers (champs de `Fields` dans
   `kartenn-policy`) — REQ-002-12 (amendée) —

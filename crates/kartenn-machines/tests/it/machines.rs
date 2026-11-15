@@ -2731,3 +2731,449 @@ async fn machine_of_internal_ip(pool: PgPool) {
         "not yet asserted then"
     );
 }
+
+const UNKNOWN: &str = "core.reference.unknown";
+
+/// The identifiers of the references (`Ref::Id`, `{"id": <uuid>}`) a JSON value holds.
+fn ref_ids(value: &Value, out: &mut std::collections::BTreeSet<Uuid>) {
+    match value {
+        Value::Object(map) => {
+            if map.len() == 1
+                && let Some(id) = map
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|s| Uuid::parse_str(s).ok())
+            {
+                out.insert(id);
+            }
+            map.values().for_each(|v| ref_ids(v, out));
+        }
+        Value::Array(items) => items.iter().for_each(|v| ref_ids(v, out)),
+        _ => {}
+    }
+}
+
+/// The rules and the objects of a refusal.
+fn refusal_of(outcome: &Outcome) -> (Vec<&'static str>, std::collections::BTreeSet<Uuid>) {
+    let Outcome::Refused { violations, .. } = outcome else {
+        panic!("expected a refusal, got {outcome:?}")
+    };
+    (
+        violations.iter().map(|v| v.rule.id).collect(),
+        violations
+            .iter()
+            .flat_map(|v| v.subjects.iter().copied())
+            .collect(),
+    )
+}
+
+/// One operation or more per operation type of the module, every reference an identifier
+/// nothing bears: each host and each 802.1Q mode its references.
+fn reference_samples() -> Vec<Operation> {
+    let id = || json!({ "id": Uuid::now_v7() });
+    vec![
+        op(
+            "create_cluster",
+            json!({"slug": "c", "owner": id(), "site": id()}),
+        ),
+        op(
+            "update_cluster",
+            json!({"id": id(), "owner": id(), "site": id()}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "m", "kind": "virtual", "owner": id(), "site": id(),
+                   "host": {"machine": id()}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "m", "kind": "virtual", "host": {"cluster": id()}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "m", "kind": "physical", "member_of": id()}),
+        ),
+        op(
+            "update_machine",
+            json!({"id": id(), "host": {"machine": id()}, "member_of": id()}),
+        ),
+        op(
+            "update_machine",
+            json!({"id": id(), "host": {"cluster": id()}}),
+        ),
+        op(
+            "create_interface",
+            json!({"machine": id(), "name": "eth0",
+                   "vlan": {"mode": "trunk", "native": id(), "tagged": [id(), id()]}}),
+        ),
+        op(
+            "update_interface",
+            json!({"id": id(), "vlan": {"mode": "access", "access": id()}}),
+        ),
+        op(
+            "attach_address",
+            json!({"interface": id(), "address": id()}),
+        ),
+        op(
+            "detach_address",
+            json!({"interface": id(), "address": id()}),
+        ),
+    ]
+}
+
+/// REQ-002-12 (amendment of 2026-11-14), task 002-29c: every reference of every operation
+/// of the module is read before it is written; a new operation type fails here until it
+/// has a sample.
+#[kartenn_testing::pg_test]
+async fn every_reference_of_every_operation_is_checked(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let samples = reference_samples();
+    let types: std::collections::BTreeSet<String> = Machines
+        .operations()
+        .iter()
+        .map(|o| format!("machines.{}", o.name))
+        .collect();
+    let covered: std::collections::BTreeSet<String> = samples
+        .iter()
+        .map(|op| match op {
+            Operation::Module(m) => m.tag(),
+            other => panic!("not an operation of the module: {other:?}"),
+        })
+        .collect();
+    assert_eq!(covered, types, "an operation of the module has no sample");
+    for op in samples {
+        let mut expected = std::collections::BTreeSet::new();
+        ref_ids(&serde_json::to_value(&op).unwrap(), &mut expected);
+        let (rules, named) = refusal_of(&env.submit(vec![op.clone()]).await);
+        assert!(rules.iter().all(|r| *r == UNKNOWN), "{op:?}: {rules:?}");
+        assert_eq!(named, expected, "{op:?}: every reference is checked");
+    }
+}
+
+/// REQ-002-12 (amendment of 2026-11-14), task 002-29c: an interface is written on a
+/// machine in force, an address attached is an address in force, a host and a cluster are
+/// of their kind and in force; nothing is written otherwise.
+#[kartenn_testing::pg_test]
+async fn the_references_of_the_module_designate_objects_in_force(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, paris) = (
+        env.entity("acme").await,
+        env.id("site", "slug", "paris").await,
+    );
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let address = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let m = env.create("m", "physical", json!({})).await;
+    let gone = env.create("gone", "physical", json!({})).await;
+    env.applied(vec![close("machines.machine", gone, false)])
+        .await;
+    let eth0 = env.eth0("n").await;
+    let unknown = Uuid::now_v7();
+    let on = |machine: Uuid| interface(machine, 0, Value::Null);
+    // An interface on no machine, on an address, on a machine closed.
+    for machine in [unknown, address, gone] {
+        let (rules, named) = refusal_of(&env.submit(vec![on(machine)]).await);
+        assert_eq!(
+            (rules, named),
+            (vec![UNKNOWN], [machine].into()),
+            "{machine}"
+        );
+    }
+    // An address of another kind (a machine, a site), and none.
+    for other in [m, paris, unknown] {
+        let (rules, named) = refusal_of(&env.submit(vec![attach(eth0, other, false)]).await);
+        assert_eq!((rules, named), (vec![UNKNOWN], [other].into()), "{other}");
+    }
+    // A host machine that is a cluster, a cluster that is a machine, a closed host.
+    env.applied(vec![op(
+        "create_cluster",
+        json!({"slug": "c1", "owner": {"id": acme}}),
+    )])
+    .await;
+    let c1 = env.id("machines.cluster", "slug", "c1").await;
+    for (host, of) in [("machine", c1), ("cluster", m), ("machine", gone)] {
+        let guest = op(
+            "create_machine",
+            json!({"name": "vm", "kind": "virtual", "owner": {"id": acme},
+                   "host": {host: {"id": of}}}),
+        );
+        let (rules, named) = refusal_of(&env.submit(vec![guest]).await);
+        assert_eq!((rules, named), (vec![UNKNOWN], [of].into()), "{host} {of}");
+    }
+    let member = op(
+        "create_machine",
+        json!({"name": "node", "kind": "physical", "owner": {"id": acme},
+               "member_of": {"id": m}}),
+    );
+    assert_eq!(refusal_of(&env.submit(vec![member]).await).0, [UNKNOWN]);
+    let interfaces: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM machines.interface WHERE valid_period @> now()")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(interfaces, 1, "nothing is written");
+    // In force, accepted.
+    env.applied(vec![on(m), attach(eth0, address, false)]).await;
+}
+
+/// The refusal of `outcome` as its author sees it: rules, messages, operations and the
+/// number of objects of each violation.
+fn seen(outcome: &Outcome) -> Vec<(&'static str, String, Option<usize>, usize)> {
+    match outcome {
+        Outcome::Refused { violations, .. } => violations
+            .iter()
+            .map(|v| (v.rule.id, v.message.clone(), v.operation, v.subjects.len()))
+            .collect(),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// An operation citing the identifier it is given.
+type Make = Box<dyn Fn(Uuid) -> Operation>;
+
+/// INV-63 on the references of the module (task 002-29c):an author without the right on
+/// the object a reference names gets the same answer whatever its identifier names
+/// (nothing, an object of another kind, an object closed, an object in force out of his
+/// reach): the refusal of his rights where the reference needs one, otherwise, once every
+/// right is granted, `core.reference.unknown`. Red on three leaks of the writes, which
+/// answer before the rights of the objects created: an owner (`prop.assignment.
+/// invalid_value`, which says the identifier names nothing, or a site), an address attached
+/// (`machines.address.closed`) and a host or a cluster (`machines.host.invalid`).
+#[kartenn_testing::pg_test]
+#[ignore = "002-29c2 : en attente d'arbitrage"]
+async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    let paris = env.id("site", "slug", "paris").await;
+    let [_, v11] = env.vlans(&[10, 11]).await[..] else {
+        unreachable!()
+    };
+    env.applied(vec![close("vlan", v11, false)]).await;
+    env.applied(vec![
+        vop(
+            "create_vlan_group",
+            json!({"local": 1, "slug": "far", "anchor": {"entity": {"id": other}}}),
+        ),
+        vop(
+            "create_vlan",
+            json!({"group": {"local": 1}, "vid": 20, "name": "v20"}),
+        ),
+    ])
+    .await;
+    let v20 = env.id("vlan", "name", "v20").await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let far = env.domain("far", other, "198.51.100.0/24").await;
+    let a_lab = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let a_gone = env.address(lab, "192.0.2.11", AddressUsage::Host).await;
+    let a_far = env.address(far, "198.51.100.10", AddressUsage::Host).await;
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::Address,
+        id: Ref::Id(a_gone),
+        expected: None,
+        cascade: false,
+    }])
+    .await;
+    let mine = env.create("mine", "physical", json!({})).await;
+    let gone = env.create("gone", "physical", json!({})).await;
+    env.applied(vec![
+        close("machines.machine", gone, false),
+        op(
+            "create_machine",
+            json!({"name": "theirs", "kind": "physical", "owner": {"id": other}}),
+        ),
+        op(
+            "create_cluster",
+            json!({"slug": "c-mine", "owner": {"id": acme}}),
+        ),
+        op(
+            "create_cluster",
+            json!({"slug": "c-gone", "owner": {"id": acme}}),
+        ),
+        op(
+            "create_cluster",
+            json!({"slug": "c-theirs", "owner": {"id": other}}),
+        ),
+    ])
+    .await;
+    let theirs = env.machine("theirs", other).await;
+    let c_gone = env.id("machines.cluster", "slug", "c-gone").await;
+    let c_theirs = env.id("machines.cluster", "slug", "c-theirs").await;
+    env.applied(vec![close("machines.cluster", c_gone, false)])
+        .await;
+    env.applied(vec![
+        interface(mine, 0, Value::Null),
+        interface(theirs, 0, Value::Null),
+    ])
+    .await;
+    let eth_mine = env.interface(mine, "eth0").await;
+    let eth_theirs = env.interface(theirs, "eth0").await;
+    let who = env
+        .granted(
+            acme,
+            &[
+                "machines.read",
+                "machines.edit",
+                "machines.approval.self",
+                "machines.interface.read",
+                "machines.interface.edit",
+                "machines.interface.approval.self",
+                "machines.cluster.read",
+                "machines.cluster.edit",
+                "machines.cluster.approval.self",
+                "core.vlan.read",
+                "core.address.read",
+                "prop.core.owner.edit",
+                "prop.core.owner.approval.self",
+                "prop.core.site.edit",
+                "prop.core.site.approval.self",
+            ],
+        )
+        .await;
+    let unknown = Uuid::now_v7();
+    // The case, the operation citing `x`, the object in force out of reach, the hidden
+    // ones, and whether the reference needs a right (otherwise the operation out of reach
+    // is applied). Each applied case names its own machine.
+    let cases: Vec<(&str, Make, Uuid, Vec<Uuid>, bool)> = vec![
+        (
+            "interface.machine",
+            Box::new(|x| interface(x, 5, Value::Null)),
+            theirs,
+            vec![unknown, other, gone],
+            true,
+        ),
+        (
+            "machine.host",
+            Box::new(move |x| {
+                op(
+                    "create_machine",
+                    json!({"name": "vm1", "kind": "virtual", "owner": {"id": acme},
+                           "host": {"machine": {"id": x}}}),
+                )
+            }),
+            theirs,
+            vec![unknown, other, gone],
+            false,
+        ),
+        (
+            "machine.member_of",
+            Box::new(move |x| {
+                op(
+                    "create_machine",
+                    json!({"name": "node", "kind": "physical", "owner": {"id": acme},
+                           "member_of": {"id": x}}),
+                )
+            }),
+            c_theirs,
+            vec![unknown, other, c_gone],
+            false,
+        ),
+        (
+            "machine.owner",
+            Box::new(|x| {
+                op(
+                    "create_machine",
+                    json!({"name": "vm2", "kind": "physical", "owner": {"id": x}}),
+                )
+            }),
+            other,
+            vec![unknown, paris],
+            true,
+        ),
+        (
+            "machine.site",
+            Box::new(move |x| {
+                op(
+                    "create_machine",
+                    json!({"name": "vm3", "kind": "physical", "owner": {"id": acme},
+                           "site": {"id": x}}),
+                )
+            }),
+            paris,
+            vec![unknown, other],
+            false,
+        ),
+        (
+            "cluster.owner",
+            Box::new(|x| op("create_cluster", json!({"slug": "cx", "owner": {"id": x}}))),
+            other,
+            vec![unknown, paris],
+            true,
+        ),
+        (
+            "interface.vlan",
+            Box::new(move |x| interface(mine, 6, json!({"mode": "access", "access": {"id": x}}))),
+            v20,
+            vec![unknown, other, v11],
+            true,
+        ),
+        (
+            "attach.address",
+            Box::new(move |x| attach(eth_mine, x, false)),
+            a_far,
+            vec![unknown, other, a_gone],
+            true,
+        ),
+        (
+            "attach.interface",
+            Box::new(move |x| attach(x, a_lab, false)),
+            eth_theirs,
+            vec![unknown, other],
+            true,
+        ),
+        (
+            "update_interface.vlan",
+            Box::new(move |x| {
+                op(
+                    "update_interface",
+                    json!({"id": {"id": eth_mine}, "vlan": {"mode": "access", "access": {"id": x}}}),
+                )
+            }),
+            v20,
+            vec![unknown, other, v11],
+            true,
+        ),
+        (
+            "update_machine.host",
+            Box::new(move |x| {
+                op(
+                    "update_machine",
+                    json!({"id": {"id": mine}, "kind": "virtual", "host": {"machine": {"id": x}}}),
+                )
+            }),
+            theirs,
+            vec![unknown, other, gone],
+            false,
+        ),
+    ];
+    let mut leaks = Vec::new();
+    for (name, make, reach, hidden, needs_right) in &cases {
+        // Hidden first: an applied operation out of reach changes what follows.
+        let answers: Vec<_> = {
+            let mut out = Vec::new();
+            for h in hidden {
+                out.push((*h, env.submit_as(who, vec![make(*h)]).await));
+            }
+            out
+        };
+        let out_of_reach = env.submit_as(who, vec![make(*reach)]).await;
+        let expected = if *needs_right {
+            seen(&out_of_reach)
+        } else {
+            assert!(
+                matches!(out_of_reach, Outcome::Applied { .. }),
+                "{name}: {out_of_reach:?}"
+            );
+            vec![]
+        };
+        for (h, answer) in answers {
+            let equal = if *needs_right {
+                seen(&answer) == expected
+            } else {
+                rules(&answer) == [UNKNOWN]
+            };
+            if !equal {
+                leaks.push(format!("{name} {h}: {:?}", seen(&answer)));
+            }
+        }
+    }
+    assert!(leaks.is_empty(), "{leaks:#?}");
+}
