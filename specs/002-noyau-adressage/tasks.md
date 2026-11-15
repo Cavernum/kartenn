@@ -323,9 +323,17 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     ce plan visent son objet sans contrôle (prolongation d'un flux). Précision à
     l'amendement 17 de l'ADR 0026. Les droits d'abord (INV-63), deux fuites fermées que le
     test de la mise à jour d'un VLAN a montrées : un auteur refusé par ses droits sur les
-    objets qu'il change l'est avant toute écriture quand une désignation lui est cachée
-    (sinon `changeset.operation.no_version` révélait l'absence), et `moved` ne lit plus le
-    dernier domaine d'un objet caché (un VLAN clos donnait `changeset.operation.conflict`).
+    objets qu'il clôt ou change l'est avant toute écriture, par ces seuls refus (sinon
+    `changeset.operation.no_version` révélait l'absence, et une requête à plusieurs
+    opérations répondait `[forbidden, conflit]` pour une cible hors de portée, `[forbidden]`
+    pour une cible inconnue), et `moved` ne lit plus le dernier domaine d'un objet caché,
+    reconnu à son identifiant et à son type (un VLAN clos donnait
+    `changeset.operation.conflict`). Correction après revue : le même cas (une clôture ou
+    une mise à jour hors de portée, et une écriture en double dans son propre domaine :
+    quatre réponses égales) dans `rbac::no_right_reaches_through_an_unknown_domain` (cœur)
+    et `no_right_reaches_through_an_unknown_vlan` (VLAN), rouges d'abord
+    (`core.prefix.duplicate`, `core.vlan.vid_duplicate` à côté du refus de droits) ; aucun
+    test existant n'attendait de violations cumulées à côté d'un refus de droits.
     Tests `reference_integrity.rs` : `the_object_a_module_operation_changes_is_in_force`
     (rouge d'abord : `changeset.operation.no_version` au lieu de `core.reference.unknown`),
     `a_vlan_group_and_a_vlan_designate_objects_in_force` (ancre inconnue ou d'un autre
@@ -340,20 +348,29 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   - choix : un objet qu'un plan écrit sans le résoudre par `resolve` (l'objet existant
     d'une observation `kube`, lu par sa complétion) n'est pas une référence de l'auteur et
     reste hors du contrôle ; l'exemption des opérations ajoutées vaut pour le seul objet de
-    leur plan, au type près ; le refus avant écriture ne joue que si une désignation est
-    cachée, les autres refus gardant leurs violations cumulées
+    leur plan, au type près ; arbitré après revue : tout refus de droits constaté avant
+    écriture (objets clos ou changés) arrête le changeset avant toute écriture, la réponse
+    ne portant que ces refus, que la désignation soit cachée ou non ; les droits sur les
+    objets créés restent vérifiés après l'écriture
   - reste : l'annulation de la création d'un groupe de VLAN est refusée
-    (`changeset.operation.no_version`, déjà avant cette tâche) : l'inverse clôt le groupe
-    puis retire le propriétaire que son plan lui a affecté (`undo::inverse`, ordre de
-    `undo_facts`) ; à traiter dans la spec 004. Pour la création d'un objet caché par un
-    auteur sans droit (droits vérifiés après l'écriture), une écriture de module qui
-    échouerait sur la référence absente révélerait encore celle-ci : non observé sur les
-    modules de test, à vérifier par module en 29c et 29d
+    (`changeset.operation.no_version`, déjà avant cette tâche) : tâche 004-26. Ce que
+    laissent ouvert les droits vérifiés après l'écriture (objets créés) : un auteur sans
+    droit qui crée un objet désignant une référence cachée passe par les écritures, dont
+    les refus (une écriture de module qui échoue sur la référence absente, une règle
+    d'écriture qui cumule ses violations) peuvent différer de ceux d'une référence hors de
+    portée et révéler l'absence ; non observé sur les modules de test, à vérifier par
+    module en 29c et 29d
 - [ ] 29c. Références des opérations de `kartenn-machines` (VLAN, propriétaire, site, hôte
   machine ou grappe, `member_of`, machine, interface, adresse), typées par la 29b1 : tests
   de refus et cas particuliers — REQ-002-12 (amendée) — verify : une
   interface sur une machine inconnue, une adresse d'interface d'un autre type : 422
-  `core.reference.unknown` ; `k-check -p kartenn-machines`
+  `core.reference.unknown` ; la marche sur les types d'opération des modules du build
+  (`every_reference_of_every_module_operation_is_checked`, `kartenn-service`) étendue à
+  ceux de `kartenn-machines` ; une observation `kube` antidatée ne vise pas un objet qui
+  n'est pas encore en vigueur au début de sa période (son objet existant, lu par la
+  complétion, reste hors du contrôle, 29b2) ; un auteur sans droit qui crée un objet
+  désignant une référence cachée reçoit le même refus que pour une référence hors de
+  portée ; `k-check -p kartenn-machines`
   où : `crates/kartenn-machines/src/handler.rs` (14 résolutions) ; tests
   `crates/kartenn-machines/tests/it/machines.rs`
   dépend de : 29b1
