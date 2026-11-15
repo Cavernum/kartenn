@@ -7364,6 +7364,42 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       clé (`tracked`), `isStale` ne réveille que ses lecteurs ; le plugin d'exemple ne
       redessine que ce qui change de texte. À mesurer avant de corriger (listes de pages
       bornées, coût probablement faible).
+    - banc, session principale, sur le résultat fusionné (`db6252b9`, aucun agent, les
+      quatre verrous libres, charge de 3 à 5 d'une autre activité de la machine), cinq
+      passes de suite : la tâche de 270 ms n'y est plus, dans aucune. Le reste ne permet
+      aucun verdict sur le budget :
+
+      | passe | trames perdues | tâches longues (la plus longue) | second défilement (bench-a40) |
+      |---|---|---|---|
+      | 1 | 1,54 % | 1 (74 ms) | 1,84 %, 1 (85 ms) |
+      | 2 | 1,17 % | 1 (62 ms) | 8,84 %, 1 (52 ms) |
+      | 3 | 14,34 % | 0 | non relevé |
+      | 4 | 7,70 % | 2 (53 ms) | 9,91 %, 1 (64 ms) |
+      | 5 | 38,33 % | 11 (113 ms) | 18,07 %, 2 (53 ms) |
+
+      La passe 3 perd 14 % de trames sans aucune tâche longue : des trames perdues que la
+      page n'explique pas (production des trames du navigateur sans tête sous une charge
+      extérieure, à établir). Les deux passes de l'agent (1,20 % et 0,94 %, aucune tâche
+      longue) sont dans la même dispersion. La mesure de ce budget n'est pas répétable sur
+      cette machine dans cet état : tâche 22e-l.
+  - [ ] 22e-l. Répétabilité du banc de l'arbre : sur un même commit, cinq passes de suite
+    vont de 1,2 % à 38 % de trames perdues, de 0 à 11 tâches longues, et une passe perd
+    14 % de trames sans tâche longue (relevé de la 22e-j). Sonde d'abord : (a) un témoin
+    dans la même page, la cadence de `requestAnimationFrame` sur 20 s sans défilement ni
+    arbre monté, pour dire la part du navigateur et de la machine ; (b) la charge de la
+    machine relevée par le banc à chaque passe (`/proc/loadavg`, ligne `INFO`), et le
+    seuil au-delà duquel la mesure n'est plus fiable ; (c) ce qui distingue une passe à
+    1 % d'une passe à 38 % (trace des deux : processus du navigateur, GPU logiciel,
+    ramasse-miettes, travail de la page) ; (d) les tâches de 52 à 85 ms qui restent dans
+    quatre passes sur cinq : attribuées. Puis une proposition à arbitrer, puisqu'elle
+    touche le protocole d'un budget (design 021 « Budgets ») : refuser de mesurer
+    au-dessus d'une charge, retrancher le témoin, ou prendre la médiane de N passes —
+    verify : le témoin et la charge imprimés par le banc ; cinq passes de suite sur
+    machine calme dans une dispersion dite ; la proposition écrite avec ses chiffres
+    - où : `web/v2/e2e/budgets/budgets.spec.ts` (test de l'arbre, `scrollRows`, mesure
+      des trames, lignes `INFO` de la 22e-i), `web/v2/e2e/bench/measure.ts`,
+      `scripts/` (`bench-web`, verrou `--bench` de `k-heavy`) ; design 021 « Budgets »
+    - dépend de : 22e-j
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
     objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
     brouillon de `shownById`), les mots d'un genre et d'une nature lus une fois par langue
