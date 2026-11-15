@@ -179,7 +179,7 @@ const lists = useLists<Interface, never>(() => {
     ({ address, vlan }) =>
       reads.list("/v1/interfaces", {
         ...(mac ? { mac } : {}),
-        ...(address ? { address } : {}),
+        ...(address ? { address: [address] } : {}),
         ...(vlan ? { vlan } : {}),
       }) as never,
   );

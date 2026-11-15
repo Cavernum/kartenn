@@ -12919,6 +12919,8 @@ export interface operations {
   list_clusters: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         slug?: string;
         /** @description Prefix of the slug, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
@@ -18166,14 +18168,16 @@ export interface operations {
   list_interfaces: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Of this machine. */
         machine?: string;
         /** @description Equal to. */
         name?: string;
         /** @description This EUI-48, any usual notation. */
         mac?: string;
-        /** @description Holding this address at the date. */
-        address?: string;
+        /** @description Holding this address at the date (repeated: one of), 64 times at most: the cursor of the next page carries them. */
+        address?: string[];
         /** @description Carrying this VLAN, access, native or tagged. */
         vlan?: string;
         /** @description Of this medium, a key of `machines.interface_media`. */
@@ -21145,6 +21149,8 @@ export interface operations {
   list_machines: {
     parameters: {
       query?: {
+        /** @description Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one. */
+        id?: string[];
         /** @description Equal to. */
         name?: string;
         /** @description Starting with. */

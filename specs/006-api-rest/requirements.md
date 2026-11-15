@@ -510,6 +510,9 @@ Acceptation :
 - Plus d'identifiants que la taille de page maximale → 400.
 - Une liste filtrée par `id` répond en une page, sans suite ; `cursor` ou `page_size`
   avec `id` → 400.
+- `?address=<a>&address=<b>` rend les interfaces qui tiennent l'une ou l'autre,
+  paginées comme toute liste (une adresse partagée peut tenir plus d'interfaces qu'une
+  page) ; plus de 64 adresses → 400, le curseur de la page suivante les portant.
 - Le paramètre figure aux `parameters` de chaque liste du contrat.
 
 #### REQ-006-42 — Résumé de toute référence rendue

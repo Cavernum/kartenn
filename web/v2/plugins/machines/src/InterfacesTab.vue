@@ -51,7 +51,7 @@ const interfaces = useList<Interface, never>(() => {
       ? { network: object.id }
       : object.type === "vlan"
         ? { vlan: object.id }
-        : { address: object.id };
+        : { address: [object.id] };
   return reads.list("/v1/interfaces", filter) as never;
 });
 const listed = computed(() => interfaces.state.value);

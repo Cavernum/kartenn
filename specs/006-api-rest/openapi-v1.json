@@ -17752,6 +17752,19 @@
         "operationId": "list_clusters",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Equal to.",
             "in": "query",
             "name": "slug",
@@ -27281,6 +27294,19 @@
         "operationId": "list_interfaces",
         "parameters": [
           {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Of this machine.",
             "in": "query",
             "name": "machine",
@@ -27308,12 +27334,16 @@
             }
           },
           {
-            "description": "Holding this address at the date.",
+            "description": "Holding this address at the date (repeated: one of), 64 times at most: the cursor of the next page carries them.",
             "in": "query",
             "name": "address",
             "required": false,
             "schema": {
-              "type": "string"
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           {
@@ -32938,6 +32968,19 @@
       "get": {
         "operationId": "list_machines",
         "parameters": [
+          {
+            "description": "Identifier of the object (repeated: one of), 1000 at most: one page holds them all, without a next page, and goes with neither page_size nor a cursor; an object the caller may not read is absent, as an unknown one.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Equal to.",
             "in": "query",
