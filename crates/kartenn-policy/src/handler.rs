@@ -13,7 +13,7 @@ use kartenn_core::rules::{CHANGESET_CONFLICT, Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffSection, Findings, ModuleHandler, ModuleObjectRow,
-    ModulePlan, ModuleTx, Reference,
+    ModulePlan, ModuleRead, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -704,6 +704,22 @@ impl ModuleHandler for Handler {
         context: &'a DiffContext<'a>,
     ) -> BoxFuture<'a, Result<Option<DiffSection>, StoreError>> {
         Box::pin(async move { crate::contribution::section(connection(tx)?, context).await })
+    }
+
+    /// The keys of the objects of the module (spec 006, REQ-006-42; [`crate::keys`]).
+    fn keys<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        objects: &'a [Uuid],
+    ) -> BoxFuture<'a, Result<Vec<(Uuid, String)>, StoreError>> {
+        Box::pin(async move {
+            let (valid_at, as_of) = (read.valid_at(), read.as_of());
+            let conn = read
+                .connection()
+                .downcast_mut::<PgConnection>()
+                .ok_or_else(|| StoreError("not a PostgreSQL connection".into()))?;
+            crate::keys::of(conn, objects, valid_at, as_of).await
+        })
     }
 
     fn measure<'a>(

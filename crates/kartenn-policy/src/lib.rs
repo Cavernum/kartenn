@@ -32,6 +32,8 @@ pub mod import;
 #[cfg(feature = "pg")]
 pub mod infer;
 #[cfg(feature = "pg")]
+mod keys;
+#[cfg(feature = "pg")]
 mod load;
 #[cfg(feature = "pg")]
 pub mod mismatch;

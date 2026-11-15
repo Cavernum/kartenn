@@ -1710,7 +1710,7 @@ async fn check(
     )
     .await?;
     let mut response = axum::Json(CheckDto {
-        verdict: kartenn_policy::rest::verdict_dto(answer),
+        verdict: kartenn_policy::rest::verdict_dto(api, context, &moment, answer).await?,
         pairs,
         case,
     })

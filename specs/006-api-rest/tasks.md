@@ -1160,12 +1160,42 @@ routeur complet, sauf mention « vrai TCP ».
     - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`), `handler.rs` (`keys`, à
       imiter : `crates/kartenn-kube/src/keys.rs`, 33e) ; `summary.rs` (`Summaries::read`)
     - dépend de : 33a–33e
-  - [ ] 33f2. Politique : extrémités, points, résolutions d'axe et lignes de rapport en
+  - [x] 33f2. Politique : extrémités, points, résolutions d'axe et lignes de rapport en
     résumés ; `ModuleHandler::keys` pour `kartenn-policy` — verify :
     `k-check -p kartenn-policy` (illisible et absent laissent les mêmes octets)
     - où : `crates/kartenn-policy/src/rest.rs` (`PolicyEndpoint`, `PolicyPoint`,
       `PolicyAxisResolution`, `PolicyReportItem`), `handler.rs` (`keys`)
     - dépend de : 33a–33e
+    fait : `crates/kartenn-policy/src/keys.rs` (nouveau : clés des objets du module aux
+    dates, une requête pour les dix tables) et `handler.rs` (`ModuleHandler::keys`) ;
+    `rest.rs` : `PolicyPoint.object` (au lieu d'`id`), `PolicyAxisResolution.origin`,
+    `chain`, `machines` en `Summary`, lus ensemble pour la réponse par `Summaries::read`
+    aux dates de la requête (`named` dédoublonne : une lecture des clés par module visé
+    et une autorisation par type, aucune par point) ; `verdict_dto` devient asynchrone
+    (`api`, `context`, `moment`), son appel du test d'une connexion
+    (`kartenn-flow/src/rest.rs`, une ligne) suivi ; `PolicyReportItem.subject` en
+    `Summary` (toujours `null` sans sujet), lus pour la page aux dates du rapport ;
+    contrat et `schema.d.ts` des deux SDK régénérés ; design 010 « Droits ». Tests :
+    `tests/it/rest.rs` `a_verdict_summarises_what_its_caller_may_read` (deux appelants,
+    l'un sans `core.prefix.read` : réponse identique aux résumés des préfixes coupés à
+    `{id}` près), `a_report_item_leaves_alike_an_unreadable_subject_and_an_absent_one`
+    (préfixe, inconnu, règle, valeur, service, type de flux par leur clé ; préfixe
+    illisible et préfixe absent à la date du rapport : statut, en-têtes hors
+    `request-id` et octets identiques).
+    choix : `PolicyEndpoint` inchangé, corps écrit d'une requête (un résumé se lit, une
+    référence s'écrit) ; le point prend le membre `object` (comme l'`ObjectRef` d'une
+    anomalie) plutôt qu'un `id` devenu objet ou des membres aplatis hors `Summary`, que
+    la garde de la 33f3 relèverait ; clé d'un objet de politique : `property_key` d'un
+    axe, `value_key` d'une valeur (sans son axe), `key` des types de flux, services,
+    motifs, règles, conditions, signaux et règles d'inférence, `role_key` d'un rôle
+    exempté ; sujet d'un rapport lu à sa date `valid_at` par les assertions courantes,
+    la lisibilité jugée maintenant (33a) ; explication réduite : rien à résumer, aucune
+    lecture ; REQ-027-2 (flux servi tel quel) ne vise que la réponse d'un flux, pas le
+    verdict (REQ-010-25 y règle déjà ce que voit chaque appelant), ni le test d'une
+    connexion qui l'embarque (REQ-011-26).
+    reste : `detail` d'une ligne de rapport peut porter des identifiants bruts (selon la
+    rubrique), hors de cette tâche (33f3, garde) ; l'export JSON d'un rapport
+    (`report::export`, non servi par REST) garde `subject` en identifiant.
   - [ ] 33f3. Restes communs et garde du contrat : l'explication d'une valeur
     (`explanation`, `raw_value`) dont une référence est encore brute (reste de la 33b) ;
     l'historique d'un objet de module (`ModuleObjectDto`, commun à tous les types : `parent`
