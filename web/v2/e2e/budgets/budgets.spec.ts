@@ -368,7 +368,7 @@ function backgroundWriter(
  * of the last rows, so that the row which reads the next page never comes into view. The
  * window of the scroll (clock of the page).
  */
-const scrollRows = (page: Page) =>
+const scrollRows = (page: Page, rows: number = ROWS) =>
   tree(page).evaluate(
     async (el, [rows, duration]) => {
       let scroller = el as HTMLElement;
@@ -391,7 +391,7 @@ const scrollRows = (page: Page) =>
       });
       return [start, performance.now()] as [number, number];
     },
-    [ROWS, 10_000] as const,
+    [rows, 10_000] as const,
   );
 
 /**
@@ -997,33 +997,39 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
-  // A diagnosis, off by default (`K_BENCH_TREE_AB=1`, task 021-22e-c): the same scroll again
-  // under sheets that take one part of the rows away each, its dropped frames printed, to
-  // name what a row costs. Never a verdict: the sheets change what the rows show.
+  // A diagnosis, off by default (`K_BENCH_TREE_AB=1`, tasks 021-22e-c and 22e-d): the same
+  // scroll again under sheets that stand for the options of the arbitration B, its dropped
+  // frames printed. Never a verdict: the sheets change what the rows show. B1: the « + »
+  // shown only on the active row (focus, selection, hover); B2: each icon one box painted
+  // through a CSS mask, no SVG; B3: no hover while scrolling. `@500`: 500 rows/s (the
+  // arbitration C). B4 (fixed slots, rows placed by an inline style) needs the code of
+  // the tree changed: see the task 22e-d, its figures in tasks.md.
   if (process.env.K_BENCH_TREE_AB) {
-    const fixed = await tree(page).evaluate(
-      (el) => getComputedStyle(el.querySelector("[role='row'][data-node]")!).gridTemplateColumns,
-    );
     const B = ".k-tree-grid__body";
+    const mask = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")`;
+    const B1 = `${B} .k-tree-grid__row:not(:focus-within,:hover,[aria-selected="true"]) .k-tree-grid__add{display:none!important}`;
+    const B2 =
+      `${B} svg{display:none!important}\n` +
+      `${B} .k-tree-grid__twisty::before,${B} .k-tree-grid__node::after,` +
+      `${B} .k-tree-grid__row:is(:focus-within,:hover,[aria-selected="true"]) .k-tree-grid__add::before` +
+      `{content:"";display:block;inline-size:16px;block-size:16px;flex:none;` +
+      `background-color:currentColor;mask:${mask} center/contain no-repeat}`;
+    const B3 = `${B}{pointer-events:none}`;
     const variants: [string, string][] = [
       ["base", ""],
-      ["no plus", `${B} .k-tree-grid__add{display:none!important}`],
-      ["no svg", `${B} svg{display:none!important}`],
-      ["no pointer", `${B}{pointer-events:none}`],
-      ["no svg, no pointer", `${B} svg{display:none!important}\n${B}{pointer-events:none}`],
-      ["no transition", `${B} .k-tree-grid__row{transition:none!important}`],
-      ["fixed tracks", `${B} .k-tree-grid__row{grid-template-columns:${fixed}!important}`],
-      ["block cells", `${B} .k-tree-grid__cell{display:block!important}`],
+      ["B1", B1],
+      ["B2", B2],
+      ["B3", B3],
+      ["B1+B3", [B1, B3].join("\n")],
+      ["B1+B2+B3", [B1, B2, B3].join("\n")],
+      // What the rows cost at most: no icon and no hover at all.
+      ["no svg, no pointer", `${B} svg{display:none!important}\n${B3}`],
+      ["base @500", ""],
+      ["B3 @500", B3],
+      ["B1+B3 @500", [B1, B3].join("\n")],
       // The spread of two identical passes.
       ["base again", ""],
     ];
-    variants.push([
-      "all",
-      variants
-        .slice(1)
-        .map(([, css]) => css)
-        .join("\n"),
-    ]);
     for (const [name, css] of variants) {
       // A constructed sheet: the CSP refuses an injected `<style>` (REQ-020-14).
       await tree(page).evaluate((_, text) => {
@@ -1036,7 +1042,7 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
       }, css);
       await settle(page);
       const ab = await framed(page, async () => {
-        await scrollRows(page);
+        await scrollRows(page, name.endsWith("@500") ? ROWS / 2 : ROWS);
         return [];
       });
       console.log(

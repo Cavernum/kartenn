@@ -7100,7 +7100,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       changerait l'ordre du DOM (structurant) ; ou l'arbitrage C (protocole à
       500 lignes/s, 18,47 % mesuré par la 22e-b avant ces corrections).
 
-  - [ ] 22e-d. Sonde sur la vraie vue de l'hypothèse B4 (diagnostic de fond du
+  - [x] 22e-d. Sonde sur la vraie vue de l'hypothèse B4 (diagnostic de fond du
     2026-11-14) : une ligne recyclée change de rang, Vue la déplace par `insertBefore`, et
     le moteur refait le style et la mise en page de tout son sous-arbre, SVG compris ; un
     micro-banc synthétique donne 0,7 à 1,5 ms par pas de 17 lignes déplacées contre 0,4 ms
@@ -7113,6 +7113,123 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - où : `ui/src/components/internal/virtualRows.ts` (`rowSlots`, `keys`), le banc du
       catalogue du `TreeGrid`, `e2e/budgets/budgets.spec.ts` (`K_BENCH_TREE_AB`)
     - dépend de : 22e-c
+    - fait le 2026-11-15 (agent, seul sur la machine, les quatre verrous libres, charge
+      de 0,8 à 1,8 à chaque passe) — sonde dans la vraie vue (passe filtrée `bench-web
+      small -g "container of"`, `K_BENCH_TREE_AB=1`), sans rien garder du code de l'arbre :
+      B4 posé dans `TreeGrid` derrière un interrupteur de sonde (emplacements dans l'ordre
+      de leurs numéros, chaque ligne placée par un style en ligne, plus aucun
+      `insertBefore` : 39 nœuds posés dans le corps sur un défilement au lieu de ≈ 23 000) ;
+      B1, B2, B3 et `@500` par feuilles construites, comme la 22e-c. Six passes de mesure
+      (1, 2, A, B, C, D) et huit de diagnostic ; trames perdues en %, sur 10⁴ lignes en
+      10 s, une valeur par passe :
+      - base 21,8 ; 20,7 ; 30,5 ; 39,5 ; 26,2 ; 21,4 — rejouée en fin de passe 20,2 ;
+        23,6 ; 23,6 ; 20,6 ; 21,2 ; 21,2 ; 1 à 3 tâches longues (la ligne du budget : 23,1
+        à 45,8 %, 3 ou 4 tâches longues). Le premier défilement sous une feuille construite
+        porte une tâche de 250 à 290 ms (l'adoption de la feuille), les suivants non.
+      - B1 (« + » sur la seule ligne active, survol compris) : 19,1 ; 18,7 ; 23,9 ; 19,2.
+      - B2 (une boîte peinte par masque par icône, plus aucun SVG) : 25,1 ; 19,0 ; le SVG
+        gardé, ses formes cachées et sa boîte masquée : 20,5 ; 21,7 ; 25,5 ; 21,4.
+      - B3 (aucun survol pendant le défilement) : 7,6 ; 7,3 ; 6,6 ; 8,7 (19,4 juste après
+        une variante B4, écarté) ; 0 à 2 tâches longues.
+      - B1+B2 20,1 ; 15,5 — B2+B3 7,9 ; 5,5 — B1+B3 5,0 ; 4,9 ; 4,3 ; 5,6, aucune tâche
+        longue — B1+B2+B3 4,7 ; 5,9 ; 4,7 ; 4,5 ; 5,5, 0 à 2 tâches longues ; borne, ni SVG
+        ni survol (pas une option) 3,0 ; 2,2.
+      - B4 seule 71,6 ; 76,0 ; 72,0 ; 71,7 ; 76,1 ; 70,3 ; 74,9 ; 74,9 et 73,2 ; 78,4 ;
+        75,4 en diagnostic, 83 à 99 tâches longues (la plus longue 110 à 290 ms) ; B4+B3
+        75,7 ; 67,3 ; 71,9 ; 76,9 ; B1+B2+B3+B4 71,0 ; 70,5 ; 73,4 ; 74,3. Formes de B4
+        essayées, toutes entre 67 et 78 % : décalage par `top` ou par `transform`, pas de
+        ligne fixe (estimation = hauteur mesurée, 28 px), `position` tenue par une feuille
+        et seul `top` en ligne, colonne flex placée par `order` (sans `absolute`) 67,0 et
+        53,7 avec B3 ; sans `sticky`, avec `contain`, sans conteneur de requêtes : rien.
+        Témoin : lignes en `absolute` mais déplacées comme sans B4, 72,1 ; une propriété
+        personnalisée sans effet écrite en ligne sur chaque ligne qui change, sans B4,
+        46,2.
+      - à 500 lignes/s (5 000 lignes en 10 s, l'arbitrage C) : base 2,16 ; 3,47 ; B3
+        0,65 ; 0,81 ; B1+B3 0,63 ; 1,29 ; B1+B2+B3 0,77 ; 1,00 ; aucune tâche longue.
+      Traces CDP (devtools.timeline, 10 s de défilement à ×4) : sans B4, le style des
+      lignes déplacées ne coûte presque rien (`UpdateLayoutTree` 0,25 s en tout, 19
+      éléments et ≈ 2 ms par trame ; mise en page 2,6 s, peinture 1,9 s, script ≈ 2,7 s) :
+      la prémisse de B4 (un `insertBefore` refait style et mise en page du sous-arbre) ne
+      se voit pas sur la vraie vue. Avec B4, chaque trame recalcule le style de toute la
+      fenêtre (190 éléments) en 60 à 150 ms, forcé par le `scrollTop` du protocole, dès
+      qu'un style en ligne d'une ligne change ; la cause exacte dans le moteur n'est pas
+      nommée.
+      **Verdict de la sonde** : B4 est réfutée (trois fois pire, sous toutes ses formes) ;
+      aucune option B, ni seule ni combinée, ne tient 2 % à 1 000 lignes/s (meilleure :
+      B1+B3, 4,3 à 5,6 %) ; à 500 lignes/s, la base est à la limite (2,2 et 3,5 %) et
+      B3 la tient (0,7 et 0,8 %), avec ou sans B1. B2 n'apporte rien de mesurable une fois
+      B3 posé. Recommandation, à arbitrer : C (22e-f) et B3 (22e-e) ; B1 (22e-g) seulement
+      si le protocole reste à 1 000 lignes/s, sans tenir le budget ; ni B2 (22e-h) ni B4.
+      Banc : le diagnostic `K_BENCH_TREE_AB` remplacé par ces variantes (B1, B2, B3, leurs
+      combinaisons, la borne, `@500` ; `scrollRows` prend un nombre de lignes).
+      `k-web2-check --base main` : 1 289 Vitest ; 2 741 captures sur 2 741 (« tout » :
+      `budgets.spec.ts` est un fichier d'un projet Playwright des captures).
+    - choix : B4 sondé dans le composant (seul moyen de garder les éléments en place), le
+      code retiré après les mesures ; B1 mesuré avec le « + » montré au survol (ce que
+      ferait la vraie option), B2 par une boîte et un masque `data:` (permis par
+      `img-src`) ; mesures à 500 lignes/s ajoutées (5 000 lignes, même vitesse que 10⁴ en
+      20 s) pour chiffrer C contre les options ; aucun relecteur d'interface (rien de
+      livré ne change).
+    - reste : rien ; les corrections attendent l'arbitrage (22e-e à 22e-h).
+  - [ ] 22e-e. (B3, à arbitrer) Le survol suspendu pendant un défilement de l'arbre : le
+    corps sans `pointer-events` du premier `scroll` jusqu'à 150 ms après le dernier (ce que
+    l'utilisateur perd : le fond de survol, le « + » et l'infobulle d'une raison ne suivent
+    pas le pointeur pendant le défilement ; un clic dans les 150 ms qui suivent tombe sur
+    le défileur ; rien pour le clavier ni le lecteur d'écran) — verify : test du
+    composant (attribut posé au défilement, retiré après), script clavier `tree-grid`
+    inchangé, passe filtrée du banc : ≈ 7 % à 1 000 lignes/s, < 1 % à 500 (mesures de la
+    22e-d)
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (écouteur `scroll` passif de
+      `grid`, minuterie, `data-scrolling` sur la racine, règle
+      `.k-tree-grid[data-scrolling] .k-tree-grid__body { pointer-events: none }`) ;
+      `useVirtualRows` si `Tree` et `DataGrid` doivent suivre ; test voisin
+      `ui/test/trees-mounted.test.ts` ; ligne `TreeGrid` de l'inventaire de
+      `specs/020-systeme-de-design/design.md` et de la skill `kartenn-ui`
+    - taille : petite (un composant, une règle, un test) ; aucun contrat changé
+    - dépend de : arbitrage de la 22e (B3)
+  - [ ] 22e-f. (C, à arbitrer) Le protocole du budget de l'arbre à 500 lignes/s : 10⁴
+    lignes en 20 s au lieu de 10, le budget (2 %, aucune tâche longue) inchangé
+    (ce que l'utilisateur perd : rien dans le produit ; le banc ne garantit plus le
+    défilement à 1 000 lignes/s, quatre fois le protocole du prototype D-1 au lieu de
+    huit) — verify : passe filtrée du banc deux fois, ≤ 2 % et aucune tâche longue
+    (avec B3 : 0,7 et 0,8 % mesurés ; sans : 2,2 et 3,5 %, à la limite)
+    - où : `specs/021-shell-v2/design.md` § « Budgets » (ligne « Arbre de 10⁵ » : la
+      vitesse dite), `web/v2/e2e/budgets/budgets.spec.ts` (`scrollRows` : durée de
+      20 000 ms, commentaire du banc ; `@500` du diagnostic à retirer), relevés des
+      passes de référence dans ce fichier
+    - taille : petite, mais un changement de spec (le protocole d'un budget) : décision
+      de l'utilisateur
+    - dépend de : arbitrage de la 22e (C)
+  - [ ] 22e-g. (B1, à arbitrer) Le « + » monté sur la seule ligne active (focus,
+    sélection, survol) au lieu d'un bouton transparent sur chaque ligne (ce que
+    l'utilisateur perd : en mode navigation, le lecteur d'écran ne lit plus le « + » des
+    lignes sans focus ; au clavier, rien : Tab entre dans le « + » de la ligne du focus,
+    021/A20 ; à la souris, rien) — verify : script clavier `tree-grid` et parcours
+    `time`, `accessibility`, `tree` (ceux qui trouvent le « + » sur une ligne sans focus
+    le cherchent sur la ligne active), captures inchangées (le « + » d'une ligne inactive
+    est déjà invisible), passe filtrée : gain ≈ 2 points avec B3 à 1 000 lignes/s (B1+B3
+    4,3 à 5,6 % contre ≈ 7), aucun à 500
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGridRow.vue` (`IconButton` du « + »,
+      condition), `TreeGrid/row.ts` (ligne survolée, posée par `onCellEnter` et
+      `onCellLeave` de `TreeGrid.vue`), règles `.k-tree-grid__add` de `TreeGrid.vue` ;
+      `web/v2/e2e/journeys/time.spec.ts`, `accessibility.spec.ts`, `tree.spec.ts` ;
+      ligne `TreeGrid` de l'inventaire (020 `design.md`, skill `kartenn-ui`)
+    - taille : moyenne (deux composants, trois parcours)
+    - dépend de : arbitrage de la 22e (B1) ; utile seulement si la 22e-f n'est pas
+      retenue, et sans tenir le budget à elle seule
+  - [ ] 22e-h. (B2, déconseillée par la mesure) Les icônes des lignes en boîtes peintes
+    par masque CSS au lieu de SVG en ligne (ce que l'utilisateur perd : en couleurs
+    forcées, un masque peint de `currentColor` doit être rétabli par
+    `forced-color-adjust` ; l'épaisseur de trait des jetons ne s'applique plus, elle est
+    dans l'image ; les captures de toutes les icônes changent d'un pixel) — verify : passe
+    filtrée (aucun gain mesuré une fois B3 posé : B2+B3 7,9 et 5,5 contre B3 ≈ 7 ;
+    B1+B2+B3 contre B1+B3 : même écart), captures réécrites et regardées, relecteurs
+    `ui-reviewer` et `a11y-auditor`
+    - où : `web/v2/ui/src/components/Icon/Icon.vue`, `web/v2/ui/src/icons/index.ts`
+      (une URL `data:` par icône, ou une feuille générée), section « Icônes
+      (REQ-020-15) » de `specs/020-systeme-de-design/design.md`, skill `kartenn-ui`
+    - taille : grande (le système de design, toutes les captures) pour aucun gain mesuré
+    - dépend de : arbitrage de la 22e (B2)
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une
   page sous la fenêtre faute de compensation du défilement — verify : Vitest de
