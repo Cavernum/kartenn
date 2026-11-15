@@ -1816,3 +1816,204 @@ async fn interfaces_filtered_by_several_addresses(pool: PgPool) {
         assert!(body["detail"].to_string().contains(detail), "{uri}: {body}");
     }
 }
+
+/// The shared (`vip`) address `value` of `lab`, created now: several interfaces may hold it.
+async fn vip(env: &Env, value: &str) -> Uuid {
+    env.applied(vec![Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(env.domain().await),
+        address: value.into(),
+        usage: AddressUsage::Vip,
+    }])
+    .await;
+    env.id(
+        "SELECT id FROM address WHERE address = $1::inet AND valid_period @> now()",
+        value,
+    )
+    .await
+}
+
+/// Under the filter `address` (REQ-006-41, task 006-32e, 021/A28 amended), each interface
+/// carries `addresses`: those of the requested addresses it holds that the caller reads,
+/// and those only, the same on every page; with `network` as well, those that are both
+/// requested and in the network.
+#[kartenn_testing::pg_test]
+async fn interfaces_filtered_by_address_carry_the_requested_ones(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    env.applied(vec![Operation::CreatePrefix {
+        local: None,
+        domain: Ref::Id(env.domain().await),
+        prefix: "10.0.1.0/24".into(),
+        nature: Nature::Network,
+        point_to_point: false,
+        anycast: false,
+    }])
+    .await;
+    let (_, eth1) = env.machine("web1", acme).await;
+    let (_, eth2) = env.machine("web2", acme).await;
+    let (_, eth3) = env.machine("web3", acme).await;
+    let (_, eth4) = env.machine("web4", acme).await;
+    let first = vip(&env, "10.0.0.17").await;
+    let second = vip(&env, "10.0.0.18").await;
+    let extra = env.address("10.0.0.19").await;
+    let hidden = vip(&env, "10.0.0.40").await;
+    let elsewhere = env.address("10.0.1.5").await;
+    // web1 holds both requested addresses, one not requested and one of the other network;
+    // web2 and web3 one each, web2 also the address the reader does not read; web4 only that.
+    env.applied(vec![
+        attach(eth1, first),
+        attach(eth1, second),
+        attach(eth1, extra),
+        attach(eth1, elsewhere),
+        attach(eth2, first),
+        attach(eth2, hidden),
+        attach(eth3, second),
+        attach(eth4, hidden),
+    ])
+    .await;
+    let map = |pairs: &[(Uuid, &[&str])]| -> std::collections::BTreeMap<String, Vec<String>> {
+        pairs
+            .iter()
+            .map(|(i, v)| (i.to_string(), v.iter().map(|&s| s.to_owned()).collect()))
+            .collect()
+    };
+    let admin = env.app(env.admin().await);
+    let both = format!("/v1/interfaces?address={first}&address={second}");
+    let expected = map(&[
+        (eth1, &["10.0.0.17", "10.0.0.18"]),
+        (eth2, &["10.0.0.17"]),
+        (eth3, &["10.0.0.18"]),
+    ]);
+    // In one page, then page by page: the same addresses on each interface.
+    let (status, _, body) = call(&admin, "GET", &both, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(held_values(body["items"].as_array().unwrap()), expected);
+    let items = every_page(&admin, &format!("{both}&page_size=1")).await;
+    assert_eq!(items.len(), 3, "each interface once");
+    assert_eq!(held_values(&items), expected);
+    let eth1_item = items.iter().find(|i| i["id"] == json!(eth1)).unwrap();
+    assert_eq!(
+        eth1_item["addresses"],
+        json!([
+            {"id": first, "value": "10.0.0.17", "primary": false},
+            {"id": second, "value": "10.0.0.18", "primary": false},
+        ])
+    );
+    // The addresses served by the last page are journaled as read.
+    let journaled: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT target_ids FROM audit.event
+          WHERE name = 'data.objects.read' AND target_kind = 'address'
+          ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let last: Vec<Uuid> = items[2]["addresses"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap().parse().unwrap())
+        .collect();
+    assert_eq!(journaled, last);
+
+    // A requested address the caller does not read is left out of `addresses`, and matches
+    // no interface: it answers as an unknown one (ADR 0021, task 006-35).
+    let narrow = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                             valid_period, changeset_id)
+         VALUES ($1, $2, '10.0.0.16/28', 'network', false, 'test',
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(narrow)
+    .bind(env.domain().await)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let reader = env
+        .person(&["machines.interface.read", "core.prefix.read"], None)
+        .await;
+    env.grant_on(reader, &["core.address.read"], "prefix", Some(narrow))
+        .await;
+    let three = format!("{both}&address={hidden}");
+    let read = held_values(&every_page(&env.app(reader), &three).await);
+    assert_eq!(
+        read,
+        map(&[
+            (eth1, &["10.0.0.17", "10.0.0.18"]),
+            (eth2, &["10.0.0.17"]),
+            (eth3, &["10.0.0.18"]),
+        ])
+    );
+    // Whoever reads it sees the interfaces that hold it.
+    let all = held_values(&every_page(&admin, &three).await);
+    assert_eq!(all[&eth2.to_string()], ["10.0.0.17", "10.0.0.40"]);
+    assert_eq!(all[&eth4.to_string()], ["10.0.0.40"]);
+    // For the reader, the unreadable address answers as an unknown one, status, headers
+    // and bytes: alone, beside a readable one, and among 64 (no dichotomy finds it).
+    let reading = env.app(reader);
+    let unknown = Uuid::now_v7();
+    let probes: Vec<Uuid> = (0..63).map(|_| Uuid::now_v7()).collect();
+    for wanted in [vec![], vec![first], probes] {
+        let mut answers = Vec::new();
+        for absent in [hidden, unknown] {
+            let query = wanted
+                .iter()
+                .chain([&absent])
+                .map(|a| format!("&address={a}"))
+                .collect::<Vec<_>>()
+                .concat();
+            answers.push(answer(&reading, &format!("/v1/interfaces?page_size=10{query}")).await);
+        }
+        assert_eq!(answers[0], answers[1], "{} addresses", wanted.len() + 1);
+        assert_eq!(answers[0].0, StatusCode::OK);
+    }
+    let (_, _, alone) = answer(&reading, &format!("/v1/interfaces?address={hidden}")).await;
+    let alone: Value = serde_json::from_slice(&alone).unwrap();
+    assert_eq!(alone["items"], json!([]));
+
+    // With `network`: the interfaces holding a requested address and one of the network,
+    // each with the requested addresses in the network.
+    let network = env
+        .id(
+            "SELECT id FROM prefix WHERE prefix = $1::cidr AND valid_period @> now()",
+            "10.0.1.0/24",
+        )
+        .await;
+    let uri = format!("/v1/interfaces?network={network}&address={first}&address={elsewhere}");
+    let items = every_page(&admin, &uri).await;
+    assert_eq!(held_values(&items), map(&[(eth1, &["10.0.1.5"])]));
+    let uri = format!("/v1/interfaces?network={network}&address={first}");
+    let items = every_page(&admin, &uri).await;
+    assert_eq!(held_values(&items), map(&[(eth1, &[])]));
+
+    // At a date: the requested addresses each interface held then.
+    let between: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    env.applied(vec![
+        op(
+            "detach_address",
+            json!({"interface": {"id": eth1}, "address": {"id": first}}),
+        ),
+        attach(eth3, first),
+    ])
+    .await;
+    let at = between
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    let then = every_page(&admin, &format!("{both}&valid_at={at}")).await;
+    assert_eq!(held_values(&then), expected);
+    let now = every_page(&admin, &both).await;
+    assert_eq!(
+        held_values(&now),
+        map(&[
+            (eth1, &["10.0.0.18"]),
+            (eth2, &["10.0.0.17"]),
+            (eth3, &["10.0.0.17", "10.0.0.18"]),
+        ])
+    );
+}

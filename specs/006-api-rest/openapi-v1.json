@@ -3924,7 +3924,7 @@
         "description": "An interface of a machine (REQ-009-6).",
         "properties": {
           "addresses": {
-            "description": "In a list filtered by `network` only: its addresses in the network that the caller\nmay read, by value (021/A28).",
+            "description": "In a list filtered by `network` or `address` only: the addresses it holds that the\ncaller may read, by value, among those of the network, among the requested ones, or\nboth when both filters are given (021/A28, task 006-32e).",
             "items": {
               "$ref": "#/components/schemas/MachineCardAddress"
             },

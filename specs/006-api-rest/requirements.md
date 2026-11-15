@@ -513,6 +513,8 @@ Acceptation :
 - `?address=<a>&address=<b>` rend les interfaces qui tiennent l'une ou l'autre,
   paginées comme toute liste (une adresse partagée peut tenir plus d'interfaces qu'une
   page) ; plus de 64 adresses → 400, le curseur de la page suivante les portant.
+- Sous `address`, chaque interface rendue porte `addresses` : celles des adresses
+  demandées qu'elle tient et que l'appelant lit, et elles seules (021/A28).
 - Le paramètre figure aux `parameters` de chaque liste du contrat.
 
 #### REQ-006-42 — Résumé de toute référence rendue
