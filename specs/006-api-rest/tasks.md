@@ -1043,7 +1043,7 @@ routeur complet, sauf mention « vrai TCP ».
   corps de l'autre ; un droit retiré ne laisse pas de corps servi sans revalidation)
   - où : `crates/kartenn-rest/src/dated.rs` (30-34, 340), `specs/006-api-rest/decisions.md`
     (décision de cache, ligne ≈ 442), `web/v2/sdk/src/data/cache.ts` (déconnexion)
-- [ ] 35. Oracle des filtres par clé d'un objet lié (antérieur, relevé par la 33a) :
+- [x] 35. Oracle des filtres par clé d'un objet lié (antérieur, relevé par la 33a) :
   `domain=<slug>` et `parent=<slug>` répondent sur la clé d'un lié que l'appelant ne peut
   pas lire — un filtre sur un lié illisible doit répondre comme sur un lié inconnu.
   L'oracle de `GET /v1/interfaces?address=<uuid>` (relevé par la 32b) est fermé par la
@@ -1054,6 +1054,25 @@ routeur complet, sauf mention « vrai TCP ».
     et `parent`), `crates/kartenn-rest/src/filter.rs` ;
     `crates/kartenn-machines/src/rest.rs` (`holds_requested`, sous `address_visible`, à
     imiter)
+  fait : `crates/kartenn-store-pg/src/list.rs` (`objects_sql` : le filtre `$9` sur le
+  slug du lié `l` porte le prédicat de lecture de `l` sous la portée `s` à `$1` ;
+  `Kind::linked`, `Kind::readable(row)` remplace `Shape::readable`, partagé par la page,
+  le lien et `count`) ; `crates/kartenn-rest/src/objects.rs` (`filtered` : le domaine
+  d'un filtre de propriétés se résout sous la portée de l'appelant, plus sous
+  `ReadScope::all()`) ; design « Objets du noyau » complété. Routes couvertes : `GET` et
+  `QUERY` de `/v1/prefixes`, `/v1/ranges`, `/v1/addresses` (`domain`, avec ou sans
+  `prop.*` ou `q`), `/v1/entities`, `/v1/sites` (`parent`). Test :
+  `rest/tests/it/objects.rs` `a_filter_on_an_unreadable_link_answers_as_on_an_unknown_one`
+  (rouge avant : `domain=lab` illisible rendait le préfixe et un curseur) — statut,
+  en-têtes, corps et curseur identiques pour un lié illisible et une clé inconnue, un lié
+  lisible filtrant toujours.
+  choix : lisibilité du lié évaluée aux dates de la lecture (`$1`, comme les lignes),
+  non « maintenant » comme le résumé (`Readable`) ; prédicat posé sur la jointure
+  existante plutôt qu'un CTE des liés résolus, pour ne pas changer le plan (aucun banc).
+  reste : un appelant qui lit des préfixes sans lire leur domaine ne peut plus les
+  filtrer par ce domaine (voulu) ; les filtres par identifiant d'un lié des modules
+  (`/v1/inference-rules?domain=<uuid>`, `parent=<uuid>`) ne sont pas touchés : l'identifiant
+  y figure déjà dans les lignes lisibles ; coût du prédicat non mesuré.
 - [x] 36. Page des flux coupée avant le filtre de lecture (sécurité, antérieur à la 32c,
   relevé par sa revue) : sans `id`, `/v1/flows` (et `/{collection}/{id}/flows`) lit la
   page et une ligne de plus, coupe la page et calcule son curseur sur les lignes brutes,
