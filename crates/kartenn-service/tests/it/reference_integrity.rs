@@ -886,7 +886,7 @@ async fn the_writes_of_a_module_are_undone(pool: PgPool) {
     };
     // Created, then undone. Not the creation of a group: its inverse closes the group
     // before it removes the owner the plan assigned it, refused by
-    // `changeset.operation.no_version` (left open by task 002-29b2, as before it).
+    // `changeset.operation.no_version`, as before task 002-29b2 (task 004-26).
     f.applied(vec![group("edge")], None).await;
     let edge = f.id("vlan_group", "edge").await;
     let in_edge = f.applied(vec![vlan(Ref::Id(edge), "v10")], None).await;

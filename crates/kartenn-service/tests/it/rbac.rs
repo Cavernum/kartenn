@@ -948,6 +948,38 @@ async fn no_right_reaches_through_an_unknown_domain(pool: PgPool) {
         let outcome = t.submit_as(&who, vec![create(domain)]).await;
         assert_eq!(refusal(&outcome), out_of_reach, "{domain}");
     }
+    // A closure, its right checked before the writes, with a write of its own that its
+    // writes would refuse (a prefix twice in its domain): stopped by the refusal of its
+    // rights before any write, the same whatever the identifier names (task 002-29b2).
+    let outcome = t.submit_as(&root, vec![create(t.ids["other"])]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let closed: Uuid =
+        sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.9.0.0/24' AND domain_id = $1")
+            .bind(t.ids["other"])
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let close = |id: Uuid| Operation::Close {
+        kind: ObjectKind::Prefix,
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    };
+    let outcome = t.submit_as(&root, vec![close(closed)]).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let twice = create(t.ids["lab"]);
+    let out_of_reach = refusal(
+        &t.submit_as(&who, vec![close(t.ids["172.16.0.0/24"]), twice.clone()])
+            .await,
+    );
+    assert_eq!(
+        out_of_reach.iter().map(|v| v.0).collect::<Vec<_>>(),
+        ["core.object.forbidden"]
+    );
+    for prefix in [unknown, t.ids["group"], closed] {
+        let outcome = t.submit_as(&who, vec![close(prefix), twice.clone()]).await;
+        assert_eq!(refusal(&outcome), out_of_reach, "{prefix}");
+    }
     // Whoever holds every right learns that the identifier designates nothing.
     for domain in [unknown, t.ids["group"], gone] {
         let outcome = t.submit_as(&root, vec![create(domain)]).await;
@@ -1060,6 +1092,28 @@ async fn no_right_reaches_through_an_unknown_vlan(pool: PgPool) {
         let outcome = t.submit_as(&who, vec![rename(vlan, "x")]).await;
         assert_eq!(refusal(&outcome), out_of_reach, "{vlan}");
     }
+    // With a write of its own that its writes would refuse (a VID taken in its group): a
+    // refusal of its rights stops the changeset before any write, so that the other
+    // refusals tell nothing of the VLAN either.
+    let g_lab = t.find("vlan_group", "slug", "g-lab").await;
+    let taken = op(
+        "create_vlan",
+        serde_json::json!({"group": {"id": g_lab}, "vid": 10, "name": "twin"}),
+    );
+    let out_of_reach = refusal(
+        &t.submit_as(&who, vec![rename(other, "x"), taken.clone()])
+            .await,
+    );
+    for vlan in [unknown, t.ids["group"], gone] {
+        let outcome = t
+            .submit_as(&who, vec![rename(vlan, "x"), taken.clone()])
+            .await;
+        assert_eq!(refusal(&outcome), out_of_reach, "{vlan}");
+    }
+    assert_eq!(
+        out_of_reach.iter().map(|v| v.0).collect::<Vec<_>>(),
+        ["core.object.forbidden"]
+    );
     // Whoever holds every right learns that the identifier designates no VLAN in force.
     for vlan in [unknown, t.ids["group"], gone] {
         let outcome = t.submit_as(&root, vec![rename(vlan, "x")]).await;

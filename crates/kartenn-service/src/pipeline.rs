@@ -1146,6 +1146,8 @@ struct Unknown {
     /// The others: the changeset goes on, so that the rights refuse it as they would an
     /// object out of reach; refused by these only once every right is granted.
     hidden: Vec<Violation>,
+    /// The objects of those, with the kind each was expected to have.
+    absent: HashSet<(Uuid, ObjectKind)>,
 }
 
 /// The read permission of the objects of `kind`, `None` for the declarations and their
@@ -1180,6 +1182,7 @@ async fn check_designations<T: WriteTx + Send, A: Authorizer>(
     let mut split = Unknown {
         revealed: Vec::new(),
         hidden: Vec::new(),
+        absent: HashSet::new(),
     };
     for d in unknown_designations(tx, designated, periods).await? {
         let readable = match read_permission(d.kind) {
@@ -1194,6 +1197,7 @@ async fn check_designations<T: WriteTx + Send, A: Authorizer>(
             split.revealed.push(violation);
         } else {
             split.hidden.push(violation);
+            split.absent.insert((d.id, d.kind));
         }
     }
     Ok(split)
@@ -1766,7 +1770,7 @@ async fn moved<T: WriteTx>(
     original: &ChangesetRequest,
     prepared: &ChangesetRequest,
     (planned, origins): (&[Planned], &[usize]),
-    (held, absent): (&[Uuid], &HashSet<Uuid>),
+    (held, absent): (&[Uuid], &HashSet<(Uuid, ObjectKind)>),
     modules: &ModuleRegistry,
     period: Option<Period>,
 ) -> Result<Option<Violation>, StoreError> {
@@ -1793,7 +1797,7 @@ async fn moved<T: WriteTx>(
             }
             _ => continue,
         };
-        if !absent.contains(&id)
+        if !absent.contains(&(id, kind))
             && matches!(
                 kind,
                 ObjectKind::VlanGroup | ObjectKind::Vlan | ObjectKind::Module(_)
@@ -1832,7 +1836,7 @@ async fn moved<T: WriteTx>(
     for (p, origin) in planned.iter().zip(origins) {
         if let Planned::Module { plan, .. } = p
             && again.contains(origin)
-            && !absent.contains(&plan.object)
+            && !absent.contains(&(plan.object, object_kind(plan.kind)))
             && let Some(domain) = tx.domain_of(object_kind(plan.kind), plan.object).await?
             && !plan.domains.contains(&domain)
         {
@@ -2774,10 +2778,7 @@ async fn stages<S: Store, A: Authorizer>(
         let hidden = unknown.hidden;
         // INV-63 (task 002-29b2): an object hidden from the author is not in force, its last
         // domain no conflict that would tell him otherwise.
-        let absent: HashSet<Uuid> = hidden
-            .iter()
-            .flat_map(|v| v.subjects.iter().copied())
-            .collect();
+        let absent = unknown.absent;
         let moved = or_roll_back!(
             tx,
             moved(
@@ -2888,10 +2889,12 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return Err(e.into());
     }
-    // INV-63 (task 002-29b2): an author refused on the objects he changes learns nothing of
-    // those hidden from him, which a write would find absent (an update of a module object
-    // that does not exist, say): refused by his rights, before any write.
-    if !hidden.is_empty() && has_errors(&violations) {
+    // INV-63 (task 002-29b2): an author refused on the objects he closes or changes is
+    // refused by his rights alone, before any write, whatever those objects are: the writes
+    // would answer otherwise for an object out of his reach than for one that is not (an
+    // update of a module object that does not exist, say). The rights on the objects
+    // created are checked after the writes.
+    if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
     }
