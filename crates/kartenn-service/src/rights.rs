@@ -100,7 +100,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     // A guard reveals a version to whoever writes the changeset; the read of the one who
     // applies it is not asked.
     if check.verb == Verb::Edit {
-        check_guards(tx, authorizer, subject, planned, violations).await?;
+        check_guards(tx, authorizer, subject, planned, Phase::After, violations).await?;
     }
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
@@ -176,17 +176,22 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
 
 /// A guard reveals the version of an object: it needs the right to read it (006-16); so
 /// does an object an operation of a module cites without writing it (its handler's
-/// [`reads`](crate::module::ModuleHandler::reads), 009/M16).
-async fn check_guards<T: WriteTx + Send, A: Authorizer>(
+/// [`reads`](crate::module::ModuleHandler::reads), 009/M16). In `phase`: before the writes,
+/// the reads on the objects that exist already (INV-63, task 002-29c2: no write answers
+/// before them); after, the guards and the reads on the objects the changeset creates.
+pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     subject: &Subject,
     planned: &[Planned],
+    phase: Phase,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
+    let created: BTreeSet<Uuid> = crate::resolution::created(planned).into_iter().collect();
     let mut guarded: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
     for p in planned {
-        if let Planned::Expect { kind, id, .. } = p
+        if phase == Phase::After
+            && let Planned::Expect { kind, id, .. } = p
             && !matches!(kind, ObjectKind::Property | ObjectKind::EnumValue)
         {
             guarded
@@ -196,7 +201,9 @@ async fn check_guards<T: WriteTx + Send, A: Authorizer>(
         }
         if let Planned::Module { handler, plan, .. } = p {
             for (permission, object) in handler.reads(plan) {
-                guarded.entry(permission).or_default().push(object);
+                if created.contains(&object) == (phase == Phase::After) {
+                    guarded.entry(permission).or_default().push(object);
+                }
             }
         }
     }

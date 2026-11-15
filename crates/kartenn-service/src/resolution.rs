@@ -6,7 +6,7 @@
 //! objects whose origin may have changed are recomputed by the storage adapter, which
 //! writes only the segments that differ.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use kartenn_core::inheritance::Assigned;
 use kartenn_core::period::Period;
@@ -138,6 +138,21 @@ pub(crate) async fn parse<T: WriteTx>(
     raws: &[Raw],
     period: Option<Period>,
 ) -> Result<Value, WriteError> {
+    let hidden = HashSet::new();
+    parse_hiding(tx, declaration, (property, object), raws, period, &hidden).await
+}
+
+/// [`parse`], a reference to an object of `hidden` taken as of the target kind: hidden
+/// from the author, it is not checked here, which would tell him it is absent (INV-63,
+/// task 002-29c2); the changeset is refused further on.
+async fn parse_hiding<T: WriteTx>(
+    tx: &mut T,
+    declaration: &Declaration,
+    (property, object): (Uuid, Uuid),
+    raws: &[Raw],
+    period: Option<Period>,
+    hidden: &HashSet<Uuid>,
+) -> Result<Value, WriteError> {
     let ty = declaration
         .spec
         .value_type()
@@ -174,7 +189,7 @@ pub(crate) async fn parse<T: WriteTx>(
                 facts.external_systems = tx.enum_values_covering(list, &systems, period).await?;
             }
         }
-        TypeSpec::Ref { .. } => {
+        TypeSpec::Ref { target } => {
             let given = raws.iter().filter_map(|r| match r {
                 Raw::Ref(id) => Some(*id),
                 _ => None,
@@ -185,7 +200,9 @@ pub(crate) async fn parse<T: WriteTx>(
                 .chain(given)
                 .collect();
             for id in ids {
-                if let Some(k) = tx.object_kind_covering(id, period).await? {
+                if hidden.contains(&id) {
+                    facts.kinds.insert(id, target);
+                } else if let Some(k) = tx.object_kind_covering(id, period).await? {
                     facts.kinds.insert(id, k);
                 }
             }
@@ -198,7 +215,8 @@ pub(crate) async fn parse<T: WriteTx>(
 
 /// Writes an assignment, or explicit "no value" when `values` is `None` (REQ-003-4, 8,
 /// 12, 13), with its provenance (`input`, `source:<id>@<version>`, REQ-003-22, or
-/// `module:<module>#<motif>`, ADR 0026, amendment 14).
+/// `module:<module>#<motif>`, ADR 0026, amendment 14). A value naming an object of
+/// `hidden` is not checked ([`parse_hiding`]).
 #[allow(clippy::too_many_arguments)] // one per column of the assignment and its context
 pub(crate) async fn assign<T: WriteTx>(
     tx: &mut T,
@@ -208,14 +226,14 @@ pub(crate) async fn assign<T: WriteTx>(
     values: Option<&[Raw]>,
     provenance: &str,
     period: Option<Period>,
-    changeset: Uuid,
+    (changeset, hidden): (Uuid, &HashSet<Uuid>),
 ) -> Result<(), WriteError> {
     let declaration = carried(tx, object, kind, property, period).await?;
     let assigned = match values {
         None => Assigned::Cleared,
-        Some(raws) => {
-            Assigned::Value(parse(tx, &declaration, property, object, raws, period).await?)
-        }
+        Some(raws) => Assigned::Value(
+            parse_hiding(tx, &declaration, (property, object), raws, period, hidden).await?,
+        ),
     };
     tx.assign(
         object,
@@ -593,7 +611,7 @@ pub(crate) async fn diff<T: WriteTx>(
 }
 
 /// Objects the changeset creates.
-fn created(planned: &[Planned]) -> Vec<Uuid> {
+pub(crate) fn created(planned: &[Planned]) -> Vec<Uuid> {
     planned
         .iter()
         .filter_map(|p| match p {

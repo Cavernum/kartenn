@@ -2930,16 +2930,17 @@ fn seen(outcome: &Outcome) -> Vec<(&'static str, String, Option<usize>, usize)> 
 /// An operation citing the identifier it is given.
 type Make = Box<dyn Fn(Uuid) -> Operation>;
 
-/// INV-63 on the references of the module (task 002-29c):an author without the right on
-/// the object a reference names gets the same answer whatever its identifier names
-/// (nothing, an object of another kind, an object closed, an object in force out of his
-/// reach): the refusal of his rights where the reference needs one, otherwise, once every
-/// right is granted, `core.reference.unknown`. Red on three leaks of the writes, which
-/// answer before the rights of the objects created: an owner (`prop.assignment.
-/// invalid_value`, which says the identifier names nothing, or a site), an address attached
-/// (`machines.address.closed`) and a host or a cluster (`machines.host.invalid`).
+/// INV-63 on the references of the module (tasks 002-29c, 29c2): an author without the
+/// right on the object a reference names gets the same answer whatever its identifier
+/// names (nothing, an object of another kind, an object closed, an object in force out of
+/// his reach): the refusal of his rights where the reference needs one (rules, messages,
+/// operations, number of objects, in order), otherwise, once every right is granted,
+/// `core.reference.unknown`. A host and a cluster need the right to read them (009/M16,
+/// extension of 2026-11-15), so that neither their existence nor their kind is told; one
+/// the changeset creates is checked after the writes. Requests of several operations
+/// included.
 #[kartenn_testing::pg_test]
-#[ignore = "002-29c2 : en attente d'arbitrage"]
+#[allow(clippy::too_many_lines)] // the objects of each case, then the cases
 async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
     let env = Env::new(&pool).await;
     let (acme, other) = (env.entity("acme").await, env.entity("other").await);
@@ -2981,6 +2982,10 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             json!({"name": "theirs", "kind": "physical", "owner": {"id": other}}),
         ),
         op(
+            "create_machine",
+            json!({"name": "box", "kind": "container", "owner": {"id": other}}),
+        ),
+        op(
             "create_cluster",
             json!({"slug": "c-mine", "owner": {"id": acme}}),
         ),
@@ -2995,6 +3000,7 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
     ])
     .await;
     let theirs = env.machine("theirs", other).await;
+    let boxed = env.machine("box", other).await;
     let c_gone = env.id("machines.cluster", "slug", "c-gone").await;
     let c_theirs = env.id("machines.cluster", "slug", "c-theirs").await;
     env.applied(vec![close("machines.cluster", c_gone, false)])
@@ -3051,7 +3057,34 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             }),
             theirs,
             vec![unknown, other, gone],
-            false,
+            true,
+        ),
+        // The kind of a host out of reach is not told either (`host_kinds`).
+        (
+            "machine.host.kind",
+            Box::new(move |x| {
+                op(
+                    "create_machine",
+                    json!({"name": "vm1", "kind": "virtual", "owner": {"id": acme},
+                           "host": {"machine": {"id": x}}}),
+                )
+            }),
+            boxed,
+            vec![unknown, other, gone],
+            true,
+        ),
+        (
+            "machine.host.cluster",
+            Box::new(move |x| {
+                op(
+                    "create_machine",
+                    json!({"name": "vm1", "kind": "virtual", "owner": {"id": acme},
+                           "host": {"cluster": {"id": x}}}),
+                )
+            }),
+            c_theirs,
+            vec![unknown, other, c_gone],
+            true,
         ),
         (
             "machine.member_of",
@@ -3064,7 +3097,19 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             }),
             c_theirs,
             vec![unknown, other, c_gone],
-            false,
+            true,
+        ),
+        (
+            "update_machine.member_of",
+            Box::new(move |x| {
+                op(
+                    "update_machine",
+                    json!({"id": {"id": mine}, "member_of": {"id": x}}),
+                )
+            }),
+            c_theirs,
+            vec![unknown, other, c_gone],
+            true,
         ),
         (
             "machine.owner",
@@ -3141,7 +3186,7 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             }),
             theirs,
             vec![unknown, other, gone],
-            false,
+            true,
         ),
     ];
     let mut leaks = Vec::new();
@@ -3175,5 +3220,83 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             }
         }
     }
+    // Several operations: every refusal of his rights before the writes, in the same
+    // order, whatever the hidden reference among them.
+    let vm = move |name: &str, extra: Value| {
+        let mut fields = json!({"name": name, "kind": "virtual", "owner": {"id": acme}});
+        merge(&mut fields, extra);
+        op("create_machine", fields)
+    };
+    let requests: Vec<(&str, MakeMany, Uuid, Vec<Uuid>)> = vec![
+        (
+            "vlan then host",
+            Box::new(move |x| {
+                vec![
+                    interface(mine, 7, json!({"mode": "access", "access": {"id": x}})),
+                    vm("vm6", json!({"host": {"machine": {"id": theirs}}})),
+                ]
+            }),
+            v20,
+            vec![unknown, other, v11],
+        ),
+        (
+            "host then address",
+            Box::new(move |x| {
+                vec![
+                    vm("vm7", json!({"host": {"machine": {"id": x}}})),
+                    attach(eth_mine, a_far, false),
+                ]
+            }),
+            theirs,
+            vec![unknown, other, gone],
+        ),
+        (
+            "site then address",
+            Box::new(move |x| {
+                vec![
+                    vm("vm8", json!({"kind": "physical", "site": {"id": x}})),
+                    attach(eth_mine, a_far, false),
+                ]
+            }),
+            paris,
+            vec![unknown, other],
+        ),
+    ];
+    for (name, make, reach, hidden) in &requests {
+        let expected = seen(&env.submit_as(who, make(*reach)).await);
+        for h in hidden {
+            let answer = seen(&env.submit_as(who, make(*h)).await);
+            if answer != expected {
+                leaks.push(format!("{name} {h}: {answer:?}"));
+            }
+        }
+    }
     assert!(leaks.is_empty(), "{leaks:#?}");
+    // A host or a cluster the changeset creates is read after its writes.
+    let created = [
+        vec![
+            op(
+                "create_machine",
+                json!({"local": 1, "name": "h9", "kind": "physical", "owner": {"id": acme}}),
+            ),
+            vm("vm9", json!({"host": {"machine": {"local": 1}}})),
+        ],
+        vec![
+            op(
+                "create_cluster",
+                json!({"local": 1, "slug": "c9", "owner": {"id": acme}}),
+            ),
+            vm(
+                "node9",
+                json!({"kind": "physical", "member_of": {"local": 1}}),
+            ),
+        ],
+    ];
+    for operations in created {
+        let outcome = env.submit_as(who, operations).await;
+        assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    }
 }
+
+/// Operations citing the identifier they are given.
+type MakeMany = Box<dyn Fn(Uuid) -> Vec<Operation>>;

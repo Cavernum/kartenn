@@ -1932,12 +1932,15 @@ async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result
 }
 
 /// Writes or removes an assignment: typed by the user (`input` provenance), or derived by
-/// the module whose plan adds it (`module:<module>#<motif>`, checked by [`plan`]).
+/// the module whose plan adds it (`module:<module>#<motif>`, checked by [`plan`]). A value
+/// naming an object `hidden` from the author is not checked (INV-63, task 002-29c2): the
+/// write would tell him it is absent; the changeset is refused further on, by his rights
+/// or by `core.reference.unknown`.
 async fn assignment<T: WriteTx>(
     tx: &mut T,
     p: &Planned,
     period: Option<Period>,
-    changeset: Uuid,
+    (changeset, hidden): (Uuid, &HashSet<Uuid>),
 ) -> Result<(), WriteError> {
     match p {
         Planned::Assign {
@@ -1950,7 +1953,14 @@ async fn assignment<T: WriteTx>(
             let values = values.as_deref();
             let provenance = provenance.as_deref().unwrap_or(INPUT);
             crate::resolution::assign(
-                tx, *object, *kind, *property, values, provenance, period, changeset,
+                tx,
+                *object,
+                *kind,
+                *property,
+                values,
+                provenance,
+                period,
+                (changeset, hidden),
             )
             .await
         }
@@ -2168,7 +2178,8 @@ async fn close<T: WriteTx>(
 }
 
 /// Applies the planned writes; returns the former domain and value of each prefix whose
-/// value it changes, whose content must be checked again (REQ-002-18).
+/// value it changes, whose content must be checked again (REQ-002-18). The objects
+/// `absent` are hidden from the author.
 #[allow(clippy::too_many_lines)] // one arm per kind of planned operation
 async fn apply<T: WriteTx>(
     tx: &mut T,
@@ -2176,9 +2187,10 @@ async fn apply<T: WriteTx>(
     planned: &[Planned],
     origins: &[usize],
     periods: &[Option<Period>],
-    changeset: Uuid,
+    (changeset, absent): (Uuid, &HashSet<(Uuid, ObjectKind)>),
     violations: &mut Vec<Violation>,
 ) -> Result<Vec<(Uuid, Prefix)>, StoreError> {
+    let hidden: HashSet<Uuid> = absent.iter().map(|(id, _)| *id).collect();
     let mut former = Vec::new();
     // The objects written, whose version is recorded in one statement: at the end, or
     // before a version is compared (`conflict`).
@@ -2306,7 +2318,7 @@ async fn apply<T: WriteTx>(
                 continue;
             }
             Planned::Assign { .. } | Planned::Unassign { .. } => {
-                assignment(tx, p, period, changeset).await
+                assignment(tx, p, period, (changeset, &hidden)).await
             }
             Planned::Module { handler, plan, .. } => {
                 handler.apply(tx.module_tx(), plan, period, changeset).await
@@ -2666,6 +2678,7 @@ async fn stages<S: Store, A: Authorizer>(
         domains,
         keys,
         hidden,
+        absent,
     ) = loop {
         let mut tx = store.begin().await?;
         // ADR 0026, amendment 3: what the modules may read of who stands behind it.
@@ -2796,7 +2809,7 @@ async fn stages<S: Store, A: Authorizer>(
             None => {
                 break (
                     tx, prepared, planned, origins, periods, cascaded, window, violations, domains,
-                    keys, hidden,
+                    keys, hidden, absent,
                 );
             }
             Some(_) if replays < MAX_REPLAYS => {
@@ -2870,6 +2883,17 @@ async fn stages<S: Store, A: Authorizer>(
             &mut violations,
         )
         .await?;
+        // INV-63 (task 002-29c2): the reads a module requires on the objects that exist
+        // already, before the writes that would tell an author without them otherwise.
+        crate::rights::check_guards(
+            &mut tx,
+            authorizer,
+            author,
+            &authored,
+            crate::rights::Phase::Before,
+            &mut violations,
+        )
+        .await?;
         if let Some(application) = application {
             crate::rights::check_objects(
                 &mut tx,
@@ -2893,7 +2917,7 @@ async fn stages<S: Store, A: Authorizer>(
     // refused by his rights alone, before any write, whatever those objects are: the writes
     // would answer otherwise for an object out of his reach than for one that is not (an
     // update of a module object that does not exist, say). The rights on the objects
-    // created are checked after the writes.
+    // created, and the reads on them, are checked after the writes.
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
@@ -2921,7 +2945,7 @@ async fn stages<S: Store, A: Authorizer>(
         &planned,
         &origins,
         &periods,
-        changeset,
+        (changeset, &absent),
         &mut violations,
     )
     .await
@@ -2985,6 +3009,13 @@ async fn stages<S: Store, A: Authorizer>(
             return Err(e.into());
         }
     };
+    // REQ-002-12 (amendment of 2026-11-14), INV-63: the designations hidden from the author,
+    // refused once every right is granted, so that none refuses before his rights do, and
+    // before the rules of the modules, so that none reads what he does not (task 002-29c2).
+    if !hidden.is_empty() {
+        tx.rollback().await?;
+        return refuse(store, req, changeset, hidden, mode, context).await;
+    }
     // REQ-008-26: the sections of the modules, then their rules on the final state.
     let touched = crate::sections::touched(&planned);
     let sections =
@@ -3019,12 +3050,6 @@ async fn stages<S: Store, A: Authorizer>(
     if has_errors(&violations) {
         tx.rollback().await?;
         return refuse(store, req, changeset, violations, mode, context).await;
-    }
-    // REQ-002-12 (amendment of 2026-11-14), INV-63: the designations hidden from the author,
-    // refused once every right is granted, so that none refuses before his rights do.
-    if !hidden.is_empty() {
-        tx.rollback().await?;
-        return refuse(store, req, changeset, hidden, mode, context).await;
     }
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
