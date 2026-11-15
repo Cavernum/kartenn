@@ -7824,6 +7824,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       plafonnée à `--k-size-list-max` (480 px) quelle que soit la hauteur de la fenêtre,
       comme au-delà de 200 lignes, et les grilles du plugin `machines` dans les onglets
       d'une fiche peuvent imbriquer deux défileurs (non vu en rendu).
+  - [ ] 22f-h. Hauteur d'une grille virtualisée : sur un écran de liste du shell, la grille
+    prend la hauteur restante de la fenêtre et porte le seul défilement de l'écran (plus
+    de boîte de 480 px dans une page qui défile elle aussi) ; avant la bascule et avant
+    tout push de la 22f-f. Les six vues (`ListView`, `PropertiesView`, `AuditView`,
+    `ImportsView`, `ChangesetsView`, `ProposalsView`) ; une liste courte et complète
+    (non virtualisée) garde sa hauteur naturelle. Les grilles dans un onglet de fiche
+    (plugin `machines`) gardent le plafond `--k-size-list-max` ; leur défilement imbriqué
+    (`InterfacesTab` plafonnée : `more` vrai pour toujours) est traité ici si le
+    correctif est le même, sinon inscrit à part — verify : test du composant ou de la vue
+    (la grille occupe la hauteur donnée par son parent, pas le plafond) ; parcours : sur
+    une fenêtre de 1 200 px de haut, une liste de plus d'une page n'a qu'un défileur (la
+    page ne défile pas, `scrollHeight` du document égal à sa hauteur) ; captures des
+    écrans de liste ; relectures `ui-reviewer` et `a11y-auditor` ; `k-web2-check`,
+    `k-web2-e2e`
+    - où : `web/v2/ui/src/components/DataGrid/DataGrid.vue` (`[data-virtual]`,
+      `max-block-size`, `--k-size-list-max`), `ui/src/components/internal/virtualRows.ts` ;
+      `web/v2/shell/src/views/ListView.vue` et les cinq autres vues, la mise en page du
+      cadre (zone principale, hauteur) ; `plugins/machines/src/{MachineRecord,ClusterRecord,InterfacesTab}.vue` ;
+      ligne `DataGrid` de l'inventaire de `specs/020-systeme-de-design/design.md` (ligne
+      20) et de la skill `kartenn-ui`
+    - taille : moyenne (un composant, six vues, captures) ; à découper si le cadre doit
+      bouger
+    - dépend de : 22f-f
   - [x] 22f-g. Banc de la page de 100 lignes : la première page mesurée sans le démarrage
     des plugins (22f-e : 139 à 158 ms d'attente derrière l'évaluation du plugin `machines`
     ou `example` dans trois passes sur cinq) — attendre, avant le premier défilement, que
