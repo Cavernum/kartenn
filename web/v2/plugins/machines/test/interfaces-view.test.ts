@@ -422,13 +422,17 @@ describe("the record of an interface (task 18cc)", () => {
     mounted = mount("machines-interfaces", {
       context: { locale: "en", user: user() },
       fetch: fakeFetch({
-        // A tagged VLAN the caller may not read: its summary without a label, said `?`.
-        ...reads({ mode: "trunk", tagged: [{ id: VLAN, label: "310 · hotes" }, { id: VLAN_B }] }),
+        // A tagged VLAN the caller may not read: its summary without a label (or an empty
+        // one), said `?`.
+        ...reads({
+          mode: "trunk",
+          tagged: [{ id: VLAN, label: "310 · hotes" }, { id: VLAN_B }, { id: VLAN_B, label: "" }],
+        }),
         "POST /v1/drafts": ({ body }) => (posted.push(body), draftOf([])),
       }),
     });
     let { element } = mounted;
-    await text(element, "trunk 310 · hotes, ?");
+    await text(element, "trunk 310 · hotes, ?, ?");
     const form = element.querySelector<HTMLFormElement>("section form")!;
     form.requestSubmit();
     await text(form, "Required field.");

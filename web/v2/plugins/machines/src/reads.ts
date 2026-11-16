@@ -98,7 +98,7 @@ export class Names {
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped with the lists' (11p10-d4)
 export function modeOf(iface: Interface, _names?: Names): string {
-  const vid = (vlan?: Summary | null) => (vlan ? (vlan.label ?? "?") : "");
+  const vid = (vlan?: Summary | null) => (vlan ? vlan.label || "?" : "");
   switch (iface.vlan.mode) {
     case "access":
       return `${t("mode.access")} ${vid(iface.vlan.access)}`;

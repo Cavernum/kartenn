@@ -675,4 +675,70 @@ describe("the record of a machine (task 18cb)", () => {
     ]);
     (document.activeElement as HTMLElement | null)?.blur();
   });
+
+  it("names its host and its cluster by their labels, linked; unreadable, their ids unlinked (11p10-d3)", async () => {
+    history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
+    const hostOf = (element: HTMLElement) =>
+      [...element.querySelectorAll("dt")].at(-2)!.nextElementSibling as HTMLElement;
+    const clusterOf = (element: HTMLElement) =>
+      [...element.querySelectorAll("dt")].at(-1)!.nextElementSibling as HTMLElement;
+    const at = (host: unknown, member: unknown) =>
+      mount("machines-machines", {
+        context: { locale: "en", user: user() },
+        fetch: fakeFetch({
+          ...reads,
+          "GET /v1/machines/{id}": () => ({ ...card(), host, member_of: member }) as never,
+        }),
+      });
+    mounted = at(
+      { id: CLUSTER, kind: "cluster", label: "grappe" },
+      { id: CLUSTER, label: "grappe" },
+    );
+    let { element } = mounted;
+    await vi.waitFor(() => expect(hostOf(element).textContent).toBe("grappe"));
+    expect(hostOf(element).querySelector("a")?.getAttribute("href")).toBe(
+      `/x/machines/clusters/${CLUSTER}`,
+    );
+    expect(clusterOf(element).querySelector("a")?.getAttribute("href")).toBe(
+      `/x/machines/clusters/${CLUSTER}`,
+    );
+    mounted.unmount();
+    queryClient.clear();
+    // A host and a cluster the caller may not read: their summaries without a label.
+    mounted = at({ id: OTHER }, { id: CLUSTER });
+    element = mounted.element;
+    await vi.waitFor(() => expect(hostOf(element).textContent).toBe(OTHER));
+    expect(hostOf(element).querySelector("a")).toBeNull();
+    expect(hostOf(element).querySelector(".k-mono")).not.toBeNull();
+    expect(clusterOf(element).textContent).toBe(CLUSTER);
+    expect(clusterOf(element).querySelector("a")).toBeNull();
+  });
+
+  it("draws a trunk of five VLANs whole in its cell, which the grid clips on one line (11p10-d3)", async () => {
+    history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
+    const names = ["utilisateurs", "serveurs", "stockage", "sauvegarde", "supervision"];
+    const tagged = names.map((name, i) => ({
+      id: `${VLAN.slice(0, -2)}0${i}`,
+      label: `${120 + 10 * i} · ${name}`,
+    }));
+    const mode = `trunk ${tagged.map((v) => v.label).join(", ")}`;
+    mounted = mount("machines-machines", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...reads,
+        "GET /v1/interfaces": () => page([{ ...iface(), vlan: { mode: "trunk", tagged } }]),
+      }),
+    });
+    const { element } = mounted;
+    await vi.waitFor(() => expect(rows(element, "Interfaces")[0]?.[2]).toBe(mode));
+    // A column of names on one line (no `wrap`): the grid's value box clips it by an
+    // ellipsis; the whole text stays in the cell for assistive technologies, and in the
+    // record of the interface, its name a link to it.
+    const cell = element.querySelector<HTMLElement>("[role=gridcell][data-column=mode]")!;
+    expect(cell.dataset["wrap"]).toBeUndefined();
+    expect(cell.querySelector(".k-data-grid__value")?.textContent?.trim()).toBe(mode);
+    expect(element.querySelector("[role=gridcell][data-column=name] a")?.getAttribute("href")).toBe(
+      `/x/machines/interfaces/${IFACE}`,
+    );
+  });
 });

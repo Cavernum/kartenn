@@ -70,11 +70,15 @@ const link = (page: string) => {
   void context.value.time;
   return hrefOf(page);
 };
-/** The page of its host by its kind; none for a host the caller may not read (REQ-006-42). */
+/**
+ * The page of its host by its kind; none for a host without a label, one the caller may not
+ * read or absent then (REQ-006-42), as its cluster and the machine of an interface.
+ */
 const hostPage = computed(() => {
   const h = machine.value?.host;
-  if (h?.kind === "cluster") return PAGES.cluster(h.id);
-  if (h?.kind === "machine") return PAGES.machine(h.id);
+  if (!h?.label) return undefined;
+  if (h.kind === "cluster") return PAGES.cluster(h.id);
+  if (h.kind === "machine") return PAGES.machine(h.id);
   return undefined;
 });
 /** Its attributes, each by its slot; one absent (no owner, no host…) said by the list. */
