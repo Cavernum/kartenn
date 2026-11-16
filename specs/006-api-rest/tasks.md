@@ -1321,21 +1321,40 @@ routeur complet, sauf mention « vrai TCP ».
     `rest/tests/it/vlan/rest.rs`
     `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one`
   - dépend de : 33f3
-  fait : `summary.rs` (`Summaries::read_each` : les clés lues une fois par date de début,
-  la lisibilité, maintenant, demandée une fois par genre pour toutes les dates,
-  `readable_among` partagé avec `Summaries::read`) ; `modules.rs` (`history` lit les liés
-  de chaque version à son `valid_from`, `module_version_of` prend les résumés de sa date,
-  `{id}` nu sans lié). Tests : `rest/tests/it/vlan/rest.rs`
-  `the_history_summarises_the_group_as_it_was` (VLAN dont le groupe est renommé, le VLAN
-  déplacé dans un autre groupe, le premier groupe clos : les cinq versions des deux axes
-  résument `edge`, `edge`, `border`, `border`, `core` pour un lecteur des groupes,
-  l'identifiant seul pour un lecteur des seuls VLAN) ;
+  fait : `kartenn-store-pg` `keys.rs` (`natural_keys_at` : les clés du noyau de toutes
+  les paires (identifiant, date) en une requête, `unnest … WITH ORDINALITY` et jointure
+  latérale par genre ; `natural_keys` inchangée, ses genres en `KEYED` partagés),
+  `temporal.rs` (`snapshot_at`, `snapshot` à une date donnée par une expression) ;
+  `kartenn-rest` `summary.rs` (`DatedSummaries` : les paires lues par `natural_keys_at`,
+  les clés des modules par `module_keys`, une lecture par date qui lie un objet de
+  module, la lisibilité, maintenant, demandée une fois par genre pour toutes les dates et
+  tenue une fois ; `of_module`, `module_keys`, `summary_of`, `readable_among` partagés
+  avec `Summaries`) ; `modules.rs` (`history` lit les liés de chaque version à son
+  `valid_from`) ; design 006 « Représentations », Historique : les liés au début de chaque
+  version, et l'écart avec le noyau sous `as_of`. Tests : store
+  `keys_at_their_own_dates_in_one_query` (une requête pour des paires de dates
+  différentes, renommage suivi, paire absente omise, `as_of` avant l'assertion : rien) ;
+  `rest/tests/it/vlan/rest.rs` `the_history_summarises_the_group_as_it_was` (groupe
+  renommé, VLAN déplacé, premier groupe clos : `edge`, `edge`, `border`, `border`,
+  `core` sur les deux axes pour un lecteur des groupes, `{id}` pour un lecteur des seuls
+  VLAN ; correction rétroactive du second slug : `border` à `as_of` d'avant, `frontier`
+  maintenant ; lecteur à portée sur l'entité de `lab`, le premier groupe étant de `far` :
+  `{id}`, mêmes octets une fois le groupe effacé) ; `rest/tests/it/modules.rs`
+  `the_history_keys_a_parent_of_a_module_at_each_version` (le parent, objet de module,
+  résumé par la clé de son module lue au début de chaque version ; `Kit::keyed`) ;
   `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one` inchangé et vert.
-  choix : une lecture des clés par date de début distincte de la page (au plus une par
-  version) plutôt qu'une clé lue par la requête de la page, ce qui garde `kartenn-store-pg`
-  intact ; l'axe des assertions est celui de la route (`moment.as_of`), là où la jointure du
-  noyau lit la table courante ; le groupe « supprimé » du test est clos par SQL en temps de
-  validité, aucune opération ne fermant un groupe de VLAN.
+  choix : l'axe des assertions est celui de la route (`moment.as_of`) ; le groupe
+  « supprimé » du test est clos par SQL en temps de validité, aucune opération ne fermant
+  un groupe de VLAN ; les paires rendues par leur rang (`WITH ORDINALITY`) plutôt que par
+  la date relue de la base.
+  reste : un lié de genre module coûte une lecture par date de début distincte qui en
+  lie un (au plus une par version de la page, `page_size` jusqu'à 1 000), faute d'une
+  lecture des clés d'un module à plusieurs dates (`ModuleHandler::keys` prend une
+  `ModuleRead` à une date) ; aligner l'historique du noyau (`versions_page`, jointure sur
+  la table courante) sur la lecture bitemporelle des modules sous `as_of` (design 006,
+  Historique) ; un objet clos est jugé lisible d'après son dernier placement (un lecteur
+  à portée sur l'entité de son domaine voit sa clé), comme la porte de son propre
+  historique.
 - [ ] 33h. Restes de la revue de la 33a — le schéma `Summary` du contrat dit
   `["string","null"]` alors que `slug` et `href` sont omis et jamais `null` ; H23 ne dit
   pas qu'un lié masqué n'est pas un refus de droit au sens de REQ-012 (« tout refus de
