@@ -6382,7 +6382,11 @@ export interface components {
      * @enum {string}
      */
     ExpectedMode: "suggest" | "default" | "check";
-    /** @description One value a source expects. */
+    /**
+     * @description One value a source expects: a summary (an object with `id`) for a property of type
+     *     reference (its declaration's `value_type` is `ref`) and for it only; a raw value
+     *     (`RawValue`) for any other type.
+     */
     ExpectedValue: components["schemas"]["Summary"] | components["schemas"]["RawValue"];
     /** @description How the value of a property resolves on an object (REQ-003-14, 15). */
     Explanation: {
@@ -6784,6 +6788,11 @@ export interface components {
       id: string;
       /** @description Its kind of the core, or its qualified type. */
       kind: string;
+      /**
+       * @description Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+       *     object whose module tells none.
+       */
+      label?: string | null;
     };
     /** @description A group of kartenn. */
     GroupItem: {
@@ -8844,6 +8853,11 @@ export interface components {
       id: string;
       /** @description Its kind. */
       kind: components["schemas"]["ObjectKind"];
+      /**
+       * @description Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+       *     object whose module tells none.
+       */
+      label?: string | null;
     };
     /**
      * @description The kind of an object of the core.

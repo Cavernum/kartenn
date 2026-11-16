@@ -291,6 +291,10 @@ struct EndDto {
     kind: &'static str,
     /// Identifier.
     id: Uuid,
+    /// Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+    /// object whose module tells none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
     /// Its URL.
     href: String,
 }
@@ -396,10 +400,19 @@ async fn edges(
                 .map(|id| (*name, id)),
         );
     }
+    // The keys of the ends read, at the dates of the route (task 006-33f3).
+    let labels = Summaries::labels(
+        &api,
+        readable.iter().map(|(_, id)| *id),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
     let end_of = |name: &'static str, id: Uuid| {
         Target::named(name, &api.modules).map(|end| EndDto {
             kind: end.as_str(),
             id,
+            label: labels.get(&id).cloned(),
             href: end.href(id),
         })
     };

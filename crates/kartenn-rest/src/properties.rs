@@ -527,19 +527,18 @@ async fn resolved(
         .sources
         .values()
         .map(|source| source.holder)
-        .filter(|holder| *holder != id)
+        .chain([id])
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
+    // The object itself among them, read already: its key with the others'.
     let mut nodes = visible_nodes(&api, &context, &holders, &moment).await?;
-    nodes.insert(
+    nodes.entry(id).or_insert_with(|| Node {
+        kind: kind.as_str(),
         id,
-        Node {
-            kind: kind.as_str(),
-            id,
-            href: kind.href(id),
-        },
-    );
+        label: None,
+        href: kind.href(id),
+    });
     let sources = found
         .sources
         .into_iter()
@@ -807,11 +806,12 @@ async fn batch(
         .record(&event)
         .await
         .map_err(RequestError::Audit)?;
-    // The holders of the values shown, named when the caller may read them.
+    // The holders of the values shown, named when the caller may read them: the objects
+    // themselves among them, for their keys.
     let holders: Vec<Uuid> = rows
         .iter()
         .filter(|r| !r.masked)
-        .filter_map(|r| r.origin.filter(|origin| *origin != r.object))
+        .filter_map(|r| r.origin)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
@@ -867,15 +867,14 @@ fn items_of(
             item.masked.insert(row.property);
             continue;
         }
-        let shown = if origin == row.object {
-            Some(Node {
+        let shown = nodes.get(&origin).cloned().or_else(|| {
+            (origin == row.object).then(|| Node {
                 kind: kind.as_str(),
                 id: origin,
+                label: None,
                 href: kind.href(origin),
             })
-        } else {
-            nodes.get(&origin).cloned()
-        };
+        });
         item.sources.insert(
             row.property.clone(),
             SourceDto {
@@ -961,12 +960,16 @@ struct Node {
     kind: &'static str,
     /// Identifier.
     id: Uuid,
+    /// Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+    /// object whose module tells none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
     /// Its URL.
     href: String,
 }
 
-/// The objects among `ids` the caller may read now, as nodes `{kind, id, href}`; the
-/// others, and those absent at the dates, are left out.
+/// The objects among `ids` the caller may read now, as nodes `{kind, id, label, href}`;
+/// the others, and those absent at the dates, are left out.
 async fn visible_nodes(
     api: &Api,
     context: &RequestContext,
@@ -999,13 +1002,24 @@ async fn visible_nodes(
             );
         }
     }
-    Ok(kinds
+    let shown: Vec<(Uuid, Target)> = kinds
         .into_iter()
         .filter(|(id, _)| !denied.contains(id))
+        .collect();
+    let mut labels = Summaries::labels(
+        api,
+        shown.iter().map(|(id, _)| *id),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
+    Ok(shown
+        .into_iter()
         .map(|(id, kind)| {
             let node = Node {
                 kind: kind.as_str(),
                 id,
+                label: labels.remove(&id),
                 href: kind.href(id),
             };
             (id, node)
@@ -1158,7 +1172,9 @@ fn raw_value(input: &RawInput) -> Value {
     }
 }
 
-/// One value a source expects.
+/// One value a source expects: a summary (an object with `id`) for a property of type
+/// reference (its declaration's `value_type` is `ref`) and for it only; a raw value
+/// (`RawValue`) for any other type.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(untagged)]
 enum ExpectedValue {

@@ -2530,7 +2530,7 @@
         "type": "string"
       },
       "ExpectedValue": {
-        "description": "One value a source expects.",
+        "description": "One value a source expects: a summary (an object with `id`) for a property of type\nreference (its declaration's `value_type` is `ref`) and for it only; a raw value\n(`RawValue`) for any other type.",
         "oneOf": [
           {
             "$ref": "#/components/schemas/Summary",
@@ -3440,6 +3440,13 @@
           "kind": {
             "description": "Its kind of the core, or its qualified type.",
             "type": "string"
+          },
+          "label": {
+            "description": "Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an\nobject whose module tells none.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -8839,6 +8846,13 @@
           "kind": {
             "$ref": "#/components/schemas/ObjectKind",
             "description": "Its kind."
+          },
+          "label": {
+            "description": "Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an\nobject whose module tells none.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [

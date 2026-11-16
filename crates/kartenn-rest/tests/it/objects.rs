@@ -1371,7 +1371,17 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
     assert_eq!(body["masked"], json!(["site.secret"]));
     // The source of each value shown: the /8 that carries `policy.zone` is invisible, its
     // existence undisclosed; the masked value has none.
-    let node = |kind: &str, id: Uuid| json!({ "kind": kind, "id": id, "href": format!("/v1/prefixes/{id}") });
+    // Each named with its key (task 006-33f3).
+    let node = |kind: &str, id: Uuid| {
+        let label = [
+            (top, "10.0.0.0/8"),
+            (block, "10.1.0.0/16"),
+            (net, "10.1.2.0/24"),
+        ]
+        .into_iter()
+        .find_map(|(prefix, value)| (prefix == id).then_some(value));
+        json!({ "kind": kind, "id": id, "label": label, "href": format!("/v1/prefixes/{id}") })
+    };
     assert_eq!(
         body["sources"],
         json!({
