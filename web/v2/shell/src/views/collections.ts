@@ -1,6 +1,7 @@
 import type { ListPath } from "@kartenn/sdk";
 import type { GridColumn, IconName, State } from "@kartenn/ui";
 import { VLAN_STATES } from "./parts/vlan.ts";
+import { isSummary, type Summary } from "./summary.ts";
 
 // The collections of the referential the shell lists and opens (REQ-021-9; design 021
 // « Catalogue des écrans » : listes des collections, fiche d'objet): their route of the
@@ -23,12 +24,12 @@ export interface CollectionColumn {
   enumerated?: boolean;
   /** Each key of the closed list is a state, shown as a badge by its label (a status). */
   states?: Readonly<Record<string, State>>;
-  /** The value is a summary of an object (`{id, slug, href}`), shown by its slug. */
+  /** The value is a summary of an object (`{id, label, href}`), shown by its label. */
   summary?: boolean;
   /**
-   * The value names an object by its identifier only (`{id}`, the VLAN of 026): of this
-   * kind, or, for `anchor`, of the kind its one member names (`{entity: {id}}`); shown by
-   * its name, read from its record.
+   * The value is a summary of an object of this kind (the group of a VLAN, 026), or, for
+   * `anchor`, of the kind its one member names (`{entity: {id, label, href}}`); shown by its
+   * label, nothing read (task 021-11p10-d2).
    */
   reference?: string;
   /** The VLAN a network carries (property `core.vlan`, 026), read with its properties. */
@@ -144,7 +145,7 @@ export const COLLECTIONS: readonly Collection[] = [
     icon: "layers",
     columns: [
       { id: "slug", width: "fill", mono: true, filter: "slug" },
-      // The kind of the anchor in words, its slug a link (not all in fixed pitch).
+      // The kind of the anchor in words, its label a link (not all in fixed pitch).
       { id: "anchor", width: "lg", reference: "anchor" },
       { id: "vid_min", width: "sm", mono: true },
       { id: "vid_max", width: "sm", mono: true },
@@ -181,21 +182,7 @@ export function collectionOfKind(kind: string | null | undefined): Collection | 
 
 export type Item = Record<string, unknown>;
 
-/** A summary of an object in a field (`{id, slug?, href}`). */
-export interface Summary {
-  id: string;
-  slug?: string | null;
-  href?: string | null;
-  kind?: string | null;
-}
-
-export function isSummary(value: unknown): value is Summary {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { id?: unknown }).id === "string"
-  );
-}
+export { isSummary, type Summary };
 
 /** The name of an object: its value, its bounds, VID and name, its slug, else its identifier. */
 export function nameOf(item: Item): string {
@@ -212,12 +199,13 @@ export function nameOf(item: Item): string {
 }
 
 /**
- * The text of a field: a summary by its slug, a boolean; `null` when it has none, said by
- * the place that shows it (`AttributeList`, `NoValue`: a dash shown, « non renseigné » read).
+ * The text of a field: a summary by its label (its identifier when unreadable), a boolean;
+ * `null` when it has none, said by the place that shows it (`AttributeList`, `NoValue`: a
+ * dash shown, « non renseigné » read).
  */
 export function fieldText(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
-  if (isSummary(value)) return value.slug ?? value.id;
+  if (isSummary(value)) return value.label ?? value.id;
   if (typeof value === "string" || typeof value === "number") return String(value);
   if (typeof value === "boolean") return value ? "true" : "false";
   return JSON.stringify(value);
@@ -233,26 +221,29 @@ export function pageOfHref(href: unknown): string | null {
   return match && collectionById(match[1]) ? `/${match[1]}/${match[2]}` : null;
 }
 
+/** A summary whose kind is known (by the column, or by the member of an anchor). */
+export type KindedSummary = Summary & { kind: string };
+
 /**
- * The object an anchor names (`{entity: {id}}`: a group of VLAN, 026 V3), `null` if the
- * value is not one.
+ * The summary of the object an anchor names (`{entity: {id, label, href}}`: a group of
+ * VLAN, 026 V3), its kind that of its member; `null` if the value is not one.
  */
-export function anchorOf(value: unknown): { kind: string; id: string } | null {
+export function anchorOf(value: unknown): KindedSummary | null {
   if (typeof value !== "object" || value === null) return null;
   const members = Object.entries(value);
   if (members.length !== 1) return null;
   const [kind, target] = members[0]!;
-  return isSummary(target) ? { kind, id: target.id } : null;
+  return isSummary(target) ? { ...target, kind } : null;
 }
 
-/** The object a column of references names in `value`: of its kind, or of an anchor. */
+/** The summary a column of references holds in `value`: of its kind, or of an anchor. */
 export function referenceOf(
   column: Pick<CollectionColumn, "reference">,
   value: unknown,
-): { kind: string; id: string } | null {
+): KindedSummary | null {
   if (!column.reference) return null;
   if (column.reference === "anchor") return anchorOf(value);
-  return isSummary(value) ? { kind: column.reference, id: value.id } : null;
+  return isSummary(value) ? { ...value, kind: column.reference } : null;
 }
 
 /** The page of an object known by its kind and identifier, if the shell opens it. */

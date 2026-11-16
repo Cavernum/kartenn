@@ -12,6 +12,7 @@ import {
   anchorOf,
   COLLECTIONS,
   fieldText,
+  isSummary,
   nameOf,
   pageOfHref,
   referenceOf,
@@ -256,35 +257,52 @@ describe("the collections", () => {
 
   it("write a field as text, an absent one as `null`, never a dash (020-30)", () => {
     for (const absent of [null, undefined, ""]) expect(fieldText(absent)).toBeNull();
-    expect(fieldText({ id: "abc", slug: "production" })).toBe("production");
+    // A summary by its `label` (REQ-006-42), the slug beside it unused; without one (an
+    // object unreadable or absent), its identifier.
+    expect(fieldText({ id: "abc", slug: "production", label: "prod" })).toBe("prod");
+    expect(fieldText({ id: "abc" })).toBe("abc");
     expect(fieldText(0)).toBe("0");
     expect(fieldText(false)).toBe("false");
   });
 
-  it("read the objects a VLAN names by their identifier only (026)", () => {
+  it("tell a summary from an external reference (task 021-11p10-d2)", () => {
+    expect(isSummary({ id: ENTITY, label: "nord", href: `/v1/entities/${ENTITY}` })).toBe(true);
+    expect(isSummary({ id: ENTITY })).toBe(true);
+    // `{system, id, label?}` has the members of a summary, and names no object of kartenn.
+    expect(isSummary({ system: "cmdb", id: "srv-12" })).toBe(false);
+    expect(isSummary({ system: "cmdb", id: "srv-12", label: "srv 12" })).toBe(false);
+    expect(isSummary("srv-12")).toBe(false);
+  });
+
+  it("read the objects a VLAN names by their summaries (026, task 021-11p10-d2)", () => {
     const columns = Object.fromEntries(
       COLLECTIONS.flatMap((c) => c.columns.map((column) => [`${c.id}.${column.id}`, column])),
     );
+    const group = { id: ENTITY, label: "campus", href: `/v1/vlan-groups/${ENTITY}` };
+    expect(referenceOf(columns["vlans.group"]!, group)).toEqual({ ...group, kind: "vlan_group" });
+    // Unreadable: its identifier alone, nothing guessed.
     expect(referenceOf(columns["vlans.group"]!, { id: ENTITY })).toEqual({
       kind: "vlan_group",
       id: ENTITY,
     });
-    expect(referenceOf(columns["vlan-groups.anchor"]!, { site: { id: ENTITY } })).toEqual({
+    const site = { id: ENTITY, label: "nord", href: `/v1/sites/${ENTITY}` };
+    expect(referenceOf(columns["vlan-groups.anchor"]!, { site })).toEqual({
+      ...site,
       kind: "site",
-      id: ENTITY,
     });
     expect(anchorOf({ site: { id: ENTITY }, domain: { id: ENTITY } })).toBeNull();
     expect(referenceOf(columns["prefixes.domain"]!, { id: ENTITY })).toBeNull();
   });
 
   it("read and write the VLAN of a network by its property `core.vlan`", () => {
-    const vlan = { kind: "vlan", id: ENTITY };
-    expect(vlanOfProperties({ properties: { "core.vlan": ENTITY }, masked: [] } as never)).toEqual(
-      vlan,
+    // Its summary, as the server gives it (REQ-006-42): named by it, nothing read.
+    const summary = { id: ENTITY, label: "310 · hotes", href: `/v1/vlans/${ENTITY}` };
+    expect(vlanOfProperties({ properties: { "core.vlan": summary }, masked: [] } as never)).toEqual(
+      { kind: "vlan", vlan: summary },
     );
     expect(
       vlanOfProperties({ properties: { "core.vlan": { id: ENTITY } }, masked: [] } as never),
-    ).toEqual(vlan);
+    ).toEqual({ kind: "vlan", vlan: { id: ENTITY } });
     expect(vlanOfProperties({ properties: {}, masked: [] } as never)).toEqual({ kind: "none" });
     // Masked: the reader may not read it, never « no VLAN ».
     expect(vlanOfProperties({ properties: {}, masked: ["core.vlan"] } as never)).toEqual({
