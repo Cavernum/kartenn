@@ -126,16 +126,17 @@ fn links_of(version: &Version) -> (Option<Uuid>, Option<Uuid>) {
 
 /// A version as served, its author named for whoever reads the object (Q-021-29), as
 /// [`crate::objects`] serves those of the core; its parent and its domain summarised
-/// among `summaries` (REQ-006-42).
+/// among `summaries`, read at its start (REQ-006-42; `None`: it links to nothing).
 fn module_version_of(
     target: Target,
     version: &Version,
-    summaries: &Summaries,
+    summaries: Option<&Summaries>,
 ) -> Result<ModuleVersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
     let (motive, author) = journaled(version)?;
     let id = uuid_of(version, "id").unwrap_or_default();
     let (parent, domain) = links_of(version);
+    let summary = |id: Uuid| summaries.map_or_else(|| Summary::bare(id), |s| s.of(id));
     Ok(ModuleVersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
@@ -147,8 +148,8 @@ fn module_version_of(
         object: ModuleObjectDto {
             id,
             kind: target.as_str().to_owned(),
-            parent: parent.map(|id| summaries.of(id)),
-            domain: domain.map(|id| summaries.of(id)),
+            parent: parent.map(summary),
+            domain: domain.map(summary),
             href: target.href(id),
         },
     })
@@ -246,15 +247,20 @@ async fn history(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    // The linked objects read at the dates of the route, readable now (task 006-33f3).
+    // The linked objects read at the start of each version, as the history of the core
+    // reads its links (`l.valid_period @> lower(h.valid_period)`), readable now (task
+    // 006-33i).
     let linked = versions.iter().flat_map(|v| {
         let (parent, domain) = links_of(v);
-        parent.into_iter().chain(domain)
+        parent
+            .into_iter()
+            .chain(domain)
+            .map(move |id| (v.valid_from, id))
     });
-    let summaries = Summaries::read(&api, &context, linked, moment.valid_at, moment.as_of).await?;
+    let summaries = Summaries::read_each(&api, &context, linked, moment.as_of).await?;
     let items = versions
         .iter()
-        .map(|v| module_version_of(target, v, &summaries))
+        .map(|v| module_version_of(target, v, summaries.get(&v.valid_from)))
         .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =

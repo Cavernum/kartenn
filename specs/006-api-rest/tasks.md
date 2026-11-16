@@ -1308,7 +1308,7 @@ routeur complet, sauf mention « vrai TCP ».
     d'un objet illisible se dit. Options : résumer (`kind` omis avec `label` pour un
     illisible, comme l'hôte d'une machine, 33d) ; ou ne garder que les objets lisibles
     avec un compte des autres.
-- [ ] 33i. Historique d'un objet de module : `parent` et `domain` de `ModuleObject` lus au
+- [x] 33i. Historique d'un objet de module : `parent` et `domain` de `ModuleObject` lus au
   début de chaque version, comme la jointure de l'historique du noyau
   (`versions_page`, `l.valid_period @> lower(h.valid_period)`), et non aux dates de la
   route (33f3) : un lié supprimé depuis garde sa clé dans les versions où il vivait —
@@ -1321,6 +1321,21 @@ routeur complet, sauf mention « vrai TCP ».
     `rest/tests/it/vlan/rest.rs`
     `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one`
   - dépend de : 33f3
+  fait : `summary.rs` (`Summaries::read_each` : les clés lues une fois par date de début,
+  la lisibilité, maintenant, demandée une fois par genre pour toutes les dates,
+  `readable_among` partagé avec `Summaries::read`) ; `modules.rs` (`history` lit les liés
+  de chaque version à son `valid_from`, `module_version_of` prend les résumés de sa date,
+  `{id}` nu sans lié). Tests : `rest/tests/it/vlan/rest.rs`
+  `the_history_summarises_the_group_as_it_was` (VLAN dont le groupe est renommé, le VLAN
+  déplacé dans un autre groupe, le premier groupe clos : les cinq versions des deux axes
+  résument `edge`, `edge`, `border`, `border`, `core` pour un lecteur des groupes,
+  l'identifiant seul pour un lecteur des seuls VLAN) ;
+  `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one` inchangé et vert.
+  choix : une lecture des clés par date de début distincte de la page (au plus une par
+  version) plutôt qu'une clé lue par la requête de la page, ce qui garde `kartenn-store-pg`
+  intact ; l'axe des assertions est celui de la route (`moment.as_of`), là où la jointure du
+  noyau lit la table courante ; le groupe « supprimé » du test est clos par SQL en temps de
+  validité, aucune opération ne fermant un groupe de VLAN.
 - [ ] 33h. Restes de la revue de la 33a — le schéma `Summary` du contrat dit
   `["string","null"]` alors que `slug` et `href` sont omis et jamais `null` ; H23 ne dit
   pas qu'un lié masqué n'est pas un refus de droit au sens de REQ-012 (« tout refus de

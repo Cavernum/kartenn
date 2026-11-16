@@ -1301,3 +1301,74 @@ async fn the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one(pool: 
         }
     }
 }
+
+/// Task 006-33i, REQ-006-42: the history of a VLAN summarises its group at the start of
+/// each version, as the history of the core reads its links: a group renamed then closed
+/// keeps, in the versions where it held the VLAN, the key it had then; a reader of the
+/// VLANs who may not read their groups still sees the identifier alone.
+#[kartenn_testing::pg_test]
+async fn the_history_summarises_the_group_as_it_was(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let anchor = json!({"domain": {"id": lab}});
+    let edge = env
+        .seed_group("edge", anchor.clone(), (1, 4094), &[(10, "active")])
+        .await;
+    let vlan = env.vlan_of(edge, 10).await;
+    env.applied(vec![op(
+        "update_vlan_group",
+        json!({"id": {"id": edge}, "slug": "border"}),
+    )])
+    .await;
+    env.applied(vec![op(
+        "update_vlan",
+        json!({"id": {"id": vlan}, "name": "users"}),
+    )])
+    .await;
+    let core = env.seed_group("core", anchor, (1, 4094), &[]).await;
+    env.applied(vec![op(
+        "update_vlan",
+        json!({"id": {"id": vlan}, "group": {"id": core}}),
+    )])
+    .await;
+    // The first group closed in valid time: it is valid no more.
+    sqlx::query(
+        "UPDATE vlan_group SET valid_period = tstzrange(lower(valid_period), now())
+          WHERE id = $1 AND upper_inf(valid_period)",
+    )
+    .bind(edge)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let uri = format!("/v1/vlans/{vlan}/history");
+    let summary = |id: Uuid, slug: &str| json!({"id": id, "slug": slug, "label": slug, "href": format!("/v1/vlan-groups/{id}")});
+    // The versions on both axes: each update closes the version it replaces, the
+    // version closed then shown beside the one retracted, both starting at once.
+    let expected = [
+        (summary(edge, "edge"), json!({"id": edge})),
+        (summary(edge, "edge"), json!({"id": edge})),
+        (summary(edge, "border"), json!({"id": edge})),
+        (summary(edge, "border"), json!({"id": edge})),
+        (summary(core, "core"), json!({"id": core})),
+    ];
+    let reader = env.app(
+        env.person(&["core.vlan.read", "core.vlan_group.read"], None)
+            .await,
+    );
+    let blind = env.app(env.person(&["core.vlan.read"], None).await);
+    for (app, readable) in [(&reader, true), (&blind, false)] {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let parents: Vec<&Value> = body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| &item["object"]["parent"])
+            .collect();
+        let wanted: Vec<&Value> = expected
+            .iter()
+            .map(|(full, bare)| if readable { full } else { bare })
+            .collect();
+        assert_eq!(parents, wanted, "{body}");
+    }
+}

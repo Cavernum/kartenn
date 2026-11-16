@@ -199,19 +199,43 @@ impl Summaries {
         as_of: Option<OffsetDateTime>,
     ) -> Result<Self, Problem> {
         let found = keys(api, ids, valid_at, as_of).await?;
-        let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
-        for (id, (target, _)) in &found {
-            by_target
-                .entry(target.as_str())
-                .or_insert_with(|| (*target, Vec::new()))
-                .1
-                .push(*id);
-        }
-        let mut readable = Readable::all();
-        for (target, ids) in by_target.into_values() {
-            readable = readable.of(api, context, target, ids).await?;
-        }
+        let readable = readable_among(api, context, &found).await?;
         Ok(Self { found, readable })
+    }
+
+    /// [`Summaries::read`] of objects each read at its own date of validity, as asserted
+    /// at `as_of`: one read of the keys per date, the readability (now) asked once per
+    /// kind for them all; the summaries of each date apart (task 006-33i).
+    ///
+    /// # Errors
+    ///
+    /// The store's or the authoriser's error.
+    pub async fn read_each(
+        api: &Api,
+        context: &RequestContext,
+        dated: impl IntoIterator<Item = (OffsetDateTime, Uuid)>,
+        as_of: Option<OffsetDateTime>,
+    ) -> Result<HashMap<OffsetDateTime, Self>, Problem> {
+        let mut by_date: BTreeMap<OffsetDateTime, Vec<Uuid>> = BTreeMap::new();
+        for (at, id) in dated {
+            by_date.entry(at).or_default().push(id);
+        }
+        let mut found = Vec::with_capacity(by_date.len());
+        for (at, ids) in by_date {
+            found.push((at, keys(api, ids, at, as_of).await?));
+        }
+        let all: HashMap<Uuid, (Target, Key)> = found
+            .iter()
+            .flat_map(|(_, keys)| keys.iter().map(|(id, key)| (*id, key.clone())))
+            .collect();
+        let readable = readable_among(api, context, &all).await?;
+        Ok(found
+            .into_iter()
+            .map(|(at, found)| {
+                let readable = readable.clone();
+                (at, Self { found, readable })
+            })
+            .collect())
     }
 
     /// The labels of `ids` at `valid_at` as asserted at `as_of`, of those that existed
@@ -235,6 +259,28 @@ impl Summaries {
             })
             .collect())
     }
+}
+
+/// The objects of `found` the caller of `context` may read now: one authorisation per
+/// kind found.
+async fn readable_among(
+    api: &Api,
+    context: &RequestContext,
+    found: &HashMap<Uuid, (Target, Key)>,
+) -> Result<Readable, Problem> {
+    let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
+    for (id, (target, _)) in found {
+        by_target
+            .entry(target.as_str())
+            .or_insert_with(|| (*target, Vec::new()))
+            .1
+            .push(*id);
+    }
+    let mut readable = Readable::all();
+    for (target, ids) in by_target.into_values() {
+        readable = readable.of(api, context, target, ids).await?;
+    }
+    Ok(readable)
 }
 
 /// The kinds and the keys of `ids` at `valid_at` as asserted at `as_of`: one query for the
