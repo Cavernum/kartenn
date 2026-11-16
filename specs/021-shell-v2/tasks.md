@@ -2141,13 +2141,49 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
         sont plus lus) ; faire relire par `a11y-auditor` la description accessible d'un
         objet illisible (`CitedName` sans libellé : identifiant seul en chasse fixe, rien
         ne dit qu'il est illisible).
-    - [ ] 11p10-d4. Plugin machines, listes : `MachineColumn` (`iface.machine.label`),
+    - [x] 11p10-d4. Plugin machines, listes : `MachineColumn` (`iface.machine.label`),
       `MachineList`, `InterfaceGrid`, `InterfacesTab`, `InterfaceSearch`, `HostingTree`
       (son appel de `limited`) ; `Names` et `limited` retirés s'il ne leur reste aucun
       appelant — verify : `holders.test.ts` (100 lignes : 2 requêtes, aucune lecture de
-      machine), `web/v2/e2e/journeys/quota.spec.ts`
+      machine) ; `quota.spec.ts`, d'abord nommé ici, retiré après la revue : ses données
+      n'ont ni machine ni interface, une assertion n'y prouvait rien (la preuve reste le
+      test monté)
       - où : `web/v2/plugins/machines/src/` (fichiers nommés ci-dessus), `reads.ts`
       - dépend de : 11p10-d3 (`reads.ts`)
+      - fait le 2026-11-16 : `CitedName` ne prend plus qu'un résumé (`summary`, `page`) :
+        le mode par identifier, `modeOf(_, Names)` et son `eslint-disable` retirés ; les six
+        listes nomment propriétaire, site, hôte et machine par les résumés des lignes, sans
+        instance de `Names` (ni requête désactivée ni observateur). Règle unique dans
+        `reads.ts` (`readable`), la même que `SummaryName` du shell (d1) : illisible si
+        `label` absent ou vide et pas de `href` (REQ-006-42 les omet ensemble) ; alors
+        identifiant en chasse fixe, jamais lié (le lien ôté aussi dans les fiches,
+        `CitedName` en décide), suivi en texte masqué, dans la même structure et les mêmes
+        mots que le shell, de « (illisible pour vous, ou absent) » (clé
+        `cited.unreadable`), sur l'avis d'`a11y-auditor` (WCAG 1.3.1 : la chasse fixe seule
+        n'atteint pas les technologies d'assistance). Dans le shell, `SummaryName` tient
+        désormais un libellé vide pour absent (test rouge d'abord dans
+        `object-name.test.ts`). `hostPageOf` (`dom.ts`) partagé entre la liste et la fiche
+        d'une machine. Tests : `holders.test.ts` (100 lignes : 2 requêtes, aucune autre
+        requête, aucune requête d'objet dans le cache ; machine illisible ; un résumé lu
+        préféré), listes de machines (libellé d'un filtre par les lignes, illisible par
+        les lignes, liste vide, liste refusée), d'interfaces, onglet d'un réseau, arbre
+        d'hébergement (aucune requête d'objet dans le cache). Vitest 68/68 du plugin.
+      - choix : `Names` et `limited` restent, avec un appelant chacun : `Names` pour le
+        libellé d'un filtre de la liste des machines donné par l'adresse de la page,
+        cherché d'abord dans les résumés des lignes (qu'il filtre), rien n'est lu si une
+        ligne le cite, même sans libellé, ni tant que les lignes sont attendues, lu par
+        identifiant seulement si aucune ligne ne le cite (liste vide ou refusée) ;
+        `limited` pour les invités des nœuds de `HostingTree`, partagé avec ces lectures.
+        Une machine illisible de la colonne n'a plus de lien (comme dans les fiches).
+        `holders.test.ts` sur de faux minuteurs (`setTimeout`) : la fenêtre de 10 ms du
+        regroupeur ne se ferme qu'à leur avance, jamais entre les lignes montées d'un coup,
+        cause probable de l'échec sous charge (non reproduit) ; les `waitFor` reviennent à
+        leur délai par défaut. L'échec de `shell/test/property-batch.test.ts` vu sous
+        charge en route est d'une autre cause (délai de 5 s du test, application entière
+        montée), laissé à la 021-26b.
+      - reste : le site de `HostingTree` est une chaîne de `TreeGrid` (pas de chasse fixe
+        par cellule) : illisible, son identifiant en police proportionnelle, sans
+        « illisible ».
     - [ ] 11p10-d5. Regroupeur sur le filtre `id`, pour ce qui reste : recenser après d1
       à d4 les lectures encore faites par identifiant seul (valeurs saisies d'un
       brouillon, extrémités de flux 33f1, corps de changeset 33g) ; si des listes en
@@ -2160,6 +2196,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       principale)
       - où : `web/v2/sdk/src/data/batch.ts` (`createBatcher`)
       - dépend de : 11p10-d1 à d4, de préférence 006-33f1 et 006-33g
+      - reste (d4) : mettre en commun dans `@kartenn/ui` (changement de contrat, à
+        arbitrer) le nom d'un objet résumé, aujourd'hui écrit deux fois avec la même règle,
+        les mêmes mots et la même structure : `SummaryName` du shell et `CitedName` du
+        plugin machines (`readable` de son `reads.ts`).
   - [x] 11p10-e. Interfaces des lignes d'une liste d'adresses lues par fenêtre (mesure de
     la 11p10-b2, inscrite le 2026-11-15) : la colonne machine des listes d'adresses
     (`MachineColumn.vue`) lit une liste d'interfaces par ligne derrière sa propre porte

@@ -56,11 +56,11 @@ import {
   useTemplateRef,
   watch,
 } from "vue";
-import { useList, useLists, useNotified } from "./data.ts";
+import { useList, useLists } from "./data.ts";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
 import { linesOf, type AlertLine } from "./problems.ts";
-import { limited, Names, type Cluster, type Machine } from "./reads.ts";
+import { limited, type Cluster, type Machine, type Summary } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const MACHINE = "machines.machine";
@@ -74,7 +74,6 @@ const HOSTS = new Set(["physical", "virtual"]);
 
 const t = useTexts();
 const { context, element } = useHosted();
-const names = useNotified((changed, live) => new Names(changed, live));
 const tree = useTemplateRef<{ openMove(id: string): boolean }>("tree");
 const present = computed(() => context.value.time.present);
 const allowed = computed(() => context.value.user.has(PERMISSION));
@@ -89,7 +88,8 @@ const machines = useList<Machine, never>(
 const expanded = ref<string[]>([]);
 const selected = ref<string | undefined>();
 
-// The guests of each node opened, a few lists at a time (`limited`, shared with the names):
+// The guests of each node opened, a few lists at a time (`limited`, shared with the names
+// the list of the machines reads for its filters):
 // the list of a node is enabled once it has its place, which it holds until its first
 // answer, the node open or closed meanwhile (its list followed until then). A node closed
 // before its turn is not admitted: its place goes to the next one, it is asked again if
@@ -171,11 +171,12 @@ const PREVIEW = "preview:";
 /** The machine a row shows: itself, or the one its preview row shows. */
 const machineOf = (id: string) => (id.startsWith(PREVIEW) ? id.slice(PREVIEW.length) : id);
 
-/** A site in a cell: its slug once read, its identifier if unreadable; none, absent (`null`). */
-function siteOf(id: string | undefined): string | null {
-  if (!id) return null;
-  const name = names().of("core.site", id);
-  return name.state === "read" ? name.name : name.state === "failed" ? id : t("loading");
+/**
+ * A site in a cell, by its summary (H23, task 11p10-d4), nothing read: its `label`, its
+ * identifier for a site the caller may not read or absent then; none, absent (`null`).
+ */
+function siteOf(site: Summary | null | undefined): string | null {
+  return site ? site.label || site.id : null;
 }
 
 /** The model: the nodes, the parent and the type of each, the host of each machine read. */
@@ -209,7 +210,7 @@ const model = computed(() => {
       id: m.id,
       label: m.name,
       icon: "server",
-      cells: { kind: t(`kind.${m.kind}`), site: siteOf(m.site?.id) },
+      cells: { kind: t(`kind.${m.kind}`), site: siteOf(m.site) },
     };
     const built = HOSTS.has(m.kind) ? withGuests(node) : node;
     byId.set(m.id, built);
@@ -225,7 +226,7 @@ const model = computed(() => {
       id: c.id,
       label: c.slug,
       icon: "cluster",
-      cells: { kind: t("hosting.cluster"), site: siteOf(c.site?.id) },
+      cells: { kind: t("hosting.cluster"), site: siteOf(c.site) },
     };
     const built = withGuests(node);
     byId.set(c.id, built);

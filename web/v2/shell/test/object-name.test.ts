@@ -150,6 +150,17 @@ describe("the name of an object summarised", () => {
     expect(sent.filter((url) => url.includes(idOf(0)))).toEqual([]);
   }, 10_000);
 
+  it("an empty label and no URL: unreadable as without label (task 021-11p10-d4)", async () => {
+    const root = await mounted(grid([anomaly(0, { id: idOf(0), label: "" })]));
+    await expect.poll(() => root.textContent, { timeout: 8_000 }).toContain("message 0");
+    const name = root.querySelector(".k-object-name")!;
+    expect(name.querySelector("a")).toBeNull();
+    expect(name.querySelector(".k-mono")?.firstChild?.textContent).toBe(idOf(0));
+    expect(name.querySelector(".k-visually-hidden")?.textContent).toBe(
+      " (illisible pour vous, ou absent)",
+    );
+  }, 10_000);
+
   it("its URL without label (a type of module that tells no key): a link by its identifier", async () => {
     const root = await mounted(
       grid([anomaly(0, { id: idOf(0), kind: "prefix", href: `/v1/prefixes/${idOf(0)}` })]),

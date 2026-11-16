@@ -47,7 +47,7 @@ const machine = (name = "srv-a"): Machine => ({
 const iface = (): Interface => ({
   id: IFACE,
   href: `/v1/interfaces/${IFACE}`,
-  machine: { id: MACHINE },
+  machine: { id: MACHINE, label: "srv-a", href: `/v1/machines/${MACHINE}` },
   name: "eth0",
   mac: "00:00:5e:00:53:01",
   enabled: true,
@@ -208,7 +208,6 @@ describe("the machines plugin", () => {
             asked.push(query.get("address") ?? "");
             return page([iface(), { ...iface(), id: PREFIX, name: "eth1" }]);
           },
-          "GET /v1/machines/{id}": () => machine() as never,
         }),
       });
       await lightText(mounted.element, /^srv-a$/);
@@ -240,7 +239,6 @@ describe("the machines plugin", () => {
           context: { locale: "en" },
           fetch: fakeFetch({
             "GET /v1/interfaces": () => page([iface()]),
-            "GET /v1/machines/{id}": () => machine() as never,
           }),
         });
         const element = mounted.element;
@@ -278,7 +276,6 @@ describe("the machines plugin", () => {
             asked.push(query.get("valid_at") ?? "now");
             return page([iface()]);
           },
-          "GET /v1/machines/{id}": () => machine() as never,
         }),
       });
       await lightText(mounted.element, /^srv-a$/);

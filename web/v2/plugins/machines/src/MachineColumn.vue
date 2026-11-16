@@ -7,16 +7,17 @@
 // whose interfaces hold the row's address, each a link to its record. The interfaces are
 // followed (`useList`: read again once invalidated, and at other dates), read with those of
 // the other rows of the window (`heldBy`, task 021-11p10-e: a list mounts dozens of rows at
-// once); the names of the machines through the shared cache (`Names`). Unreadable: said in
-// a word, with the code of the problem (`CodeBadge`).
+// once); each machine by the summary of the interface (`iface.machine`, task 11p10-d4),
+// nothing read. Unreadable: said in a word, with the code of the problem (`CodeBadge`).
 import { ApiProblem, type ObjectRef } from "@kartenn/sdk";
 import { CodeBadge, NoValue, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
-import { useList, useNotified } from "./data.ts";
-import { hrefOf, PAGES } from "./dom.ts";
+import CitedName from "./CitedName.vue";
+import { useList } from "./data.ts";
+import { PAGES } from "./dom.ts";
 import { heldBy } from "./holders.ts";
-import { useHosted, useTexts } from "./host.ts";
-import { Names, type Interface } from "./reads.ts";
+import { useTexts } from "./host.ts";
+import { readable, type Interface, type Summary } from "./reads.ts";
 
 const props = defineProps<{
   object: ObjectRef | null;
@@ -24,8 +25,6 @@ const props = defineProps<{
 }>();
 
 const t = useTexts();
-const { context } = useHosted();
-const names = useNotified((changed, live) => new Names(changed, live));
 
 /** The address of the row (or of the record). */
 const address = computed(() => {
@@ -44,16 +43,14 @@ const found = computed(() => {
 });
 const failure = computed(() => (found.value === null ? list.state.value.error : null));
 
-/** The machines of those interfaces, each once, with its name and the link to its record. */
+/** The machines of those interfaces, each once, by its summary (a read one first). */
 const machines = computed(() => {
-  // The links carry the dates of the context (W9).
-  void context.value.time;
-  const ids = [...new Set((found.value ?? []).map((iface) => iface.machine.id))];
-  return ids.map((id) => ({
-    id,
-    name: names().of("machines.machine", id),
-    href: hrefOf(PAGES.machine(id)),
-  }));
+  const byId = new Map<string, Summary>();
+  for (const { machine } of found.value ?? []) {
+    const held = byId.get(machine.id);
+    if (!held || (!readable(held) && readable(machine))) byId.set(machine.id, machine);
+  }
+  return [...byId.values()];
 });
 
 const problem = computed(() => (failure.value instanceof ApiProblem ? failure.value : null));
@@ -69,11 +66,7 @@ const problem = computed(() => (failure.value instanceof ApiProblem ? failure.va
   <span v-else
     ><template v-for="(machine, index) in machines" :key="machine.id"
       ><template v-if="index > 0">, </template
-      ><a v-if="machine.name.state === 'read'" :href="machine.href">{{ machine.name.name }}</a
-      ><a v-else-if="machine.name.state === 'failed'" :href="machine.href" class="k-mono">{{
-        machine.id
-      }}</a
-      ><Skeleton v-else variant="cell"
+      ><CitedName :summary="machine" :page="PAGES.machine(machine.id)"
     /></template>
   </span>
 </template>

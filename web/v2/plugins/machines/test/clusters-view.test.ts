@@ -33,7 +33,7 @@ const machine = (id: string, name: string, kind: string, host?: Machine["host"])
   name,
   kind,
   owner: { id: ENTITY },
-  site: { id: SITE },
+  site: { id: SITE, label: "nord", href: `/v1/sites/${SITE}` },
   ...(host ? { host } : {}),
 });
 const cluster = {
@@ -94,7 +94,6 @@ const READS = {
       ? page(MACHINES.filter((m) => !m.host))
       : page(MACHINES);
   },
-  "GET /v1/sites/{id}": () => ({ id: SITE, slug: "nord", href: `/v1/sites/${SITE}` }) as never,
 };
 
 let mounted: Mounted<HTMLElement> | null = null;
@@ -182,6 +181,13 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
       "Hosting and clusters",
     );
     await vi.waitFor(() => expect(rowOf(element, HOST)?.textContent).toContain("nord"));
+    // The site by its summary (11p10-d4): no query of an object in the cache (`["v1", type,
+    // id, …]`; a list's second part is a path), so none read nor mounted to read.
+    const parts = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => String(query.queryKey[1]));
+    expect(parts.filter((part) => !part.startsWith("/"))).toEqual([]);
     // Opened: its guests, read by `?host=`.
     press(element, HOST, "ArrowRight");
     await vi.waitFor(() =>
@@ -602,7 +608,7 @@ describe("the record of a cluster (task 18cd)", () => {
     const { element } = mounted;
     await text(element, "exemple");
     await text(element, "vm-a");
-    expect(element.querySelector("dl .k-mono")?.textContent).toBe(SITE);
+    expect(element.querySelector("dl .k-mono")?.firstChild?.textContent).toBe(SITE);
     expect(element.querySelector("h1")?.textContent?.trim()).toBe("grappe");
     const grid = element.querySelector("[role=grid][aria-label='Machines of the cluster']")!;
     const cells = [...grid.querySelectorAll("[role=row]")]

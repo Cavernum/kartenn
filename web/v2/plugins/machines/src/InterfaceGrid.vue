@@ -5,8 +5,9 @@
 <script setup lang="ts">
 // A grid of interfaces of any machine (task 18cc): the search of the view `interfaces` and
 // the « Interfaces » tab of an address and of a VLAN. Each row: the interface, a link to its
-// record; its machine, cited by its name; its MAC; its 802.1Q mode, its VLAN by their VID;
-// its state, a `StatusBadge`. Enter on a cell without link opens the record of its row.
+// record; its machine; its MAC; its 802.1Q mode; its state, a `StatusBadge`. The machine
+// and the VLAN by the labels of their summaries in the interface (H23, task 11p10-d4),
+// nothing read. Enter on a cell without link opens the record of its row.
 import {
   DataGrid,
   NoValue,
@@ -19,12 +20,11 @@ import { computed } from "vue";
 import CitedName from "./CitedName.vue";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
-import { modeOf, type Interface, type Names } from "./reads.ts";
+import { modeOf, type Interface } from "./reads.ts";
 
 const props = defineProps<{
   label: string;
   interfaces: readonly Interface[];
-  names: () => Names;
   /** The first page is coming: skeleton rows. */
   loading: boolean;
   /** Pages remain to read: the count of the rows is unknown. */
@@ -46,9 +46,9 @@ const rows = computed(() =>
   props.interfaces.map((i) => ({
     id: i.id,
     name: i.name,
-    machine: i.machine.id,
+    machine: i.machine,
     mac: i.mac ?? null,
-    mode: modeOf(i, props.names()),
+    mode: modeOf(i),
     enabled: i.enabled,
   })),
 );
@@ -82,10 +82,8 @@ function onActivate(cell: CellRef): void {
       <a v-if="column.id === 'name'" :href="recordOf(row.id)" class="k-mono">{{ row.name }}</a>
       <CitedName
         v-else-if="column.id === 'machine'"
-        :id="row.machine"
-        :names="props.names"
-        type="machines.machine"
-        :page="PAGES.machine(row.machine)"
+        :summary="row.machine"
+        :page="PAGES.machine(row.machine.id)"
       />
       <template v-else-if="column.id === 'mac'">
         <template v-if="row.mac">{{ row.mac }}</template>

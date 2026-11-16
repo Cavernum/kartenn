@@ -23,7 +23,8 @@ const { t } = useI18n();
 const keyLabel = useKeyLabel();
 
 const collection = computed(() => collectionOfRef(props.summary.kind, props.summary.href));
-const label = computed(() => props.summary.label ?? null);
+/** Its label; an empty one is none (nothing to name it by), as in the plugins. */
+const label = computed(() => props.summary.label || null);
 const unreadable = computed(() => label.value === null && !props.summary.href);
 /** Its record: by its URL; else, named, by its kind. */
 const to = computed(

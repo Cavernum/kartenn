@@ -48,7 +48,7 @@ import {
 import { computed, nextTick, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
 import CitedName from "./CitedName.vue";
 import { useList, useNotified } from "./data.ts";
-import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
+import { arrival, followLink, hostPageOf, hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
 import { KINDS, Names, type Cluster, type Machine } from "./reads.ts";
@@ -121,16 +121,24 @@ const hosts =
     ];
   };
 
-/** The name of an object cited by a filter read from the address: a suggestion's, or read. */
+/**
+ * The name of an object cited by a filter read from the address: a suggestion's, or that of
+ * a summary of the rows (which it filters); read by its identifier only once the rows are
+ * there without it (none, or an error), the one read of a name left in the plugin. Cited by
+ * the rows without a label: unreadable, its identifier shown, nothing read.
+ */
+const known = (id: string) => labels.get(id) ?? cited.value.get(id);
+/** The rows still awaited: they may name it. */
+const awaited = () => state.value.pending || state.value.previous;
 function labelOf(type: "core.entity" | "core.site" | "machines.cluster", id: string) {
-  const known = labels.get(id);
-  if (known) return known;
+  const label = known(id);
+  if (label !== undefined || awaited()) return label ?? undefined;
   const name = names().of(type, id);
   return name.state === "read" ? name.name : undefined;
 }
 function hostLabel(id: string): string | undefined {
-  const known = labels.get(id);
-  if (known) return known;
+  const label = known(id);
+  if (label !== undefined || awaited()) return label ?? undefined;
   const machine = names().of("machines.machine", id);
   if (machine.state === "read") return machine.name;
   return machine.state === "failed" ? labelOf("machines.cluster", id) : undefined;
@@ -254,11 +262,24 @@ const rows = computed(() =>
     id: m.id,
     name: m.name,
     kind: m.kind,
-    owner: m.owner?.id ?? null,
-    site: m.site?.id ?? null,
+    owner: m.owner ?? null,
+    site: m.site ?? null,
     host: m.host ?? null,
   })),
 );
+/**
+ * The labels of the objects the rows cite, by identifier (H23): those of the filters; `null`
+ * for one they cite without a label (unreadable for the caller, nothing to read then).
+ */
+const cited = computed(() => {
+  const found = new Map<string, string | null>();
+  for (const m of state.value.items ?? []) {
+    for (const summary of [m.owner, m.site, m.host, m.member_of]) {
+      if (summary && !found.get(summary.id)) found.set(summary.id, summary.label || null);
+    }
+  }
+  return found;
+});
 type Row = (typeof rows.value)[number];
 
 const columns = computed<GridColumn[]>(() => {
@@ -301,15 +322,6 @@ function onActivate(cell: CellRef): void {
   arrival.byLink = true;
   followLink(element, recordOf(row));
 }
-// A host the caller may not read says not its kind (REQ-006-42): no type nor page then.
-const hostPage = (host: Row["host"]) =>
-  host?.kind && (host.kind === "machine" ? PAGES.machine(host.id) : PAGES.cluster(host.id));
-const hostType = (host: Row["host"]) =>
-  host?.kind === "cluster"
-    ? ("machines.cluster" as const)
-    : host?.kind === "machine"
-      ? ("machines.machine" as const)
-      : undefined;
 
 const failure = computed(() => (state.value.items === undefined ? state.value.error : null));
 const nextFailure = computed(() => (state.value.items !== undefined ? state.value.error : null));
@@ -454,24 +466,12 @@ function added(): void {
               :label="t(`kind.${row.kind}`)"
               plain
             />
-            <CitedName
-              v-else-if="column.id === 'owner'"
-              :id="row.owner"
-              :names="names"
-              type="core.entity"
-            />
-            <CitedName
-              v-else-if="column.id === 'site'"
-              :id="row.site"
-              :names="names"
-              type="core.site"
-            />
+            <CitedName v-else-if="column.id === 'owner'" :summary="row.owner" />
+            <CitedName v-else-if="column.id === 'site'" :summary="row.site" />
             <CitedName
               v-else-if="column.id === 'host'"
-              :id="row.host?.id"
-              :names="names"
-              :type="hostType(row.host)"
-              :page="hostPage(row.host) ?? undefined"
+              :summary="row.host"
+              :page="hostPageOf(row.host)"
             />
           </template>
         </DataGrid>

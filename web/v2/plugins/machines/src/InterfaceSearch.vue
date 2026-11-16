@@ -24,11 +24,11 @@ import {
   type GridWindow,
 } from "@kartenn/ui";
 import { computed, onScopeDispose, reactive, shallowRef, watch } from "vue";
-import { useLists, useNotified } from "./data.ts";
+import { useLists } from "./data.ts";
 import { followLink } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
 import InterfaceGrid from "./InterfaceGrid.vue";
-import { Names, type Interface } from "./reads.ts";
+import type { Interface } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 /** The rows left before the end of the window when the next pages are read. */
@@ -40,7 +40,6 @@ type Criteria = Record<(typeof KEYS)[number], string>;
 
 const t = useTexts();
 const { context, element, queryClient } = useHosted();
-const names = useNotified((changed, live) => new Names(changed, live));
 
 function criteriaOfPage(): Criteria {
   const query = new URLSearchParams(location.search);
@@ -304,7 +303,6 @@ const sentence = computed(() => {
         <InterfaceGrid
           :label="t('interfaces.found')"
           :interfaces="items"
-          :names="names"
           :loading="items.length === 0"
           :more="more || pending"
           @window="onWindow"

@@ -29,7 +29,7 @@ import {
 import { computed, ref, shallowRef, watch, type ShallowRef } from "vue";
 import CitedName from "./CitedName.vue";
 import { useList, useRead, type List } from "./data.ts";
-import { hrefOf, PAGES } from "./dom.ts";
+import { hostPageOf, hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import HostSection from "./HostSection.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
@@ -71,16 +71,10 @@ const link = (page: string) => {
   return hrefOf(page);
 };
 /**
- * The page of its host by its kind; none for a host without a label, one the caller may not
- * read or absent then (REQ-006-42), as its cluster and the machine of an interface.
+ * The page of its host by its kind; none for a host the caller may not read or absent then,
+ * which says not its kind (REQ-006-42), and `CitedName` links no summary not read.
  */
-const hostPage = computed(() => {
-  const h = machine.value?.host;
-  if (!h?.label) return undefined;
-  if (h.kind === "cluster") return PAGES.cluster(h.id);
-  if (h.kind === "machine") return PAGES.machine(h.id);
-  return undefined;
-});
+const hostPage = computed(() => hostPageOf(machine.value?.host));
 /** Its attributes, each by its slot; one absent (no owner, no host…) said by the list. */
 const attributes = computed<AttributeItem[]>(() => [
   { key: "kind", label: t("machines.kind") },
@@ -214,7 +208,7 @@ function added(): void {
         <CitedName
           v-if="machine.member_of"
           :summary="machine.member_of"
-          :page="machine.member_of.label ? PAGES.cluster(machine.member_of.id) : undefined"
+          :page="PAGES.cluster(machine.member_of.id)"
         />
       </template>
     </AttributeList>

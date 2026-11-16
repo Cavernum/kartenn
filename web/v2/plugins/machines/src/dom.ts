@@ -53,6 +53,13 @@ export const PAGES = {
   interface: (id: string) => `/x/machines/interfaces/${encodeURIComponent(id)}`,
 };
 
+/** The page of the host of a machine by its kind; none without one (a host not read). */
+export function hostPageOf(host?: { id: string; kind?: string } | null): string | undefined {
+  if (host?.kind === "machine") return PAGES.machine(host.id);
+  if (host?.kind === "cluster") return PAGES.cluster(host.id);
+  return undefined;
+}
+
 /** The identifier after `/x/machines/<view>/` in the address of the page, if any. */
 export function pageId(view: string): string | null {
   const prefix = `/x/machines/${view}/`;
