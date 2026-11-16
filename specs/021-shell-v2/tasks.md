@@ -2066,7 +2066,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       reste) en 11p10-d1 à d5 ci-dessous ; se coche avec la d5. Règle commune : un résumé
       sans `label` est un objet illisible ou absent, affiché comme tel (identifiant en
       chasse fixe), sans lecture ni supposition.
-    - [ ] 11p10-d1. Shell, `ObjectName` et les références hors VLAN : avec un résumé,
+    - [x] 11p10-d1. Shell, `ObjectName` et les références hors VLAN : avec un résumé,
       `ObjectName` prend son `label` et ne lit rien ; seul un identifiant sans résumé
       lit encore — verify : Vitest monté, 66 lignes d'anomalies avec libellés : aucune
       lecture d'objet ; un résumé sans libellé : aucune lecture, affiché illisible ;
@@ -2076,6 +2076,17 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
         `views/record/{ExplanationBody,ValueSource}.vue` et `provenance.ts` (`NodeRef`),
         la branche résumé de `views/record/PropertyValue.vue` (sa branche chaîne, valeur
         saisie d'un brouillon, garde la lecture)
+      - choix : `ObjectName` prend le résumé entier dans une prop `summary`, l'identifiant
+        seul restant dans `id` (`kind`, `href`) : le résumé passé dit à lui seul « ne rien
+        lire », sans confondre un `label` absent du JSON avec une prop omise ; un résumé
+        sans `label` ne fait un lien que s'il porte un `href` (un `NodeRef` d'un type de
+        module sans clé), jamais vers une page construite par son type, et dit en mots au
+        lecteur d'écran (texte masqué « objet que vous ne lisez pas, ou absent », relecture
+        a11y, 1.3.1 et 2.4.4), l'identifiant restant seul visible ; le type `Summary`
+        de `collections.ts` laissé à la d2 (le résumé lui passe tel quel, `label` compris) ;
+        le test monté dans `test/object-name.test.ts`, le récit de la colonne Source
+        (`properties-source.test.ts`) nommé par le `label` de son origine, sans lecture ;
+        aucune capture tirée (les vues ne sont pas capturées, seules les maquettes le sont)
     - [ ] 11p10-d2. Shell, VLAN : `anchorOf`, `referenceOf` et `fieldText` rendent ou
       emploient le résumé et son `label` (aujourd'hui `slug ?? id`) — verify : liste de
       VLAN montée : aucune lecture d'objet ; colonne VLAN des préfixes : un lot de

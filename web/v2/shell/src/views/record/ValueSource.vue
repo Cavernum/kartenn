@@ -24,11 +24,7 @@ const { t } = useI18n();
   }}</span>
   <span v-else-if="props.origin.kind === 'inherited'"
     >{{ `${t("views.record.sourceInherited")} `
-    }}<ObjectName
-      :id="props.origin.origin.id"
-      :kind="props.origin.origin.kind"
-      :href="props.origin.origin.href"
-      with-kind
+    }}<ObjectName :summary="props.origin.origin" with-kind
   /></span>
   <span v-else-if="props.origin.provenance.kind === 'source'"
     >{{ `${t("views.record.sourceDefault")} `

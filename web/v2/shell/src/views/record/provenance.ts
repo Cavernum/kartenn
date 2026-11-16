@@ -53,7 +53,8 @@ type ValueSource = components["schemas"]["ValueSource"];
 
 /**
  * Where a resolved value comes from, as the column « Source » of the properties says it
- * (task 021-11p4; maquette E2): set on the object itself; inherited from its origin, named;
+ * (task 021-11p4; maquette E2): set on the object itself; inherited from its origin, named
+ * by the `label` of its summary, nothing read (task 021-11p10-d1);
  * inherited from an object the caller may not read (its existence not disclosed,
  * REQ-005-19); or, on the object itself, the default of a source or derived by a module —
  * said in its place of « direct ». Inherited, the origin is said before the provenance:

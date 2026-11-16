@@ -47,6 +47,7 @@
       "sourceDefault": "Inférée de la source",
       "sourceMasked": "Droit de lecture manquant",
       "sourceOther": "Provenance",
+      "objectUnreadable": "objet que vous ne lisez pas, ou absent",
       "gapsTitle": "Une propriété attendue manque ou diffère | {n} propriétés attendues manquent ou diffèrent",
       "gapColon": " : ",
       "gapNone": "aucune valeur",

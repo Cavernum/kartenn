@@ -123,9 +123,7 @@ watch(
       <template v-else-if="column.id === 'message'">{{ row.message }}</template>
       <ObjectName
         v-else-if="column.id === 'object'"
-        :id="(row as unknown as Anomaly).object.id"
-        :kind="(row as unknown as Anomaly).object.kind"
-        :href="(row as unknown as Anomaly).object.href"
+        :summary="(row as unknown as Anomaly).object"
       />
       <time v-else-if="column.id === 'opened_at'" :datetime="String(row.opened_at)">{{
         when(String(row.opened_at))

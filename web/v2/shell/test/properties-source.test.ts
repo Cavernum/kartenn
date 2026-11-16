@@ -19,7 +19,12 @@ import { valueOriginOf } from "../src/views/record/provenance.ts";
 const P1 = "0b5e3c1a-0000-4000-8000-0000000000a1";
 const S1 = "0b5e3c1a-0000-4000-8000-0000000000b1";
 const G1 = "0b5e3c1a-0000-4000-8000-0000000000f1";
-const node = (id: string, kind: "prefix" | "site") => ({ id, kind, href: `/v1/${kind}s/${id}` });
+const node = (id: string, kind: "prefix" | "site", label?: string) => ({
+  id,
+  kind,
+  href: `/v1/${kind}s/${id}`,
+  ...(label === undefined ? {} : { label }),
+});
 
 describe("the source of a value", () => {
   it("is read from its entry of `sources`", () => {
@@ -100,7 +105,11 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
           },
           sources: {
             "core.site": { origin: self, inherited: false, provenance: "input" },
-            "core.owner": { origin: node(S1, "site"), inherited: true, provenance: "input" },
+            "core.owner": {
+              origin: node(S1, "site", "site-a"),
+              inherited: true,
+              provenance: "input",
+            },
             "core.contact": { origin: null, inherited: true, provenance: null },
             "dns.ttl": { origin: self, inherited: false, provenance: "source:cmdb@r12" },
             "dhcp.pool": { origin: self, inherited: false, provenance: "module:dhcp#lease" },
@@ -116,8 +125,6 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
           links: {},
         });
       }
-      if (url.startsWith(`/v1/sites/${S1}`))
-        return json(200, { id: S1, slug: "site-a", links: {} });
       return json(200, { items: [], links: {} });
     }) as typeof fetch);
     await loadSession(async (url) =>
@@ -172,8 +179,10 @@ describe("the tab « Propriétés », its sources and its gaps", () => {
   it("says the source of each value, and no notice without a gap", async () => {
     const { root, seen } = await mount(() => json(200, { items: [], links: {} }));
     await expect.poll(() => text(root, "core.site", "source")).toBe("Directe");
-    // Inherited: its origin named once read, a link to its record.
+    // Inherited: its origin named by the label of its summary, a link to its record, nothing
+    // read of it (task 021-11p10-d1).
     await expect.poll(() => text(root, "core.owner", "source")).toBe("Héritée de Site site-a");
+    expect(seen.filter((url) => url.startsWith(`/v1/sites/${S1}`))).toEqual([]);
     expect(
       root.querySelector('[data-row="core.owner"][data-column="source"] a')?.getAttribute("href"),
     ).toBe(`/sites/${S1}`);

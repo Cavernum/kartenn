@@ -20,7 +20,7 @@ import { derivedOf, explanationOriginOf } from "./provenance.ts";
 import ValueSource from "./ValueSource.vue";
 
 type Explanation = components["schemas"]["Explanation"];
-/** A node of the chain, as the server writes it: its kind, identifier and URL. */
+/** A node of the chain, as the server summarises it: its kind, identifier, URL and label. */
 type ChainNode = components["schemas"]["NodeRef"];
 
 const props = defineProps<{ kind: string; id: string; property: string }>();
@@ -64,12 +64,7 @@ const inheritedDerived = computed(() =>
         <p v-else-if="origin.kind === 'direct'">{{ t("views.record.direct") }}</p>
         <p v-else-if="origin.kind === 'inherited'">
           {{ t("views.record.inheritedFrom") }}
-          <ObjectName
-            :id="origin.origin.id"
-            :kind="origin.origin.kind"
-            :href="origin.origin.href"
-            with-kind
-          />
+          <ObjectName :summary="origin.origin" with-kind />
         </p>
         <p v-else><ValueSource :origin="origin" /></p>
         <p v-if="inheritedDerived">
@@ -82,7 +77,7 @@ const inheritedDerived = computed(() =>
         <p>{{ t("views.record.chain") }}</p>
         <ol class="k-explanation__chain">
           <li v-for="node in chain" :key="node.id">
-            <ObjectName :id="node.id" :kind="node.kind" :href="node.href" with-kind />
+            <ObjectName :summary="node" with-kind />
           </li>
         </ol>
       </template>

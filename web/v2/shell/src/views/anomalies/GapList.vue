@@ -139,12 +139,7 @@ const targetOf = (key: string | null | undefined) => {
           </template>
           <NoValue v-else />
         </template>
-        <ObjectName
-          v-else-if="column.id === 'object'"
-          :id="gapOf(row).object.id"
-          :kind="gapOf(row).object.kind"
-          :href="gapOf(row).object.href"
-        />
+        <ObjectName v-else-if="column.id === 'object'" :summary="gapOf(row).object" />
         <KeyLabel
           v-else-if="column.id === 'rule'"
           :value="gapOf(row).rule"
