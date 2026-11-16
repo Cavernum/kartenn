@@ -593,6 +593,17 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     verify : test rouge d'abord, mêmes octets et statut pour absente et hors d'atteinte
     - où : `crates/kartenn-kube/src/handler.rs` (`plan_sync`, `READ_CHECKED` à créer sur
       le modèle de `kartenn-machines/src/handler.rs`)
+    - versé par la revue de la 29d1 (mineurs, 2026-11-16), à faire avec cette tâche :
+      fuites non couvertes par champ dans `crates/kartenn-kube/tests/it/references.rs`
+      (`service_domain`, `external_domain`, `service_networks` en création ; `owner`,
+      `site`, `pod_domain`, `external_domain`, `pod_containers`, `service_networks`,
+      `machines_cluster` en mise à jour) ; `admitted.namespace` avec `values: []` et
+      avec un namespace hors d'atteinte portant déjà des valeurs admises (le plan
+      diffère, `settings.rs` 612 à 621 : l'égalité des réponses n'y est pas prouvée) ;
+      la comparaison des cas sans droit requis sur le message et l'indice, pas la règle
+      seule ; un test par HTTP du statut et des octets (aucun test de `kartenn-kube`
+      n'y passe) ; inscrire dans la tâche 31 la correspondance de labels close sans
+      lecture (`kube.settings.edit` : réelle close, absente refusée)
   - [ ] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
     - où : `crates/kartenn-flow/src/handler.rs` (217 à 226, 493 à 585),
