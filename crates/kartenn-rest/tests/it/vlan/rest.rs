@@ -1301,3 +1301,158 @@ async fn the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one(pool: 
         }
     }
 }
+
+/// Task 006-33i, REQ-006-42: the history of a VLAN summarises its group at the start of
+/// each version, as the history of the core reads its links: a group renamed then closed
+/// keeps, in the versions where it held the VLAN, the key it had then, as asserted at the
+/// `as_of` of the route; a reader of the VLANs who may not read their groups, or whose
+/// scope leaves the closed group out, sees its identifier alone, as for a group that never
+/// was.
+#[kartenn_testing::pg_test]
+async fn the_history_summarises_the_group_as_it_was(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (owner, acme, other) = (
+        env.property("core.owner").await,
+        env.id("entity", "acme").await,
+        env.id("entity", "other").await,
+    );
+    let lab = env.id("addressing_domain", "lab").await;
+    env.applied(vec![
+        Operation::CreateDomain {
+            local: Some(1),
+            slug: "far".into(),
+        },
+        Operation::AssignProperty {
+            object: Ref::Local(1),
+            kind: ObjectKind::Domain,
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(other.to_string())],
+        },
+    ])
+    .await;
+    let far = env.id("addressing_domain", "far").await;
+    let anchor = json!({"domain": {"id": lab}});
+    let edge = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": far}}),
+            (1, 4094),
+            &[(10, "active")],
+        )
+        .await;
+    let vlan = env.vlan_of(edge, 10).await;
+    env.applied(vec![op(
+        "update_vlan_group",
+        json!({"id": {"id": edge}, "slug": "border"}),
+    )])
+    .await;
+    env.applied(vec![op(
+        "update_vlan",
+        json!({"id": {"id": vlan}, "name": "users"}),
+    )])
+    .await;
+    let core = env.seed_group("core", anchor, (1, 4094), &[]).await;
+    env.applied(vec![op(
+        "update_vlan",
+        json!({"id": {"id": vlan}, "group": {"id": core}}),
+    )])
+    .await;
+    // The first group closed in valid time: it is valid no more.
+    sqlx::query(
+        "UPDATE vlan_group SET valid_period = tstzrange(lower(valid_period), now())
+          WHERE id = $1 AND upper_inf(valid_period)",
+    )
+    .bind(edge)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let uri = format!("/v1/vlans/{vlan}/history");
+    let summary = |id: Uuid, slug: &str| json!({"id": id, "slug": slug, "label": slug, "href": format!("/v1/vlan-groups/{id}")});
+    // The versions on both axes: each update closes the version it replaces, the
+    // version closed then shown beside the one retracted, both starting at once.
+    let expected = [
+        (summary(edge, "edge"), json!({"id": edge})),
+        (summary(edge, "edge"), json!({"id": edge})),
+        (summary(edge, "border"), json!({"id": edge})),
+        (summary(edge, "border"), json!({"id": edge})),
+        (summary(core, "core"), json!({"id": core})),
+    ];
+    let reader = env.app(
+        env.person(&["core.vlan.read", "core.vlan_group.read"], None)
+            .await,
+    );
+    let blind = env.app(env.person(&["core.vlan.read"], None).await);
+    let parents = |body: &Value| -> Vec<Value> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["object"]["parent"].clone())
+            .collect()
+    };
+    for (app, readable) in [(&reader, true), (&blind, false)] {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let wanted: Vec<Value> = expected
+            .iter()
+            .map(|(full, bare)| if readable { full } else { bare }.clone())
+            .collect();
+        assert_eq!(parents(&body), wanted, "{body}");
+    }
+
+    // A retroactive correction of the second slug: the history read as of before it
+    // summarises the group as then asserted, the one read now as corrected.
+    let asserted: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE vlan_group SET slug = 'frontier' WHERE id = $1 AND slug = 'border'")
+        .bind(edge)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let past = format!(
+        "{uri}?as_of={}",
+        asserted
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+            .replace('+', "%2B")
+    );
+    let corrected = |slug: &str| {
+        let mut wanted: Vec<Value> = expected.iter().map(|(full, _)| full.clone()).collect();
+        wanted[2] = summary(edge, slug);
+        wanted[3] = summary(edge, slug);
+        wanted
+    };
+    for (uri, slug) in [(&past, "border"), (&uri, "frontier")] {
+        let (status, _, body) = call(&reader, "GET", uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+        assert_eq!(parents(&body), corrected(slug), "{uri}: {body}");
+    }
+
+    // A reader of the VLANs and groups of `acme` alone, which owns `lab` and not `far`:
+    // the VLAN, now in `lab`, is readable, the first group, of `far` and closed since, is
+    // not; it is cut to its identifier, with the same bytes as a group that never was.
+    let scoped = env.app(
+        env.person(
+            &["core.vlan.read", "core.vlan_group.read"],
+            Some(("entity", acme)),
+        )
+        .await,
+    );
+    let (status, _, body) = call(&scoped, "GET", &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let wanted: Vec<Value> = expected
+        .iter()
+        .enumerate()
+        .map(|(n, (full, bare))| if n < 4 { bare } else { full }.clone())
+        .collect();
+    assert_eq!(parents(&body), wanted, "{body}");
+    let closed = answer(&scoped, &uri).await;
+    sqlx::query("DELETE FROM vlan_group WHERE id = $1")
+        .bind(edge)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(answer(&scoped, &uri).await, closed, "closed and unknown");
+}

@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::operations::ModuleKind;
-use kartenn_store_pg::keys::natural_keys;
+use kartenn_store_pg::keys::{natural_keys, natural_keys_at};
 use kartenn_store_pg::list::Kind;
 use kartenn_store_pg::modules::PgModuleRead;
 use serde::Serialize;
@@ -177,7 +177,9 @@ enum Key {
 
 /// The summaries of objects of any kind a body refers to (an anomaly, a value of type
 /// reference): their kinds and keys read in one query at the dates of the body, plus one
-/// per module whose types are referred to, then one authorisation per kind.
+/// per module whose types are referred to, then one authorisation per kind. All are read
+/// at one date; a body whose references each have their own date (the versions of a
+/// history) takes [`DatedSummaries`].
 #[derive(Debug, Clone)]
 pub struct Summaries {
     found: HashMap<Uuid, (Target, Key)>,
@@ -199,18 +201,8 @@ impl Summaries {
         as_of: Option<OffsetDateTime>,
     ) -> Result<Self, Problem> {
         let found = keys(api, ids, valid_at, as_of).await?;
-        let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
-        for (id, (target, _)) in &found {
-            by_target
-                .entry(target.as_str())
-                .or_insert_with(|| (*target, Vec::new()))
-                .1
-                .push(*id);
-        }
-        let mut readable = Readable::all();
-        for (target, ids) in by_target.into_values() {
-            readable = readable.of(api, context, target, ids).await?;
-        }
+        let readable =
+            readable_among(api, context, found.iter().map(|(id, (t, _))| (*id, *t))).await?;
         Ok(Self { found, readable })
     }
 
@@ -237,46 +229,99 @@ impl Summaries {
     }
 }
 
-/// The kinds and the keys of `ids` at `valid_at` as asserted at `as_of`: one query for the
-/// core, one per module visited; none for no identifier.
-async fn keys(
+/// The summaries of objects each read at its own date of validity, as asserted at one
+/// date (the parent and the domain of each version of a history, read at its start, task
+/// 006-33i): the keys of the core in one query for every pair, those of the modules one
+/// read per date that links to an object of a module; the readability, now, asked once per
+/// kind for every date.
+#[derive(Debug, Clone)]
+pub struct DatedSummaries {
+    found: HashMap<(OffsetDateTime, Uuid), (Target, Key)>,
+    readable: Readable,
+}
+
+impl DatedSummaries {
+    /// The summaries of the pairs `(valid_at, id)` of `dated`, as asserted at `as_of`, as
+    /// the caller of `context` may read them now.
+    ///
+    /// # Errors
+    ///
+    /// The store's or the authoriser's error.
+    pub async fn read(
+        api: &Api,
+        context: &RequestContext,
+        dated: impl IntoIterator<Item = (OffsetDateTime, Uuid)>,
+        as_of: Option<OffsetDateTime>,
+    ) -> Result<Self, Problem> {
+        let pairs: Vec<(Uuid, OffsetDateTime)> = dated
+            .into_iter()
+            .map(|(at, id)| (id, at))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let mut found = HashMap::new();
+        // The objects of the modules, by date then by module: their keys are the modules'.
+        let mut of_modules: BTreeMap<OffsetDateTime, ByModule> = BTreeMap::new();
+        for (id, at, kind, key) in natural_keys_at(&api.pool, &pairs, as_of)
+            .await
+            .map_err(|e| store(&e))?
+        {
+            let Some(target) = Target::named(&kind, &api.modules) else {
+                continue;
+            };
+            match key {
+                Some(raw) => {
+                    if let Some(key) = key_of(target, &raw) {
+                        found.insert((at, id), (target, key));
+                    }
+                }
+                None => of_module(of_modules.entry(at).or_default(), target, id),
+            }
+        }
+        for (at, by_module) in of_modules {
+            for (id, value) in module_keys(api, by_module, at, as_of).await? {
+                found.insert((at, id), value);
+            }
+        }
+        let readable = readable_among(
+            api,
+            context,
+            found.iter().map(|((_, id), (t, _))| (*id, *t)),
+        )
+        .await?;
+        Ok(Self { found, readable })
+    }
+
+    /// The summary of `id` read at `valid_at`: `{id}` alone if the caller may not read it,
+    /// if it did not exist then, or if it was not asked at that date.
+    #[must_use]
+    pub fn of(&self, valid_at: OffsetDateTime, id: Uuid) -> Summary {
+        summary_of(id, self.found.get(&(valid_at, id)), &self.readable)
+    }
+}
+
+/// The objects of the modules to key, by module.
+type ByModule = BTreeMap<&'static str, (Target, Vec<Uuid>)>;
+
+/// Adds `id`, of `target`, to the objects of its module in `by_module`.
+fn of_module(by_module: &mut ByModule, target: Target, id: Uuid) {
+    by_module
+        .entry(target.as_str())
+        .or_insert_with(|| (target, Vec::new()))
+        .1
+        .push(id);
+}
+
+/// The keys the modules give to the objects of `by_module` at `valid_at` as asserted at
+/// `as_of`: one read per module.
+async fn module_keys(
     api: &Api,
-    ids: impl IntoIterator<Item = Uuid>,
+    by_module: ByModule,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
-) -> Result<HashMap<Uuid, (Target, Key)>, Problem> {
-    let ids: Vec<Uuid> = ids
-        .into_iter()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let mut found = HashMap::new();
-    if ids.is_empty() {
-        return Ok(found);
-    }
-    // The objects of the modules, by module: their keys are the modules'.
-    let mut of_modules: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
-    for (id, kind, key) in natural_keys(&api.pool, &ids, valid_at, as_of)
-        .await
-        .map_err(|e| store(&e))?
-    {
-        let Some(target) = Target::named(&kind, &api.modules) else {
-            continue;
-        };
-        match key {
-            Some(raw) => {
-                if let Some(key) = key_of(target, &raw) {
-                    found.insert(id, (target, key));
-                }
-            }
-            None => of_modules
-                .entry(target.as_str())
-                .or_insert_with(|| (target, Vec::new()))
-                .1
-                .push(id),
-        }
-    }
-    for (target, objects) in of_modules.into_values() {
+) -> Result<Vec<(Uuid, (Target, Key))>, Problem> {
+    let mut found = Vec::new();
+    for (target, objects) in by_module.into_values() {
         let Some(handler) =
             ModuleKind::parse(target.as_str()).and_then(|kind| api.modules.handler_of(kind))
         else {
@@ -295,6 +340,79 @@ async fn keys(
     Ok(found)
 }
 
+/// The summary of `id`, whose kind and key are `found` (`None`: absent), among the objects
+/// `readable` by the caller.
+fn summary_of(id: Uuid, found: Option<&(Target, Key)>, readable: &Readable) -> Summary {
+    match found {
+        Some((target, Key::Slug(slug))) => Summary::of(*target, id, Some(slug.clone()), readable),
+        Some((target, Key::Label(label))) => {
+            Summary::labelled(*target, id, Some(label.clone()), readable)
+        }
+        None => Summary::bare(id),
+    }
+}
+
+/// The objects among `found` (identifier, kind) the caller of `context` may read now: one
+/// authorisation per kind found.
+async fn readable_among(
+    api: &Api,
+    context: &RequestContext,
+    found: impl IntoIterator<Item = (Uuid, Target)>,
+) -> Result<Readable, Problem> {
+    let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
+    for (id, target) in found {
+        by_target
+            .entry(target.as_str())
+            .or_insert_with(|| (target, Vec::new()))
+            .1
+            .push(id);
+    }
+    let mut readable = Readable::all();
+    for (target, ids) in by_target.into_values() {
+        readable = readable.of(api, context, target, ids).await?;
+    }
+    Ok(readable)
+}
+
+/// The kinds and the keys of `ids` at `valid_at` as asserted at `as_of`: one query for the
+/// core, one per module visited; none for no identifier.
+async fn keys(
+    api: &Api,
+    ids: impl IntoIterator<Item = Uuid>,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> Result<HashMap<Uuid, (Target, Key)>, Problem> {
+    let ids: Vec<Uuid> = ids
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut found = HashMap::new();
+    if ids.is_empty() {
+        return Ok(found);
+    }
+    // The objects of the modules, by module: their keys are the modules'.
+    let mut of_modules = ByModule::new();
+    for (id, kind, key) in natural_keys(&api.pool, &ids, valid_at, as_of)
+        .await
+        .map_err(|e| store(&e))?
+    {
+        let Some(target) = Target::named(&kind, &api.modules) else {
+            continue;
+        };
+        match key {
+            Some(raw) => {
+                if let Some(key) = key_of(target, &raw) {
+                    found.insert(id, (target, key));
+                }
+            }
+            None => of_module(&mut of_modules, target, id),
+        }
+    }
+    found.extend(module_keys(api, of_modules, valid_at, as_of).await?);
+    Ok(found)
+}
+
 impl Summaries {
     /// The kind of `id`, if it existed at the dates of the read.
     #[must_use]
@@ -306,15 +424,7 @@ impl Summaries {
     /// exist at the dates of the read.
     #[must_use]
     pub fn of(&self, id: Uuid) -> Summary {
-        match self.found.get(&id) {
-            Some((target, Key::Slug(slug))) => {
-                Summary::of(*target, id, Some(slug.clone()), &self.readable)
-            }
-            Some((target, Key::Label(label))) => {
-                Summary::labelled(*target, id, Some(label.clone()), &self.readable)
-            }
-            None => Summary::bare(id),
-        }
+        summary_of(id, self.found.get(&id), &self.readable)
     }
 }
 

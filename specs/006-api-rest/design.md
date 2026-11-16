@@ -356,7 +356,15 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   transparaît (006-12e). Ses auteurs étant lus dans les identités au présent,
   l'historique n'est jamais servi `immutable`, même au passé figé : `private, no-cache`
   et un ETag, pour qu'une pseudonymisation atteigne les caches (exception à REQ-006-6,
-  021-11p2).
+  021-11p2). Les liés d'une version (`parent`, `domain`) sont résumés tels qu'ils étaient
+  au début de cette version (`valid_from`), lisibles aujourd'hui (H23) : un lié renommé ou
+  clos depuis garde la clé qu'il avait alors. Écart sous `as_of` (tâche 33i) : l'historique
+  d'un objet de module, d'un VLAN ou d'un groupe lit la clé du lié telle qu'assertée à
+  `as_of` (lecture bitemporelle, une requête pour toutes les paires lié-date de la page,
+  `natural_keys_at`) ; celui du noyau la lit dans la croyance courante (jointure sur la
+  table courante, `l.valid_period @> lower(h.valid_period)`), si bien qu'une correction
+  rétroactive postérieure à `as_of` y transparaît. La lecture bitemporelle est la juste :
+  le noyau s'y alignera (reste de la 33i).
 - **Version dans le corps (H21)** : tout objet du noyau ou d'un module, lu par
   identifiant ou dans la page de sa collection, porte `version` (UUID du dernier
   changeset qui l'a écrit, lui ou ses propriétés ; la part propre de l'ETag). Le kit

@@ -58,6 +58,9 @@ static NEAR: EdgeType = EdgeType {
 #[derive(Debug, Default)]
 struct Kit {
     edges: Vec<(Uuid, Uuid)>,
+    /// Whether it gives keys to its things: `at <valid_at>`, the date of the read in
+    /// microseconds, so that a test sees at which date each key was read.
+    keyed: bool,
 }
 
 impl ModuleHandler for Kit {
@@ -109,6 +112,20 @@ impl ModuleHandler for Kit {
                 })
                 .collect())
         })
+    }
+
+    fn keys<'a>(
+        &'a self,
+        read: &'a mut dyn ModuleRead,
+        objects: &'a [Uuid],
+    ) -> BoxFuture<'a, Result<Vec<(Uuid, String)>, StoreError>> {
+        let at = read.valid_at().0;
+        let keys = if self.keyed {
+            objects.iter().map(|id| (*id, format!("at {at}"))).collect()
+        } else {
+            Vec::new()
+        };
+        Box::pin(std::future::ready(Ok(keys)))
     }
 }
 
@@ -478,6 +495,54 @@ async fn history_of_a_module_object_names_the_motive_and_the_author(pool: PgPool
 }
 
 /// The answer of `GET path`, with `If-None-Match` when `tag` is given.
+/// Task 006-33i, REQ-006-42: the parent of an object of a module, itself of a module, is
+/// summarised in each version by the key its module gives at the start of that version.
+#[kartenn_testing::pg_test]
+async fn the_history_keys_a_parent_of_a_module_at_each_version(pool: PgPool) {
+    let parent = thing(&pool).await;
+    let written = changeset(&pool, SYSTEM, "fixture").await;
+    let id = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO module_object (id, module, kind, parent_id, valid_period, changeset_id)
+         VALUES ($1, 'kit', 'kit.thing', $2,
+                 tstzrange(now() - interval '12 hours', now() - interval '6 hours'), $3),
+                ($1, 'kit', 'kit.thing', $2, tstzrange(now() - interval '6 hours', NULL), $3)",
+    )
+    .bind(id)
+    .bind(parent)
+    .bind(written)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let reader = person_on(&pool, &["kit.thing.read"], None).await;
+    let kit = Kit {
+        keyed: true,
+        ..Kit::default()
+    };
+    let (status, body) = read(
+        &app(&pool, reader, kit),
+        &format!("/v1/things/{id}/history"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "{body}");
+    for item in items {
+        let start = time::OffsetDateTime::parse(
+            item["valid_from"].as_str().unwrap(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap();
+        let micros = start.unix_timestamp_nanos() / 1000;
+        assert_eq!(
+            item["object"]["parent"],
+            json!({"id": parent, "label": format!("at {micros}"),
+                   "href": format!("/v1/things/{parent}")}),
+            "{body}"
+        );
+    }
+}
+
 async fn get(app: &Router, path: &str, tag: Option<HeaderValue>) -> Response<Body> {
     let mut request = Request::get(path);
     if let Some(tag) = tag {
@@ -510,6 +575,7 @@ async fn graph_edges_filtered_by_rights(pool: PgPool) {
     let b = entity(&pool, "b", None).await;
     let kit = || Kit {
         edges: vec![(a, child), (a, b)],
+        ..Kit::default()
     };
     // Everywhere: both edges of `a`, sorted by end.
     let everywhere = person_on(&pool, &["core.entity.read"], None).await;
