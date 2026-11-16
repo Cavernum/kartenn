@@ -6,9 +6,11 @@
 //! The route serves snapshots (M18): what depends on the rights alone, by fingerprint of
 //! the rights, so that callers of the same bindings share it; what is the caller's own
 //! (its pending changesets, those it may apply, the counters of the modules, which may
-//! count what it reads as itself), by subject and fingerprint. The first read of a key
-//! computes at once; later ones are served the snapshot, recomputed in the background
-//! once the outbox has moved and [`Freshness::refresh`] has passed ([`Snapshots`]).
+//! count what it reads as itself), by subject and fingerprint, with where it holds the
+//! rights those counters depend on ([`held`]). The first read of a key computes at once;
+//! later ones are served the snapshot, recomputed in the background once the outbox has
+//! moved and [`Freshness::refresh`] has passed, or once it is [`Freshness::max_age`] old
+//! ([`Snapshots`]).
 
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
@@ -22,6 +24,7 @@ use axum::http::{HeaderMap, header};
 use axum::response::Response;
 use futures_util::future::try_join_all;
 use kartenn_core::audit::rfc3339;
+use kartenn_core::authz::{Verb, verb_permission};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::{Authorizer, Subject};
 use kartenn_service::events::qualified;
@@ -135,6 +138,11 @@ struct Own {
 pub struct Freshness {
     /// A snapshot is recomputed once the outbox has moved and it is this old.
     pub refresh: Duration,
+    /// A snapshot this old is recomputed even when nothing was written: a count that the
+    /// date alone changes (a flow or a binding ended, a waiver within 30 days) follows
+    /// within it (task 006-40). Below [`Self::refresh`], it is [`Self::refresh`]: a
+    /// snapshot is never due younger.
+    pub max_age: Duration,
     /// Only the keys read this recently are recomputed.
     pub active: Duration,
     /// A key not read for this long is forgotten.
@@ -151,6 +159,7 @@ impl Default for Freshness {
     fn default() -> Self {
         Self {
             refresh: Duration::from_secs(30),
+            max_age: Duration::from_mins(5),
             active: Duration::from_mins(10),
             forget: Duration::from_hours(24),
             keys: 1_024,
@@ -215,6 +224,14 @@ trait Part: PartialEq + Send + Sync + Sized + 'static {
         origin: &Self::Origin,
         now: OffsetDateTime,
     ) -> impl Future<Output = Result<Self, Problem>> + Send;
+    /// Whether the rights the key of `origin` names are still those of its subject at
+    /// `at`: read before and after each computation, which is not kept otherwise (task
+    /// 006-40).
+    fn holds(
+        api: &Api,
+        origin: &Self::Origin,
+        at: OffsetDateTime,
+    ) -> impl Future<Output = Result<bool, Problem>> + Send;
     fn slots(snapshots: &Snapshots) -> &Slots<Self>;
 }
 
@@ -230,21 +247,40 @@ impl Part for Shared {
         shared(api, scope, *changesets_read, now).await
     }
 
+    /// The computation reads the rights from its origin alone.
+    fn holds(
+        _: &Api,
+        _: &Self::Origin,
+        _: OffsetDateTime,
+    ) -> impl Future<Output = Result<bool, Problem>> + Send {
+        std::future::ready(Ok(true))
+    }
+
     fn slots(snapshots: &Snapshots) -> &Slots<Self> {
         &snapshots.shared
     }
 }
 
 impl Part for Own {
-    /// The subject, and its read scope.
-    type Origin = (Arc<Subject>, Arc<ReadScope>);
+    /// The subject, its read scope, and where it holds the rights its own counters depend
+    /// on beyond it, as its key names them ([`held`]).
+    type Origin = (Arc<Subject>, Arc<ReadScope>, Arc<str>);
 
     async fn compute(
         api: &Api,
-        (subject, scope): &Self::Origin,
+        (subject, scope, _): &Self::Origin,
         now: OffsetDateTime,
     ) -> Result<Self, Problem> {
         own(api, subject, scope, now).await
+    }
+
+    /// The counters read those rights at the moment of the computation, not from the key.
+    async fn holds(
+        api: &Api,
+        (subject, _, rights): &Self::Origin,
+        at: OffsetDateTime,
+    ) -> Result<bool, Problem> {
+        Ok(*held(api, subject, at).await? == **rights)
     }
 
     fn slots(snapshots: &Snapshots) -> &Slots<Self> {
@@ -312,10 +348,14 @@ impl Snapshots {
     }
 
     /// Whether `snap` is due at `revision`, `today`: old enough, and the outbox moved past
-    /// it or it was computed on an earlier UTC day (`by_day` moved on).
+    /// it, it was computed on an earlier UTC day (`by_day` moved on), or it reached
+    /// [`Freshness::max_age`] (what the date alone changes).
     fn due<T>(&self, snap: &Snap<T>, revision: i64, today: time::Date) -> bool {
-        snap.made.elapsed() >= self.settings.refresh
-            && (revision > snap.revision || utc_day(snap.at) < today)
+        let age = snap.made.elapsed();
+        age >= self.settings.refresh
+            && (revision > snap.revision
+                || utc_day(snap.at) < today
+                || age >= self.settings.max_age)
     }
 
     /// Room for a new key: the forgotten ones go, then the least recently read idle
@@ -431,27 +471,44 @@ impl Snapshots {
     }
 
     /// Computes `key` (marked busy by the caller) and keeps the result; a body that
-    /// changed calls the signal. A failure keeps the previous snapshot, if any.
+    /// changed calls the signal. A failure keeps the previous snapshot, if any. A key
+    /// whose rights are no longer those of its subject, before or after the computation,
+    /// is dropped: a recomputation is not run, a first computation answers the read that
+    /// started it (task 006-40).
     async fn recompute<T: Part>(&self, api: &Api, key: &str) -> Result<Snap<T>, Problem> {
         let origin = lock(T::slots(self))
             .get(key)
-            .map(|slot| slot.origin.clone());
-        let computed = match origin {
-            Some(origin) => self.compute::<T>(api, &origin).await,
+            .map(|slot| (slot.origin.clone(), slot.snap.clone()));
+        let computed = match &origin {
+            Some((origin, before)) => self.compute::<T>(api, origin, before.is_none()).await,
             None => Err(Problem::new(ProblemKind::Internal)),
         };
         let mut slots = lock(T::slots(self));
-        if computed.is_ok() {
+        if let Ok(Some(_)) = computed {
             // Under the lock: whoever sees the count sees the snapshot.
             self.computations.fetch_add(1, Ordering::Relaxed);
         }
         let Some(slot) = slots.get_mut(key) else {
-            return computed;
+            return match (computed, origin) {
+                (Ok(Some((snap, _))), _) => Ok(snap),
+                (Ok(None), Some((_, Some(before)))) => Ok(before),
+                (Ok(None), _) => Err(Problem::new(ProblemKind::Internal)),
+                (Err(problem), _) => Err(problem),
+            };
         };
         slot.busy = false;
         slot.ready.notify_waiters();
         match computed {
-            Ok(snap) => {
+            Ok(None) => {
+                let before = slot.snap.take();
+                slots.remove(key);
+                before.ok_or_else(|| Problem::new(ProblemKind::Internal))
+            }
+            Ok(Some((snap, false))) => {
+                slots.remove(key);
+                Ok(snap)
+            }
+            Ok(Some((snap, true))) => {
                 let changed = slot
                     .snap
                     .as_ref()
@@ -472,18 +529,33 @@ impl Snapshots {
         }
     }
 
-    /// A computation of a part: the revision of the outbox read first, so that a change
-    /// committed during it makes the snapshot due again.
-    async fn compute<T: Part>(&self, api: &Api, origin: &T::Origin) -> Result<Snap<T>, Problem> {
+    /// A computation of a part, and whether it may be kept: the rights of its key held
+    /// before and after it ([`Part::holds`]); `None`, not run, when they no longer hold
+    /// before it and it is not the `first` of its key (whose read waits for a body). The
+    /// revision of the outbox is read first, so that a change committed during it makes
+    /// the snapshot due again.
+    async fn compute<T: Part>(
+        &self,
+        api: &Api,
+        origin: &T::Origin,
+        first: bool,
+    ) -> Result<Option<(Snap<T>, bool)>, Problem> {
         let revision = outbox::revision(&api.pool).await?;
         let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
+        let before = T::holds(api, origin, now).await?;
+        if !before && !first {
+            return Ok(None);
+        }
         let body = T::compute(api, origin, now).await?;
-        Ok(Snap {
+        let later = read::now(&api.pool).await.map_err(|e| store(&e))?;
+        let kept = before && T::holds(api, origin, later).await?;
+        let snap = Snap {
             body: Arc::new(body),
             at: now,
             revision,
             made: Instant::now(),
-        })
+        };
+        Ok(Some((snap, kept)))
     }
 
     /// Forgets the keys of a level unread for [`Freshness::forget`]; whether one read
@@ -593,22 +665,27 @@ fn subject_key(subject: &Subject, rights: &str, held: &str) -> String {
     )
 }
 
-/// Where `subject` holds at `now` the permissions the counters of the modules depend on
-/// beyond its read scope ([`StatsContributor::permissions`]), as a digest: read at each
-/// request, so that a right withdrawn or ended by its date changes the key of its own
-/// counters (task 006-39).
-async fn held(api: &Api, subject: &Subject, now: OffsetDateTime) -> Result<String, Problem> {
-    let mut permissions: Vec<&'static str> = api
+/// Where `subject` holds at `now` the permissions its own counters depend on beyond its
+/// read scope, as a digest: those the counters of the modules declare
+/// ([`StatsContributor::permissions`], task 006-39), and the application of what the
+/// pending proposals require, which `to_apply` counts ([`proposals_for`], task 006-40).
+/// Read at each request, so that a right withdrawn or ended by its date changes the key
+/// of its own counters, and again by each computation of the key ([`Part::compute`]).
+async fn held(api: &Api, subject: &Subject, now: OffsetDateTime) -> Result<Arc<str>, Problem> {
+    let required = changesets::required_by_proposals(&api.pool).await?;
+    let mut permissions: Vec<String> = api
         .modules
         .modules()
         .filter_map(|m| m.stats())
-        .flat_map(|c| c.permissions().iter().copied())
+        .flat_map(|c| c.permissions().iter().map(|&p| p.to_owned()))
+        .chain(required.iter().map(|p| verb_permission(p, Verb::Apply)))
         .collect();
     permissions.sort_unstable();
     permissions.dedup();
     if permissions.is_empty() {
-        return Ok(String::new());
+        return Ok(Arc::from(""));
     }
+    let permissions: Vec<&str> = permissions.iter().map(String::as_str).collect();
     let mut conn = api.pool.acquire().await.map_err(|e| store(&e))?;
     let visibilities = rbac::visibilities_on(&mut conn, subject, &permissions, now).await?;
     let mut digest = Sha256::new();
@@ -622,7 +699,7 @@ async fn held(api: &Api, subject: &Subject, now: OffsetDateTime) -> Result<Strin
         }
         digest.update(format!("{permission}={v:?}\n").as_bytes());
     }
-    Ok(hex(&digest.finalize()[..16]))
+    Ok(Arc::from(hex(&digest.finalize()[..16])))
 }
 
 fn database(api: &Api) -> String {
@@ -843,7 +920,8 @@ async fn stats(
     let scope = Arc::new(api.authorizer().read_scope(&subject, now).await?);
     let changesets_read = changesets_read(&api, &subject).await?;
     let shared_key = rights_key(&api, &scope, changesets_read);
-    let own_key = subject_key(&subject, &shared_key, &held(&api, &subject, now).await?);
+    let rights = held(&api, &subject, now).await?;
+    let own_key = subject_key(&subject, &shared_key, &rights);
     let (shared_part, own_part) = futures_util::try_join!(
         snapshots.get::<Shared>(
             &api,
@@ -852,7 +930,13 @@ async fn stats(
             revision,
             now
         ),
-        snapshots.get::<Own>(&api, own_key, (Arc::new(subject), scope), revision, now),
+        snapshots.get::<Own>(
+            &api,
+            own_key,
+            (Arc::new(subject), scope, rights),
+            revision,
+            now
+        ),
     )?;
     // The older of the two parts dates the whole.
     let at = shared_part.at.min(own_part.at);

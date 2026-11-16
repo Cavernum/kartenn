@@ -6,9 +6,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
+use axum::{Extension, Router};
 use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::audit::Source;
@@ -16,6 +16,7 @@ use kartenn_rest::authn::{Answer, Authenticated, Authenticator, Proof, Refusal};
 use kartenn_rest::health::PgReadiness;
 use kartenn_rest::objects::Api;
 use kartenn_rest::quota::{Quotas, Rates};
+use kartenn_rest::stats::Snapshots;
 use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method as AuthMethod, Principal};
@@ -60,7 +61,18 @@ impl Env {
     /// The router of an instance with the modules, as the person `identity` authenticated
     /// by `issuer`, whose attachments confine it (K4, K13); `None`: unconfined.
     pub(crate) fn app_issued(&self, identity: Uuid, issuer: Option<&str>) -> Router {
-        let api = Api {
+        self.router(identity, issuer, None)
+    }
+
+    /// The router of an instance with the modules, as the person `identity`, its counters
+    /// of the home page kept in `snapshots` (task 006-40).
+    pub(crate) fn app_with(&self, identity: Uuid, snapshots: &Arc<Snapshots>) -> Router {
+        self.router(identity, None, Some(snapshots))
+    }
+
+    /// The API of an instance with the modules.
+    pub(crate) fn api(&self) -> Api {
+        Api {
             pool: self.pool.clone(),
             ring: ring(),
             bound: Duration::from_secs(60),
@@ -69,15 +81,27 @@ impl Env {
             sources: kartenn_service::expected::Sources::none(),
             outputs: Arc::from([]),
             modules: self.registry.clone(),
-        };
+        }
+    }
+
+    fn router(
+        &self,
+        identity: Uuid,
+        issuer: Option<&str>,
+        snapshots: Option<&Arc<Snapshots>>,
+    ) -> Router {
+        let mut v1 = kartenn_rest::v1_with(
+            self.api(),
+            vec![
+                kartenn_flow::rest::routes(),
+                kartenn_machines::rest::routes(),
+            ],
+        );
+        if let Some(snapshots) = snapshots {
+            v1 = v1.layer(Extension(snapshots.clone()));
+        }
         kartenn_rest::router(
-            kartenn_rest::v1_with(
-                api,
-                vec![
-                    kartenn_flow::rest::routes(),
-                    kartenn_machines::rest::routes(),
-                ],
-            ),
+            v1,
             Arc::new(PgReadiness::new(self.pool.clone(), AuditStatus::default())),
             Settings::default(),
             Arc::new(Quotas::new(Rates::default())),

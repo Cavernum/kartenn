@@ -310,3 +310,26 @@ pub async fn pending_of(pool: &PgPool, author: Uuid) -> Result<i64, StoreError> 
         .await
         .map_err(store_err)
 }
+
+/// The permissions the pending proposals require (spec 024, M7: `Pending::required`),
+/// each once, sorted: whoever applies one needs their application (task 006-40). A
+/// requirement that is not a list names none (as migration 0063 reads them).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn required_by_proposals(pool: &PgPool) -> Result<Vec<String>, StoreError> {
+    // The guard inside the call: a `WHERE` is not sure to run before it.
+    sqlx::query_scalar(
+        "SELECT DISTINCT r ->> 0
+           FROM changeset c,
+                jsonb_array_elements(CASE WHEN jsonb_typeof(c.required_rights -> 'required')
+                                               = 'array'
+                                          THEN c.required_rights -> 'required' END) r
+          WHERE c.state = 'pending' AND c.kind = 'proposal'
+          ORDER BY 1",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)
+}

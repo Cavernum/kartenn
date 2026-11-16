@@ -119,14 +119,19 @@ droits (les deux niveaux actuels : partie partagée par empreinte des droits, pa
 propre à l'appelant par sujet et par l'empreinte de là où il tient, à la requête, les
 droits que ses modules comptent en plus de la lecture — `StatsContributor::permissions`,
 `flow.request` pour les flux de leur demandeur, tâche 006-39 : un droit retiré ou échu
-par sa date change la clé), le dernier corps calculé, sa date et la révision de
-l'outbox qu'il a vue :
+par sa date change la clé —, et l'application de ce qu'exigent les propositions en
+attente, dont dépend `to_apply`, tâche 006-40), le dernier corps calculé, sa date et la
+révision de l'outbox qu'il a vue. Un calcul d'une clé propre relit ces droits avant et
+après : s'ils ne sont plus ceux de la clé, la clé est retirée (un recalcul ne tourne pas ;
+un premier calcul répond à sa requête sans être gardé) :
 
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
   encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
   en ligne et le garde ;
 - un recalcul est dû quand l'instantané a au moins 30 s et que la révision de l'outbox
-  a dépassé la sienne, ou qu'il date d'un jour UTC antérieur (`by_day` a glissé) ; il
+  a dépassé la sienne, qu'il date d'un jour UTC antérieur (`by_day` a glissé), ou qu'il
+  a 5 min (âge maximal : un compteur que la seule date change — flux ou liaison échus,
+  dérogation qui entre dans les 30 jours — suit sans écriture, tâche 006-40) ; il
   tourne en arrière-plan, une seule fois par clé à la fois (pas de calculs en double),
   au plus deux recalculs simultanés sur le serveur pour ne pas affamer le pool (le
   calcul en ligne d'un premier appel n'attend pas ces deux places) ;

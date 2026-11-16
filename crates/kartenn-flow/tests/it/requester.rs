@@ -13,6 +13,7 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
+use kartenn_rest::stats::{Freshness, Snapshots};
 use kartenn_service::Operation;
 
 use crate::requests::{Env, REQUEST};
@@ -349,4 +350,114 @@ async fn a_request_naming_no_entity_is_read_with_the_right_everywhere(pool: PgPo
     assert!(served(&app, uri, key).await.is_empty());
     env.grant(author, &["flow.request"], None).await;
     assert_eq!(served(&app, uri, key).await, row);
+}
+
+/// Waits until the database reaches `until`.
+async fn until_past(pool: &PgPool, until: OffsetDateTime) {
+    loop {
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let past: bool = sqlx::query_scalar("SELECT now() >= $1")
+            .bind(until)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        if past {
+            return;
+        }
+    }
+}
+
+/// Task 006-40 (a): a recomputation in the background reads the rights of its key, not
+/// those of the moment. The right withdrawn (the key « without » is born), given back,
+/// the outbox moved and the keys swept, then withdrawn again: the next read serves what a
+/// subject without it is served, not a count made with the right under the key without.
+#[kartenn_testing::pg_test]
+async fn a_right_withdrawn_given_back_and_withdrawn_again_counts_without_it(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (author, stranger) = requester_and_stranger(&env).await;
+    let snapshots = Snapshots::new(Freshness {
+        refresh: Duration::ZERO,
+        ..Freshness::default()
+    });
+    let (mine, strange) = (env.app_with(author, &snapshots), env.app(stranger));
+    applied_flows(&env, &mine, env.acme, 2).await;
+    assert_eq!(stats(&mine).await["objects"]["flow.flow"], 2);
+    withdraw(&pool, author, Some(env.acme)).await;
+    assert_eq!(
+        stats(&mine).await["objects"],
+        stats(&strange).await["objects"]
+    );
+    env.grant(author, &["flow.request"], Some(env.acme)).await;
+    assert_eq!(stats(&mine).await["objects"]["flow.flow"], 2);
+    // The outbox moves, and the active keys are recomputed: the key without too.
+    env.address("10.3.0.0/24", "10.3.0.1", "dev").await;
+    snapshots.sweep(&env.api()).await.unwrap();
+    withdraw(&pool, author, Some(env.acme)).await;
+    let (after, expected) = (stats(&mine).await, stats(&strange).await);
+    assert_eq!(after["objects"], expected["objects"], "{after}");
+    assert_eq!(after["modules"], expected["modules"], "{after}");
+}
+
+/// Task 006-40: a key whose rights are no longer those of its subject is not computed by
+/// the sweep that finds it due, and is not due at the next one: it is dropped.
+#[kartenn_testing::pg_test]
+async fn a_key_whose_rights_moved_is_dropped_by_the_sweep(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (author, _) = requester_and_stranger(&env).await;
+    let snapshots = Snapshots::new(Freshness {
+        refresh: Duration::ZERO,
+        ..Freshness::default()
+    });
+    let mine = env.app_with(author, &snapshots);
+    applied_flows(&env, &mine, env.acme, 1).await;
+    stats(&mine).await;
+    // The key with the right is left behind; the key without is born.
+    withdraw(&pool, author, Some(env.acme)).await;
+    stats(&mine).await;
+    let computed = snapshots.computations();
+    for (sweeps, network, address) in [
+        (1, "10.3.0.0/24", "10.3.0.1"),
+        (2, "10.4.0.0/24", "10.4.0.1"),
+    ] {
+        env.address(network, address, "dev").await;
+        snapshots.sweep(&env.api()).await.unwrap();
+        // What the rights share, and the key without: not the key with.
+        assert_eq!(snapshots.computations(), computed + 2 * sweeps);
+    }
+}
+
+/// Task 006-40 (b): a flow ended by its date alone, nothing written, leaves the counter
+/// once its snapshot is older than [`Freshness::max_age`].
+#[kartenn_testing::pg_test]
+async fn a_flow_ended_by_its_date_leaves_the_counter_within_the_age(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (author, _) = requester_and_stranger(&env).await;
+    let snapshots = Snapshots::new(Freshness {
+        refresh: Duration::ZERO,
+        max_age: Duration::from_secs(1),
+        ..Freshness::default()
+    });
+    let mine = env.app_with(author, &snapshots);
+    let flows = applied_flows(&env, &mine, env.acme, 2).await;
+    let until: OffsetDateTime = sqlx::query_scalar("SELECT now() + interval '2 seconds'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Its period ends in two seconds, as a flow asked until a date.
+    let ended = sqlx::query(
+        "UPDATE flow.flow SET valid_period = tstzrange(lower(valid_period), $2)
+          WHERE id = $1::uuid AND upper_inf(valid_period)",
+    )
+    .bind(&flows[0])
+    .bind(until)
+    .execute(&pool)
+    .await
+    .unwrap()
+    .rows_affected();
+    assert_eq!(ended, 1);
+    assert_eq!(stats(&mine).await["objects"]["flow.flow"], 2);
+    until_past(&pool, until).await;
+    snapshots.sweep(&env.api()).await.unwrap();
+    let after = stats(&mine).await;
+    assert_eq!(after["objects"]["flow.flow"], 1, "{after}");
 }

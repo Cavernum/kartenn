@@ -1455,7 +1455,7 @@ routeur complet, sauf mention « vrai TCP ».
   date change (flux échu, dérogation qui entre dans les 30 jours) attend une écriture ou
   le jour UTC suivant (proposition : un âge maximal d'instantané, quelques minutes, dans
   `Snapshots::due`). Les deux vont à la tâche 40.
-- [ ] 40. Instantanés des compteurs de l'accueil : recalcul lié aux droits de sa clé, âge
+- [x] 40. Instantanés des compteurs de l'accueil : recalcul lié aux droits de sa clé, âge
   maximal, droits du compteur `to_apply` (restes de la 39, relevés par sa revue) :
   (a) le recalcul d'arrière-plan d'une clé `Own` (`Own::compute`, par `contributions`)
   relit `flow.request` en direct, sans lien avec l'empreinte de la clé (`Origin` =
@@ -1481,3 +1481,47 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-flow/src/stats.rs` (`proposals_for`) ; tests voisins
     `crates/kartenn-flow/tests/it/requester.rs` ; design 024 « Instantanés »
   - dépend de : 39
+  fait : `kartenn-rest/src/stats.rs` — (a) l'origin d'une clé `Own` porte l'empreinte
+  `held` de sa requête ; `Part::holds` dit si ces droits sont encore ceux du sujet :
+  relu avant le calcul (à son `now`) et après (à un `now` relu) ; une empreinte autre que
+  celle de la clé retire la clé — un recalcul ne lance pas `own()`, un premier calcul
+  répond à sa requête sans être gardé ; (b) `Freshness::max_age` (5 min par défaut) dans
+  `Snapshots::due` ; (c) `held` ajoute l'application (`verb_permission`, `Verb::Apply`)
+  de ce qu'exigent les propositions en attente, `kartenn-store-pg/src/changesets.rs`
+  `required_by_proposals` (une exigence qui n'est pas une liste n'en nomme aucune, garde
+  `jsonb_typeof` dans l'appel) ; design 024 (« Instantanés »). Tests, rouges avant :
+  `flow/tests/it/requester.rs` — `a_right_withdrawn_given_back_and_withdrawn_again_counts_without_it`,
+  `a_key_whose_rights_moved_is_dropped_by_the_sweep`,
+  `a_flow_ended_by_its_date_leaves_the_counter_within_the_age` ;
+  `rest/tests/it/stats.rs` — `to_apply_follows_a_withdrawn_right_of_application` (le cas
+  « à vérifier » de (c) était réel : `to_apply` restait à 1 après le retrait de
+  `core.prefix.apply`) ; `store-pg/tests/it/changesets.rs` —
+  `the_requirements_of_the_proposals_skip_what_is_not_a_list`.
+  choix : (c) les droits de `to_apply` ne sont pas une liste fixe (une application par
+  sorte d'objet, plus `prop.<clé>.apply` pour toute clé) ni ceux d'un module : lus des
+  propositions en attente à chaque requête plutôt que déclarés par
+  `StatsContributor::permissions()`, qui garde les droits des modules (validé à la
+  revue) ; propositions de l'appelant comprises (en trop, sans effet) ; une clé retirée
+  plutôt que marquée non due (sa prochaine lecture la recalcule en ligne) ; un recalcul
+  non lancé ne compte pas dans `computations` ; âge maximal de 5 min, pour les deux
+  niveaux ; aucun corps ni contrat changé.
+  reste : séquence A-B-A dans un seul calcul — droit donné puis retiré pendant le calcul
+  d'une clé « sans » : `held` avant et après vaut « sans », le compteur fait « avec » est
+  gardé sous la clé « sans » jusqu'au recalcul suivant (fuite d'un nombre, fenêtre d'un
+  calcul, INV-63). Aucun marqueur monotone ne couvre toutes les écritures de droits sans
+  migration : l'outbox ne reçoit ni l'adhésion d'un compte de secours
+  (`breakglass::create`) ni l'écriture directe en base, et sa révision avance à toute
+  écriture (abandonner à chacune affamerait les recalculs sous charge). Pistes : un
+  compteur d'écritures de droits (déclencheur sur `role`, `role_permission`, `binding`,
+  `group_member`, `rbac_group` — migration) lu avant et après ; ou le calcul entier dans
+  un seul instantané PostgreSQL (`pg_export_snapshot` partagé par les connexions de
+  `own()`, `proposals_for` et des contributeurs — refonte de leurs lectures) ; à
+  arbitrer. Test de la branche « premier calcul non gardé, clé retirée » : non écrit, le
+  changement de droits entre la clé et le calcul ne se provoque pas sans point
+  d'injection. `held` coûte 2 + P requêtes par appel de `GET /v1/stats` (propositions en
+  attente, droits, et une lecture `sensitive` par permission `prop.*`), autant deux fois
+  de plus par calcul d'une clé propre, non mesuré au banc (`bench-http`,
+  REQ-024-16) ; une proposition qui arrive ou part change l'empreinte, et
+  donc la clé, de chaque appelant (calcul en ligne au prochain appel) ; la description
+  OpenAPI de `GET /v1/stats` (« at most every 30 s once something changed ») à compléter
+  de l'âge maximal au prochain changement du contrat.
