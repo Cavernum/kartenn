@@ -8479,6 +8479,60 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `a11y-auditor`), le shell qui l'emploie à la place de `ViewPanel`, le plugin
       `machines` (liste, formulaire de création à déplacer hors de la surface qui
       défile). À faire avant la bascule (tâche 27).
+    - découpée le 2026-11-16 en 22f-i1 à i3 ci-dessous ; se coche avec la i3.
+    - [ ] 22f-i1. Composant `Panel` de `@kartenn/ui` : le panneau de la surface de travail,
+      repris de `ViewPanel` tel que la 22f-h l'a laissé (props, emplacements, rangées
+      nommées du panneau `list`, `data-list`, grille virtualisée au reste du panneau),
+      sans toucher encore ni le shell ni le plugin ; la règle de la surface du cadre
+      (`.k-frame__surface:has(…)`) reste à l'hôte — verify : Vitest (structure rendue :
+      `h2` nommant la région du seul panneau `main`, `data-list` sur la section et le
+      corps, parties absentes sans enveloppe) ; page de catalogue et ses captures (titre
+      long à la ligne, actions et `Toolbar` dans l'en-tête, barre d'outils et pied,
+      `flush` avec une grille, `list` dans un cadre de hauteur fixe : la grille
+      virtualisée en prend le reste, seule à défiler) ; relectures `ui-reviewer` et
+      `a11y-auditor` ; `k-web2-check --base main`
+      - où : `web/v2/shell/src/views/parts/ViewPanel.vue` (à imiter, pas à changer) ;
+        nouveau `web/v2/ui/src/components/Panel/{Panel.vue,Panel.catalogue.ts}`, export
+        dans `ui/src/index.ts` ; test à côté de « Heading » dans
+        `ui/test/components-base.test.ts` ; cadre de démonstration
+        `ui/src/demo/DemoFrame.vue` ; état `virtual` de `DataGrid.catalogue.ts` ; ligne
+        nouvelle de l'inventaire (`specs/020-systeme-de-design/design.md`, après
+        `NoValue`, ligne 981) et de la skill `kartenn-ui` (§ 4) ; ligne `DataGrid` des
+        deux (« `ViewPanel` `list` » devient « `Panel` `list` »)
+      - dépend de : 22f-h
+    - [ ] 22f-i2. Le shell emploie `Panel` à la place de `ViewPanel` : les vingt et une
+      vues et parties qui l'importent (remplacement mécanique de l'import et de la
+      balise), `EcranPanneau` des maquettes, les sélecteurs `k-view-panel` des parcours et
+      des captures (`k-panel`), `ViewPanel.vue` supprimé ; la règle de la surface
+      (`.k-frame__surface:has(> [data-list] > .k-panel__body > …)`) va dans
+      `ShellFrame.vue`, avec les autres règles de la surface — verify : `k-web2-check
+      --base main` (captures des maquettes et du catalogue du shell inchangées, sinon
+      chacune regardée) ; parcours `records.spec.ts` (les deux de la 22f-h) et
+      `layout.spec.ts` ; `k-web2-e2e`
+      - où : `shell/src/views/parts/ViewPanel.vue` et ses importeurs
+        (`grep -rl ViewPanel web/v2/shell/src`) ; `shell/src/_ui/ecrans/{EcranPanneau,
+        E10Plugin,E15Matrice}.vue` ; `shell/src/frame/ShellFrame.vue`
+        (`.k-frame__surface`, vers 1120) ; `e2e/journeys/records.spec.ts`,
+        `e2e/visual/{layout,clavier}.spec.ts` ; lignes `DataGrid` de l'inventaire si le
+        nom de la règle y change
+      - taille : une vingtaine de fichiers, mais un même remplacement mécanique ; une
+        seule famille de vérification
+      - dépend de : 22f-i1
+    - [ ] 22f-i3. Plugin `machines`, liste des machines : `MachineList` dans un `Panel`
+      `list`, la grille paginée au reste de la fenêtre comme les écrans du shell ; le
+      formulaire de création (`DraftForm`) déplacé hors de la surface qui défile (sous
+      l'en-tête du panneau ou dans un `Drawer`, à trancher à la lecture de la maquette
+      E10) ; la règle de la surface du cadre rejoint un `Panel` `list` hébergé par la
+      page d'un plugin (`PluginView`, `PageRoot`), non plus enfant direct de la surface
+      — verify : parcours `machines.spec.ts`, à 1 200 px de haut un seul défileur (ni le
+      document ni la surface ne défilent, la grille au-delà de 800 px) et à 320 px la
+      surface qui défile ; captures touchées ; relecture `ui-reviewer` ;
+      `k-web2-check --base main`, `k-web2-e2e`
+      - où : `web/v2/plugins/machines/src/{MachineList,MachinesView,PageRoot,DraftForm}.vue`
+        (gabarit de `MachineList` vers 407, `DataGrid` 448) ; `shell/src/plugins/PluginView.vue`
+        (hôte de la page) ; règle de la surface dans `shell/src/frame/ShellFrame.vue`
+        (après la 22f-i2) ; maquette `shell/src/_ui/ecrans/E10Plugin.vue`
+      - dépend de : 22f-i2
   - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
     `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
     défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà
