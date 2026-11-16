@@ -1125,6 +1125,9 @@ async fn graph_edge_address_to_interface(pool: PgPool) {
     assert_eq!(edges[0]["type"], "machines.has_address");
     assert_eq!(edges[0]["from"]["id"], json!(interface));
     assert_eq!(edges[0]["to"]["id"], json!(address));
+    // Each end named by its key, as a summary (task 006-33f3).
+    assert_eq!(edges[0]["to"]["label"], "10.0.0.1", "{body}");
+    assert!(edges[0]["from"]["label"].is_string(), "{body}");
 }
 
 #[kartenn_testing::pg_test]
@@ -2355,6 +2358,27 @@ async fn a_host_as_read_is_refused_as_a_write(pool: PgPool) {
             "{body}"
         );
     };
+    refused(status, &body);
+    // In the order of the kit: the media type first (415), the members before `If-Match`
+    // (422, not 428).
+    let patch = json!({"motive": "back as read", "host": read["host"]});
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(("application/json", patch.clone())),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE, "{body}");
+    let (status, _, body) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(("application/merge-patch+json", patch)),
+        &[],
+    )
+    .await;
     refused(status, &body);
     let (_, _, after) = call(&app, "GET", &uri, None, &[]).await;
     assert_eq!(after["host"], read["host"]);

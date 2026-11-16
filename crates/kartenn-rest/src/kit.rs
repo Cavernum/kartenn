@@ -263,6 +263,17 @@ pub(crate) const TYPED_OBJECTS: &str = "(SELECT id, kind, valid_period, changese
      UNION ALL SELECT id, 'vlan_group', valid_period, changeset_id FROM vlan_group
      UNION ALL SELECT id, 'vlan', valid_period, changeset_id FROM vlan)";
 
+/// The body of a write as a JSON object of media type `media`, as [`create`] and
+/// [`modify`] read it: 415 for another media type, 400 for another body. For a module that
+/// checks a member before them (task 006-33f3).
+///
+/// # Errors
+///
+/// 415 or 400.
+pub fn body(headers: &HeaderMap, raw: &[u8], media: &str) -> Result<Map<String, Value>, Problem> {
+    members(headers, raw, media)
+}
+
 /// The members of a write of `ty` but its reserved ones, each one of `allowed` (400
 /// otherwise), and its reserved members.
 fn written(

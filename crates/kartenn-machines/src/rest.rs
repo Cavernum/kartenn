@@ -1697,14 +1697,13 @@ struct Writes {
 impl Writes {
     /// 422 `invalid-member` pointing at `/host` for a host of another form than a
     /// reference (task 006-33f3): the operation would refuse it, pointing at the body
-    /// whole (design 006 « Routes »). A body that is not an object is left to the kit.
-    fn check(&self, raw: &Bytes) -> Result<(), Problem> {
+    /// whole (design 006 « Routes »). In the order of the kit: the media type (415) and the
+    /// body (400) first, then the members (422), then `If-Match` (428).
+    fn check(&self, headers: &HeaderMap, raw: &Bytes, media: &str) -> Result<(), Problem> {
         if !self.host {
             return Ok(());
         }
-        let Ok(Value::Object(body)) = serde_json::from_slice::<Value>(raw) else {
-            return Ok(());
-        };
+        let body = kit::body(headers, raw, media)?;
         match body.get("host") {
             Some(host) if !host.is_null() => crate::handler::host_input(host.clone())
                 .map(drop)
@@ -1786,7 +1785,7 @@ fn collection_routes(
                   Extension(context): Extension<RequestContext>,
                   headers: HeaderMap,
                   raw: Bytes| async move {
-                writes.check(&raw)?;
+                writes.check(&headers, &raw, "application/json")?;
                 kit::create(
                     &api,
                     &principal,
@@ -1845,7 +1844,7 @@ fn collection_routes(
                   Path(id): Path<Uuid>,
                   headers: HeaderMap,
                   raw: Bytes| async move {
-                writes.check(&raw)?;
+                writes.check(&headers, &raw, MERGE_PATCH)?;
                 kit::modify_nullable(
                     &api,
                     &principal,
