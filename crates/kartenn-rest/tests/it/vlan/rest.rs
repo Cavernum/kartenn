@@ -546,7 +546,7 @@ async fn occupancy_over_http(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["items"][0]["object"]["kind"], "vlan_group", "{body}");
-    assert_eq!(body["items"][0]["object"]["domain"], lab.to_string());
+    assert_eq!(body["items"][0]["object"]["domain"]["id"], lab.to_string());
 }
 
 /// The history of a VLAN and of its group names the motive and the author of each
@@ -1230,6 +1230,74 @@ async fn the_anchor_and_the_group_leave_alike_the_unreadable_and_the_unknown(poo
                 let unknown = answer(app, uri).await;
                 assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
             }
+        }
+    }
+}
+
+/// Task 006-33f3, REQ-006-42, 005: the history of a group and of a VLAN, as of every type
+/// of a module (`ModuleObject`), summarises the domain of the group and the parent of the
+/// VLAN for a caller who may read them, cuts them to their identifier for one who may not;
+/// the object gone, the same bytes for both, as for an object that never was.
+#[kartenn_testing::pg_test]
+async fn the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active")],
+        )
+        .await;
+    let vlan = env.vlan_of(group, 10).await;
+    let vlans = ["core.vlan.read", "core.vlan_group.read"];
+    let everything = [&vlans[..], &["core.domain.read"]].concat();
+    let reader = env.app(env.person(&everything, None).await);
+    let no_domain = env.app(env.person(&vlans, None).await);
+    let no_group = env.app(env.person(&vlans[..1], None).await);
+    // A summary as such, its members in their order.
+    let full = |collection: &str, id: Uuid, slug: &str| {
+        format!(
+            r#"{{"id":"{id}","slug":"{slug}","label":"{slug}","href":"/v1/{collection}/{id}"}}"#
+        )
+    };
+    let cases = [
+        (
+            format!("/v1/vlan-groups/{group}/history"),
+            format!(r#""domain":{}"#, full("domains", lab, "lab")),
+            format!(r#""domain":{{"id":"{lab}"}}"#),
+            &no_domain,
+            "addressing_domain",
+            lab,
+        ),
+        (
+            format!("/v1/vlans/{vlan}/history"),
+            format!(r#""parent":{}"#, full("vlan-groups", group, "edge")),
+            format!(r#""parent":{{"id":"{group}"}}"#),
+            &no_group,
+            "vlan_group",
+            group,
+        ),
+    ];
+    for (uri, full, bare, blind, table, linked) in &cases {
+        let (status, _, shown) = answer(&reader, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        let shown = String::from_utf8(shown).unwrap();
+        assert!(shown.contains(full.as_str()), "{uri}: {shown}");
+        let unreadable = answer(blind, uri).await;
+        let body = String::from_utf8(unreadable.2.clone()).unwrap();
+        assert_eq!(body, shown.replace(full.as_str(), bare), "{uri}");
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE id = $1"
+        )))
+        .bind(linked)
+        .execute(&pool)
+        .await
+        .unwrap();
+        for app in [&reader, *blind] {
+            let unknown = answer(app, uri).await;
+            assert_eq!(unknown, unreadable, "{uri}: unreadable and unknown");
         }
     }
 }

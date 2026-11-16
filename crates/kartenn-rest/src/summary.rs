@@ -204,6 +204,13 @@ impl Summaries {
             .into_iter()
             .collect();
         let mut found = HashMap::new();
+        if ids.is_empty() {
+            // Nothing to read: no query.
+            return Ok(Self {
+                found,
+                readable: Readable::all(),
+            });
+        }
         // The objects of the modules, by module: their keys are the modules'.
         let mut of_modules: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
         for (id, kind, key) in natural_keys(&api.pool, &ids, valid_at, as_of)

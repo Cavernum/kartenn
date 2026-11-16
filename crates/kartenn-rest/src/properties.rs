@@ -46,7 +46,7 @@ use crate::objects::{Api, Target, audited, bad, instant, store};
 use crate::openapi::{documented, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::quota::{Charge, ids_weight};
-use crate::summary::Summaries;
+use crate::summary::{Summaries, Summary};
 
 /// Most objects of a read of the resolved values of several objects (REQ-006-40).
 pub const BATCH_MAX: usize = 200;
@@ -1103,7 +1103,7 @@ async fn explanation(
     } else {
         Value::Null
     };
-    let replaces = match &found.replaces {
+    let mut replaces = match &found.replaces {
         Some((origin, replaced)) => Some(Replaced {
             origin: node(origin),
             value: if shown {
@@ -1113,6 +1113,23 @@ async fn explanation(
             },
         }),
         None => None,
+    };
+    // A reference, and the one it replaces, summarised (REQ-006-42, task 006-33f3).
+    let value = if declaration.value_type == "ref" {
+        let former = replaces.as_ref().map(|r| &r.value);
+        let referred: Vec<Uuid> = [Some(&value), former]
+            .into_iter()
+            .flatten()
+            .flat_map(references)
+            .collect();
+        let summaries =
+            Summaries::read(&api, &context, referred, moment.valid_at, moment.as_of).await?;
+        if let Some(replaced) = &mut replaces {
+            replaced.value = summarised(std::mem::take(&mut replaced.value), &summaries);
+        }
+        summarised(value, &summaries)
+    } else {
+        value
     };
     let body = ExplanationDto {
         property: found.property,
@@ -1141,6 +1158,18 @@ fn raw_value(input: &RawInput) -> Value {
     }
 }
 
+/// One value a source expects.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(untagged)]
+enum ExpectedValue {
+    /// For a property of type reference, the summary of the object it names (REQ-006-42):
+    /// `{id}` alone for an object the caller may not read or that is absent.
+    Summary(Summary),
+    /// Any other value, raw.
+    #[schema(value_type = crate::operation::RawDto)]
+    Raw(Value),
+}
+
 /// The value a source expects, or its mask.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(untagged)]
@@ -1148,8 +1177,7 @@ enum Expected {
     /// The values and why.
     Shown {
         /// One value, or the elements of a set.
-        #[schema(value_type = Vec<crate::operation::RawDto>)]
-        values: Vec<Value>,
+        values: Vec<ExpectedValue>,
         /// How the source reached them.
         explanation: String,
     },
@@ -1208,10 +1236,31 @@ async fn suggestion(
     audit_read(&api, &context, kind, id, criteria).await?;
     let disclosed =
         !found.candidates().is_empty() && discloses(&api, &context, &declaration, id).await?;
+    // The objects a reference names, summarised (REQ-006-42, task 006-33f3).
+    let refs = disclosed && declaration.value_type == "ref";
+    let referred: Vec<Uuid> = if refs {
+        found
+            .candidates()
+            .iter()
+            .flat_map(|s| s.values.iter().map(raw_value))
+            .flat_map(|v| references(&v))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let summaries =
+        Summaries::read(&api, &context, referred, moment.valid_at, moment.as_of).await?;
+    let expected = |raw: &RawInput| {
+        let value = raw_value(raw);
+        match value.as_str().and_then(|s| s.parse::<Uuid>().ok()) {
+            Some(id) if refs => ExpectedValue::Summary(summaries.of(id)),
+            _ => ExpectedValue::Raw(value),
+        }
+    };
     let shown = |s: &kartenn_service::expected::Suggestion| {
         if disclosed {
             Expected::Shown {
-                values: s.values.iter().map(raw_value).collect(),
+                values: s.values.iter().map(expected).collect(),
                 explanation: s.explanation.clone(),
             }
         } else {

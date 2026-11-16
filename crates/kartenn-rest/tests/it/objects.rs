@@ -22,6 +22,7 @@ use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
+use kartenn_service::expected::Sources;
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use serde_json::{Value, json};
@@ -101,13 +102,24 @@ fn app_bounded(pool: &PgPool, who: Principal, bound: Duration) -> Router {
 
 /// [`app_bounded`] under the quotas `rates`.
 fn app_with(pool: &PgPool, who: Principal, bound: Duration, rates: Rates) -> Router {
+    app_sourced(pool, who, bound, rates, Sources::none())
+}
+
+/// [`app_with`] with the sources of expected values `sources`.
+fn app_sourced(
+    pool: &PgPool,
+    who: Principal,
+    bound: Duration,
+    rates: Rates,
+    sources: Sources,
+) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
         bound,
         journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
         audit: ReadAudit::default(),
-        sources: kartenn_service::expected::Sources::none(),
+        sources,
         outputs: std::sync::Arc::from([]),
         modules: std::sync::Arc::default(),
     };
@@ -2939,6 +2951,128 @@ async fn a_value_of_type_reference_leaves_alike_the_unreadable_and_the_unknown(p
         .await
         .unwrap();
     for (uri, unreadable) in uris.iter().zip(&before) {
+        for app in [&reader, &blind] {
+            let unknown = answer(app, uri).await;
+            assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
+        }
+    }
+}
+
+/// Expects the entity `0` as the value of every property it is asked for.
+struct Expects(Uuid);
+
+impl kartenn_service::expected::ExpectedValueSource for Expects {
+    fn id(&self) -> &'static str {
+        "teams"
+    }
+
+    fn revision<'a>(
+        &'a self,
+        _: kartenn_service::expected::ExpectedContext,
+        _: &'a mut dyn kartenn_service::module::ModuleTx,
+    ) -> kartenn_service::module::BoxFuture<'a, Result<String, kartenn_service::StoreError>> {
+        Box::pin(async { Ok("1".to_owned()) })
+    }
+
+    fn expected<'a>(
+        &'a self,
+        _: &'a str,
+        _: &'a kartenn_service::port::ObjectView,
+        _: kartenn_service::expected::ExpectedContext,
+        _: &'a mut dyn kartenn_service::module::ModuleTx,
+    ) -> kartenn_service::module::BoxFuture<
+        'a,
+        Result<kartenn_service::expected::Expected, kartenn_service::StoreError>,
+    > {
+        let value = kartenn_service::operations::RawInput::Text(self.0.to_string());
+        Box::pin(async move {
+            Ok(kartenn_service::expected::Expected::One(
+                kartenn_service::expected::Suggestion {
+                    values: vec![value],
+                    explanation: "the team of the network".into(),
+                    detail: None,
+                },
+            ))
+        })
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn the_explanation_and_the_suggestion_of_a_reference_summarise_it(pool: PgPool) {
+    // Task 006-33f3, REQ-006-42, 005: the explanation of a value of type reference, and
+    // the value its source suggests, are the summary of its object for a caller who may
+    // read it, its identifier alone for one who may not; the object gone, the same bytes
+    // for both, as for an object that never was.
+    let lab = domain(&pool, "lab").await;
+    let net = prefix(&pool, lab, "192.0.2.0/24").await;
+    let team = node(&pool, "entity", "team", None).await;
+    let ops = node(&pool, "entity", "ops", None).await;
+    let one = declare_ref(&pool, "policy.team", "single").await;
+    let set = declare_ref(&pool, "policy.teams", "set").await;
+    sqlx::query(
+        "UPDATE property_declaration SET expected_source = 'teams', expected_mode = 'suggest'
+          WHERE id = $1",
+    )
+    .bind(one)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assign_ref(&pool, one, net, &[team], false).await;
+    assign_ref(&pool, set, net, &[ops], true).await;
+    let sourced = |who| {
+        let sources = Sources::none().with(Arc::new(Expects(team)));
+        app_sourced(
+            &pool,
+            who,
+            Duration::from_secs(60),
+            Rates::default(),
+            sources,
+        )
+    };
+    let reader = sourced(person(&pool, &READ_ALL, ("global", None)).await);
+    let blind = sourced(person(&pool, &READ_ALL[1..], ("global", None)).await);
+    let full = |id: Uuid, slug: &str| {
+        format!(r#"{{"href":"/v1/entities/{id}","id":"{id}","label":"{slug}","slug":"{slug}"}}"#)
+    };
+    let bare = |id: Uuid| format!(r#"{{"id":"{id}"}}"#);
+    let properties = format!("/v1/prefixes/{net}/properties");
+    let cases = [
+        (
+            format!("{properties}/policy.team/explanation"),
+            format!(r#""value":{}"#, full(team, "team")),
+            format!(r#""value":{}"#, bare(team)),
+        ),
+        (
+            format!("{properties}/policy.teams/explanation"),
+            format!(r#""value":[{}]"#, full(ops, "ops")),
+            format!(r#""value":[{}]"#, bare(ops)),
+        ),
+        (
+            // A summary as such, its members in their order.
+            format!("{properties}/policy.team/suggestion"),
+            format!(
+                r#""values":[{{"id":"{team}","slug":"team","label":"team","href":"/v1/entities/{team}"}}]"#
+            ),
+            format!(r#""values":[{}]"#, bare(team)),
+        ),
+    ];
+    let mut before = Vec::new();
+    for (uri, full, bare) in &cases {
+        let (status, _, shown) = answer(&reader, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        let shown = String::from_utf8(shown).unwrap();
+        assert!(shown.contains(full.as_str()), "{uri}: {shown}");
+        let unreadable = answer(&blind, uri).await;
+        let body = String::from_utf8(unreadable.2.clone()).unwrap();
+        assert_eq!(body, shown.replace(full.as_str(), bare), "{uri}");
+        before.push(unreadable);
+    }
+    sqlx::query("DELETE FROM entity WHERE id = ANY($1)")
+        .bind(vec![team, ops])
+        .execute(&pool)
+        .await
+        .unwrap();
+    for ((uri, _, _), unreadable) in cases.iter().zip(&before) {
         for app in [&reader, &blind] {
             let unknown = answer(app, uri).await;
             assert_eq!(&unknown, unreadable, "{uri}: unreadable and unknown");
