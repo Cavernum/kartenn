@@ -47,6 +47,7 @@
       "sourceDefault": "Inferred from the source",
       "sourceMasked": "Read permission missing",
       "sourceOther": "Provenance",
+      "objectUnreadable": "an object you cannot read, or that no longer exists",
       "gapsTitle": "An expected property is missing or differs | {n} expected properties are missing or differ",
       "gapColon": ": ",
       "gapNone": "no value",

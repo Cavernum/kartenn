@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// The name of an object an answer only references (`{kind, id, href}`: a node of an
-// explanation, the value of a reference): its kind in words and its name, read from its
+// The name of an object known by its identifier alone (a value typed in a draft, a column
+// of references still without summary): its kind in words and its name, read from its
 // record through the cache at the dates of the page, a link to that record. Until it is
-// read, its identifier in fixed pitch. A cell of a list mounts one per row: it reads only
-// while it is in view, through the gate of the shell (`data/gate.ts`, task 021-11p10-a),
-// its read under way given up when it leaves the view and nothing else in view wants it.
+// read, its identifier in fixed pitch. A reference the server summarised is named by
+// `SummaryName`, which reads nothing (task 021-11p10-d1). A cell of a list mounts one per
+// row: it reads only while it is in view, through the gate of the shell (`data/gate.ts`,
+// task 021-11p10-a), its read under way given up when it leaves the view and nothing else
+// in view wants it.
 import { reads } from "@kartenn/sdk";
 import { computed, useTemplateRef } from "vue";
 import { giveUpUnseen, limited } from "../../data/gate.ts";
@@ -12,8 +14,9 @@ import { useInView } from "../../data/inView.ts";
 import { useQuery } from "../../data/query.ts";
 import KLink from "../../prefetch/KLink.vue";
 import { useTime } from "../../time/index.ts";
-import { collectionById, collectionOfKind, nameOf, pageOfHref, type Item } from "../collections.ts";
+import { nameOf, pageOfHref, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
+import { collectionOfRef } from "./objectRef.ts";
 
 const props = defineProps<{
   id: string;
@@ -26,10 +29,7 @@ const time = useTime();
 const keyLabel = useKeyLabel();
 
 /** The kind: given, else that of the collection its URL names. */
-const collection = computed(
-  () =>
-    collectionOfKind(props.kind) ?? collectionById(/\/v1\/([a-z-]+)\//.exec(props.href ?? "")?.[1]),
-);
+const collection = computed(() => collectionOfRef(props.kind, props.href));
 const options = () =>
   reads.object(collection.value?.kind ?? "prefix", props.id, {
     validAt: time.value.validAt,

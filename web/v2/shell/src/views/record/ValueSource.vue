@@ -8,7 +8,7 @@
 // A value without one (a row of the draft alone) shows none.
 import { CodeBadge, KeyLabel, NoValue } from "@kartenn/ui";
 import { useI18n } from "vue-i18n";
-import ObjectName from "./ObjectName.vue";
+import SummaryName from "./SummaryName.vue";
 import type { ValueOrigin } from "./provenance.ts";
 
 const props = defineProps<{ origin: ValueOrigin | null; masked?: boolean }>();
@@ -24,11 +24,7 @@ const { t } = useI18n();
   }}</span>
   <span v-else-if="props.origin.kind === 'inherited'"
     >{{ `${t("views.record.sourceInherited")} `
-    }}<ObjectName
-      :id="props.origin.origin.id"
-      :kind="props.origin.origin.kind"
-      :href="props.origin.origin.href"
-      with-kind
+    }}<SummaryName :summary="props.origin.origin" with-kind
   /></span>
   <span v-else-if="props.origin.provenance.kind === 'source'"
     >{{ `${t("views.record.sourceDefault")} `

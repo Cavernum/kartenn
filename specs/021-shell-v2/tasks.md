@@ -2066,16 +2066,37 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       reste) en 11p10-d1 à d5 ci-dessous ; se coche avec la d5. Règle commune : un résumé
       sans `label` est un objet illisible ou absent, affiché comme tel (identifiant en
       chasse fixe), sans lecture ni supposition.
-    - [ ] 11p10-d1. Shell, `ObjectName` et les références hors VLAN : avec un résumé,
+    - [x] 11p10-d1. Shell, `ObjectName` et les références hors VLAN : avec un résumé,
       `ObjectName` prend son `label` et ne lit rien ; seul un identifiant sans résumé
       lit encore — verify : Vitest monté, 66 lignes d'anomalies avec libellés : aucune
-      lecture d'objet ; un résumé sans libellé : aucune lecture, affiché illisible ;
-      captures des écrans touchés
+      lecture d'objet ; 66 résumés : ni requête ni observateur de vue créés ; un résumé
+      sans libellé ni URL : aucune lecture, affiché illisible ; une référence externe
+      n'est pas un résumé (« captures des écrans touchés » retiré le 2026-11-16 : les
+      captures ne montent que le catalogue et les maquettes, aucune vue réelle, voir le
+      reste)
       - où : `web/v2/shell/src/views/record/ObjectName.vue` ; appelants
         `views/anomalies/{AnomalyGrid,GapList}.vue` (`ObjectRef`),
         `views/record/{ExplanationBody,ValueSource}.vue` et `provenance.ts` (`NodeRef`),
         la branche résumé de `views/record/PropertyValue.vue` (sa branche chaîne, valeur
         saisie d'un brouillon, garde la lecture)
+      - choix : deux composants, l'appelant choisissant selon ce qu'il tient :
+        `SummaryName.vue` (prop `summary` requise), rendu pur du résumé, sans requête ni
+        observateur de vue ni abonnement aux dates ; `ObjectName.vue` (prop `id` requise),
+        la lecture d'avant, pour un identifiant seul ; un appel sans l'un ni l'autre est
+        ainsi refusé par le type ; la collection d'une référence partagée dans `record/objectRef.ts`. Illisible =
+        ni `label` ni `href` (REQ-006-42 les omet ensemble) : identifiant en chasse fixe, sans
+        lien, dit au lecteur d'écran par un texte masqué (« illisible pour vous, ou absent »,
+        relecture a11y, 1.3.1 et 2.4.4) ; un `href` sans `label` (type de module sans clé)
+        est un lien ordinaire nommé par l'identifiant. `PropertyValue` teste la référence
+        externe (`{system, id, label?}`) avant le résumé : `isSummary` la prenait (déjà le
+        cas avant la tâche, la branche externe était inatteignable). Le type `Summary` de
+        `collections.ts` laissé à la d2 (le résumé passe tel quel, `label` compris). Tests
+        dans `test/object-name.test.ts` ; le récit de la colonne Source
+        (`properties-source.test.ts`) nommé par le `label` de son origine, sans lecture
+      - reste : une capture d'écran réel montrant un résumé sans libellé (anomalies ou
+        explication) demande des données de capture des vues, qui n'existent pas
+        (`web/v2/e2e/visual/` ne monte que le catalogue et les maquettes) ; à prévoir avec
+        les captures des vues, ou par un état de la maquette E-anomalies
     - [ ] 11p10-d2. Shell, VLAN : `anchorOf`, `referenceOf` et `fieldText` rendent ou
       emploient le résumé et son `label` (aujourd'hui `slug ?? id`) — verify : liste de
       VLAN montée : aucune lecture d'objet ; colonne VLAN des préfixes : un lot de

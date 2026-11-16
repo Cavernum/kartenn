@@ -24,7 +24,7 @@ import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useDeclarationsOf, useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
-import ObjectName from "../record/ObjectName.vue";
+import SummaryName from "../record/SummaryName.vue";
 import PropertyValue from "../record/PropertyValue.vue";
 import { gapDetail as detailOf, noValue as empty, type Gap } from "./gap.ts";
 
@@ -139,12 +139,7 @@ const targetOf = (key: string | null | undefined) => {
           </template>
           <NoValue v-else />
         </template>
-        <ObjectName
-          v-else-if="column.id === 'object'"
-          :id="gapOf(row).object.id"
-          :kind="gapOf(row).object.kind"
-          :href="gapOf(row).object.href"
-        />
+        <SummaryName v-else-if="column.id === 'object'" :summary="gapOf(row).object" />
         <KeyLabel
           v-else-if="column.id === 'rule'"
           :value="gapOf(row).rule"
