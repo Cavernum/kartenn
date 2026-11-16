@@ -6,5 +6,6 @@ mod clusters;
 mod derivation;
 mod edges;
 mod observations;
+mod references;
 mod settings;
 mod support;

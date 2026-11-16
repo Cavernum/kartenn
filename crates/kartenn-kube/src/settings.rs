@@ -33,9 +33,7 @@ use uuid::Uuid;
 use crate::derivation::{Recheck, Rederived};
 use crate::module::{ADMITTED_VALUES, LABEL_MAPPING, NAMESPACE_AXIS, TRACKED_LABEL, WORKLOAD};
 use crate::names::{LabelKey, LabelValue};
-use crate::pg::{
-    self, ADMITTED_VALUES_TABLE, LABEL_MAPPING_TABLE, NAMESPACE_TABLE, TRACKED_LABEL_TABLE,
-};
+use crate::pg::{self, ADMITTED_VALUES_TABLE, LABEL_MAPPING_TABLE, TRACKED_LABEL_TABLE};
 use crate::rules::OPERATION_INVALID;
 
 /// The operations of the settings.
@@ -125,9 +123,6 @@ struct Completed {
     /// the living admitted values of the namespace and axis.
     #[serde(default)]
     existing: Option<Uuid>,
-    /// The namespace named, when it lives.
-    #[serde(default)]
-    namespace: Option<Uuid>,
     /// The tracked labels living, by key.
     #[serde(default)]
     tracked: Vec<(String, Uuid)>,
@@ -388,19 +383,15 @@ pub(crate) async fn prepare(
             }
         }
         "set_admitted_values" => {
-            if let Some(namespace) = id("namespace") {
-                completed.namespace =
-                    living(conn, NAMESPACE_TABLE, "id = $1::uuid", &[&namespace], at).await?;
-                if let Some(axis) = text("axis") {
-                    completed.existing = living(
-                        conn,
-                        ADMITTED_VALUES_TABLE,
-                        "namespace_id = $1::uuid AND axis_key = $2",
-                        &[&namespace, &axis],
-                        at,
-                    )
-                    .await?;
-                }
+            if let (Some(namespace), Some(axis)) = (id("namespace"), text("axis")) {
+                completed.existing = living(
+                    conn,
+                    ADMITTED_VALUES_TABLE,
+                    "namespace_id = $1::uuid AND axis_key = $2",
+                    &[&namespace, &axis],
+                    at,
+                )
+                .await?;
             }
         }
         _ => completed.tracked = tracked(conn, at).await?,
@@ -581,8 +572,12 @@ fn plan_mapping(
         Some("close") => {
             let (body, completed) = body(operation, &["action", "id"])?;
             let id = reference(&body, "id", mapping_kind(), resolve)?;
+            // A mapping not in force at the start of the period is a designation that names
+            // nothing, refused by the pipeline (`core.reference.unknown`), after the rights
+            // of an author who does not read it (INV-63, task 002-29d1): its plan writes
+            // nothing, so that no write tells him otherwise.
             if completed.existing != Some(id) {
-                return Err(invalid(format!("id: {id} is not a living label mapping")));
+                return Ok(plan_of(mapping_kind(), id, false, json!({ "noop": true })));
             }
             Ok(closing(mapping_kind(), &[id]).expect("one mapping"))
         }
@@ -597,12 +592,11 @@ fn plan_admitted(
 ) -> Result<ModulePlan, Violation> {
     let (body, completed) = body(operation, &["namespace", "axis", "values"])?;
     let namespace_kind = ModuleKind::parse(crate::module::NAMESPACE).expect("a valid kind");
+    // A namespace not in force at the start of the period is a designation that names
+    // nothing, refused by the pipeline (`core.reference.unknown`), after the read of the
+    // namespace for an author who does not hold it (INV-63, task 002-29d1); the plan, which
+    // creates the values, is never written then.
     let namespace = reference(&body, "namespace", namespace_kind, resolve)?;
-    if completed.namespace != Some(namespace) {
-        return Err(invalid(format!(
-            "namespace: {namespace} is not a living namespace"
-        )));
-    }
     let key = text(&body, "axis")?;
     let axis = checked_axis(key, completed.axis.as_ref())?;
     let values: Vec<String> = match body.get("values") {

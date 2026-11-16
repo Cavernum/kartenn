@@ -506,13 +506,6 @@ async fn settings_written_by_changeset(pool: PgPool) {
             "label_value: required",
         ),
         (
-            op(
-                "set_label_mapping",
-                json!({"action": "close", "id": {"id": env.payments}}),
-            ),
-            "is not a living label mapping",
-        ),
-        (
             op("set_label_mapping", json!({"action": "drop"})),
             "upsert or close",
         ),
@@ -520,6 +513,14 @@ async fn settings_written_by_changeset(pool: PgPool) {
         env.refused(vec![operation], "kube.operation.invalid", says)
             .await;
     }
+    // A mapping that is not one, or closed below: a reference that names nothing
+    // (REQ-002-12, task 002-29d1).
+    env.refused(
+        vec![close_mapping(env.payments)],
+        "core.reference.unknown",
+        "in force at the start of its period",
+    )
+    .await;
     env.refused(
         vec![mapping("-db", EXPOSURE, "interne")],
         "kube.label.invalid",
@@ -540,8 +541,8 @@ async fn settings_written_by_changeset(pool: PgPool) {
     assert!(env.living("kube.label_mapping").await.is_empty());
     env.refused(
         vec![close_mapping(id)],
-        "kube.operation.invalid",
-        "is not a living label mapping",
+        "core.reference.unknown",
+        "in force at the start of its period",
     )
     .await;
 
@@ -577,10 +578,6 @@ async fn settings_written_by_changeset(pool: PgPool) {
             "dmz is not a value",
         ),
         (
-            admitted(env.cluster, EXPOSURE, &["interne"]),
-            "is not a living namespace",
-        ),
-        (
             admitted(env.payments, "kube.namespace", &["x"]),
             "set by kube.sync alone",
         ),
@@ -592,6 +589,13 @@ async fn settings_written_by_changeset(pool: PgPool) {
         env.refused(vec![operation], "kube.operation.invalid", says)
             .await;
     }
+    // A namespace that is not one: a reference that names nothing (task 002-29d1).
+    env.refused(
+        vec![admitted(env.cluster, EXPOSURE, &["interne"])],
+        "core.reference.unknown",
+        "in force at the start of its period",
+    )
+    .await;
     // The namespace stays while admitted values cite it: closed by hand, refused.
     let by_hand = Operation::Close {
         kind: ObjectKind::Module(
