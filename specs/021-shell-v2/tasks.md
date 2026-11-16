@@ -8480,7 +8480,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `machines` (liste, formulaire de création à déplacer hors de la surface qui
       défile). À faire avant la bascule (tâche 27).
     - découpée le 2026-11-16 en 22f-i1 à i3 ci-dessous ; se coche avec la i3.
-    - [ ] 22f-i1. Composant `Panel` de `@kartenn/ui` : le panneau de la surface de travail,
+    - [x] 22f-i1. Composant `Panel` de `@kartenn/ui` : le panneau de la surface de travail,
       repris de `ViewPanel` tel que la 22f-h l'a laissé (props, emplacements, rangées
       nommées du panneau `list`, `data-list`, grille virtualisée au reste du panneau),
       sans toucher encore ni le shell ni le plugin ; la règle de la surface du cadre
@@ -8500,6 +8500,43 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         `NoValue`, ligne 981) et de la skill `kartenn-ui` (§ 4) ; ligne `DataGrid` des
         deux (« `ViewPanel` `list` » devient « `Panel` `list` »)
       - dépend de : 22f-h
+      - contrat (repris de `ViewPanel`, rien d'ajouté) : props `title` (requis), `detail`
+        (à côté du titre, hors de lui : le titre seul nomme la région), `mono` (détail en
+        chasse fixe), `main` (titre plus grand ; seul panneau nommé : `aria-labelledby` sur
+        son `h2`, `data-main`), `flush` (corps sans marge, `data-flush` ; la `DataGrid` ou le
+        `TreeGrid` enfant direct perd sa bordure), `list` (`data-list` sur la section et le
+        corps) ; emplacements `actions` (au bout de l'en-tête, à la ligne quand titre et
+        actions ne tiennent plus ; une `Toolbar` y prend le reste et replie, plancher
+        `--k-toolbar-floor`), `toolbar` (sous l'en-tête), défaut (le corps), `footer` ; une
+        partie absente n'est pas rendue ; titre toujours `h2`. Structure : `section.k-panel`
+        > `header.k-panel__header` (`.k-panel__title` : `h2.k-panel__heading`,
+        `.k-panel__detail` ; `.k-panel__actions`), `.k-panel__toolbar`, `.k-panel__body`,
+        `footer.k-panel__footer`. Panneau `list` : rangées nommées `header`, `toolbar`,
+        `body`, `footer` (`grid-template-areas`), le corps toujours dans la rangée élastique ;
+        quand le corps tient une `DataGrid` virtualisée en enfant direct (jamais enveloppée),
+        il devient une colonne flexible, la racine de la grille en prend le reste
+        (`flex: 1 1 0`, un en-tête et six lignes au moins) et la grille perd son plafond.
+        La hauteur du panneau est à l'hôte : le shell la donne à la surface
+        (`.k-frame__surface:has(> [data-list] > .k-panel__body > .k-data-grid-frame >
+        [data-virtual])`, `minmax(auto, 1fr)`, à porter dans `ShellFrame` par la i2).
+      - fait : `ui/src/components/Panel/{Panel.vue,Panel.catalogue.ts}` (copie de
+        `ViewPanel`, classes `k-panel…`), export `Panel`, Vitest « Panel (021-22f-i1) »
+        (`components-base.test.ts`), catalogue de sept états (`rest`, `main`, `toolbar`,
+        `toolbar-folded`, `parts`, `long`, `list`) et leurs captures, `ui/src/demo/DemoHost.vue`
+        (hôte de hauteur fixe, une rangée `minmax(auto, 1fr)`, comme la surface du shell),
+        ligne 42 de l'inventaire (design 020) et ligne `Panel` de la skill, lignes `DataGrid`
+        renvoyant à `Panel` `list`. `ViewPanel` inchangé.
+      - choix : la règle de la surface (`.k-frame__surface:has`) n'entre pas dans
+        `@kartenn/ui`, qui ne connaît pas le cadre du shell : `data-list` est le point
+        d'accroche de l'hôte, écrit dans le contrat ; `DemoHost` à part plutôt qu'une
+        variante de `DemoFrame` (que tirent les captures de plusieurs composants) ; sa
+        hauteur `--k-size-dialog-lg` (720 px), au-dessus du plafond `--k-size-list-max`
+        (480 px) : la grille qui la remplit prouve le plafond levé ; titre toujours `h2`,
+        sans `Heading` (balisage de `ViewPanel` gardé, pour que la i2 ne change aucune
+        capture) ; `main` documenté « un par écran » (relecture a11y).
+      - reste : la règle de la surface vit encore dans `ViewPanel` (deux copies des règles
+        du panneau jusqu'à la i2) ; le détail d'un compte est un nombre nu, lu sans son
+        unité (comme les écrans du shell : à voir par la i2 au lecteur d'écran).
     - [ ] 22f-i2. Le shell emploie `Panel` à la place de `ViewPanel` : les vingt et une
       vues et parties qui l'importent (remplacement mécanique de l'import et de la
       balise), `EcranPanneau` des maquettes, les sélecteurs `k-view-panel` des parcours et

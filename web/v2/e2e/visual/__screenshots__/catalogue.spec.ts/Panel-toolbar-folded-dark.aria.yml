@@ -1,0 +1,13 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - 'figure "toolbar-folded — Panneau plus étroit que ses actions : le titre reste entier, la barre replie dans « … »"':
+      - heading "Préfixes" [level=2]
+      - text: "5"
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Plus d'actions"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: toolbar-folded
+      - text: ""

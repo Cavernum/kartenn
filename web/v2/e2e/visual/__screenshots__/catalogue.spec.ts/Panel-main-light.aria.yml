@@ -1,0 +1,12 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - 'figure "main — Panneau principal : titre plus grand, région nommée par lui ; détail en chasse fixe"':
+      - region "Préfixe":
+        - heading "Préfixe" [level=2]
+        - text: /\d+\.\d+\.2\.0\/\d+/
+        - button "Nouveau préfixe"
+        - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: main
+      - text: ""

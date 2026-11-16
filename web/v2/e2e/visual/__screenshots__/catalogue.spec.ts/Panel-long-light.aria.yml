@@ -1,0 +1,11 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - 'figure "long — Titre plus long que la tuile : il va à la ligne, l''action sur une ligne à elle"':
+      - heading /srv-\d+-db8-0-1-supervision-collecteur-principal-nord-\d+\.example\.net/ [level=2]
+      - text: /\d+ interfaces/
+      - button "Nouveau préfixe"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: long
+      - text: ""
