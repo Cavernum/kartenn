@@ -32,6 +32,7 @@ export { default as Cluster } from "./components/Cluster/Cluster.vue";
 export { default as Grid } from "./components/Grid/Grid.vue";
 export { default as Split } from "./components/Split/Split.vue";
 export { default as Heading } from "./components/Heading/Heading.vue";
+export { default as Panel } from "./components/Panel/Panel.vue";
 export { default as AttributeList } from "./components/AttributeList/AttributeList.vue";
 export type { AttributeItem } from "./components/AttributeList/attributes.ts";
 export { default as NoValue } from "./components/NoValue/NoValue.vue";

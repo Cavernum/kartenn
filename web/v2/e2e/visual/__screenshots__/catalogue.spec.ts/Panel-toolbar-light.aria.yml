@@ -1,0 +1,14 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - 'figure "toolbar — Barre d''actions dans l''en-tête : elle prend le reste de la ligne"':
+      - heading "Préfixes" [level=2]
+      - text: "5"
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Importer"
+        - button "Exporter"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: toolbar
+      - text: ""

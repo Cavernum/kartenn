@@ -8479,6 +8479,118 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `a11y-auditor`), le shell qui l'emploie à la place de `ViewPanel`, le plugin
       `machines` (liste, formulaire de création à déplacer hors de la surface qui
       défile). À faire avant la bascule (tâche 27).
+    - découpée le 2026-11-16 en 22f-i1 à i3 ci-dessous ; se coche avec la i3.
+    - [x] 22f-i1. Composant `Panel` de `@kartenn/ui` : le panneau de la surface de travail,
+      repris de `ViewPanel` tel que la 22f-h l'a laissé (props, emplacements, rangées
+      nommées du panneau `list`, `data-list`, grille virtualisée au reste du panneau),
+      sans toucher encore ni le shell ni le plugin ; la règle de la surface du cadre
+      (`.k-frame__surface:has(…)`) reste à l'hôte — verify : Vitest (structure rendue :
+      `h2` nommant la région du seul panneau `main`, `data-list` sur la section et le
+      corps, parties absentes sans enveloppe) ; page de catalogue et ses captures (titre
+      long à la ligne, actions et `Toolbar` dans l'en-tête, barre d'outils et pied,
+      `flush` avec une grille, `list` dans un cadre de hauteur fixe : la grille
+      virtualisée en prend le reste, seule à défiler) ; relectures `ui-reviewer` et
+      `a11y-auditor` ; `k-web2-check --base main`
+      - où : `web/v2/shell/src/views/parts/ViewPanel.vue` (à imiter, pas à changer) ;
+        nouveau `web/v2/ui/src/components/Panel/{Panel.vue,Panel.catalogue.ts}`, export
+        dans `ui/src/index.ts` ; test à côté de « Heading » dans
+        `ui/test/components-base.test.ts` ; cadre de démonstration
+        `ui/src/demo/DemoFrame.vue` ; état `virtual` de `DataGrid.catalogue.ts` ; ligne
+        nouvelle de l'inventaire (`specs/020-systeme-de-design/design.md`, après
+        `NoValue`, ligne 981) et de la skill `kartenn-ui` (§ 4) ; ligne `DataGrid` des
+        deux (« `ViewPanel` `list` » devient « `Panel` `list` »)
+      - dépend de : 22f-h
+      - contrat (repris de `ViewPanel`, rien d'ajouté) : props `title` (requis), `detail`
+        (à côté du titre, hors de lui : le titre seul nomme la région), `mono` (détail en
+        chasse fixe), `main` (titre plus grand ; seul panneau nommé : `aria-labelledby` sur
+        son `h2`, `data-main`), `flush` (corps sans marge, `data-flush` ; la `DataGrid` ou le
+        `TreeGrid` enfant direct perd sa bordure), `list` (`data-list` sur la section et le
+        corps) ; emplacements `actions` (au bout de l'en-tête, à la ligne quand titre et
+        actions ne tiennent plus ; une `Toolbar` y prend le reste et replie, plancher
+        `--k-toolbar-floor`), `toolbar` (sous l'en-tête), défaut (le corps), `footer` ; une
+        partie absente n'est pas rendue ; titre toujours `h2`. Structure : `section.k-panel`
+        > `header.k-panel__header` (`.k-panel__title` : `h2.k-panel__heading`,
+        `.k-panel__detail` ; `.k-panel__actions`), `.k-panel__toolbar`, `.k-panel__body`,
+        `footer.k-panel__footer`. Panneau `list` : rangées nommées `header`, `toolbar`,
+        `body`, `footer` (`grid-template-areas`), le corps toujours dans la rangée élastique ;
+        quand le corps tient une `DataGrid` virtualisée en enfant direct (jamais enveloppée),
+        il devient une colonne flexible, la racine de la grille part de la hauteur d'une
+        liste (base `--k-size-list-max`) et prend la hauteur donnée au panneau (un en-tête
+        et six lignes au moins), la grille sans plafond : seul (onglet, `Drawer`, page de
+        plugin, tout hôte de hauteur automatique), le panneau garde une grille de la
+        hauteur d'une liste. La hauteur du panneau est à l'hôte : un hôte qui remplit est
+        une grille d'une rangée `minmax(auto, 1fr)` et pose `--k-panel-list-basis:
+        var(--k-space-0)` (sans quoi le minimum de la rangée, le contenu du panneau,
+        compterait la grille à 480 px et une fenêtre basse ne la réduirait plus à son
+        plancher) ; le shell : `.k-frame__surface:has(> [data-list] > .k-panel__body >
+        .k-data-grid-frame > [data-virtual])`, à porter dans `ShellFrame` par la i2, qui y
+        ajoute la propriété.
+      - fait : `ui/src/components/Panel/{Panel.vue,Panel.catalogue.ts}` (copie de
+        `ViewPanel`, classes `k-panel…`), export `Panel`, Vitest « Panel (021-22f-i1) »
+        (`components-base.test.ts`), catalogue de huit états (`rest`, `main`, `toolbar`,
+        `toolbar-folded`, `parts`, `long`, `list`, `list-alone`) et leurs captures,
+        `ui/src/demo/DemoHost.vue` (hôte de hauteur fixe, une rangée `minmax(auto, 1fr)` et
+        `--k-panel-list-basis` à zéro, comme la surface du shell),
+        ligne 42 de l'inventaire (design 020) et ligne `Panel` de la skill, lignes `DataGrid`
+        renvoyant à `Panel` `list`. `ViewPanel` inchangé.
+      - choix : la règle de la surface (`.k-frame__surface:has`) n'entre pas dans
+        `@kartenn/ui`, qui ne connaît pas le cadre du shell : `data-list` est le point
+        d'accroche de l'hôte, écrit dans le contrat ; `DemoHost` à part plutôt qu'une
+        variante de `DemoFrame` (que tirent les captures de plusieurs composants) ; sa
+        hauteur `--k-size-dialog-lg` (720 px), au-dessus du plafond `--k-size-list-max`
+        (480 px) : la grille qui la remplit prouve le plafond levé ; titre toujours `h2`,
+        sans `Heading` (balisage de `ViewPanel` gardé, pour que la i2 ne change aucune
+        capture) ; `main` documenté « un par écran » (relecture a11y).
+      - passe de corrections de la revue : `list` sûr sans hôte qui remplit (la base 0 de
+        `ViewPanel` y réduisait la grille à son plancher, un en-tête et six lignes) : base
+        `--k-size-list-max`, qui grandit ou rétrécit à la hauteur donnée ; une base seule
+        ne suffit pas à l'hôte qui remplit (son minimum, le contenu du panneau, compterait
+        480 px : à 320 px de haut la grille ne descendrait plus à son plancher, contre le
+        parcours de la 22f-h), d'où la propriété `--k-panel-list-basis` qu'il met à zéro ;
+        état `list-alone` (grille de 480 px), capture `list` inchangée ; instantanés
+        `index-*.aria.yml` du catalogue régénérés (y manquaient aussi `AttributeList`,
+        `Heading`, `NoValue`, `Toast`, `Tree` : dérive antérieure, l'instantané
+        d'accessibilité ne comparant qu'en partie).
+      - reste : la règle de la surface vit encore dans `ViewPanel` (deux copies des règles
+        du panneau jusqu'à la i2) ; le détail d'un compte est un nombre nu, lu sans son
+        unité (comme les écrans du shell : à voir par la i2 au lecteur d'écran).
+    - [ ] 22f-i2. Le shell emploie `Panel` à la place de `ViewPanel` : les vingt et une
+      vues et parties qui l'importent (remplacement mécanique de l'import et de la
+      balise), `EcranPanneau` des maquettes, les sélecteurs `k-view-panel` des parcours et
+      des captures (`k-panel`), `ViewPanel.vue` supprimé ; la règle de la surface
+      (`.k-frame__surface:has(> [data-list] > .k-panel__body > …)`) va dans
+      `ShellFrame.vue`, avec les autres règles de la surface, et y pose
+      `--k-panel-list-basis: var(--k-space-0)` (contrat de `Panel`, 22f-i1) ; au reste
+      de la revue de la i1 : `data-list` sur le corps (la règle de la surface pourrait-elle
+      s'en passer ?), et le nom `Panel`, ambigu à côté de `SidePanel` et `BottomPanel`
+      (non renommé) — verify : `k-web2-check
+      --base main` (captures des maquettes et du catalogue du shell inchangées, sinon
+      chacune regardée) ; parcours `records.spec.ts` (les deux de la 22f-h) et
+      `layout.spec.ts` ; `k-web2-e2e`
+      - où : `shell/src/views/parts/ViewPanel.vue` et ses importeurs
+        (`grep -rl ViewPanel web/v2/shell/src`) ; `shell/src/_ui/ecrans/{EcranPanneau,
+        E10Plugin,E15Matrice}.vue` ; `shell/src/frame/ShellFrame.vue`
+        (`.k-frame__surface`, vers 1120) ; `e2e/journeys/records.spec.ts`,
+        `e2e/visual/{layout,clavier}.spec.ts` ; lignes `DataGrid` de l'inventaire si le
+        nom de la règle y change
+      - taille : une vingtaine de fichiers, mais un même remplacement mécanique ; une
+        seule famille de vérification
+      - dépend de : 22f-i1
+    - [ ] 22f-i3. Plugin `machines`, liste des machines : `MachineList` dans un `Panel`
+      `list`, la grille paginée au reste de la fenêtre comme les écrans du shell ; le
+      formulaire de création (`DraftForm`) déplacé hors de la surface qui défile (sous
+      l'en-tête du panneau ou dans un `Drawer`, à trancher à la lecture de la maquette
+      E10) ; la règle de la surface du cadre rejoint un `Panel` `list` hébergé par la
+      page d'un plugin (`PluginView`, `PageRoot`), non plus enfant direct de la surface
+      — verify : parcours `machines.spec.ts`, à 1 200 px de haut un seul défileur (ni le
+      document ni la surface ne défilent, la grille au-delà de 800 px) et à 320 px la
+      surface qui défile ; captures touchées ; relecture `ui-reviewer` ;
+      `k-web2-check --base main`, `k-web2-e2e`
+      - où : `web/v2/plugins/machines/src/{MachineList,MachinesView,PageRoot,DraftForm}.vue`
+        (gabarit de `MachineList` vers 407, `DataGrid` 448) ; `shell/src/plugins/PluginView.vue`
+        (hôte de la page) ; règle de la surface dans `shell/src/frame/ShellFrame.vue`
+        (après la 22f-i2) ; maquette `shell/src/_ui/ecrans/E10Plugin.vue`
+      - dépend de : 22f-i2
   - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
     `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
     défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà

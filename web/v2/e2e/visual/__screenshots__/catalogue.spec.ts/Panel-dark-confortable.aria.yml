@@ -1,0 +1,196 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - figure "rest — Panneau titré, son détail après le titre, son action au bout de l'en-tête":
+      - heading "Préfixes" [level=2]
+      - text: "5"
+      - button "Nouveau préfixe"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: rest
+      - text: ""
+    - 'figure "main — Panneau principal : titre plus grand, région nommée par lui ; détail en chasse fixe"':
+      - region "Préfixe":
+        - heading "Préfixe" [level=2]
+        - text: /\d+\.\d+\.2\.0\/\d+/
+        - button "Nouveau préfixe"
+        - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: main
+      - text: ""
+    - 'figure "toolbar — Barre d''actions dans l''en-tête : elle prend le reste de la ligne"':
+      - heading "Préfixes" [level=2]
+      - text: "5"
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Importer"
+        - button "Exporter"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: toolbar
+      - text: ""
+    - 'figure "toolbar-folded — Panneau plus étroit que ses actions : le titre reste entier, la barre replie dans « … »"':
+      - heading "Préfixes" [level=2]
+      - text: "5"
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Plus d'actions"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: toolbar-folded
+      - text: ""
+    - figure "parts — Barre sous l'en-tête, corps sans marge (une grille), pied":
+      - heading "Préfixes" [level=2]
+      - text: 5 Rechercher
+      - searchbox "Rechercher"
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+      - alert
+      - text: 5 préfixes
+      - button "Exporter"
+      - code: parts
+      - text: ""
+    - 'figure "long — Titre plus long que la tuile : il va à la ligne, l''action sur une ligne à elle"':
+      - heading /srv-\d+-db8-0-1-supervision-collecteur-principal-nord-\d+\.example\.net/ [level=2]
+      - text: /\d+ interfaces/
+      - button "Nouveau préfixe"
+      - paragraph: Les préfixes du domaine, avec leur environnement et leur occupation.
+      - code: long
+      - text: ""
+    - 'figure "list — Écran de liste : l''hôte donne la hauteur, la grille virtualisée en prend le reste et défile seule"':
+      - region "Préfixes":
+        - heading "Préfixes" [level=2]
+        - text: /1 \d+ Rechercher/
+        - searchbox "Rechercher"
+        - grid "Préfixes du domaine":
+          - rowgroup:
+            - row "Préfixe Libellé Environnement":
+              - columnheader "Préfixe"
+              - columnheader "Libellé"
+              - columnheader "Environnement"
+          - rowgroup:
+            - row /\d+\.\d+\.0\.0\/\d+ Serveurs de bases 1 Production/:
+              - gridcell /\d+\.\d+\.0\.0\/\d+/
+              - gridcell "Serveurs de bases 1"
+              - gridcell "Production"
+            - row /\d+\.\d+\.1\.0\/\d+ Postes du siège 2 Recette/:
+              - gridcell /\d+\.\d+\.1\.0\/\d+/
+              - gridcell "Postes du siège 2"
+              - gridcell "Recette"
+            - row /\d+\.\d+\.2\.0\/\d+ Supervision 3 Développement/:
+              - gridcell /\d+\.\d+\.2\.0\/\d+/
+              - gridcell "Supervision 3"
+              - gridcell "Développement"
+            - row /\d+\.\d+\.3\.0\/\d+ Sauvegardes 4 Production/:
+              - gridcell /\d+\.\d+\.3\.0\/\d+/
+              - gridcell "Sauvegardes 4"
+              - gridcell "Production"
+            - row /\d+\.\d+\.4\.0\/\d+ Invités 5 Recette/:
+              - gridcell /\d+\.\d+\.4\.0\/\d+/
+              - gridcell "Invités 5"
+              - gridcell "Recette"
+            - row /\d+\.\d+\.5\.0\/\d+ Serveurs de bases 6 Développement/:
+              - gridcell /\d+\.\d+\.5\.0\/\d+/
+              - gridcell "Serveurs de bases 6"
+              - gridcell "Développement"
+            - row /\d+\.\d+\.6\.0\/\d+ Postes du siège 7 Production/:
+              - gridcell /\d+\.\d+\.6\.0\/\d+/
+              - gridcell "Postes du siège 7"
+              - gridcell "Production"
+            - row /\d+\.\d+\.7\.0\/\d+ Supervision 8 Recette/:
+              - gridcell /\d+\.\d+\.7\.0\/\d+/
+              - gridcell "Supervision 8"
+              - gridcell "Recette"
+            - row /\d+\.\d+\.8\.0\/\d+ Sauvegardes 9 Développement/:
+              - gridcell /\d+\.\d+\.8\.0\/\d+/
+              - gridcell "Sauvegardes 9"
+              - gridcell "Développement"
+            - row /\d+\.\d+\.9\.0\/\d+ Invités \d+ Production/:
+              - gridcell /\d+\.\d+\.9\.0\/\d+/
+              - gridcell /Invités \d+/
+              - gridcell "Production"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Recette/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Serveurs de bases \d+/
+              - gridcell "Recette"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Développement/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Postes du siège \d+/
+              - gridcell "Développement"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Production/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Supervision \d+/
+              - gridcell "Production"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Recette/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Sauvegardes \d+/
+              - gridcell "Recette"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Développement/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Invités \d+/
+              - gridcell "Développement"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Production/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Serveurs de bases \d+/
+              - gridcell "Production"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Recette/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Postes du siège \d+/
+              - gridcell "Recette"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Développement/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Supervision \d+/
+              - gridcell "Développement"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Production/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Sauvegardes \d+/
+              - gridcell "Production"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Recette/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Invités \d+/
+              - gridcell "Recette"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Développement/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Serveurs de bases \d+/
+              - gridcell "Développement"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Production/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Postes du siège \d+/
+              - gridcell "Production"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Recette/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Supervision \d+/
+              - gridcell "Recette"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Développement/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Sauvegardes \d+/
+              - gridcell "Développement"
+            - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Production/:
+              - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+              - gridcell /Invités \d+/
+              - gridcell "Production"
+        - alert
+      - code: list
+      - text: ""

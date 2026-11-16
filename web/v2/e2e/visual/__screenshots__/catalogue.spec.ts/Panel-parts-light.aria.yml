@@ -1,0 +1,40 @@
+- main:
+  - region "Panel":
+    - heading "Panel" [level=1]
+    - paragraph: "Motif : section (titre h2 ; région nommée pour le panneau principal seul)"
+    - figure "parts — Barre sous l'en-tête, corps sans marge (une grille), pied":
+      - heading "Préfixes" [level=2]
+      - text: 5 Rechercher
+      - searchbox "Rechercher"
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Environnement"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette"
+      - alert
+      - text: 5 préfixes
+      - button "Exporter"
+      - code: parts
+      - text: ""

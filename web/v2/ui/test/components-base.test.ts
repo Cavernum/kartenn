@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { copyText } from "../src/clipboard.ts";
 import AttributeList from "../src/components/AttributeList/AttributeList.vue";
 import Heading from "../src/components/Heading/Heading.vue";
+import Panel from "../src/components/Panel/Panel.vue";
 import Button from "../src/components/Button/Button.vue";
 import { ariaKeyshortcuts } from "../src/components/Button/shortcut.ts";
 import Checkbox from "../src/components/Checkbox/Checkbox.vue";
@@ -505,6 +506,52 @@ describe("Heading (021/A27)", () => {
     const html = await render(Heading, { level: 1, id: "titre", tabindex: "-1" }, "Machines");
     expect(html).toMatch(/^<h1[^>]* id="titre"/);
     expect(html).toMatch(/^<h1[^>]* tabindex="-1"/);
+  });
+});
+
+describe("Panel (021-22f-i1)", () => {
+  const panel = (props: Record<string, unknown>, slots: Record<string, () => string>) =>
+    renderToString(createSSRApp({ render: () => h(Panel as Component, props, slots) })).then(bare);
+
+  it("a section titled by an h2, the detail beside the heading; no part it was not given", async () => {
+    const html = await panel({ title: "Préfixes", detail: "5" }, { default: () => "Corps" });
+    expect(html).toMatch(/^<section class="k-panel">/);
+    expect(html).toMatch(/<h2 id="[^"]+" class="k-panel__heading">Préfixes<\/h2>/);
+    expect(html).toContain('<span class="k-panel__detail">5</span>');
+    expect(html).toContain('<div class="k-panel__body">Corps</div>');
+    expect(html).not.toMatch(/aria-labelledby|k-panel__actions|k-panel__toolbar|<footer/);
+    expect(html).not.toContain("data-list");
+  });
+
+  it("only the main panel is a region, named by its heading; a detail in fixed pitch", async () => {
+    const html = await panel(
+      { title: "Préfixe", detail: "192.0.2.0/24", mono: true, main: true },
+      { default: () => "Corps" },
+    );
+    const id = /<h2 id="([^"]+)"/.exec(html)![1];
+    expect(html).toMatch(
+      new RegExp(`^<section class="k-panel" aria-labelledby="${id}" data-main="true">`),
+    );
+    expect(html).toContain('<span class="k-mono k-panel__detail">192.0.2.0/24</span>');
+  });
+
+  it("its parts in order, a list panel marked on the section and on the body", async () => {
+    const html = await panel(
+      { title: "Préfixes", flush: true, list: true },
+      {
+        actions: () => "Actions",
+        toolbar: () => "Barre",
+        default: () => "Grille",
+        footer: () => "Pied",
+      },
+    );
+    expect(html).toMatch(/^<section class="k-panel" data-list="true">/);
+    expect(html).toContain('<div class="k-panel__actions">Actions</div></header>');
+    expect(html).toContain('<div class="k-panel__toolbar">Barre</div>');
+    expect(html).toContain(
+      '<div class="k-panel__body" data-flush="true" data-list="true">Grille</div>',
+    );
+    expect(html).toMatch(/Grille<\/div><footer class="k-panel__footer">Pied<\/footer><\/section>$/);
   });
 });
 
