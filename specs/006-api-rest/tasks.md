@@ -1160,6 +1160,14 @@ routeur complet, sauf mention « vrai TCP ».
     - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`), `handler.rs` (`keys`, à
       imiter : `crates/kartenn-kube/src/keys.rs`, 33e) ; `summary.rs` (`Summaries::read`)
     - dépend de : 33a–33e
+    - arbitrage de l'utilisateur (2026-11-16) : option B. REQ-027-2 n'est pas amendée :
+      les extrémités d'un flux restent rendues selon elle et sont exemptées des résumés
+      (l'option A, amender REQ-027-2 pour les couper comme les autres références, est
+      écartée). La tâche devient : l'exemption écrite et motivée dans la garde
+      (`UNSUMMARISED`, sans renvoi à cette tâche) et au design 006 « Représentations »,
+      les autres références des corps de flux qui ne sont pas des extrémités (entité,
+      service, demande) résumées, et un test que ce que REQ-027-2 laisse voir d'une
+      extrémité ne dépasse pas ce qu'elle dit.
     - la garde de la 33f3 exempte en renvoi à cette tâche `FlowEvaluation`,
       `FlowNonconformity` et `FlowTriage` (`UNSUMMARISED`, `rest/tests/it/contract.rs`) :
       retirer ces exemptions, ne garder que ce qui n'est pas un objet du référentiel
@@ -1296,6 +1304,11 @@ routeur complet, sauf mention « vrai TCP ».
   - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`),
     `crates/kartenn-rest/src/operation.rs` (`RefDto`), `summary.rs` (`Readable`)
   - dépend de : 33a, 33b
+  - arbitrage de l'utilisateur (2026-11-16), objets clos par cascade (`Cascaded`,
+    `GET /v1/changesets/{id}`) : option 1, un résumé, sans `kind` ni `label` pour un
+    objet que l'appelant ne lit pas, comme l'hôte d'une machine (33d) ; l'option 2
+    (les seuls objets lisibles et un compte des autres) est écartée, le compte restant
+    un signal.
   - la garde de la 33f3 exempte aussi, en renvoi à cette tâche : `DiffItemDto.object`,
     `Ref`, `Operation`, `Placement`, `SectionRowDto.object`, `ViolationDto.subjects`,
     `PendingReason.objects`, `Required.objects`, `Cascaded`, `Unsupported`
@@ -1638,6 +1651,8 @@ routeur complet, sauf mention « vrai TCP ».
     (`create`) ; tests voisins `crates/kartenn-flow/tests/it/requester.rs`
     (`a_key_whose_rights_moved_is_dropped_by_the_sweep`)
   - dépend de : 40 ; arbitrage de l'utilisateur (schéma)
+  - arbitrage de l'utilisateur (2026-11-16) : voie A, le compteur des écritures de
+    droits tenu par déclencheur (une migration nouvelle).
 - [ ] 42. Références des corps des droits, hors du recensement de la 33 (relevées par la
   garde de la 33f3) : l'entité d'un rattachement d'émetteur (`AttachmentItem.entity`,
   `GET /v1/issuer-attachments`, identifiant nu) et la portée d'une liaison (`Scope`,

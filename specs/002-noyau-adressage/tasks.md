@@ -593,6 +593,9 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     verify : test rouge d'abord, mêmes octets et statut pour absente et hors d'atteinte
     - où : `crates/kartenn-kube/src/handler.rs` (`plan_sync`, `READ_CHECKED` à créer sur
       le modèle de `kartenn-machines/src/handler.rs`)
+    - arbitrage de l'utilisateur (2026-11-16) : option A, le champ `cluster` d'un `sync`
+      exige `kube.cluster.read` avant les écritures ; les rôles de connecteur accordent
+      cette lecture sur leur grappe (rôles fournis, documentation et tests à suivre).
     - versé par la revue de la 29d1 (mineurs, 2026-11-16), à faire avec cette tâche :
       fuites non couvertes par champ dans `crates/kartenn-kube/tests/it/references.rs`
       (`service_domain`, `external_domain`, `service_networks` en création ; `owner`,

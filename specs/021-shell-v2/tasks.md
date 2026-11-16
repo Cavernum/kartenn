@@ -8471,6 +8471,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       (`shell/src/plugins/`) ; règles de 22f-h (`shell/src/views/parts/ViewPanel.vue` :
       `data-list`, `.k-frame__surface:has`)
     - dépend de : 22f-h
+    - arbitrage de l'utilisateur (2026-11-16) : option A, `ViewPanel` devient un
+      composant public `Panel` de `@kartenn/ui`, que le plugin emploie comme le shell
+      (B, une prop `fill` sur l'élément du plugin, et C, laisser le plafond de 480 px,
+      sont écartées). Trois tâches, à découper par le premier agent avant tout code :
+      le composant dans `@kartenn/ui` (catalogue, captures, `ui-reviewer`,
+      `a11y-auditor`), le shell qui l'emploie à la place de `ViewPanel`, le plugin
+      `machines` (liste, formulaire de création à déplacer hors de la surface qui
+      défile). À faire avant la bascule (tâche 27).
   - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
     `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
     défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà
