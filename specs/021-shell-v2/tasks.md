@@ -7400,6 +7400,100 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       des trames, lignes `INFO` de la 22e-i), `web/v2/e2e/bench/measure.ts`,
       `scripts/` (`bench-web`, verrou `--bench` de `k-heavy`) ; design 021 « Budgets »
     - dépend de : 22e-j
+    - sondé le 2026-11-16 (agent, sur `e9667514`), non coché : la machine n'a pas été
+      calme une seule passe (analyse antivirus quotidienne lancée à 00:00, toujours en
+      cours à 01:45 : `clamd` à un CPU sur les cœurs rapides, attente d'E/S `io full`
+      40 à 50 %). Le banc imprime désormais, à chaque passe et pour chaque fenêtre
+      (`watched`, `bench/machine.ts`) : la charge et les attentes du noyau (PSI) au début
+      et à la fin du test ; le témoin (20 s sans défilement, ×4, à l'accueil puis l'arbre
+      monté) ; un témoin de vitesse (travail fixe de 10⁵ tours par trame, 10 s) ; par
+      fenêtre, les intervalles des trames, le fil principal par CDP (`Performance` :
+      tâches, scripts, mise en page, style, CPU du fil), le CPU de la machine, du
+      navigateur par processus et par fil, des serveurs et du reste, le cœur du fil
+      principal (part sur les cœurs rapides, GHz, occupation de son jumeau SMT et des
+      autres cœurs de son cache L3), les défauts de page ; les longues trames dès 50 ms
+      (somme) et celles qui portent une tâche longue (détail) ; `K_BENCH_TRACE=<dossier>`
+      enregistre une trace Chromium de la fenêtre. Quatorze passes filtrées :
+
+      | passe | charge 1 min | témoin (accueil / arbre) | trames perdues (défilement / bench-a40) | tâches longues (la plus longue) | fil principal |
+      |---|---|---|---|---|---|
+      | 1 | 6,8 | 0,00 / 0,21 % | 6,09 / 8,93 % | 0 / 2 (51 ms) | non relevé |
+      | 2 | 3,3 | 0,00 / 0,18 % | 18,19 / 14,42 % | 3 (71) / 1 (51) | 71 % rapide, 4,27 GHz |
+      | 3 | 2,0 | 0,00 / 0,26 % | 18,01 / 16,04 % | 1 (52) / 0 | 86 %, 4,54 GHz |
+      | 4 | 2,2 | 0,00 / 0,27 % | 14,32 / 13,25 % | 3 (56) / 2 (73) | 93 %, 4,65 GHz |
+      | 5 | 2,6 | 0,00 / 0,18 % | 10,92 / 15,99 % | 1 (57) / 0 | 99 %, 4,88 GHz |
+      | 6, tracée | 1,9 | 0,00 / 0,00 % | 20,36 / 9,75 % | 1 (62) / 0 | 92 %, 4,66 GHz |
+      | 7, épinglée cœurs lents | 2,1 | 0,00 / 0,27 % | 32,54 / 32,76 % | 4 (69) / 4 (59) | 0 %, 3,25 GHz |
+      | 8, épinglée cœurs rapides | 2,1 | 0,00 / 0,09 % | 8,10 / 24,05 % | 0 / 1 (68) | 100 %, 4,82 GHz |
+      | 9 | 2,0 | 0,00 / 0,19 % | 8,18 / 8,42 % | 0 / 0 | 98 %, 4,85 GHz |
+      | 10 | 2,1 | 0,00 / 0,27 % | 10,34 / 12,23 % | 0 / 0 | 98 %, 4,80 GHz |
+      | 11 | 2,4 | 0,00 / 0,26 % | 19,36 / 20,90 % | 2 (59) / 9 (81) | 94 %, 4,60 GHz |
+      | 12 | 2,2 | 0,00 / 0,27 % | 5,17 / 7,51 % | 1 (51) / 0 | 99 %, 4,86 GHz, SMT 13 %, L3 1,25 |
+      | 13 | 2,3 | 0,00 / 0,18 % | 14,59 / 12,58 % | 0 / 0 | 85 %, 4,54 GHz, SMT 9 %, L3 1,19 |
+      | 14 | 2,1 | 0,00 / 0,19 % | 16,78 / 16,83 % | 1 (54) / 1 (51) | 100 %, 4,88 GHz, SMT 5 %, L3 1,30 |
+
+      Ce qui est établi. (a) Le navigateur et la machine ne perdent rien d'eux-mêmes : le
+      témoin perd 0 à 0,27 % dans les mêmes conditions (même charge, même attente d'E/S).
+      (b) La charge ne dit rien : 1,9 à 3,3 sur 24 CPU dans treize passes sur quatorze
+      (la moyenne compte aussi les tâches en attente d'E/S), pour 5 à 33 % de trames
+      perdues ; la machine n'occupe que 2 à 4 CPU pendant les fenêtres. (c) Pendant le
+      défilement, le fil principal de la page est saturé dans toutes les passes : 20,0 s
+      de CPU sur 20 s, tâches 19,4 à 20,0 s (au repos, le ralenti ×4 de CDP lui fait déjà
+      tourner 0,76 CPU) ; la trace (passe 6) compte 40 à 48 trames du fil principal par
+      seconde, ≈ 21 ms de travail chacune à ×4 (événement `scroll` 7,4 ms, et un
+      `scrollend` à chaque trame : 880 de chaque). Ce qui distingue une passe de 33 %
+      d'une passe de 5 à 20 % : le type de cœur. Le processeur a deux sortes de cœurs
+      (5,16 et 3,29 GHz au plus) ; épinglé sur les lents, le banc perd 32,5 et 32,8 %,
+      quatre tâches longues par fenêtre (le 38 % de la 22e-j en est). Entre une passe à
+      5 % et une à 17 % sur les cœurs rapides (12 et 14), rien de la machine ne diffère :
+      même cœur, même fréquence, même voisinage SMT et L3, même témoin de vitesse
+      (8,3 ms), pas de défaut de page ; le travail de la page par fenêtre non plus
+      (scripts 0,70 s, mise en page 2,4 s, style 2,05 s, quel que soit le nombre de
+      trames). Les deux fenêtres d'une même passe se suivent (5/7,5, 16,8/16,8,
+      19,4/20,9) : l'état se fixe à la passe (instance du navigateur, compilation de
+      V8, rythme du ralenti de CDP contre l'horloge des trames), non établi. Pas de
+      trace d'une bonne passe : la seule tracée est mauvaise (20,4 %), aucune n'est
+      descendue sous 5 %. Écarté : la charge, l'attente d'E/S (le témoin n'en souffre
+      pas), la mémoire (0 à 9 défauts de page majeurs du rendu par fenêtre), la
+      fréquence sur cœur rapide, le jumeau SMT. (d) Les tâches de 51 à 81 ms : une trame
+      de défilement qui porte un ramasse-miettes majeur de V8 (`MajorGC` 16 à 20 ms à
+      ×4, toutes les ≈ 5 s : à +1,7, 6,7, 11,7, 16,8 s dans la trace) sur l'écouteur
+      `scroll` du virtualiseur (`ui.screens`, 14 à 43 ms à ×4) et les rappels de trame
+      (mise en page forcée 8 à 16 ms) ; pendant l'écriture de fond, aussi
+      `EventSource.onchanges` du flux (6 à 26 ms). L'utilisateur les subit sur l'appareil
+      que figure le ×4 : un accroc de 3 à 5 trames toutes les ≈ 5 s de défilement
+      continu ; sur cette machine sans ralenti, 13 à 20 ms, une trame au plus.
+    - proposition, à arbitrer (protocole d'un budget, design 021 « Budgets » ; rien n'est
+      appliqué au verdict) : refuser au-dessus d'une charge n'aurait refusé aucune de ces
+      passes (charge 2 sur 24 CPU), à écarter ; retrancher le témoin retranche 0 à
+      0,27 point, sans effet ; la médiane de cinq passes donne 14,32 % (passes 1 à 5),
+      10,34 % (9 à 13), 7,70 % (les cinq de la 22e-j), plus stable que la passe seule
+      (5 à 20 %) mais toujours loin de 2 %. Recommandé : (1) épingler le navigateur du
+      banc sur les cœurs les plus rapides (`taskset`, ensemble lu de `cpuinfo_max_freq`),
+      ce qui retire le mode à 33 % ; (2) la médiane de cinq passes pour les trames
+      perdues, comme `bench-ui`, la règle « aucune tâche longue » tenue sur la pire ;
+      (3) tenir le budget pour non atteint tant que le fil principal reste saturé
+      pendant le défilement à ×4 (tâches 19,4 à 20,0 s sur 20 s, ≈ 18 à 22 ms par trame
+      dessinée) : à saturation, les trames perdues mesurent l'excès d'un fil sans marge,
+      que le moindre écart amplifie ; imprimer la part des tâches dans la fenêtre et
+      viser une marge (par exemple au plus 80 %) ; une tâche de code (l'écouteur
+      `scroll` du virtualiseur, le `scrollend` de chaque trame) plutôt qu'un réglage du
+      banc.
+    - reste : cinq passes de suite sur machine calme (l'analyse antivirus finie), dont une
+      tracée, pour la trace d'une bonne passe et la dispersion hors analyse ; l'arbitrage
+      de la proposition ; le compteur `longtask` voit des tâches longues (51 à 57 ms) que
+      l'observateur des longues trames ne rapporte pas dans la même fenêtre, à
+      comprendre.
+    - choix : le témoin dans le test de l'arbre (accueil avant l'arbre, arbre monté après
+      les défilements) plutôt qu'un test à lui, pour la même instance du navigateur ; un
+      témoin de vitesse ajouté (travail fixe par trame), le témoin au repos ne perdant
+      rien ; la machine lue de `/proc` côté Node, jamais de la page ; le seuil des longues
+      trames imprimées abaissé à 50 ms (lecture seule, aucun verdict ne change). Pas de
+      relecture `ui-reviewer` ni `a11y-auditor` : rien de rendu ne change. Passes :
+      quatorze sur quinze, douze libres dont une tracée, deux épinglées (`taskset` sur
+      toute la commande).
+      `k-web2-check --base main` : 1 302 Vitest ; tout, 2 741 captures sur 2 741 (le banc
+      est un fichier du projet Playwright des captures).
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
     objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
     brouillon de `shownById`), les mots d'un genre et d'une nature lus une fois par langue
