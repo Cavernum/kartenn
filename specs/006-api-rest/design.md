@@ -306,15 +306,24 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   un tel membre tel que lu est refusé : 422, `invalid-member` et `pointer` vers le
   membre par une route par ressource, violation `<module>.operation.invalid` qui le nomme
   par `POST /v1/changesets` ; le détail dit la forme attendue (tâche 006-33f3).
-- **Garde du contrat** (tâche 006-33f3) : aucun schéma de réponse ne nomme un objet par
-  son seul identifiant, `{id}` ou identifiant nu, hors résumé, sauf les exemptions
-  motivées de `tests/it/contract.rs` (`UNSUMMARISED` : ce qui n'est pas un objet du
-  référentiel, comme une version, une identité ou un groupe des droits, et les corps
-  qu'une tâche résumera, extrémités d'un flux en 33f1, changesets en 33g) ; une
-  exemption qui ne sert plus fait échouer la garde. Les valeurs de propriété (`Object`)
-  lui échappent : l'explication et la suggestion d'une valeur de type référence la
-  résument (`ExpectedValue`), l'historique d'un objet de module résume `parent` et
-  `domain`.
+- **Garde du contrat** (tâche 006-33f3, `rest/tests/it/contract.rs`) : dans le contrat de
+  référence, modules compris, tout schéma atteint depuis une réponse ou depuis la donnée
+  d'un événement (`x-kartenn-events`), en suivant `$ref`, `allOf`, `oneOf`, `anyOf`,
+  `prefixItems`, `items`, `additionalProperties` et `properties`, est relevé s'il porte
+  un objet au seul membre `id` de format `uuid` (`{id}`), un membre de format `uuid`
+  autre que `id` (identifiant nu, seul, en tableau ou nullable), ou un objet à `id` de
+  format `uuid` sans autre membre que `kind`, `type` et `href` (référence sans
+  libellé) ; chaque relevé doit figurer dans `UNSUMMARISED` avec sa raison (ce qui n'est
+  pas un objet du référentiel : version, identité, changeset, groupe des droits ; ou le
+  renvoi à la tâche qui le résumera : 33f1, 33g, 42), et une exemption qui ne sert plus
+  fait échouer la garde. Elle ne voit pas : les corps des requêtes, les valeurs libres
+  (`Object` : valeur d'une propriété, différentiel, détail d'une ligne de rapport), un
+  identifiant dont le schéma ne dit pas le format, un objet nommé par un membre autre
+  que ceux-là (un `name`, une clé propre) qu'elle tient pour un libellé. Pour ces
+  valeurs libres, l'explication et la suggestion d'une valeur de type référence la
+  résument (`ExpectedValue`) ; l'historique d'un objet de module résume `parent` et
+  `domain` ; un nœud d'une explication (`NodeRef`) et une extrémité du graphe
+  (`GraphNode`), déjà réduits à ce que l'appelant lit, portent leur `label`.
 - Valeurs canoniques en sortie (préfixes et adresses, REQ-002-6), dates RFC 3339 en UTC.
 - **Objets du noyau (arbitrage du 2026-10-18)** : `domains` `{id, slug}`, `entities`
   et `sites` `{id, slug, parent}`, `prefixes` `{id, domain, value, nature,

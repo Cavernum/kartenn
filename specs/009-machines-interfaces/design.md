@@ -228,7 +228,9 @@ un lié illisible ou absent aux dates. L'hôte se lit `{id, kind, label, href}` 
 écriture, `host` reste `{machine|cluster: Ref}` (design 006, « un résumé se lit, une
 référence s'écrit par son identifiant ») : un `host` renvoyé tel que lu, en création ou
 en Merge Patch, est refusé avant le changeset, 422 `invalid-member`, `pointer` `/host`,
-le détail commençant par `host:` et disant la forme attendue (tâche 006-33f3) ; par
+le détail commençant par `host:` et disant la forme attendue (tâche 006-33f3), dans
+l'ordre du kit : type de média (415) et corps (400) d'abord, puis ce membre, avant
+`If-Match` (428) ; par
 `POST /v1/changesets`, violation `machines.operation.invalid` de l'opération, même
 détail. Clés du module
 (`ModuleHandler::keys`) : le nom d'une machine, le slug d'un cluster, le nom seul d'une

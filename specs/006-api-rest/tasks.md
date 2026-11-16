@@ -1247,7 +1247,8 @@ routeur complet, sauf mention « vrai TCP ».
     `RightsGroupRef` ; renvois : `FlowEvaluation`, `FlowNonconformity`, `FlowTriage`
     (33f1) ; `DiffObject`, `DiffItemDto.object`, `Ref`, `Operation`, `Placement`,
     `SectionRowDto.object`, `ViolationDto.subjects`, `PendingReason.objects`,
-    `Required.objects` (33g) ; `AttachmentItem.entity` (reste ci-dessous) ; un hôte mal
+    `Required.objects`, `Cascaded`, `Unsupported` (33g) ; `AttachmentItem.entity`,
+    `Scope`, `HeldScope` (42) ; un hôte mal
     formé refusé par la route (`invalid-member` et `pointer`, comme un membre non
     modifiable, design 006 « Routes ») plutôt que par la violation de l'opération, dont le
     pointeur est le corps entier pour un `Update…` de module et qu'il aurait fallu
@@ -1256,14 +1257,30 @@ routeur complet, sauf mention « vrai TCP ».
     jointure de l'historique du noyau ; la suggestion résume une valeur texte qui est un
     UUID, pour une propriété `ref` seulement ; `Summaries::read` sans identifiant rend
     « tout lisible » sans requête.
-    reste : `AttachmentItem.entity` (`/v1/issuer-attachments`, administration des
-    droits) rend l'entité d'un rattachement d'émetteur en identifiant nu, hors du
-    recensement de la 33 : exempté, à résumer dans une tâche à part ; les liés de
-    l'historique d'un objet de module lus aux dates de la route, quand le noyau les lit
-    au début de chaque version : un lié supprimé depuis y devient `{id}` ; la garde ne
-    voit pas les valeurs `Object` (explication, différentiel, détail d'une ligne de
-    rapport, 33f2) ; à la fusion de la 33f1 et de la 33g, retirer leurs exemptions (la
-    garde échoue sur une exemption inutile).
+    revue (une passe) : la garde relève aussi la référence sans libellé (`id` UUID et
+    rien d'autre que `kind`, `type`, `href`, `{ref}`) et lit la donnée des événements
+    (`x-kartenn-events`) ; recensement : `NodeRef` (explication, sources d'une valeur)
+    et `GraphNode` (extrémités du graphe) portent désormais `label` (`Summaries::labels`,
+    les clés sans jugement de lisibilité, ces nœuds étant déjà réduits à ce que
+    l'appelant lit ; l'objet lui-même compris parmi les détenteurs pour sa clé) ;
+    exemptés : `ChangesetRef`, `GroupMember` (identité ou groupe d'émetteur),
+    `EventChangeset.changeset`, `EventReady.instance`, `EventChanges`, `EventObject`
+    (clés d'invalidation des seuls objets visibles, REQ-022-4) ; renvois `Cascaded`,
+    `Unsupported` (33g), `Scope`, `HeldScope` (42) ; `PolicyEndpoint` n'est qu'un corps de
+    requête (hors de la garde) ; `Writes::check` lit le corps par `kit::body` (415 et 400
+    du kit d'abord, puis l'hôte, avant le 428 d'`If-Match`, l'ordre du kit) ; description
+    d'`ExpectedValue` : résumé pour une propriété `ref` seulement. Tests :
+    `properties_resolve_explain_and_mask` (nœuds à `label`),
+    `machines/tests/it/rest.rs` `graph_edge_address_to_interface` (extrémités à
+    `label`), `a_host_as_read_is_refused_as_a_write` (415 avant, 422 sans `If-Match`).
+    reste : les liés de l'historique d'un objet de module lus aux dates de la route
+    (33i) ; `Cascaded` d'un changeset lu (`GET /v1/changesets/{id}`) dit le genre et
+    l'identifiant d'un objet fermé par cascade à tout lecteur du changeset, qu'il lise
+    l'objet ou non : fuite relevée par la revue, touchant le contrat du changeset, à
+    arbitrer dans la 33g ; la garde ne voit pas les valeurs `Object` (explication,
+    différentiel, détail d'une ligne de rapport, 33f2) ; à la fusion de la 33f1, de la
+    33g et de la 42, retirer leurs exemptions (la garde échoue sur une exemption
+    inutile).
   - exemption de la garde : `RightsGroupRef` (le groupe de connecteur d'une grappe kube,
     33e), un groupe des droits qui n'est pas un objet du référentiel et n'a pas de
     résumé ; la garde l'exempte avec cette raison. Question laissée ouverte (antérieure
@@ -1281,9 +1298,29 @@ routeur complet, sauf mention « vrai TCP ».
   - dépend de : 33a, 33b
   - la garde de la 33f3 exempte aussi, en renvoi à cette tâche : `DiffItemDto.object`,
     `Ref`, `Operation`, `Placement`, `SectionRowDto.object`, `ViolationDto.subjects`,
-    `PendingReason.objects`, `Required.objects` (`changesets.rs`, `cycle.rs`) ; les
-    résumer ou motiver leur exemption, et retirer de `UNSUMMARISED`
-    (`rest/tests/it/contract.rs`) celles qui ne servent plus.
+    `PendingReason.objects`, `Required.objects`, `Cascaded`, `Unsupported`
+    (`changesets.rs`, `cycle.rs`) ; les résumer ou motiver leur exemption, et retirer de
+    `UNSUMMARISED` (`rest/tests/it/contract.rs`) celles qui ne servent plus.
+  - à arbitrer (contrat du changeset, revue de la 33f3) : `cascaded` d'un changeset lu
+    (`GET /v1/changesets/{id}`, `cycle.rs` `represent`) nomme `{kind, id}` de chaque objet
+    fermé par cascade pour tout lecteur du changeset, qu'il lise l'objet ou non (la
+    cascade exige `core.<kind>.edit` de l'auteur, pas la lecture du lecteur) : le genre
+    d'un objet illisible se dit. Options : résumer (`kind` omis avec `label` pour un
+    illisible, comme l'hôte d'une machine, 33d) ; ou ne garder que les objets lisibles
+    avec un compte des autres.
+- [ ] 33i. Historique d'un objet de module : `parent` et `domain` de `ModuleObject` lus au
+  début de chaque version, comme la jointure de l'historique du noyau
+  (`versions_page`, `l.valid_period @> lower(h.valid_period)`), et non aux dates de la
+  route (33f3) : un lié supprimé depuis garde sa clé dans les versions où il vivait —
+  verify : `k-check -p kartenn-rest vlan` (historique d'un VLAN dont le groupe est
+  renommé puis supprimé : chaque version résume le groupe tel qu'il était)
+  - où : `crates/kartenn-rest/src/modules.rs` (`history`, `links_of`),
+    `crates/kartenn-rest/src/summary.rs` (`keys`, une lecture par date de début ou une
+    clé lue par la requête de la page), `crates/kartenn-store-pg/src/list.rs`
+    (`versions_page`, `vlan_history_page`, `module_history_page`) ; test voisin
+    `rest/tests/it/vlan/rest.rs`
+    `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one`
+  - dépend de : 33f3
 - [ ] 33h. Restes de la revue de la 33a — le schéma `Summary` du contrat dit
   `["string","null"]` alors que `slug` et `href` sont omis et jamais `null` ; H23 ne dit
   pas qu'un lié masqué n'est pas un refus de droit au sens de REQ-012 (« tout refus de
@@ -1601,3 +1638,20 @@ routeur complet, sauf mention « vrai TCP ».
     (`create`) ; tests voisins `crates/kartenn-flow/tests/it/requester.rs`
     (`a_key_whose_rights_moved_is_dropped_by_the_sweep`)
   - dépend de : 40 ; arbitrage de l'utilisateur (schéma)
+- [ ] 42. Références des corps des droits, hors du recensement de la 33 (relevées par la
+  garde de la 33f3) : l'entité d'un rattachement d'émetteur (`AttachmentItem.entity`,
+  `GET /v1/issuer-attachments`, identifiant nu) et la portée d'une liaison (`Scope`,
+  `HeldScope` : `{kind, id}` d'une entité, d'un site, d'un domaine ou d'un préfixe, sans
+  libellé) en résumés (`{id, label, href}`, `{id}` seul pour un objet illisible ou
+  absent), ou une raison écrite de les laisser (lus par l'administration des droits,
+  REQ-005) ; puis retirer leurs exemptions d'`UNSUMMARISED` — verify :
+  `k-check -p kartenn-rest rights` (rattachement et liaison lus par deux appelants, l'un
+  sans `core.entity.read` : corps identique au résumé coupé près ; entité supprimée :
+  octets identiques), `k-check -p kartenn-rest contract`
+  - où : `crates/kartenn-rest/src/rights.rs` (`AttachmentItem`, `attachment_item`,
+    `Scope`), `crates/kartenn-rest/src/auth.rs` (`Scope`, schéma `HeldScope`) ;
+    `summary.rs` (`Summaries::read`, à imiter : `vlan.rs` `AnchorSummary`, 33c) ;
+    `rest/tests/it/contract.rs` (`UNSUMMARISED`) ; tests voisins `rest/tests/it/rights.rs`
+  - dépend de : 33f3 ; la forme d'une portée lue (`kind` gardé à côté du résumé, ou omis
+    avec `label` comme l'hôte d'une machine, 33d) touche le contrat des droits : à
+    trancher avec l'utilisateur
