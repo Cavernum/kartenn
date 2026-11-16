@@ -1525,3 +1525,20 @@ routeur complet, sauf mention « vrai TCP ».
   donc la clé, de chaque appelant (calcul en ligne au prochain appel) ; la description
   OpenAPI de `GET /v1/stats` (« at most every 30 s once something changed ») à compléter
   de l'âge maximal au prochain changement du contrat.
+- [ ] 41. (à arbitrer : migration ou refonte des lectures) La séquence A-B-A des
+  instantanés des compteurs : un droit donné puis retiré pendant le calcul d'une clé
+  laisse sous cette clé un compteur fait avec le droit (reste de la tâche 40, INV-63 :
+  fuite d'un nombre, fenêtre d'un calcul, servi jusqu'au recalcul suivant, 5 min au
+  plus). Deux voies : (A) un compteur des écritures de droits tenu par un déclencheur
+  sur `role`, `role_permission`, `binding`, `group_member`, `rbac_group`, lu avant et
+  après le calcul, toute écriture entre les deux abandonne — une migration, un coût
+  d'une lecture par calcul, couvre aussi l'écriture directe en base et le compte de
+  secours ; (B) le calcul entier dans un seul instantané PostgreSQL — pas de migration,
+  mais refonte des lectures de `own()`, `proposals_for` et des contributeurs de modules
+  — verify : test rouge d'abord, un droit donné puis retiré entre deux points
+  d'injection du calcul ne laisse aucun compteur fait avec lui
+  - où : `crates/kartenn-rest/src/stats.rs` (`Part::holds`, `Part::compute`, `held`),
+    `crates/kartenn-store-pg/migrations/` (voie A), `crates/kartenn-service/src/breakglass.rs`
+    (`create`) ; tests voisins `crates/kartenn-flow/tests/it/requester.rs`
+    (`a_key_whose_rights_moved_is_dropped_by_the_sweep`)
+  - dépend de : 40 ; arbitrage de l'utilisateur (schéma)
