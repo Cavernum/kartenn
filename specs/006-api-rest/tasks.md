@@ -1295,7 +1295,7 @@ routeur complet, sauf mention « vrai TCP ».
     à la 33e) : un lecteur de la grappe sans droit sur les droits voit l'identifiant du
     groupe.
   - dépend de : 33a–33e
-- [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
+- [ ] 33g. Changesets (découpée le 2026-11-16 : 33g1 à 33g5) : le différentiel (`DiffObject {id}`), les opérations rendues
   (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées
   aujourd'hui selon la lisibilité de l'objet et non de la cible (revue de la 33a : hors
   du recensement 33b–33f, et la garde du contrat de la 33f échouerait sur eux) — verify :
@@ -1321,6 +1321,48 @@ routeur complet, sauf mention « vrai TCP ».
     d'un objet illisible se dit. Options : résumer (`kind` omis avec `label` pour un
     illisible, comme l'hôte d'une machine, 33d) ; ou ne garder que les objets lisibles
     avec un compte des autres.
+  - découpée le 2026-11-16 (33g1 à 33g5, chacune dans un contexte d'agent) ; chacune
+    retire de `UNSUMMARISED` les exemptions qu'elle rend inutiles, régénère le contrat
+    (`cargo run -p kartenn-server --all-features -- openapi`) et les types des SDK
+    (`node scripts/gen.mjs` sous `web/sdk` et `web/v2/sdk`), et lit ses cibles par
+    `Summaries::read` (`summary.rs`) :
+  - [ ] 33g1. Objets clos par cascade (`Cascaded`, arbitrage du 2026-11-16, option 1) :
+    `{id, kind, slug, label, href}` pour un objet que l'appelant lit, `{id}` seul sinon,
+    dans le changeset lu, appliqué et simulé — verify : `k-check -p kartenn-rest cascad`
+    (deux appelants, objet clos par cascade illisible pour l'un : `{id}`, mêmes octets
+    qu'un absent hors l'identifiant ; le genre ne se dit qu'avec la clé)
+    - où : `crates/kartenn-rest/src/changesets.rs` (`Cascaded`, `cascaded`, `applied`,
+      `answered` `Outcome::Simulated`), `cycle.rs` (`represent`), `summary.rs`
+      (`Summaries`) ; modèle : `kartenn-machines/src/rest.rs` (`HostSummary`, `host`) ;
+      test voisin `rest/tests/it/simulated.rs`, cascade de `rest/tests/it/vlan/references.rs`
+      `closing_a_group_cascades_its_vlans`
+  - [ ] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
+    `DiffItemDto.object` (échantillon d'une simulation) et les valeurs de type référence
+    de `before`/`after`, démasquées selon la lisibilité de l'objet et non de la cible —
+    verify : `k-check -p kartenn-rest diff` (deux appelants : cible illisible et cible
+    inconnue rendues à l'identique, octets compris)
+    - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`, `diff_entry`),
+      `changesets.rs` (≈ 607, `DiffItemDto`) ; valeurs de référence comme la 33b
+      (`properties.rs`) ; test voisin `rest/tests/it/cycle.rs`
+  - [ ] 33g3. Opérations rendues et inverse : `Ref` et `Operation` des opérations d'un
+    changeset lu (telles qu'écrites), `Unsupported` de l'inverse — verify :
+    `k-check -p kartenn-rest operations` (deux appelants, cible illisible et inconnue
+    à l'identique)
+    - où : `crates/kartenn-rest/src/operation.rs` (`RefDto`, `schema(as = Ref)`),
+      `cycle.rs` (`operations` ≈ 353, `Unsupported` ≈ 1068) ; test voisin
+      `rest/tests/it/changesets.rs`
+  - [ ] 33g4. Placements et sections : `Placement` (simulation, objet et parents avant et
+    après) et `SectionRowDto.object` (sections des modules, simulation et
+    `?section=`) — verify : `k-check -p kartenn-rest placements diff_sections`
+    - où : `crates/kartenn-rest/src/changesets.rs` (`Placement`, `SectionRowDto` ≈ 457,
+      `mask_rows`), `cycle.rs` (`section_diff`) ; tests voisins
+      `rest/tests/it/placements.rs`, `diff_sections.rs`
+  - [ ] 33g5. Violations et décisions : `ViolationDto.subjects`, `PendingReason.objects`,
+    `Required.objects` — verify : `k-check -p kartenn-rest changesets` (sujet illisible
+    et inconnu à l'identique)
+    - où : `crates/kartenn-rest/src/changesets.rs` (`ViolationDto` ≈ 268, `violations`,
+      `PendingReason` ≈ 699), `cycle.rs` (`Required` ≈ 801) ; test voisin
+      `rest/tests/it/changesets.rs`
 - [x] 33i. Historique d'un objet de module : `parent` et `domain` de `ModuleObject` lus au
   début de chaque version, comme la jointure de l'historique du noyau
   (`versions_page`, `l.valid_period @> lower(h.valid_period)`), et non aux dates de la
