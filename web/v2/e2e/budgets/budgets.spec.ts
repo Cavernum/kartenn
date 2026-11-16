@@ -439,14 +439,25 @@ async function watched(
   } finally {
     await cdp.send("Performance.disable");
   }
-  const spent = (name: string) =>
-    `${(((after.get(name) ?? 0) - (before.get(name) ?? 0)) * 1000).toFixed(0)} ms`;
+  const delta = (name: string) => ((after.get(name) ?? 0) - (before.get(name) ?? 0)) * 1000;
+  const spent = (name: string) => `${delta(name).toFixed(0)} ms`;
   const i = frames.intervals;
+  // The part of the window the main thread spent in tasks (task 021-22e-m), between the two
+  // reads of the metrics (`Timestamp`, the clock of the page), and per frame drawn: near
+  // 100 %, a frame has no margin left, and the dropped frames measure the excess of a
+  // saturated thread rather than the work of a frame.
+  const span = delta("Timestamp");
+  const drawn = ((1 - frames.dropped) * span) / (1000 / 60);
+  const share =
+    span > 0
+      ? `${((delta("TaskDuration") / span) * 100).toFixed(1)} % of the window in tasks` +
+        `${drawn >= 1 ? `, ≈ ${(delta("TaskDuration") / drawn).toFixed(1)} ms per frame drawn` : ""}`
+      : "window unknown";
   console.log(
     `INFO ${what}: dropped frames ${(frames.dropped * 100).toFixed(2)} %, ${frames.longTasks}` +
       ` long tasks (the longest ${frames.longest.toFixed(1)} ms); frame intervals` +
       ` ${i ? `median ${i.p50.toFixed(1)} ms, p99 ${i.p99.toFixed(1)} ms, longest ${i.max.toFixed(1)} ms, ${i.gaps} over 1.5 frames` : "unknown"};` +
-      ` main thread of the page: tasks ${spent("TaskDuration")}, scripts ${spent("ScriptDuration")},` +
+      ` main thread of the page: ${share}; tasks ${spent("TaskDuration")}, scripts ${spent("ScriptDuration")},` +
       ` layout ${spent("LayoutDuration")}, style ${spent("RecalcStyleDuration")}, CPU of the` +
       ` thread ${spent("ThreadTime")}; ${outside}`,
   );
