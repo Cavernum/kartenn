@@ -2342,23 +2342,57 @@ async fn a_host_as_read_is_refused_as_a_write(pool: PgPool) {
         &[("If-Match", etag)],
     )
     .await;
-    assert!(
-        matches!(
-            status,
-            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY
-        ),
-        "{status}: {body}"
-    );
-    assert_eq!(body["status"], status.as_u16(), "{body}");
-    // Refused by the operation itself, which names the member.
-    let violation = &body["violations"][0];
-    assert_eq!(violation["rule"], "machines.operation.invalid", "{body}");
-    assert!(
-        violation["detail"].as_str().unwrap().starts_with("host:"),
-        "{body}"
-    );
+    // Refused before the changeset, the member pointed at and the form it takes said (task
+    // 006-33f3), and not the text of the deserialisation.
+    let refused = |status: StatusCode, body: &Value| {
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+        assert_eq!(body["type"], "urn:kartenn:problem:invalid-member", "{body}");
+        assert_eq!(body["pointer"], "/host", "{body}");
+        let detail = body["detail"].as_str().unwrap();
+        assert!(detail.starts_with("host:"), "{body}");
+        assert!(
+            detail.contains(r#"{"machine": {"id": …}} or {"cluster": {"id": …}}"#),
+            "{body}"
+        );
+    };
+    refused(status, &body);
     let (_, _, after) = call(&app, "GET", &uri, None, &[]).await;
     assert_eq!(after["host"], read["host"]);
+    // A creation as well.
+    let create = json!({"motive": "as read", "name": "vm-2", "kind": "virtual",
+                        "host": read["host"]});
+    let (status, _, body) = call(
+        &app,
+        "POST",
+        "/v1/machines",
+        Some(("application/json", create)),
+        &[],
+    )
+    .await;
+    refused(status, &body);
+    // Through `POST /v1/changesets`, the operation pointed at, the form said alike.
+    let submission = json!({"motive": "as read", "operations": [
+        {"op": "machines.update_machine", "id": {"id": vm}, "host": read["host"]},
+    ]});
+    let (status, _, body) = call(
+        &app,
+        "POST",
+        "/v1/changesets",
+        Some(("application/json", submission)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    let violation = &body["violations"][0];
+    assert_eq!(violation["rule"], "machines.operation.invalid", "{body}");
+    assert_eq!(violation["pointer"], "/operations/0", "{body}");
+    assert!(
+        violation["detail"]
+            .as_str()
+            .unwrap()
+            .contains(r#"{"machine": {"id": …}} or {"cluster": {"id": …}}"#),
+        "{body}"
+    );
 }
 
 #[kartenn_testing::pg_test]
