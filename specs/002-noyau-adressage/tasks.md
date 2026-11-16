@@ -537,6 +537,37 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     à la planification, avant les droits et le contrôle des désignations ; l'amener à
     `core.reference.unknown` sans dire l'absence à qui ne lit pas la grappe (INV-63)
     touche l'ordre du pipeline, comme les options de la 29c2
+  - découpée le 2026-11-16 (33 types d'opération dans trois crates, chacun son harnais,
+    son parcours et son contrôle de fuite ; la 29c, huit types, s'était déjà découpée
+    en trois) en 29d1 à 29d4 ; se coche avec la dernière.
+  - [ ] 29d1. `kartenn-kube`, hors la grappe d'un `sync` : parcours de `create_cluster`,
+    `update_cluster`, `sync`, `set_label_mapping`, `set_admitted_values`,
+    `set_tracked_labels`, une référence inconnue par champ : 422
+    `core.reference.unknown` ; fuites pour un auteur sans droits (INV-63) — verify :
+    `k-check -p kartenn-kube`
+    - où : `crates/kartenn-kube/src/handler.rs` (lignes 226 à 270, 393 à 435),
+      `settings.rs` (517 à 600) ; tests `crates/kartenn-kube/tests/it/{clusters,settings}.rs` ;
+      modèle `crates/kartenn-machines/tests/it/machines.rs` (2833 à 2862)
+  - [ ] 29d2. (à arbitrer) La grappe d'un `sync` absente au début de sa période :
+    `plan_sync` (`handler.rs` 1597 à 1606) refuse à la planification
+    (`kube.operation.invalid`), avant les droits ; un connecteur d'une autre grappe
+    distingue ainsi une grappe absente d'une grappe vivante qu'il ne conduit pas
+    (INV-63). (A) le champ `cluster` d'un `sync` exige `kube.cluster.read` avant les
+    écritures, comme `host` et `member_of` depuis la 29c2, et `plan_sync` n'échoue plus
+    sur une grappe absente — les rôles de connecteur doivent accorder cette lecture sur
+    leur grappe ; (B) un plan vide pour une grappe absente, refusé après les droits —
+    touche le contrat de module et le pipeline (ADR 0026) ; (C) renvoyer à la tâche 31 —
+    verify : test rouge d'abord, mêmes octets et statut pour absente et hors d'atteinte
+    - où : `crates/kartenn-kube/src/handler.rs` (`plan_sync`, `READ_CHECKED` à créer sur
+      le modèle de `kartenn-machines/src/handler.rs`)
+  - [ ] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
+    identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
+    - où : `crates/kartenn-flow/src/handler.rs` (217 à 226, 493 à 585),
+      `tests/it/references.rs`
+  - [ ] 29d4. `kartenn-policy` : parcours de ses 22 types, dont chaque champ de `Fields`
+    (`objects.rs` 26 à 91), `axis.update`, `matrix.set` et `infer.rs` (729 à 820), et
+    fuites — verify : `k-check -p kartenn-policy`
+    - où : `crates/kartenn-policy/tests/it/rights.rs` et un module de tests nouveau
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
