@@ -2,9 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// What the elements read beside their own lists: the names of the objects they cite (an
-// owner, a host, a VLAN), read once each through the shared cache, a few at a time; and
-// what they compute from it (802.1Q mode).
+// What the elements read beside their own lists: the names of the objects the lists cite by
+// identifier (an owner, a host), read once each through the shared cache, a few at a time
+// (the records name them by the summaries of their bodies, task 11p10-d3); and what they
+// compute from the summaries (802.1Q mode).
 
 import { queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import { t } from "./dom.ts";
@@ -14,6 +15,8 @@ export type MachineCard = components["schemas"]["MachineCard"];
 export type Interface = components["schemas"]["Interface"];
 export type Cluster = components["schemas"]["Cluster"];
 export type Vlan = components["schemas"]["Vlan"];
+/** The summary of an object a body cites (H23): `label` absent if unreadable or absent then. */
+export type Summary = Pick<components["schemas"]["Summary"], "id" | "label">;
 
 /** The kinds of a machine (REQ-009-2). */
 export const KINDS = ["physical", "virtual", "container", "appliance"] as const;
@@ -88,18 +91,19 @@ export class Names {
   }
 }
 
-/** `access 120`, `trunk 120, 130`: the 802.1Q mode of an interface, its VLAN by their VID. */
-export function modeOf(iface: Interface, names: Names): string {
-  const vid = (id?: string | null) => {
-    if (!id) return "";
-    const name = names.of("core.vlan", id);
-    return name.state === "read" ? name.name : "?";
-  };
+/**
+ * `access 120 · users`, `trunk 120 · users, 130 · servers`: the 802.1Q mode of an interface,
+ * its VLAN by the `label` of their summaries (H23), nothing read; a VLAN the caller may not
+ * read, or absent then, by `?`. The lists still pass their `Names` (task 11p10-d4), unused.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped with the lists' (11p10-d4)
+export function modeOf(iface: Interface, _names?: Names): string {
+  const vid = (vlan?: Summary | null) => (vlan ? (vlan.label ?? "?") : "");
   switch (iface.vlan.mode) {
     case "access":
-      return `${t("mode.access")} ${vid(iface.vlan.access?.id)}`;
+      return `${t("mode.access")} ${vid(iface.vlan.access)}`;
     case "trunk":
-      return `${t("mode.trunk")} ${iface.vlan.tagged.map((v) => vid(v.id)).join(", ")}`;
+      return `${t("mode.trunk")} ${iface.vlan.tagged.map(vid).join(", ")}`;
     default:
       return t("mode.none");
   }

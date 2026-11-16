@@ -24,11 +24,11 @@ import {
 } from "@kartenn/ui";
 import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import CitedName from "./CitedName.vue";
-import { useList, useNotified, useRead } from "./data.ts";
+import { useList, useRead } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
-import { modeOf, Names, type Interface, type MachineCard, type Vlan } from "./reads.ts";
+import { modeOf, type Interface, type MachineCard, type Vlan } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ id: string }>();
@@ -36,7 +36,6 @@ const props = defineProps<{ id: string }>();
 const t = useTexts();
 const { context, queryClient } = useHosted();
 const present = usePresent();
-const names = useNotified((changed, live) => new Names(changed, live));
 /** The identifiers of the headings of the sections (one record per element). */
 const ids = { addresses: "k-machines-iface-addresses", mode: "k-machines-iface-mode" };
 
@@ -58,7 +57,7 @@ const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : und
 const attributes = computed<AttributeItem[]>(() => [
   { key: "machine", label: t("interfaces.machine") },
   { key: "mac", label: t("interfaces.mac"), value: iface.value?.mac ?? undefined, mono: true },
-  { key: "mode", label: t("interfaces.mode"), value: iface.value && modeOf(iface.value, names()) },
+  { key: "mode", label: t("interfaces.mode"), value: iface.value && modeOf(iface.value) },
   { key: "state", label: t("interfaces.state") },
 ]);
 
@@ -176,10 +175,8 @@ function violations(problem: ApiProblem): boolean {
     <AttributeList v-else-if="iface" :items="attributes">
       <template #machine>
         <CitedName
-          :id="iface.machine.id"
-          :names="names"
-          type="machines.machine"
-          :page="PAGES.machine(iface.machine.id)"
+          :summary="iface.machine"
+          :page="iface.machine.label ? PAGES.machine(iface.machine.id) : undefined"
         />
       </template>
       <template #state>

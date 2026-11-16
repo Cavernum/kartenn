@@ -36,8 +36,10 @@ const machine = (name = "srv-a"): Machine => ({
   kind: "physical",
   owner: { id: ENTITY },
 });
+// The record names what its body cites by the summaries (task 11p10-d3): their labels.
 const card = () => ({
   ...machine(),
+  owner: { id: ENTITY, label: "exemple" },
   interfaces: [
     {
       id: IFACE,
@@ -56,10 +58,9 @@ const iface = () => ({
   name: "eth0",
   mac: "00:00:5e:00:53:01",
   enabled: true,
-  vlan: { mode: "access", access: { id: VLAN }, tagged: [] },
+  vlan: { mode: "access", access: { id: VLAN, label: "310 · hotes" }, tagged: [] },
 });
 const entity = { id: ENTITY, slug: "exemple", href: `/v1/entities/${ENTITY}` };
-const vlan = { id: VLAN, vid: 310, name: "hotes", group: { id: ENTITY }, status: "active" };
 const cluster = {
   id: CLUSTER,
   href: `/v1/clusters/${CLUSTER}`,
@@ -375,8 +376,6 @@ describe("the record of a machine (task 18cb)", () => {
     "GET /v1/machines/{id}": () => card() as never,
     "GET /v1/machines/{id}/hosted": () => page([]),
     "GET /v1/interfaces": () => page([iface()]),
-    "GET /v1/entities/{id}": () => entity as never,
-    "GET /v1/vlans/{id}": () => vlan as never,
     "GET /v1/machines": () => listed(),
     "GET /v1/clusters": () => page([cluster]),
   };
@@ -419,16 +418,21 @@ describe("the record of a machine (task 18cb)", () => {
   it("draws its sections: attributes, interfaces with their state, hosted machines; adds an interface", async () => {
     history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
     const posted: unknown[] = [];
+    const asked: string[] = [];
+    const answer = fakeFetch({
+      ...reads,
+      "GET /v1/drafts": () => page([]),
+      "POST /v1/drafts": ({ body }) => {
+        posted.push(body);
+        return draftOf((body as { operations: unknown[] }).operations, 1, 201);
+      },
+    });
     mounted = mount("machines-machines", {
       context: { locale: "fr", user: user() },
-      fetch: fakeFetch({
-        ...reads,
-        "GET /v1/drafts": () => page([]),
-        "POST /v1/drafts": ({ body }) => {
-          posted.push(body);
-          return draftOf((body as { operations: unknown[] }).operations, 1, 201);
-        },
-      }),
+      fetch: (input, init) => {
+        asked.push(new URL(String(input), "http://sandbox").pathname);
+        return answer(input, init);
+      },
     });
     const { element } = mounted;
     await vi.waitFor(() => expect(element.querySelector("h1")?.textContent).toBe("srv-a"));
@@ -436,13 +440,17 @@ describe("the record of a machine (task 18cb)", () => {
       expect(rows(element, "Interfaces")[0]).toEqual([
         "eth0",
         "00:00:5e:00:53:01",
-        "accès 310",
+        "accès 310 · hotes",
         "192.0.2.10",
         expect.stringContaining("active"),
       ]),
     );
     expect(hostedBy(element)).toBeNull();
     await text(element, "exemple");
+    // No read of a name (task 11p10-d3): neither its owner nor the VLAN of its interface.
+    expect(asked.filter((path) => /^\/v1\/(entities|sites|vlans|clusters)\//.test(path))).toEqual(
+      [],
+    );
     expect(element.textContent).toContain("Aucune machine hébergée");
     const names = [...element.querySelectorAll("section h2")].map((h) => h.textContent);
     expect(names).toEqual([

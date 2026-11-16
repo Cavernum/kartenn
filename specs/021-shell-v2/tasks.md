@@ -2084,11 +2084,29 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
         `RecordView.vue` (`referenced`), `views/parts/{NetworkVlan.vue,vlan.ts}`
         (`vlanOfValue`), `views/record/NetworkVlanTab.vue` (`data.group`)
       - dépend de : 11p10-d1 (mêmes vues)
-    - [ ] 11p10-d3. Plugin machines, fiches : `CitedName` prend un résumé au lieu de
+    - [x] 11p10-d3. Plugin machines, fiches : `CitedName` prend un résumé au lieu de
       `Names`, `modeOf` emploie les libellés des résumés de VLAN — verify : Vitest du
       plugin, aucune lecture de nom
       - où : `web/v2/plugins/machines/src/{CitedName.vue,reads.ts,ClusterRecord.vue,
         MachineRecord.vue,InterfaceRecord.vue}`
+      - fait le 2026-11-16 : les trois fiches nomment propriétaire, site, hôte, cluster et
+        machine par le résumé du corps (`CitedName :summary`), plus aucun `Names` ; les
+        tests des fiches relèvent les chemins demandés (aucun `/v1/{entities,sites,vlans,
+        clusters}/<id>`) et montrent un résumé sans libellé (identifiant en chasse fixe,
+        VLAN `?`) ; Vitest 62/62 du plugin, `k-web2-check --base main` : 1 305 tests,
+        ciblé : 0 captures sur 2 741 (aucune touchée).
+      - choix : `CitedName` garde, le temps de la d4, son mode par identifiant (`names`,
+        `type`, `id`) pour les listes ; `modeOf` rend le libellé entier du VLAN
+        (`accès 310 · hotes`, H23 `<vid> · <name>`), sans en extraire le VID, et `?` pour
+        un résumé sans libellé (texte brut, pas de chasse fixe possible dans la chaîne) ;
+        son second argument (`Names`) est ignoré, gardé parce que `InterfaceGrid` le passe
+        encore ; un hôte ou un cluster sans libellé n'a pas de lien vers sa fiche (comme
+        l'hôte de type inconnu) ; aucune relecture d'interface : ni balise ni composant
+        nouveaux, seul le texte du mode change.
+      - reste (d4) : retirer de `CitedName` le mode par identifiant et de `modeOf` son
+        second argument (et son `eslint-disable`) ; les listes affichent déjà le libellé
+        entier du VLAN, leurs tests gardent des routes `GET /v1/vlans/{id}` devenues
+        inutiles.
     - [ ] 11p10-d4. Plugin machines, listes : `MachineColumn` (`iface.machine.label`),
       `MachineList`, `InterfaceGrid`, `InterfacesTab`, `InterfaceSearch`, `HostingTree`
       (son appel de `limited`) ; `Names` et `limited` retirés s'il ne leur reste aucun

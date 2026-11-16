@@ -51,11 +51,17 @@ const card = () => ({
     },
   ],
 });
-const iface = (vlan: Interface["vlan"] = { mode: "access", access: { id: VLAN }, tagged: [] }) =>
+// Its machine and its VLAN by their summaries, with their labels (H23, task 11p10-d3).
+const ACCESS = (): Interface["vlan"] => ({
+  mode: "access",
+  access: { id: VLAN, label: "310 · hotes" },
+  tagged: [],
+});
+const iface = (vlan: Interface["vlan"] = ACCESS()) =>
   ({
     id: IFACE,
     href: `/v1/interfaces/${IFACE}`,
-    machine: { id: MACHINE },
+    machine: { id: MACHINE, label: "srv-a" },
     name: "eth0",
     mac: MAC,
     enabled: true,
@@ -173,7 +179,7 @@ function type(element: HTMLElement, label: string, value: string): void {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-const ROW = ["eth0", "srv-a", MAC, "access 310", "enabled"];
+const ROW = ["eth0", "srv-a", MAC, "access 310 · hotes", "enabled"];
 
 describe("the search of the interfaces (task 18cc)", () => {
   /** The routes of a search; `asked`: `mac|address|vlan` of each list read. */
@@ -346,26 +352,31 @@ describe("the search of the interfaces (task 18cc)", () => {
 });
 
 describe("the record of an interface (task 18cc)", () => {
+  // Its machine and its VLAN named by the summaries of its body: no read by identifier.
   const reads = (vlanOf: Interface["vlan"] | undefined = undefined) => ({
     "GET /v1/interfaces/{id}": () => iface(vlanOf) as never,
     "GET /v1/machines/{id}": () => card() as never,
     "GET /v1/vlans": () => page([vlan]),
-    "GET /v1/vlans/{id}": () => vlan as never,
   });
 
   it("draws its attributes and its addresses; changes its 802.1Q mode in the draft", async () => {
     const posted: unknown[] = [];
+    const asked: string[] = [];
     history.replaceState(null, "", `/x/machines/interfaces/${IFACE}`);
+    const answer = fakeFetch({
+      ...reads(),
+      "GET /v1/drafts": () => page([]),
+      "POST /v1/drafts": ({ body }) => {
+        posted.push(body);
+        return draftOf((body as { operations: unknown[] }).operations);
+      },
+    });
     mounted = mount("machines-interfaces", {
       context: { locale: "en", user: user() },
-      fetch: fakeFetch({
-        ...reads(),
-        "GET /v1/drafts": () => page([]),
-        "POST /v1/drafts": ({ body }) => {
-          posted.push(body);
-          return draftOf((body as { operations: unknown[] }).operations);
-        },
-      }),
+      fetch: (input, init) => {
+        asked.push(new URL(String(input), "http://sandbox").pathname);
+        return answer(input, init);
+      },
     });
     const { element } = mounted;
     await vi.waitFor(() => expect(element.querySelector("h1")?.textContent?.trim()).toBe("eth0"));
@@ -373,13 +384,15 @@ describe("the record of an interface (task 18cc)", () => {
       expect([...element.querySelectorAll("dd")].map((d) => d.textContent?.trim())).toEqual([
         "srv-a",
         MAC,
-        "access 310",
+        "access 310 · hotes",
         "enabled",
       ]),
     );
     expect(element.querySelector("dd a")?.getAttribute("href")).toBe(
       `/x/machines/machines/${MACHINE}`,
     );
+    // No read of a name (task 11p10-d3): its machine read for its card (its addresses) only.
+    expect(asked.filter((path) => /^\/v1\/vlans\/|^\/v1\/entities\//.test(path))).toEqual([]);
     await vi.waitFor(() =>
       expect(rows(element, "Attached addresses")).toEqual([["192.0.2.10", "yes"]]),
     );
@@ -409,12 +422,13 @@ describe("the record of an interface (task 18cc)", () => {
     mounted = mount("machines-interfaces", {
       context: { locale: "en", user: user() },
       fetch: fakeFetch({
-        ...reads({ mode: "trunk", tagged: [{ id: VLAN }] }),
+        // A tagged VLAN the caller may not read: its summary without a label, said `?`.
+        ...reads({ mode: "trunk", tagged: [{ id: VLAN, label: "310 · hotes" }, { id: VLAN_B }] }),
         "POST /v1/drafts": ({ body }) => (posted.push(body), draftOf([])),
       }),
     });
     let { element } = mounted;
-    await text(element, "trunk 310");
+    await text(element, "trunk 310 · hotes, ?");
     const form = element.querySelector<HTMLFormElement>("section form")!;
     form.requestSubmit();
     await text(form, "Required field.");

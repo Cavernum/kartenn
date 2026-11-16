@@ -581,23 +581,28 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
 describe("the record of a cluster (task 18cd)", () => {
   it("draws its owner, its site and its machines with their tie, its failure with its codes", async () => {
     history.replaceState(null, "", `/x/machines/clusters/${CLUSTER}`);
+    const asked: string[] = [];
+    const answer = fakeFetch({
+      // Its owner named by its summary, its site unreadable: its summary without a label.
+      "GET /v1/clusters/{id}": () =>
+        ({ ...cluster, owner: { id: ENTITY, label: "exemple" }, site: { id: SITE } }) as never,
+      "GET /v1/clusters/{id}/machines": () =>
+        page([
+          { ...machine(HOST, "srv-a", "physical"), member_of: { id: CLUSTER } },
+          machine(GUEST, "vm-a", "virtual", { id: CLUSTER, kind: "cluster" }),
+        ]),
+    });
     mounted = mount("machines-clusters", {
       context: { locale: "en", user: user() },
-      fetch: fakeFetch({
-        "GET /v1/clusters/{id}": () => ({ ...cluster, site: { id: SITE } }) as never,
-        "GET /v1/clusters/{id}/machines": () =>
-          page([
-            { ...machine(HOST, "srv-a", "physical"), member_of: { id: CLUSTER } },
-            machine(GUEST, "vm-a", "virtual", { id: CLUSTER, kind: "cluster" }),
-          ]),
-        "GET /v1/entities/{id}": () =>
-          ({ id: ENTITY, slug: "exemple", href: `/v1/entities/${ENTITY}` }) as never,
-        "GET /v1/sites/{id}": READS["GET /v1/sites/{id}"],
-      }),
+      fetch: (input, init) => {
+        asked.push(new URL(String(input), "http://sandbox").pathname);
+        return answer(input, init);
+      },
     });
     const { element } = mounted;
     await text(element, "exemple");
-    await text(element, "nord");
+    await text(element, "vm-a");
+    expect(element.querySelector("dl .k-mono")?.textContent).toBe(SITE);
     expect(element.querySelector("h1")?.textContent?.trim()).toBe("grappe");
     const grid = element.querySelector("[role=grid][aria-label='Machines of the cluster']")!;
     const cells = [...grid.querySelectorAll("[role=row]")]
@@ -608,6 +613,10 @@ describe("the record of a cluster (task 18cd)", () => {
       ["srv-a", "physicalphysical", "member"],
       ["vm-a", "virtualvirtual", "hosted"],
     ]);
+    // No read of a name (task 11p10-d3): the cluster and its machines alone.
+    expect(new Set(asked)).toEqual(
+      new Set([`/v1/clusters/${CLUSTER}`, `/v1/clusters/${CLUSTER}/machines`]),
+    );
     mounted.unmount();
     queryClient.clear();
     mounted = mount("machines-clusters", {

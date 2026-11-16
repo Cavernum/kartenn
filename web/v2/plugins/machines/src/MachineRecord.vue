@@ -28,12 +28,12 @@ import {
 } from "@kartenn/ui";
 import { computed, ref, shallowRef, watch, type ShallowRef } from "vue";
 import CitedName from "./CitedName.vue";
-import { useList, useNotified, useRead, type List } from "./data.ts";
+import { useList, useRead, type List } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import HostSection from "./HostSection.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
-import { modeOf, Names, type Interface, type Machine, type MachineCard } from "./reads.ts";
+import { modeOf, type Interface, type Machine, type MachineCard } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ id: string }>();
@@ -41,7 +41,6 @@ const props = defineProps<{ id: string }>();
 const t = useTexts();
 const { context } = useHosted();
 const present = usePresent();
-const names = useNotified((changed, live) => new Names(changed, live));
 /** The identifiers of the headings of the sections (one record per element). */
 const ids = {
   host: "k-machines-host",
@@ -71,17 +70,12 @@ const link = (page: string) => {
   void context.value.time;
   return hrefOf(page);
 };
-const host = computed(() => {
+/** The page of its host by its kind; none for a host the caller may not read (REQ-006-42). */
+const hostPage = computed(() => {
   const h = machine.value?.host;
-  if (!h) return null;
-  if (h.kind === "cluster") {
-    return { type: "machines.cluster" as const, id: h.id, page: PAGES.cluster(h.id) };
-  }
-  if (h.kind === "machine") {
-    return { type: "machines.machine" as const, id: h.id, page: PAGES.machine(h.id) };
-  }
-  // A host the caller may not read says not its kind (REQ-006-42): its id alone.
-  return { type: undefined, id: h.id, page: undefined };
+  if (h?.kind === "cluster") return PAGES.cluster(h.id);
+  if (h?.kind === "machine") return PAGES.machine(h.id);
+  return undefined;
 });
 /** Its attributes, each by its slot; one absent (no owner, no host…) said by the list. */
 const attributes = computed<AttributeItem[]>(() => [
@@ -110,7 +104,7 @@ const ifaceRows = computed(() => {
     id: i.id,
     name: i.name,
     mac: i.mac ?? null,
-    mode: modeOf(i, names()),
+    mode: modeOf(i),
     addresses: addresses.get(i.id) ?? [],
     enabled: i.enabled,
   }));
@@ -204,21 +198,19 @@ function added(): void {
         <KeyLabel :value="machine.kind" :label="t(`kind.${machine.kind}`)" />
       </template>
       <template #owner>
-        <CitedName v-if="machine.owner" :id="machine.owner.id" :names="names" type="core.entity" />
+        <CitedName v-if="machine.owner" :summary="machine.owner" />
       </template>
       <template #site>
-        <CitedName v-if="machine.site" :id="machine.site.id" :names="names" type="core.site" />
+        <CitedName v-if="machine.site" :summary="machine.site" />
       </template>
       <template #host>
-        <CitedName v-if="host" :id="host.id" :names="names" :type="host.type" :page="host.page" />
+        <CitedName v-if="machine.host" :summary="machine.host" :page="hostPage" />
       </template>
       <template #memberOf>
         <CitedName
           v-if="machine.member_of"
-          :id="machine.member_of.id"
-          :names="names"
-          type="machines.cluster"
-          :page="PAGES.cluster(machine.member_of.id)"
+          :summary="machine.member_of"
+          :page="machine.member_of.label ? PAGES.cluster(machine.member_of.id) : undefined"
         />
       </template>
     </AttributeList>
