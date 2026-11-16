@@ -49,6 +49,8 @@ export interface Frames {
    * 1.5 frames of 16.67 ms).
    */
   intervals?: { p50: number; p99: number; max: number; gaps: number };
+  /** The frames counted and the window they were counted over (ms), as for `dropped`. */
+  drawn?: { frames: number; span: number };
 }
 
 interface Runtime {
@@ -203,6 +205,7 @@ function runtime(): void {
         between[Math.min(between.length - 1, Math.floor(q * between.length))] ?? 0;
       return {
         dropped,
+        drawn: { frames: times.length, span: end - started },
         intervals: {
           p50: at(0.5),
           p99: at(0.99),

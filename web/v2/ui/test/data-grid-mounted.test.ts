@@ -358,6 +358,87 @@ describe("headShift: rows gone or come at the head only (task 021-22f)", () => {
   });
 });
 
+describe("DataGrid: the rows given again to the virtualiser while it scrolls (task 021-22e-m)", () => {
+  it("gives it only the rows that came, those that stayed being observed already", async () => {
+    const { grid } = await mountGrid();
+    const rowsNow = () =>
+      new Map(
+        [...grid.querySelectorAll<HTMLElement>(".k-data-grid__body > [data-index]")].map((el) => [
+          el,
+          el.querySelector<HTMLElement>("[data-row]")?.dataset.row,
+        ]),
+      );
+    const before = rowsNow();
+    // Each read of `data-index` of a row: one by `useVirtualRows` for its key, one more by
+    // the virtualiser for each row given to it (`measureElement`).
+    const reads = new Map<Element, number>();
+    const read = Element.prototype.getAttribute;
+    Element.prototype.getAttribute = function (this: Element, name: string) {
+      if (name === "data-index") reads.set(this, (reads.get(this) ?? 0) + 1);
+      return read.call(this, name);
+    };
+    try {
+      await scrollGrid(grid, 3 * ROW);
+    } finally {
+      Element.prototype.getAttribute = read;
+    }
+    const after = rowsNow();
+    const stayed = [...after].filter(([el, key]) => before.get(el) === key);
+    const came = [...after].filter(([el, key]) => before.get(el) !== key);
+    expect(stayed.length).toBeGreaterThan(10);
+    expect(came.length).toBeGreaterThan(0);
+    for (const [el] of stayed) expect(reads.get(el) ?? 0).toBeLessThanOrEqual(1);
+    for (const [el] of came) expect(reads.get(el)).toBe(2);
+  });
+
+  // What the guard of `measureNow` stands on: a row left to the virtualiser is still followed
+  // by its `ResizeObserver`, which measures a row whose height changes, scrolled or not.
+  // Covered here: the observation kept (never `unobserve`d) through the scroll; not covered:
+  // a real browser's `ResizeObserver`, nor what the virtualiser does of an entry.
+  it("leaves the rows that stayed observed by the virtualiser", async () => {
+    const observed = new Set<Element>();
+    const native = window.ResizeObserver;
+    window.ResizeObserver = class {
+      observe(el: Element) {
+        observed.add(el);
+      }
+      unobserve(el: Element) {
+        observed.delete(el);
+      }
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const { grid } = await mountGrid();
+      const rowsNow = () => [
+        ...grid.querySelectorAll<HTMLElement>(".k-data-grid__body > [data-index]"),
+      ];
+      const before = new Map(rowsNow().map((el) => [el, el.dataset.index]));
+      await scrollGrid(grid, 3 * ROW);
+      const stayed = rowsNow().filter((el) => before.get(el) === el.dataset.index);
+      expect(stayed.length).toBeGreaterThan(10);
+      for (const el of rowsNow()) expect(observed.has(el)).toBe(true);
+    } finally {
+      window.ResizeObserver = native;
+    }
+  });
+
+  // The guard holds while the virtualiser measures nothing during a scroll, which it does
+  // but for a scroll it commands (`scrollToIndex`, `scrollToOffset`): none is asked of it.
+  // One asked one day lifts the guard first (`measureNow`, `virtualRows.ts`).
+  it("asks the virtualiser no scroll of its own", () => {
+    const sources = import.meta.glob("../src/**/*.{ts,vue}", {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    });
+    expect(Object.keys(sources).length).toBeGreaterThan(50);
+    const asking = Object.entries(sources)
+      .filter(([, text]) => /\.scrollTo(Index|Offset)\s*\(/.test(text as string))
+      .map(([path]) => path);
+    expect(asking).toEqual([]);
+  });
+});
+
 describe("sameList: the list read further, not another one (task 021-22f-f)", () => {
   const keys = (from: number, to: number) => rowsOf(from, to).map((row) => row.id);
 
