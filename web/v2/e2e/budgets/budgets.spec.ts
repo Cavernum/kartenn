@@ -454,6 +454,48 @@ async function witness(page: Page, cdp: CDPSession, what: string): Promise<Frame
   );
 }
 
+/** Rounds of the fixed work of `speedWitness`, in each frame. */
+const FIXED_WORK = 100_000;
+
+/**
+ * The speed of the page's main thread (task 021-22e-l): 10 s of frames, each running the
+ * same `FIXED_WORK` rounds of arithmetic, the CPU as the caller left it; their median and
+ * 90th percentile in ms. The idle witness drops nothing of itself: this one tells how fast
+ * the thread that draws the tree runs in this pass, all else equal.
+ */
+async function speedWitness(page: Page, cdp: CDPSession, what: string): Promise<void> {
+  await settle(page);
+  let spent: number[] = [];
+  await watched(
+    page,
+    cdp,
+    `witness of speed, ${what}, ${FIXED_WORK} rounds a frame for 10 s`,
+    async () => {
+      spent = await page.evaluate(
+        (rounds) =>
+          new Promise<number[]>((resolve) => {
+            const times: number[] = [];
+            const until = performance.now() + 10_000;
+            let x = 1;
+            const tick = () => {
+              const t = performance.now();
+              for (let i = 0; i < rounds; i++) x = (x * 1_103_515_245 + 12_345) % 2_147_483_648;
+              times.push(performance.now() - t);
+              if (performance.now() < until) requestAnimationFrame(tick);
+              else resolve(x < 0 ? [] : times);
+            };
+            requestAnimationFrame(tick);
+          }),
+        FIXED_WORK,
+      );
+    },
+  );
+  console.log(
+    `INFO speed of the main thread, ${what}: the fixed work ${quantile(spent, 0.5).toFixed(1)} ms` +
+      ` at its median, ${quantile(spent, 0.9).toFixed(1)} ms at its 90th percentile (${spent.length} frames)`,
+  );
+}
+
 /**
  * A Chromium trace of `act` when `K_BENCH_TRACE` names a directory (task 021-22e-l), off by
  * default: the threads of every process of the browser, its frames and its garbage
@@ -1074,6 +1116,7 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   // The witness before the tree (task 021-22e-l): the home of the shell, at rest.
   await slowDown(cdp);
   await witness(page, cdp, "at home, no tree");
+  await speedWitness(page, cdp, "at home");
   await fullSpeed(cdp);
   await openContainer(page);
   // Every row the tree will hold, read first at full speed: the end of the tree in the
@@ -1260,6 +1303,7 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   await scrollWhileWritten(page, cdp);
   // The witness after the scrolls (task 021-22e-l): the tree mounted, at rest.
   await witness(page, cdp, "the tree mounted");
+  await speedWitness(page, cdp, "the tree mounted");
   await settle(page);
 
   // From the top: the window ends near the last of the 10⁴ rows, where 50 presses would

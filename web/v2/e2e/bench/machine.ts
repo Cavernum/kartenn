@@ -208,9 +208,28 @@ function maxFrequencies(): Map<number, number> {
  * Where the main thread of each renderer of the browser runs, sampled every `every` ms:
  * the CPU it last ran on (field `processor` of its stat), and that CPU's frequency then.
  */
+/** One sample of a renderer's main thread: where it ran, and how busy its neighbours were. */
+interface Placement {
+  cpu: number;
+  khz: number;
+  /** The other hardware thread of its core, busy since the last sample (0 to 1). */
+  sibling: number;
+  /** The other cores of its L3 cache, busy since the last sample, in CPUs. */
+  sharers: number;
+}
+
 function sampleCores(every: number) {
-  const renderers = new Map<number, { cpu: number; khz: number }[]>();
+  const renderers = new Map<number, Placement[]>();
+  let last = perCpu();
   const timer = setInterval(() => {
+    const now = perCpu();
+    // How busy a set of CPUs was since the last sample, in CPUs.
+    const busyOf = (cpus: number[]) =>
+      cpus.reduce((sum, c) => {
+        const [b0, t0] = last.get(c) ?? [0, 0];
+        const [b1, t1] = now.get(c) ?? [0, 0];
+        return sum + (t1 > t0 ? (b1 - b0) / (t1 - t0) : 0);
+      }, 0);
     const procs = new Map<number, Proc>();
     for (const entry of readdirSync("/proc")) {
       const pid = Number(entry);
@@ -231,11 +250,22 @@ function sampleCores(every: number) {
       // After the comm, `processor` is the 37th field (39th of the line).
       const cpu = Number(statOf(text).fields[36]);
       const khz = Number(read(`/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_cur_freq`));
-      renderers.set(pid, [...(renderers.get(pid) ?? []), { cpu, khz }]);
+      const siblings = cpuList(`cpu${cpu}/topology/thread_siblings_list`).filter((c) => c !== cpu);
+      const l3 = cpuList(`cpu${cpu}/cache/index3/shared_cpu_list`).filter(
+        (c) => c !== cpu && !siblings.includes(c),
+      );
+      renderers.set(pid, [
+        ...(renderers.get(pid) ?? []),
+        { cpu, khz, sibling: busyOf(siblings), sharers: busyOf(l3) },
+      ]);
     }
+    last = now;
   }, every);
   return {
-    /** For the renderer sampled most busy: its share on the fastest cores, its mean GHz. */
+    /**
+     * For the renderer sampled most busy: its share on the fastest cores, its mean GHz, how
+     * busy the other thread of its core was (SMT), and the other cores of its L3 cache.
+     */
     stop(busiest: number | undefined): string {
       clearInterval(timer);
       const samples = busiest === undefined ? undefined : renderers.get(busiest);
@@ -243,13 +273,41 @@ function sampleCores(every: number) {
       const max = maxFrequencies();
       const top = Math.max(...max.values());
       const fast = samples.filter((s) => max.get(s.cpu) === top).length;
-      const ghz = samples.reduce((sum, s) => sum + s.khz, 0) / samples.length / 1e6;
+      const mean = (pick: (s: Placement) => number) =>
+        samples.reduce((sum, s) => sum + pick(s), 0) / samples.length;
       return (
         `${((fast / samples.length) * 100).toFixed(0)} % of ${samples.length} samples on the` +
-        ` cores of ${(top / 1e6).toFixed(2)} GHz at most, ${ghz.toFixed(2)} GHz on average`
+        ` cores of ${(top / 1e6).toFixed(2)} GHz at most, ${(mean((s) => s.khz) / 1e6).toFixed(2)} GHz` +
+        ` on average, the other thread of its core busy ${(mean((s) => s.sibling) * 100).toFixed(0)} %,` +
+        ` the other cores of its L3 cache ${mean((s) => s.sharers).toFixed(2)} CPUs busy`
       );
     },
   };
+}
+
+/** Each CPU's busy and total ticks (/proc/stat), by CPU number. */
+function perCpu(): Map<number, [busy: number, total: number]> {
+  const cpus = new Map<number, [number, number]>();
+  for (const line of read("/proc/stat")?.split("\n") ?? []) {
+    const m = /^cpu(\d+) (.*)$/.exec(line);
+    if (!m) continue;
+    const v = m[2]!.split(" ").map(Number);
+    const total = v.slice(0, 8).reduce((a, b) => a + b, 0);
+    cpus.set(Number(m[1]), [total - v[3]! - v[4]!, total]);
+  }
+  return cpus;
+}
+
+/** A list of CPUs of /sys/devices/system/cpu (`0-3,12-15`), as numbers. */
+function cpuList(path: string): number[] {
+  return (read(`/sys/devices/system/cpu/${path}`) ?? "")
+    .trim()
+    .split(",")
+    .filter(Boolean)
+    .flatMap((part) => {
+      const [from, to] = part.split("-").map(Number);
+      return Array.from({ length: (to ?? from!) - from! + 1 }, (_, i) => from! + i);
+    });
 }
 
 /** A window of the machine: started by `watchMachine`, closed by its `stop`. */
