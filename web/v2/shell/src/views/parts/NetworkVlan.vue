@@ -2,9 +2,9 @@
 // The VLAN a network carries, in a cell of the list of prefixes (REQ-026-6; maquette E12,
 // colonne VLAN : la propriété `core.vlan` d'un réseau): read with the properties of its
 // row at the dates of the page, only while the cell is in view and batched with the reads of
-// the other cells by the SDK (task 021-11p10-c; the name of the VLAN through the gate of the
-// shell, `data/gate.ts`), the read under way given up when it leaves the view
-// (`data/inView.ts`); its name a link to its record. A container carries none (« — » without a read); a
+// the other cells by the SDK (task 021-11p10-c), the read under way given up when it leaves
+// the view (`data/inView.ts`); named by the label of its summary, nothing more read (task
+// 021-11p10-d2), a link to its record. A container carries none (« — » without a read); a
 // property the reader may not read is said masked, never « no VLAN ». Until it is read, an
 // ellipsis; a read refused, said short with the code of its problem (`problems/`). Each
 // sign is said in words to assistive technologies.
@@ -17,7 +17,7 @@ import { useInView } from "../../data/inView.ts";
 import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
-import ObjectName from "../record/ObjectName.vue";
+import SummaryName from "../record/SummaryName.vue";
 import { vlanOfProperties, type Resolved } from "./vlan.ts";
 
 const props = defineProps<{ id: string; network: boolean }>();
@@ -39,6 +39,10 @@ const resolved = useQuery(() => ({ ...options(), enabled: props.network && inVie
 const vlan = computed(() =>
   resolved.data.value ? vlanOfProperties(resolved.data.value.data) : null,
 );
+/** Its summary, its kind known; one object per answer, not per render. */
+const summary = computed(() =>
+  vlan.value?.kind === "vlan" ? { ...vlan.value.vlan, kind: "vlan" } : null,
+);
 </script>
 
 <template>
@@ -56,7 +60,7 @@ const vlan = computed(() =>
       ><span class="k-visually-hidden">{{ t("views.vlan.reading") }}</span></span
     >
     <span v-else-if="vlan.kind === 'masked'">{{ t("views.record.masked") }}</span>
-    <ObjectName v-else-if="vlan.kind === 'vlan'" :id="vlan.id" kind="vlan" />
+    <SummaryName v-else-if="summary" :summary="summary" />
     <NoValue v-else :label="t('views.vlan.noVlanCell')" />
   </span>
 </template>

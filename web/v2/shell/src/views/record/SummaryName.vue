@@ -46,7 +46,7 @@ const kindWords = computed(() =>
     <KLink v-if="to" :to="to" :class="{ 'k-mono': label === null }">{{
       label ?? props.summary.id
     }}</KLink>
-    <span v-else class="k-mono"
+    <span v-else :class="{ 'k-mono': label === null }"
       >{{ label ?? props.summary.id
       }}<span v-if="unreadable" class="k-visually-hidden">{{
         ` (${t("views.record.objectUnreadable")})`

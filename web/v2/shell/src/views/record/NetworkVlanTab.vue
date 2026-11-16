@@ -48,7 +48,7 @@ import {
   vlanOfProperties,
   type Resolved,
 } from "../parts/vlan.ts";
-import ObjectName from "./ObjectName.vue";
+import SummaryName from "./SummaryName.vue";
 
 type Vlan = components["schemas"]["Vlan"];
 
@@ -67,12 +67,17 @@ const resolved = useQuery(() => ({
 const state = computed(() =>
   resolved.data.value ? vlanOfProperties(resolved.data.value.data) : null,
 );
-const vlanId = computed(() => (state.value?.kind === "vlan" ? state.value.id : null));
+/** The summary of the VLAN, of the property: it names the VLAN; its record, read, its status. */
+const summary = computed(() =>
+  state.value?.kind === "vlan" ? { ...state.value.vlan, kind: "vlan" } : null,
+);
+const vlanId = computed(() => summary.value?.id ?? null);
 const vlan = useQuery(() => ({
   ...reads.object<Vlan>("vlan", vlanId.value ?? "-", dated()),
   enabled: vlanId.value !== null,
 }));
 const data = computed(() => vlan.data.value?.data);
+const group = computed(() => (data.value ? { ...data.value.group, kind: "vlan_group" } : null));
 const vlanName = computed(() => (data.value ? nameOf(data.value as unknown as Item) : null));
 const statusWords = (status: string) => {
   const key = `views.value.status.${status}`;
@@ -339,9 +344,9 @@ async function remove(): Promise<void> {
   <Stack v-else gap="3">
     <p>{{ t("views.vlan.carries", { vlan: vlanName }) }}</p>
     <AttributeList :items="attributes">
-      <template #vlan><ObjectName v-if="vlanId" :id="vlanId" kind="vlan" /></template>
+      <template #vlan><SummaryName v-if="summary" :summary="summary" /></template>
       <template #group>
-        <ObjectName v-if="data" :id="data.group.id" kind="vlan_group" />
+        <SummaryName v-if="group" :summary="group" />
       </template>
       <template #status>
         <StatusBadge

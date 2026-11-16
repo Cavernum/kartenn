@@ -1,5 +1,6 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { State } from "@kartenn/ui";
+import { isSummary, type Summary } from "../summary.ts";
 
 // The VLAN of a network (spec 026, REQ-026-6; 008 REQ-008-17): the property `core.vlan` of a
 // prefix of nature `network`, a reference to a VLAN. Its column in the list of prefixes reads
@@ -25,28 +26,19 @@ export const SLICE_STATES: Readonly<Record<string, State>> = {
 /** The property of a network that names its VLAN (ex-`vlan.vlan`, REQ-026-2). */
 export const VLAN_PROPERTY = "core.vlan";
 
-/** The identifier of the VLAN a value of `core.vlan` names: its text, or its `id`. */
-export function vlanOfValue(value: unknown): string | null {
-  if (typeof value === "string" && value !== "") return value;
-  if (typeof value === "object" && value !== null) {
-    const id = (value as { id?: unknown }).id;
-    if (typeof id === "string") return id;
-  }
-  return null;
-}
-
 /**
- * What the resolved properties of a network say of its VLAN: one by its identifier, none,
- * or masked — the reader may not read the property (003), which is never « no VLAN » and
- * never offers a write that would overwrite it.
+ * What the resolved properties of a network say of its VLAN: one by its summary (REQ-006-42:
+ * `{id, label, href}`, its identifier alone if the reader may not read the VLAN), none, or
+ * masked — the reader may not read the property (003), which is never « no VLAN » and never
+ * offers a write that would overwrite it.
  */
-export type NetworkVlanState = { kind: "vlan"; id: string } | { kind: "none" } | { kind: "masked" };
+export type NetworkVlanState =
+  { kind: "vlan"; vlan: Summary } | { kind: "none" } | { kind: "masked" };
 
 export function vlanOfProperties(resolved: Resolved): NetworkVlanState {
   if (resolved.masked.includes(VLAN_PROPERTY)) return { kind: "masked" };
-  const properties = resolved.properties as Record<string, unknown>;
-  const id = vlanOfValue(properties[VLAN_PROPERTY]);
-  return id ? { kind: "vlan", id } : { kind: "none" };
+  const value = (resolved.properties as Record<string, unknown>)[VLAN_PROPERTY];
+  return isSummary(value) ? { kind: "vlan", vlan: value } : { kind: "none" };
 }
 
 /**

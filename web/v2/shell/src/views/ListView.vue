@@ -56,7 +56,7 @@ import { useDeclarations, useKeyLabel } from "./data.ts";
 import NetworkVlan from "./parts/NetworkVlan.vue";
 import PropertyCell from "./parts/PropertyCell.vue";
 import { propertyOfColumn, usePropertyColumns } from "./propertyColumns.ts";
-import ObjectName from "./record/ObjectName.vue";
+import SummaryName from "./record/SummaryName.vue";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useProblems } from "../problems/index.ts";
@@ -126,7 +126,7 @@ const elementProps = (row: Item) => ({
 });
 const columnOf = (id: string): CollectionColumn | undefined =>
   props.collection.columns.find((column) => column.id === id);
-/** The object a cell of a column of references names (a group, an anchor), if any. */
+/** The summary a cell of a column of references holds (a group, an anchor), if any. */
 const refOf = (id: string, value: unknown) => {
   const column = columnOf(id);
   return column ? referenceOf(column, value) : null;
@@ -419,15 +419,13 @@ function clearFilters(): void {
           :label="words.value(column.id, value) ?? null"
           plain
         />
-        <KLink
-          v-else-if="columnOf(column.id)?.summary && isSummary(value) && pageOfHref(value.href)"
-          :to="pageOfHref(value.href)!"
-          >{{ fieldText(value) }}</KLink
-        >
-        <ObjectName
+        <SummaryName
+          v-else-if="columnOf(column.id)?.summary && isSummary(value)"
+          :summary="value"
+        />
+        <SummaryName
           v-else-if="refOf(column.id, value)"
-          :id="refOf(column.id, value)!.id"
-          :kind="refOf(column.id, value)!.kind"
+          :summary="refOf(column.id, value)!"
           :with-kind="columnOf(column.id)!.reference === 'anchor'"
         />
         <NetworkVlan

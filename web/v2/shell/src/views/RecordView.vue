@@ -41,7 +41,6 @@ import {
   useExtensions,
 } from "../plugins/slots.ts";
 import { useSettings } from "../frame/settings.ts";
-import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { rankedRefusal, refusalWords, useTime, useWrites } from "../time/index.ts";
@@ -55,9 +54,9 @@ import {
   fieldText,
   isSummary,
   nameOf,
-  pageOfHref,
   type Collection,
   type Item,
+  type KindedSummary,
 } from "./collections.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
@@ -69,7 +68,7 @@ import ContentTab from "./record/ContentTab.vue";
 import GroupVlansTab from "./record/GroupVlansTab.vue";
 import HistoryTab from "./record/HistoryTab.vue";
 import NetworkVlanTab from "./record/NetworkVlanTab.vue";
-import ObjectName from "./record/ObjectName.vue";
+import SummaryName from "./record/SummaryName.vue";
 import OccupancyPanel from "./record/OccupancyPanel.vue";
 import PropertiesTab from "./record/PropertiesTab.vue";
 import VlanNetworksTab from "./record/VlanNetworksTab.vue";
@@ -292,13 +291,12 @@ const range = computed(() =>
     ? `${item.value.vid_min}–${item.value.vid_max}`
     : null,
 );
-/** The object a field names by its identifier only: the group of a VLAN, an anchor. */
-const referenced = (field: string) =>
-  field === "anchor"
-    ? anchorOf(item.value?.anchor)
-    : field === "group" && isSummary(item.value?.group)
-      ? { kind: "vlan_group", id: item.value!.group.id }
-      : null;
+/** The summary of the object a field names, its kind known: the group of a VLAN, an anchor. */
+const referenced = (field: string): KindedSummary | null => {
+  if (field === "anchor") return anchorOf(item.value?.anchor);
+  const group: unknown = item.value?.group;
+  return field === "group" && isSummary(group) ? { ...group, kind: "vlan_group" } : null;
+};
 
 /** The attributes of each kind, the identifier last (copiable). */
 const FIELDS: Record<string, readonly string[]> = {
@@ -324,9 +322,10 @@ const attributes = computed(() => [
   }),
   { key: "id", label: t("views.field.id") },
 ]);
-const linkOf = (field: string) => {
-  const value = item.value?.[field];
-  return isSummary(value) ? pageOfHref(value.href) : null;
+/** The summary a field holds (the domain of an address, the parent of a site), if any. */
+const summaryOf = (field: string) => {
+  const value: unknown = item.value?.[field];
+  return isSummary(value) ? value : null;
 };
 </script>
 
@@ -402,9 +401,7 @@ const linkOf = (field: string) => {
             <Skeleton v-if="record.isPending.value" variant="text" :rows="4" />
             <AttributeList v-else :items="attributes">
               <template v-for="field in ['domain', 'parent']" :key="field" #[field]>
-                <KLink v-if="linkOf(field)" :to="linkOf(field)!">{{
-                  fieldText(item?.[field])
-                }}</KLink>
+                <SummaryName v-if="summaryOf(field)" :summary="summaryOf(field)!" />
                 <template v-else>{{ fieldText(item?.[field]) }}</template>
               </template>
               <template #nature>
@@ -417,10 +414,9 @@ const linkOf = (field: string) => {
                 <KeyLabel :value="String(item?.usage)" :label="valueWords('usage', item?.usage)" />
               </template>
               <template v-for="field in ['anchor', 'group']" :key="field" #[field]>
-                <ObjectName
+                <SummaryName
                   v-if="referenced(field)"
-                  :id="referenced(field)!.id"
-                  :kind="referenced(field)!.kind"
+                  :summary="referenced(field)!"
                   :with-kind="field === 'anchor'"
                 />
                 <template v-else>—</template>

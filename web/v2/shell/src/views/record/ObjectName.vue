@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// The name of an object known by its identifier alone (a value typed in a draft, a column
-// of references still without summary): its kind in words and its name, read from its
-// record through the cache at the dates of the page, a link to that record. Until it is
-// read, its identifier in fixed pitch. A reference the server summarised is named by
-// `SummaryName`, which reads nothing (task 021-11p10-d1). A cell of a list mounts one per
-// row: it reads only while it is in view, through the gate of the shell (`data/gate.ts`,
+// The name of an object known by its identifier alone (a value typed in a draft): its kind
+// in words and its name, read from its record through the cache at the dates of the page,
+// a link to that record. Until it is read, its identifier in fixed pitch. A reference the
+// server summarised is named by `SummaryName`, which reads nothing (tasks 021-11p10-d1, d2:
+// no column of a list mounts one any more). Mounted many times, it reads only while it is
+// in view, through the gate of the shell (`data/gate.ts`,
 // task 021-11p10-a), its read under way given up when it leaves the view and nothing else
 // in view wants it.
 import { reads } from "@kartenn/sdk";

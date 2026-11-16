@@ -2097,7 +2097,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
         explication) demande des données de capture des vues, qui n'existent pas
         (`web/v2/e2e/visual/` ne monte que le catalogue et les maquettes) ; à prévoir avec
         les captures des vues, ou par un état de la maquette E-anomalies
-    - [ ] 11p10-d2. Shell, VLAN : `anchorOf`, `referenceOf` et `fieldText` rendent ou
+    - [x] 11p10-d2. Shell, VLAN : `anchorOf`, `referenceOf` et `fieldText` rendent ou
       emploient le résumé et son `label` (aujourd'hui `slug ?? id`) — verify : liste de
       VLAN montée : aucune lecture d'objet ; colonne VLAN des préfixes : un lot de
       propriétés, aucune lecture de VLAN
@@ -2105,6 +2105,32 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
         `RecordView.vue` (`referenced`), `views/parts/{NetworkVlan.vue,vlan.ts}`
         (`vlanOfValue`), `views/record/NetworkVlanTab.vue` (`data.group`)
       - dépend de : 11p10-d1 (mêmes vues)
+      - fait le 2026-11-16 : `anchorOf` et `referenceOf` rendent le résumé, son type
+        connu (`KindedSummary`), `fieldText` le `label` (l'identifiant sans libellé) ;
+        groupe d'un VLAN, ancre d'un groupe, VLAN d'un réseau (cellule et onglet), domaine
+        et parent (cellules et attributs de la fiche) rendus par `SummaryName`, plus aucun
+        `ObjectName` dans une colonne de liste ; `isSummary` resserré : une référence
+        externe (`{system, id}`) n'en est pas un (test rouge d'abord). Tests :
+        `test/vlan-summaries.test.ts` (listes de VLAN et de groupes, colonne VLAN des
+        préfixes : aucune lecture d'objet, un seul lot de propriétés, un résumé sans libellé
+        affiché illisible), `test/views.test.ts` (aides) ; `k-web2-check --base main` :
+        1 316 tests, 2 741 captures sur 2 741 (tout : `collections.ts` est chargé par
+        l'entrée du shell), aucune réécrite
+      - choix : `Summary` et `isSummary` déplacés dans `views/summary.ts` (réexportés par
+        `collections.ts`) : `parts/vlan.ts`, que `collections.ts` lit pour `VLAN_STATES`,
+        s'en sert sans cycle d'imports ; `vlanOfValue` supprimé, `vlanOfProperties` rend
+        `{kind: "vlan", vlan: <résumé>}` et ne prend plus une chaîne (le serveur rend un
+        résumé, REQ-006-42) ; `fieldText` ne lit plus `slug` (omis avec `label`) ; une
+        colonne `summary` sans `href` passe aussi par `SummaryName` (libellé, ou illisible)
+        au lieu du texte brut ; l'onglet VLAN d'un réseau lit encore la fiche du VLAN pour
+        son statut (absent du résumé), le nom et le groupe venant des résumés ; après la
+        relecture d'interface, `SummaryName` ne met en chasse fixe que l'identifiant (un
+        libellé sans lien en police du contexte, comme dans sa branche lien), et les résumés
+        typés de `NetworkVlan` et de l'onglet sont des `computed` (un objet par réponse, pas
+        par rendu) ; relecture a11y : aucun écart. Écarts de relecture laissés : le type
+        n'est pas dit devant un domaine, un parent ou un groupe (comme avant, seule l'ancre
+        le dit) ; un résumé sans libellé dont l'`href` n'ouvre aucune page du shell est
+        nommé par son identifiant, sans lien ni « illisible » (lisible : l'`href` le prouve)
     - [x] 11p10-d3. Plugin machines, fiches : `CitedName` prend un résumé au lieu de
       `Names`, `modeOf` emploie les libellés des résumés de VLAN — verify : Vitest du
       plugin, aucune lecture de nom
