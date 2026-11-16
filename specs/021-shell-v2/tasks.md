@@ -2060,6 +2060,54 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     - où : `shell/src/views/record/ObjectName.vue`, `plugins/machines/src/
       {MachineColumn.vue,reads.ts}`, le regroupeur de la 11p10-c
     - dépend de : 006-32, 11p10-c
+    - découpée le 2026-11-16 (trop large pour un contexte : depuis la 006-33 les corps
+      portent des résumés `{id, kind?, label?, href?}`, le travail est surtout de faire
+      suivre `label` dans une vingtaine de fichiers ; le regroupeur ne sert plus qu'au
+      reste) en 11p10-d1 à d5 ci-dessous ; se coche avec la d5. Règle commune : un résumé
+      sans `label` est un objet illisible ou absent, affiché comme tel (identifiant en
+      chasse fixe), sans lecture ni supposition.
+    - [ ] 11p10-d1. Shell, `ObjectName` et les références hors VLAN : avec un résumé,
+      `ObjectName` prend son `label` et ne lit rien ; seul un identifiant sans résumé
+      lit encore — verify : Vitest monté, 66 lignes d'anomalies avec libellés : aucune
+      lecture d'objet ; un résumé sans libellé : aucune lecture, affiché illisible ;
+      captures des écrans touchés
+      - où : `web/v2/shell/src/views/record/ObjectName.vue` ; appelants
+        `views/anomalies/{AnomalyGrid,GapList}.vue` (`ObjectRef`),
+        `views/record/{ExplanationBody,ValueSource}.vue` et `provenance.ts` (`NodeRef`),
+        la branche résumé de `views/record/PropertyValue.vue` (sa branche chaîne, valeur
+        saisie d'un brouillon, garde la lecture)
+    - [ ] 11p10-d2. Shell, VLAN : `anchorOf`, `referenceOf` et `fieldText` rendent ou
+      emploient le résumé et son `label` (aujourd'hui `slug ?? id`) — verify : liste de
+      VLAN montée : aucune lecture d'objet ; colonne VLAN des préfixes : un lot de
+      propriétés, aucune lecture de VLAN
+      - où : `web/v2/shell/src/views/collections.ts`, `ListView.vue` (`refOf`),
+        `RecordView.vue` (`referenced`), `views/parts/{NetworkVlan.vue,vlan.ts}`
+        (`vlanOfValue`), `views/record/NetworkVlanTab.vue` (`data.group`)
+      - dépend de : 11p10-d1 (mêmes vues)
+    - [ ] 11p10-d3. Plugin machines, fiches : `CitedName` prend un résumé au lieu de
+      `Names`, `modeOf` emploie les libellés des résumés de VLAN — verify : Vitest du
+      plugin, aucune lecture de nom
+      - où : `web/v2/plugins/machines/src/{CitedName.vue,reads.ts,ClusterRecord.vue,
+        MachineRecord.vue,InterfaceRecord.vue}`
+    - [ ] 11p10-d4. Plugin machines, listes : `MachineColumn` (`iface.machine.label`),
+      `MachineList`, `InterfaceGrid`, `InterfacesTab`, `InterfaceSearch`, `HostingTree`
+      (son appel de `limited`) ; `Names` et `limited` retirés s'il ne leur reste aucun
+      appelant — verify : `holders.test.ts` (100 lignes : 2 requêtes, aucune lecture de
+      machine), `web/v2/e2e/journeys/quota.spec.ts`
+      - où : `web/v2/plugins/machines/src/` (fichiers nommés ci-dessus), `reads.ts`
+      - dépend de : 11p10-d3 (`reads.ts`)
+    - [ ] 11p10-d5. Regroupeur sur le filtre `id`, pour ce qui reste : recenser après d1
+      à d4 les lectures encore faites par identifiant seul (valeurs saisies d'un
+      brouillon, extrémités de flux 33f1, corps de changeset 33g) ; si des listes en
+      lisent encore, étendre le regroupeur du SDK à `GET /v1/<collection>?id=…`. À
+      arbitrer avant de commencer : la clé de cache des réponses par lot, distincte de
+      la clé de l'objet (un élément de liste n'est pas toujours ce que rend la lecture
+      de l'objet : `/v1/machines` liste `Machine`, la fiche rend `MachineCard`) —
+      verify : celui de la 11p10-d (66 cellules de deux collections : deux requêtes ;
+      `k-web2-e2e` complet sans 429 ni 503 ; passe réduite du banc par la session
+      principale)
+      - où : `web/v2/sdk/src/data/batch.ts` (`createBatcher`)
+      - dépend de : 11p10-d1 à d4, de préférence 006-33f1 et 006-33g
   - [x] 11p10-e. Interfaces des lignes d'une liste d'adresses lues par fenêtre (mesure de
     la 11p10-b2, inscrite le 2026-11-15) : la colonne machine des listes d'adresses
     (`MachineColumn.vue`) lit une liste d'interfaces par ligne derrière sa propre porte
