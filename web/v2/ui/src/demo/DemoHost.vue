@@ -16,6 +16,9 @@
 <style>
 @layer components {
   .k-demo-host {
+    /* A host that fills: its panel's grid counted at its floor in the minimum (Panel). */
+    --k-panel-list-basis: var(--k-space-0);
+
     display: grid;
     grid-template-rows: minmax(auto, 1fr);
     grid-template-columns: minmax(0, 1fr);

@@ -173,7 +173,13 @@ const id = useId();
    * below the height of a header and six rows (a short or zoomed window, WCAG 1.4.10): the
    * host scrolls then. A list not virtualised keeps its own height. The panel fills the
    * height its host gives it (the shell's surface, when `[data-list]` holds a virtualised
-   * grid), never less than its content (021-22f-h). */
+   * grid), never less than its content (021-22f-h).
+   * Alone (a tab, a drawer, any host of automatic height), the grid starts from a list's
+   * height (`--k-size-list-max`), as a grid outside a panel does, and grows or shrinks to the
+   * height a host gives. A host that fills (a one-row `minmax(auto, 1fr)` grid, whose
+   * minimum is the panel's content) sets `--k-panel-list-basis` to `var(--k-space-0)`: its
+   * content then counts the grid at its floor, a header and six rows, never at a list's
+   * height, and a short window still shows the panel whole (021-22f-i1). */
   /* Each part of a list panel in its own row, present or not: the body always in the
    * elastic one, a toolbar or a footer missing (the other panels, never stretched by a
    * host, keep their placement). */
@@ -207,7 +213,7 @@ const id = useId();
   }
 
   .k-panel__body[data-list] > .k-data-grid-frame:has(> [data-virtual]) {
-    flex: 1 1 0;
+    flex: 1 1 var(--k-panel-list-basis, var(--k-size-list-max));
     min-block-size: calc(var(--k-header-height) + 6 * var(--k-row-height));
   }
 

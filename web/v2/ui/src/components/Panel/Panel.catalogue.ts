@@ -90,6 +90,13 @@ const list: FunctionalComponent = (props) =>
     }),
   );
 
+/** The same panel without a host that gives it a height: the grid keeps a list's height. */
+const listAlone: FunctionalComponent = (props) =>
+  h(Panel, props, {
+    toolbar: () => h(TextField, { label: "Rechercher", type: "search", icon: "search" }),
+    default: () => grid(many),
+  });
+
 export default {
   component: Panel,
   pattern: "section (titre h2 ; région nommée pour le panneau principal seul)",
@@ -151,6 +158,19 @@ export default {
         list: true,
       },
       demo: list,
+      wide: true,
+    },
+    {
+      name: "list-alone",
+      description:
+        "Panneau de liste sans hôte qui le remplit (onglet, tiroir) : la grille garde la hauteur d'une liste",
+      props: {
+        title: "Préfixes",
+        detail: many.length.toLocaleString("fr-FR"),
+        list: true,
+        flush: true,
+      },
+      demo: listAlone,
       wide: true,
     },
   ],

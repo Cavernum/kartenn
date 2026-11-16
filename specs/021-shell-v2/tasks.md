@@ -8514,16 +8514,23 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         `footer.k-panel__footer`. Panneau `list` : rangées nommées `header`, `toolbar`,
         `body`, `footer` (`grid-template-areas`), le corps toujours dans la rangée élastique ;
         quand le corps tient une `DataGrid` virtualisée en enfant direct (jamais enveloppée),
-        il devient une colonne flexible, la racine de la grille en prend le reste
-        (`flex: 1 1 0`, un en-tête et six lignes au moins) et la grille perd son plafond.
-        La hauteur du panneau est à l'hôte : le shell la donne à la surface
-        (`.k-frame__surface:has(> [data-list] > .k-panel__body > .k-data-grid-frame >
-        [data-virtual])`, `minmax(auto, 1fr)`, à porter dans `ShellFrame` par la i2).
+        il devient une colonne flexible, la racine de la grille part de la hauteur d'une
+        liste (base `--k-size-list-max`) et prend la hauteur donnée au panneau (un en-tête
+        et six lignes au moins), la grille sans plafond : seul (onglet, `Drawer`, page de
+        plugin, tout hôte de hauteur automatique), le panneau garde une grille de la
+        hauteur d'une liste. La hauteur du panneau est à l'hôte : un hôte qui remplit est
+        une grille d'une rangée `minmax(auto, 1fr)` et pose `--k-panel-list-basis:
+        var(--k-space-0)` (sans quoi le minimum de la rangée, le contenu du panneau,
+        compterait la grille à 480 px et une fenêtre basse ne la réduirait plus à son
+        plancher) ; le shell : `.k-frame__surface:has(> [data-list] > .k-panel__body >
+        .k-data-grid-frame > [data-virtual])`, à porter dans `ShellFrame` par la i2, qui y
+        ajoute la propriété.
       - fait : `ui/src/components/Panel/{Panel.vue,Panel.catalogue.ts}` (copie de
         `ViewPanel`, classes `k-panel…`), export `Panel`, Vitest « Panel (021-22f-i1) »
-        (`components-base.test.ts`), catalogue de sept états (`rest`, `main`, `toolbar`,
-        `toolbar-folded`, `parts`, `long`, `list`) et leurs captures, `ui/src/demo/DemoHost.vue`
-        (hôte de hauteur fixe, une rangée `minmax(auto, 1fr)`, comme la surface du shell),
+        (`components-base.test.ts`), catalogue de huit états (`rest`, `main`, `toolbar`,
+        `toolbar-folded`, `parts`, `long`, `list`, `list-alone`) et leurs captures,
+        `ui/src/demo/DemoHost.vue` (hôte de hauteur fixe, une rangée `minmax(auto, 1fr)` et
+        `--k-panel-list-basis` à zéro, comme la surface du shell),
         ligne 42 de l'inventaire (design 020) et ligne `Panel` de la skill, lignes `DataGrid`
         renvoyant à `Panel` `list`. `ViewPanel` inchangé.
       - choix : la règle de la surface (`.k-frame__surface:has`) n'entre pas dans
@@ -8534,6 +8541,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         (480 px) : la grille qui la remplit prouve le plafond levé ; titre toujours `h2`,
         sans `Heading` (balisage de `ViewPanel` gardé, pour que la i2 ne change aucune
         capture) ; `main` documenté « un par écran » (relecture a11y).
+      - passe de corrections de la revue : `list` sûr sans hôte qui remplit (la base 0 de
+        `ViewPanel` y réduisait la grille à son plancher, un en-tête et six lignes) : base
+        `--k-size-list-max`, qui grandit ou rétrécit à la hauteur donnée ; une base seule
+        ne suffit pas à l'hôte qui remplit (son minimum, le contenu du panneau, compterait
+        480 px : à 320 px de haut la grille ne descendrait plus à son plancher, contre le
+        parcours de la 22f-h), d'où la propriété `--k-panel-list-basis` qu'il met à zéro ;
+        état `list-alone` (grille de 480 px), capture `list` inchangée ; instantanés
+        `index-*.aria.yml` du catalogue régénérés (y manquaient aussi `AttributeList`,
+        `Heading`, `NoValue`, `Toast`, `Tree` : dérive antérieure, l'instantané
+        d'accessibilité ne comparant qu'en partie).
       - reste : la règle de la surface vit encore dans `ViewPanel` (deux copies des règles
         du panneau jusqu'à la i2) ; le détail d'un compte est un nombre nu, lu sans son
         unité (comme les écrans du shell : à voir par la i2 au lecteur d'écran).
@@ -8542,7 +8559,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       balise), `EcranPanneau` des maquettes, les sélecteurs `k-view-panel` des parcours et
       des captures (`k-panel`), `ViewPanel.vue` supprimé ; la règle de la surface
       (`.k-frame__surface:has(> [data-list] > .k-panel__body > …)`) va dans
-      `ShellFrame.vue`, avec les autres règles de la surface — verify : `k-web2-check
+      `ShellFrame.vue`, avec les autres règles de la surface, et y pose
+      `--k-panel-list-basis: var(--k-space-0)` (contrat de `Panel`, 22f-i1) ; au reste
+      de la revue de la i1 : `data-list` sur le corps (la règle de la surface pourrait-elle
+      s'en passer ?), et le nom `Panel`, ambigu à côté de `SidePanel` et `BottomPanel`
+      (non renommé) — verify : `k-web2-check
       --base main` (captures des maquettes et du catalogue du shell inchangées, sinon
       chacune regardée) ; parcours `records.spec.ts` (les deux de la 22f-h) et
       `layout.spec.ts` ; `k-web2-e2e`
