@@ -68,6 +68,8 @@ const cluster = {
   owner: { id: ENTITY },
 };
 const page = <T>(items: T[]) => ({ items, links: {} }) as never;
+/** What an unreadable object says to a screen reader, as the shell's (`SummaryName`). */
+const UNREADABLE = " (an object you cannot read, or that no longer exists)";
 /**
  * The types of the objects whose read by identifier the cache holds (`["v1", type, id, …]`,
  * a list's second part a path): an observer, even of a disabled query, holds one.
@@ -283,37 +285,50 @@ describe("the list of the machines (task 18cb)", () => {
 
   it("names a filter of the address by the summaries of its rows; read only without them (11p10-d4)", async () => {
     const entities: string[] = [];
-    let found = [machine()];
+    let answer: () => unknown = () => page([machine()]);
     const routes = {
       ...reads,
-      "GET /v1/machines": () => page(found),
+      "GET /v1/machines": () => answer(),
       "GET /v1/entities/{id}": ({ params }: { params: { id: string } }) => {
         entities.push(params.id);
         return entity as never;
       },
     };
+    const chip = () => mounted!.element.querySelector("[role=group]")?.textContent ?? "";
+    /** The list mounted afresh over `answer`, the filter of the owner in the address. */
+    const again = () => {
+      mounted?.unmount();
+      queryClient.clear();
+      mounted = mount("machines-machines", {
+        context: { locale: "en", user: user() },
+        fetch: fakeFetch(routes as never),
+      });
+    };
     history.replaceState(null, "", `/x/machines/machines?owner=${ENTITY}`);
-    mounted = mount("machines-machines", {
-      context: { locale: "en", user: user() },
-      fetch: fakeFetch(routes as never),
-    });
-    await vi.waitFor(() =>
-      expect(mounted!.element.querySelector("[role=group]")?.textContent).toContain("exemple"),
-    );
+    again();
+    await vi.waitFor(() => expect(chip()).toContain("exemple"));
+    expect(entities).toEqual([]);
+    expect(objectQueries()).toEqual([]);
+    // Cited by the rows without a label (unreadable for the caller): its identifier, nothing
+    // read.
+    answer = () => page([{ ...machine(), owner: { id: ENTITY } }]);
+    again();
+    await vi.waitFor(() => expect(mounted!.element.textContent).toContain("srv-a"));
+    expect(chip()).toContain(ENTITY);
+    await new Promise((done) => setTimeout(done, 20));
     expect(entities).toEqual([]);
     expect(objectQueries()).toEqual([]);
     // No row to name it: its owner read once by its identifier.
-    mounted.unmount();
-    queryClient.clear();
-    found = [];
-    mounted = mount("machines-machines", {
-      context: { locale: "en", user: user() },
-      fetch: fakeFetch(routes as never),
-    });
-    await vi.waitFor(() =>
-      expect(mounted!.element.querySelector("[role=group]")?.textContent).toContain("exemple"),
-    );
+    answer = () => page([]);
+    again();
+    await vi.waitFor(() => expect(chip()).toContain("exemple"));
     expect(entities).toEqual([ENTITY]);
+    // The list refused: likewise.
+    answer = () => problem(403, "forbidden");
+    again();
+    await vi.waitFor(() => expect(chip()).toContain("exemple"));
+    expect(mounted!.element.textContent).toContain("urn:kartenn:problem:forbidden");
+    expect(entities).toEqual([ENTITY, ENTITY]);
   });
 
   it("cites an owner and a host the caller may not read by their identifiers, unlinked, nothing read (11p10-d4)", async () => {
@@ -331,10 +346,10 @@ describe("the list of the machines (task 18cb)", () => {
       expect(rows(element, "Machines")[0]).toEqual([
         "srv-a",
         "physicalphysical",
-        `${ENTITY} (unreadable)`,
+        `${ENTITY}${UNREADABLE}`,
         // The absence said by `@kartenn/ui`, in the language of the shell.
         "—non renseigné",
-        `${OTHER} (unreadable)`,
+        `${OTHER}${UNREADABLE}`,
       ]),
     );
     const cells = [...element.querySelectorAll("[role=row]")][1]!.querySelectorAll(
@@ -342,7 +357,9 @@ describe("the list of the machines (task 18cb)", () => {
     );
     for (const at of [2, 4]) {
       expect(cells[at]!.querySelector("a")).toBeNull();
-      expect(cells[at]!.querySelector(".k-mono")?.textContent).toBe(at === 2 ? ENTITY : OTHER);
+      expect(cells[at]!.querySelector(".k-mono")?.firstChild?.textContent).toBe(
+        at === 2 ? ENTITY : OTHER,
+      );
     }
     expect(objectQueries()).toEqual([]);
   });
@@ -785,11 +802,13 @@ describe("the record of a machine (task 18cb)", () => {
     mounted = at({ id: OTHER }, { id: CLUSTER });
     element = mounted.element;
     // Its identifier, said unreadable to the assistive technologies (11p10-d4).
-    await vi.waitFor(() => expect(hostOf(element).textContent).toBe(`${OTHER} (unreadable)`));
+    await vi.waitFor(() => expect(hostOf(element).textContent).toBe(`${OTHER}${UNREADABLE}`));
     expect(hostOf(element).querySelector("a")).toBeNull();
-    expect(hostOf(element).querySelector(".k-mono")?.textContent).toBe(OTHER);
-    expect(hostOf(element).querySelector(".k-visually-hidden")?.textContent).toBe(" (unreadable)");
-    expect(clusterOf(element).textContent).toBe(`${CLUSTER} (unreadable)`);
+    expect(hostOf(element).querySelector(".k-mono")?.firstChild?.textContent).toBe(OTHER);
+    expect(hostOf(element).querySelector(".k-mono .k-visually-hidden")?.textContent).toBe(
+      UNREADABLE,
+    );
+    expect(clusterOf(element).textContent).toBe(`${CLUSTER}${UNREADABLE}`);
     expect(clusterOf(element).querySelector("a")).toBeNull();
   });
 

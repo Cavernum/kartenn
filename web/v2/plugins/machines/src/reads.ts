@@ -22,7 +22,10 @@ export type Vlan = components["schemas"]["Vlan"];
  */
 export type Summary = Pick<components["schemas"]["Summary"], "id" | "label" | "href">;
 
-/** Whether the summary was read: a `label` or an `href` (REQ-006-42 omits them together). */
+/**
+ * Whether the summary was read: a `label` (an empty one is none) or an `href` (REQ-006-42
+ * omits them together); the rule of `SummaryName` of the shell.
+ */
 export const readable = (summary: Summary): boolean => Boolean(summary.label || summary.href);
 
 /** The kinds of a machine (REQ-009-2). */

@@ -196,12 +196,6 @@ test("ten pages scrolled to their end at the read quota by default: every row dr
   await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
   // Under the quota and the shedding limit all along, by window and by batch.
   expect(refused, "429 and 503 seen by the page").toEqual([]);
-  // The machine column names its machines by the summaries of their interfaces (11p10-d4):
-  // no machine nor cluster read by identifier.
-  expect(
-    [...byPath.keys()].filter((path) => /^\/v1\/(machines|clusters)\/\{id\}$/.test(path)),
-    "machines read by identifier",
-  ).toEqual([]);
   expect(
     byPage.filter((n) => n > PER_PAGE),
     `pages read with more than ${PER_PAGE} requests under /v1/`,

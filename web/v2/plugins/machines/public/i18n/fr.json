@@ -4,7 +4,7 @@
   "retry": "Réessayer",
   "warning": "Avertissement :",
   "code": "Code",
-  "cited": { "unreadable": "illisible" },
+  "cited": { "unreadable": "illisible pour vous, ou absent" },
   "request": "Requête",
   "network": "Le serveur n'a pas répondu.",
   "kind": {

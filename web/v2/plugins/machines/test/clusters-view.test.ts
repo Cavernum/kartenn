@@ -608,7 +608,7 @@ describe("the record of a cluster (task 18cd)", () => {
     const { element } = mounted;
     await text(element, "exemple");
     await text(element, "vm-a");
-    expect(element.querySelector("dl .k-mono")?.textContent).toBe(SITE);
+    expect(element.querySelector("dl .k-mono")?.firstChild?.textContent).toBe(SITE);
     expect(element.querySelector("h1")?.textContent?.trim()).toBe("grappe");
     const grid = element.querySelector("[role=grid][aria-label='Machines of the cluster']")!;
     const cells = [...grid.querySelectorAll("[role=row]")]

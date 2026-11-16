@@ -4,7 +4,7 @@
   "retry": "Retry",
   "warning": "Warning:",
   "code": "Code",
-  "cited": { "unreadable": "unreadable" },
+  "cited": { "unreadable": "an object you cannot read, or that no longer exists" },
   "request": "Request",
   "network": "The server did not answer.",
   "kind": {

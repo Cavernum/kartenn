@@ -8,8 +8,10 @@
 // (H23, tasks 11p10-d3, d4): its `label`, nothing read, nothing mounted to read it. A summary
 // without `label` nor `href` is an object the caller may not read or one absent then
 // (REQ-006-42): its identifier in fixed pitch, without a link (its record would not be read
-// either), nothing supposed; « (illisible) » after it for the assistive technologies, which
-// the fixed pitch does not reach (WCAG 1.3.1, as the cells of `DataGrid` say their word).
+// either), nothing supposed; « (illisible pour vous, ou absent) » after it for the assistive
+// technologies, which the fixed pitch does not reach (WCAG 1.3.1): the rule, the words and
+// the structure of `SummaryName` of the shell (task 11p10-d1), to share in `@kartenn/ui`
+// (task 11p10-d5).
 // None: said as an absent value (`NoValue`). In a record, an `AttributeList` says the
 // absence: the record cites a name only when there is one.
 import { NoValue } from "@kartenn/ui";
@@ -37,9 +39,10 @@ const href = computed(() => {
 
 <template>
   <NoValue v-if="!props.summary" />
-  <span v-else-if="!read"
-    ><span class="k-mono">{{ props.summary.id }}</span
-    ><span class="k-visually-hidden"> ({{ t("cited.unreadable") }})</span></span
+  <!-- As `SummaryName` of the shell: the hidden words within the identifier's span. -->
+  <span v-else-if="!read" class="k-mono"
+    >{{ props.summary.id
+    }}<span class="k-visually-hidden">{{ ` (${t("cited.unreadable")})` }}</span></span
   >
   <a v-else-if="href" :href="href" :class="{ 'k-mono': !props.summary.label }">{{
     props.summary.label || props.summary.id

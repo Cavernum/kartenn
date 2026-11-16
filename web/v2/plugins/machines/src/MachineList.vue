@@ -124,20 +124,21 @@ const hosts =
 /**
  * The name of an object cited by a filter read from the address: a suggestion's, or that of
  * a summary of the rows (which it filters); read by its identifier only once the rows are
- * there without it (none, or an error), the one read of a name left in the plugin.
+ * there without it (none, or an error), the one read of a name left in the plugin. Cited by
+ * the rows without a label: unreadable, its identifier shown, nothing read.
  */
 const known = (id: string) => labels.get(id) ?? cited.value.get(id);
 /** The rows still awaited: they may name it. */
 const awaited = () => state.value.pending || state.value.previous;
 function labelOf(type: "core.entity" | "core.site" | "machines.cluster", id: string) {
   const label = known(id);
-  if (label !== undefined || awaited()) return label;
+  if (label !== undefined || awaited()) return label ?? undefined;
   const name = names().of(type, id);
   return name.state === "read" ? name.name : undefined;
 }
 function hostLabel(id: string): string | undefined {
   const label = known(id);
-  if (label !== undefined || awaited()) return label;
+  if (label !== undefined || awaited()) return label ?? undefined;
   const machine = names().of("machines.machine", id);
   if (machine.state === "read") return machine.name;
   return machine.state === "failed" ? labelOf("machines.cluster", id) : undefined;
@@ -266,12 +267,15 @@ const rows = computed(() =>
     host: m.host ?? null,
   })),
 );
-/** The labels of the objects the rows cite, by identifier (H23): those of the filters. */
+/**
+ * The labels of the objects the rows cite, by identifier (H23): those of the filters; `null`
+ * for one they cite without a label (unreadable for the caller, nothing to read then).
+ */
 const cited = computed(() => {
-  const found = new Map<string, string>();
+  const found = new Map<string, string | null>();
   for (const m of state.value.items ?? []) {
     for (const summary of [m.owner, m.site, m.host, m.member_of]) {
-      if (summary?.label) found.set(summary.id, summary.label);
+      if (summary && !found.get(summary.id)) found.set(summary.id, summary.label || null);
     }
   }
   return found;
