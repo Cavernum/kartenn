@@ -314,6 +314,13 @@ export function useVirtualRows(host: VirtualRowsHost) {
     const index = Number(node.dataset.index);
     const key = Number.isInteger(index) ? host.keyAt(index) : undefined;
     const before = measuredAs.get(node);
+    // The same element under the same key while the list scrolls: nothing to do (task
+    // 021-22e-m). Vue gives the ref of every row at each render, so at each frame of a
+    // scroll every row came here, for the virtualiser to find it observed already and to
+    // measure nothing while it scrolls (it measures then only for a scroll it commands, and
+    // none is asked of it); its `ResizeObserver` still follows the size of the row.
+    if (key !== undefined && before === key && v.isScrolling && v.elementsCache.get(key) === node)
+      return;
     if (before !== undefined && before !== key && v.elementsCache.get(before) === node)
       v.elementsCache.delete(before);
     if (key !== undefined) measuredAs.set(node, key);
