@@ -38,7 +38,7 @@ use crate::objects::{Api, Target, audited, gate_target, instant, journaled, stor
 use crate::openapi::{documented, listing_of, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::rights::IdentityRef;
-use crate::summary::{Summaries, Summary};
+use crate::summary::{DatedSummaries, Summaries, Summary};
 
 /// The transversal routes of every type of object of the modules of `modules`, and of the
 /// VLANs of the core, served the same way (spec 026).
@@ -126,17 +126,17 @@ fn links_of(version: &Version) -> (Option<Uuid>, Option<Uuid>) {
 
 /// A version as served, its author named for whoever reads the object (Q-021-29), as
 /// [`crate::objects`] serves those of the core; its parent and its domain summarised
-/// among `summaries`, read at its start (REQ-006-42; `None`: it links to nothing).
+/// among `summaries`, read at its start (REQ-006-42).
 fn module_version_of(
     target: Target,
     version: &Version,
-    summaries: Option<&Summaries>,
+    summaries: &DatedSummaries,
 ) -> Result<ModuleVersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
     let (motive, author) = journaled(version)?;
     let id = uuid_of(version, "id").unwrap_or_default();
     let (parent, domain) = links_of(version);
-    let summary = |id: Uuid| summaries.map_or_else(|| Summary::bare(id), |s| s.of(id));
+    let summary = |id: Uuid| summaries.of(version.valid_from, id);
     Ok(ModuleVersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
@@ -257,10 +257,10 @@ async fn history(
             .chain(domain)
             .map(move |id| (v.valid_from, id))
     });
-    let summaries = Summaries::read_each(&api, &context, linked, moment.as_of).await?;
+    let summaries = DatedSummaries::read(&api, &context, linked, moment.as_of).await?;
     let items = versions
         .iter()
-        .map(|v| module_version_of(target, v, summaries.get(&v.valid_from)))
+        .map(|v| module_version_of(target, v, &summaries))
         .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =
