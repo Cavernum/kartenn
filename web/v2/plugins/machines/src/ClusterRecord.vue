@@ -25,17 +25,16 @@ import {
 } from "@kartenn/ui";
 import { computed } from "vue";
 import CitedName from "./CitedName.vue";
-import { useList, useNotified, useRead } from "./data.ts";
+import { useList, useRead } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
-import { Names, type Cluster, type Machine } from "./reads.ts";
+import type { Cluster, Machine } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ id: string }>();
 
 const t = useTexts();
 const { context } = useHosted();
-const names = useNotified((changed, live) => new Names(changed, live));
 /** The identifier of the heading of its machines (one record per element). */
 const heading = "k-machines-cluster-machines";
 
@@ -110,10 +109,10 @@ function ahead(w: GridWindow): void {
     <Skeleton v-if="!cluster && !read.error" variant="text" :rows="2" />
     <AttributeList v-else-if="cluster" :items="attributes">
       <template #owner>
-        <CitedName v-if="cluster.owner" :id="cluster.owner.id" :names="names" type="core.entity" />
+        <CitedName v-if="cluster.owner" :summary="cluster.owner" />
       </template>
       <template #site>
-        <CitedName v-if="cluster.site" :id="cluster.site.id" :names="names" type="core.site" />
+        <CitedName v-if="cluster.site" :summary="cluster.site" />
       </template>
     </AttributeList>
 
