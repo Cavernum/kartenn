@@ -540,7 +540,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   - découpée le 2026-11-16 (33 types d'opération dans trois crates, chacun son harnais,
     son parcours et son contrôle de fuite ; la 29c, huit types, s'était déjà découpée
     en trois) en 29d1 à 29d4 ; se coche avec la dernière.
-  - [ ] 29d1. `kartenn-kube`, hors la grappe d'un `sync` : parcours de `create_cluster`,
+  - [x] 29d1. `kartenn-kube`, hors la grappe d'un `sync` : parcours de `create_cluster`,
     `update_cluster`, `sync`, `set_label_mapping`, `set_admitted_values`,
     `set_tracked_labels`, une référence inconnue par champ : 422
     `core.reference.unknown` ; fuites pour un auteur sans droits (INV-63) — verify :
@@ -548,6 +548,39 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - où : `crates/kartenn-kube/src/handler.rs` (lignes 226 à 270, 393 à 435),
       `settings.rs` (517 à 600) ; tests `crates/kartenn-kube/tests/it/{clusters,settings}.rs` ;
       modèle `crates/kartenn-machines/tests/it/machines.rs` (2833 à 2862)
+    - fait le 2026-11-16 : deux refus du plan, avant les droits, comme celui de
+      `plan_sync` (29d2), rouges d'abord : la fermeture d'une correspondance
+      (`set_label_mapping`, `close`) qui ne désigne aucune correspondance en vigueur et les
+      valeurs admises d'un espace de noms qui n'en est pas un
+      (`kube.operation.invalid`, « is not a living label mapping / namespace ») ; un
+      administrateur recevait ce refus au lieu de `core.reference.unknown`, un auteur sans
+      lecture de l'espace de noms le recevait pour un espace inconnu ou clos, et
+      `core.object.forbidden` pour un espace hors de portée. `settings.rs` : le plan ne
+      refuse plus, le pipeline juge la désignation (révélée avant les écritures, sinon le
+      droit de lire l'espace de noms avant les écritures) ; une correspondance absente a un
+      plan qui n'écrit rien, si bien qu'aucune écriture ne dit son absence ; la lecture de
+      l'espace de noms par la complétion, devenue inutile, est retirée. Tests nouveaux
+      `tests/it/references.rs` : `every_reference_of_every_operation_is_checked` (un
+      exemple par type, `set_tracked_labels` sans référence ; chaque `Ref::Id` refusé, rien
+      d'écrit), `the_references_designate_objects_in_force` (domaine qui est un préfixe ou
+      clos, préfixe qui est un domaine, grappe de machines qui est une machine, propriétaire
+      qui est un domaine, grappe mise à jour qui est une grappe de machines ou close,
+      machine d'un nœud qui est une grappe ou close, espace de noms qui est une grappe ou
+      clos, correspondance qui est un espace de noms ou close),
+      `no_right_reaches_through_a_hidden_reference` (dix cas : domaines, préfixes, grappe de
+      machines, propriétaire, `id` et domaine d'une mise à jour, machine d'un nœud, espace
+      de noms, correspondance, site). Attentes changées dans `settings.rs`
+      (`settings_written_by_changeset` : trois refus passent de `kube.operation.invalid` à
+      `core.reference.unknown`)
+    - choix : une correspondance absente reçoit un plan `noop` plutôt qu'une fermeture
+      (la fermeture d'un identifiant absent échouait à l'écriture, autre réponse) ; le
+      groupe du connecteur reste hors du parcours (groupe du RBAC, 29b1) ; les objets
+      « d'un autre type » des cas de fuite sont hors de portée de l'auteur : un objet qu'il
+      lit (son entité, sa grappe) lui révèle `core.reference.unknown`, le droit de lire
+      étant jugé sur l'identifiant quel que soit son type (29a), sans rien lui apprendre
+    - reste : la correspondance est fermée par qui détient `kube.settings.edit` sans la
+      lire (lecture `kube.cluster.read`, objet global) : appliquée en vigueur, refusée
+      absente, un oracle comme le site (tâche 31) ; le site reste un oracle (29c2, tâche 31)
   - [ ] 29d2. (à arbitrer) La grappe d'un `sync` absente au début de sa période :
     `plan_sync` (`handler.rs` 1597 à 1606) refuse à la planification
     (`kube.operation.invalid`), avant les droits ; un connecteur d'une autre grappe
