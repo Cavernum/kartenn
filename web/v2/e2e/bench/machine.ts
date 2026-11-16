@@ -9,32 +9,49 @@ import { availableParallelism, loadavg } from "node:os";
 /** Clock ticks of /proc (`getconf CLK_TCK`, 100 on Linux on every architecture in use). */
 const TICK = 100;
 
-/**
- * The load averages over 1, 5 and 15 min, and the CPUs they weigh against (on Linux the load
- * counts the tasks waiting on I/O too); then the stalls of the kernel over the last 60 s
- * (PSI `avg60`, in %), which tell a CPU taken from an I/O waited for.
- */
-export function loadLine(): string {
-  const [one, five, fifteen] = loadavg().map((v) => v.toFixed(2));
-  const stalls = ["cpu", "io", "memory"]
-    .flatMap((resource) =>
-      (read(`/proc/pressure/${resource}`)?.split("\n") ?? [])
-        .filter((line) => line.startsWith("some ") || line.startsWith("full "))
-        .map((line) => `${resource} ${line.split(" ")[0]} ${/avg60=([\d.]+)/.exec(line)?.[1]} %`),
-    )
-    .join(", ");
-  return (
-    `load ${one} ${five} ${fifteen} (1, 5, 15 min) on ${availableParallelism()} CPUs;` +
-    ` stalls over 60 s ${stalls || "unknown"}`
-  );
-}
-
 function read(path: string): string | undefined {
   try {
     return readFileSync(path, "utf8");
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The pressure stall information of the kernel (PSI): for the CPU, the I/O and the memory,
+ * by `some` (a task waited) and `full` (all of them did), the part of the last 60 s spent
+ * waiting (`avg60`, in %) and the time waited since boot (`total`, in µs).
+ */
+function pressure(): Map<string, { avg60: number | undefined; total: number }> {
+  const stalls = new Map<string, { avg60: number | undefined; total: number }>();
+  for (const resource of ["cpu", "io", "memory"])
+    for (const line of read(`/proc/pressure/${resource}`)?.split("\n") ?? []) {
+      const [kind] = line.split(" ");
+      const total = /total=(\d+)/.exec(line)?.[1];
+      const avg60 = /avg60=([\d.]+)/.exec(line)?.[1];
+      if (kind && total)
+        stalls.set(`${resource} ${kind}`, {
+          avg60: avg60 === undefined ? undefined : Number(avg60),
+          total: Number(total),
+        });
+    }
+  return stalls;
+}
+
+/**
+ * The load averages over 1, 5 and 15 min, and the CPUs they weigh against (on Linux the load
+ * counts the tasks waiting on I/O too); then the stalls of the kernel over the last 60 s
+ * (PSI `avg60`), which tell a CPU taken from an I/O waited for.
+ */
+export function loadLine(): string {
+  const [one, five, fifteen] = loadavg().map((v) => v.toFixed(2));
+  const stalls = [...pressure()]
+    .map(([k, { avg60 }]) => `${k} ${avg60 === undefined ? "unknown" : `${avg60.toFixed(2)} %`}`)
+    .join(", ");
+  return (
+    `load ${one} ${five} ${fifteen} (1, 5, 15 min) on ${availableParallelism()} CPUs;` +
+    ` stalls over 60 s ${stalls || "unknown"}`
+  );
 }
 
 /** The fields of a /proc stat line after its `(comm)`, and the comm itself. */
@@ -54,92 +71,29 @@ interface Proc {
   ppid: number;
   /** User and system time, in ticks. */
   ticks: number;
-  /** Major page faults: a page waited for from the disk. */
-  faults: number;
+  /** Its comm, then its kind for a process of the browser (`kindOf`). */
   kind: string;
-  /** Per thread name: ticks. */
+  /** Per thread name: ticks (read for the browser's processes only). */
   threads: Map<string, number>;
 }
 
-/** What a Chromium process is, by its `--type=` (none: the browser process itself). */
-function kindOf(pid: number, comm: string): string {
-  // Split on spaces as well: a child of Chromium rewrites its title into one argument.
-  const cmdline = read(`/proc/${pid}/cmdline`)?.split(/[\0 ]/) ?? [];
-  const type = cmdline.find((a) => a.startsWith("--type="))?.slice(7);
-  if (type) {
-    const sub = cmdline.find((a) => a.startsWith("--utility-sub-type="))?.slice(19);
-    return sub ? `${type}:${sub.split(".").at(-1)}` : type;
-  }
-  return comm;
-}
-
-/** A sample of the machine: its CPU ticks, and every process with its threads. */
-interface Sample {
-  at: number;
-  busy: number;
-  total: number;
-  procs: Map<number, Proc>;
-  /** The stall totals of /proc/pressure, in µs, by `cpu some`, `io full`… */
-  pressure: Map<string, number>;
-  /** Major page faults of the machine, and pages of files read again once evicted. */
-  faults: number;
-  refaults: number;
-}
-
-/**
- * The pressure stall information of the kernel (PSI): for the CPU, the I/O and the memory,
- * the time some task, and all of them (`full`), waited on it, in µs since boot.
- */
-function pressure(): Map<string, number> {
-  const stalls = new Map<string, number>();
-  for (const resource of ["cpu", "io", "memory"])
-    for (const line of read(`/proc/pressure/${resource}`)?.split("\n") ?? []) {
-      const [kind] = line.split(" ");
-      const total = /total=(\d+)/.exec(line)?.[1];
-      if (kind && total) stalls.set(`${resource} ${kind}`, Number(total));
-    }
-  return stalls;
-}
-
-function sample(): Sample | undefined {
-  const cpu = read("/proc/stat")?.split("\n")[0];
-  if (!cpu?.startsWith("cpu ")) return undefined;
-  const v = cpu.split(/\s+/).slice(1).map(Number);
-  // user nice system idle iowait irq softirq steal: idle and iowait are not busy.
-  const total = v.slice(0, 8).reduce((a, b) => a + b, 0);
-  const busy = total - v[3]! - v[4]!;
+/** Every process of the machine, by pid: its parent, its CPU time, its comm. */
+function processes(): Map<number, Proc> {
   const procs = new Map<number, Proc>();
   for (const entry of readdirSync("/proc")) {
     const pid = Number(entry);
-    if (!Number.isInteger(pid)) continue;
-    const text = read(`/proc/${pid}/stat`);
+    const text = Number.isInteger(pid) ? read(`/proc/${pid}/stat`) : undefined;
     if (!text) continue;
     const { comm, fields } = statOf(text);
-    // After the comm: state(0) ppid(1) … majflt(9) … utime(11) stime(12). The comm is
-    // enough to tell a process here, its kind and threads read for ours only (below).
+    // After the comm: state(0) ppid(1) … utime(11) stime(12).
     procs.set(pid, {
       ppid: Number(fields[1]),
       ticks: Number(fields[11]) + Number(fields[12]),
-      faults: Number(fields[9]),
       kind: comm,
       threads: new Map(),
     });
   }
-  const vmstat = new Map(
-    (read("/proc/vmstat") ?? "")
-      .split("\n")
-      .map((l) => l.split(" "))
-      .map(([k, v]) => [k ?? "", Number(v)] as const),
-  );
-  return {
-    at: performance.now(),
-    busy,
-    total,
-    procs,
-    pressure: pressure(),
-    faults: vmstat.get("pgmajfault") ?? 0,
-    refaults: vmstat.get("workingset_refault_file") ?? 0,
-  };
+  return procs;
 }
 
 /** The pids under `root`, itself among them. */
@@ -155,6 +109,18 @@ function under(procs: Map<number, Proc>, root: number): Set<number> {
       }
   }
   return found;
+}
+
+/** What a Chromium process is, by its `--type=` (none: the browser process itself). */
+function kindOf(pid: number, comm: string): string {
+  // Split on spaces as well: a child of Chromium rewrites its title into one argument.
+  const cmdline = read(`/proc/${pid}/cmdline`)?.split(/[\0 ]/) ?? [];
+  const type = cmdline.find((a) => a.startsWith("--type="))?.slice(7);
+  if (type) {
+    const sub = cmdline.find((a) => a.startsWith("--utility-sub-type="))?.slice(19);
+    return sub ? `${type}:${sub.split(".").at(-1)}` : type;
+  }
+  return comm;
 }
 
 /** The ticks of each thread of `pid`, by thread name. */
@@ -177,13 +143,36 @@ function threadsOf(pid: number): Map<string, number> {
   return threads;
 }
 
+/** A sample of the machine: its CPU ticks, every process, the stalls of the kernel. */
+interface Sample {
+  at: number;
+  busy: number;
+  total: number;
+  procs: Map<number, Proc>;
+  pressure: ReturnType<typeof pressure>;
+}
+
+function sample(): Sample | undefined {
+  const cpu = read("/proc/stat")?.split("\n")[0];
+  if (!cpu?.startsWith("cpu ")) return undefined;
+  const v = cpu.split(/\s+/).slice(1).map(Number);
+  // user nice system idle iowait irq softirq steal: idle and iowait are not busy.
+  const total = v.slice(0, 8).reduce((a, b) => a + b, 0);
+  const busy = total - v[3]! - v[4]!;
+  return { at: performance.now(), busy, total, procs: processes(), pressure: pressure() };
+}
+
 /** The browser of this worker: the processes under it, by kind, with their threads. */
-function browserOf(s: Sample): Map<number, Proc> {
+function browserOf(procs: Map<number, Proc>, threads: boolean): Map<number, Proc> {
   const ours = new Map<number, Proc>();
-  for (const pid of under(s.procs, process.pid)) {
+  for (const pid of under(procs, process.pid)) {
     if (pid === process.pid) continue;
-    const p = s.procs.get(pid)!;
-    ours.set(pid, { ...p, kind: kindOf(pid, p.kind), threads: threadsOf(pid) });
+    const p = procs.get(pid)!;
+    ours.set(pid, {
+      ...p,
+      kind: kindOf(pid, p.kind),
+      threads: threads ? threadsOf(pid) : new Map(),
+    });
   }
   return ours;
 }
@@ -207,65 +196,24 @@ function maxFrequencies(): Map<number, number> {
 /**
  * Where the main thread of each renderer of the browser runs, sampled every `every` ms:
  * the CPU it last ran on (field `processor` of its stat), and that CPU's frequency then.
+ * A walk of /proc at each sample: off by default (`K_BENCH_CORES=1` turns it on), never in
+ * the windows of a verdict.
  */
-/** One sample of a renderer's main thread: where it ran, and how busy its neighbours were. */
-interface Placement {
-  cpu: number;
-  khz: number;
-  /** The other hardware thread of its core, busy since the last sample (0 to 1). */
-  sibling: number;
-  /** The other cores of its L3 cache, busy since the last sample, in CPUs. */
-  sharers: number;
-}
-
 function sampleCores(every: number) {
-  const renderers = new Map<number, Placement[]>();
-  let last = perCpu();
+  const renderers = new Map<number, { cpu: number; khz: number }[]>();
   const timer = setInterval(() => {
-    const now = perCpu();
-    // How busy a set of CPUs was since the last sample, in CPUs.
-    const busyOf = (cpus: number[]) =>
-      cpus.reduce((sum, c) => {
-        const [b0, t0] = last.get(c) ?? [0, 0];
-        const [b1, t1] = now.get(c) ?? [0, 0];
-        return sum + (t1 > t0 ? (b1 - b0) / (t1 - t0) : 0);
-      }, 0);
-    const procs = new Map<number, Proc>();
-    for (const entry of readdirSync("/proc")) {
-      const pid = Number(entry);
-      const text = Number.isInteger(pid) ? read(`/proc/${pid}/stat`) : undefined;
-      if (!text) continue;
-      procs.set(pid, {
-        ppid: Number(statOf(text).fields[1]),
-        ticks: 0,
-        faults: 0,
-        kind: "",
-        threads: new Map(),
-      });
-    }
-    for (const pid of under(procs, process.pid)) {
-      if (pid === process.pid || kindOf(pid, "") !== "renderer") continue;
+    for (const [pid, p] of browserOf(processes(), false)) {
+      if (p.kind !== "renderer") continue;
       const text = read(`/proc/${pid}/stat`);
       if (!text) continue;
       // After the comm, `processor` is the 37th field (39th of the line).
       const cpu = Number(statOf(text).fields[36]);
       const khz = Number(read(`/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_cur_freq`));
-      const siblings = cpuList(`cpu${cpu}/topology/thread_siblings_list`).filter((c) => c !== cpu);
-      const l3 = cpuList(`cpu${cpu}/cache/index3/shared_cpu_list`).filter(
-        (c) => c !== cpu && !siblings.includes(c),
-      );
-      renderers.set(pid, [
-        ...(renderers.get(pid) ?? []),
-        { cpu, khz, sibling: busyOf(siblings), sharers: busyOf(l3) },
-      ]);
+      renderers.set(pid, [...(renderers.get(pid) ?? []), { cpu, khz }]);
     }
-    last = now;
   }, every);
   return {
-    /**
-     * For the renderer sampled most busy: its share on the fastest cores, its mean GHz, how
-     * busy the other thread of its core was (SMT), and the other cores of its L3 cache.
-     */
+    /** For the renderer `busiest`: its share of samples on the fastest cores, its mean GHz. */
     stop(busiest: number | undefined): string {
       clearInterval(timer);
       const samples = busiest === undefined ? undefined : renderers.get(busiest);
@@ -273,41 +221,13 @@ function sampleCores(every: number) {
       const max = maxFrequencies();
       const top = Math.max(...max.values());
       const fast = samples.filter((s) => max.get(s.cpu) === top).length;
-      const mean = (pick: (s: Placement) => number) =>
-        samples.reduce((sum, s) => sum + pick(s), 0) / samples.length;
+      const ghz = samples.reduce((sum, s) => sum + s.khz, 0) / samples.length / 1e6;
       return (
         `${((fast / samples.length) * 100).toFixed(0)} % of ${samples.length} samples on the` +
-        ` cores of ${(top / 1e6).toFixed(2)} GHz at most, ${(mean((s) => s.khz) / 1e6).toFixed(2)} GHz` +
-        ` on average, the other thread of its core busy ${(mean((s) => s.sibling) * 100).toFixed(0)} %,` +
-        ` the other cores of its L3 cache ${mean((s) => s.sharers).toFixed(2)} CPUs busy`
+        ` cores of ${(top / 1e6).toFixed(2)} GHz at most, ${ghz.toFixed(2)} GHz on average`
       );
     },
   };
-}
-
-/** Each CPU's busy and total ticks (/proc/stat), by CPU number. */
-function perCpu(): Map<number, [busy: number, total: number]> {
-  const cpus = new Map<number, [number, number]>();
-  for (const line of read("/proc/stat")?.split("\n") ?? []) {
-    const m = /^cpu(\d+) (.*)$/.exec(line);
-    if (!m) continue;
-    const v = m[2]!.split(" ").map(Number);
-    const total = v.slice(0, 8).reduce((a, b) => a + b, 0);
-    cpus.set(Number(m[1]), [total - v[3]! - v[4]!, total]);
-  }
-  return cpus;
-}
-
-/** A list of CPUs of /sys/devices/system/cpu (`0-3,12-15`), as numbers. */
-function cpuList(path: string): number[] {
-  return (read(`/sys/devices/system/cpu/${path}`) ?? "")
-    .trim()
-    .split(",")
-    .filter(Boolean)
-    .flatMap((part) => {
-      const [from, to] = part.split("-").map(Number);
-      return Array.from({ length: (to ?? from!) - from! + 1 }, (_, i) => from! + i);
-    });
 }
 
 /** A window of the machine: started by `watchMachine`, closed by its `stop`. */
@@ -317,48 +237,47 @@ export interface Watched {
 }
 
 /**
- * Watches the machine from now until `stop`: the CPU of the machine in all, that of the
- * browser of this worker by process kind and its busiest threads, that of the servers of
- * the bench (the runner's other children: kartenn-server, the identity provider), and the
- * rest of the machine, in CPUs on average over the window (1 = one CPU busy all along).
+ * Watches the machine from now until `stop`: the stalls of the kernel, the CPU of the
+ * machine in all, that of the browser of this worker by process kind and its busiest
+ * threads, that of the servers of the bench (the runner's other children: kartenn-server,
+ * the identity provider), and the rest of the machine, in CPUs on average over the window
+ * (1 = one CPU busy all along); with `K_BENCH_CORES=1`, where the page's main thread ran.
  */
 export function watchMachine(): Watched {
   const before = sample();
-  const browserBefore = before && browserOf(before);
-  const cores = before && sampleCores(50);
+  const browserBefore = before && browserOf(before.procs, true);
+  const cores = before && process.env.K_BENCH_CORES === "1" ? sampleCores(50) : undefined;
   return {
     stop() {
       const after = sample();
-      if (!before || !after || !browserBefore || !cores) return "no /proc: machine not watched";
-      const browserAfter = browserOf(after);
-      // The renderer that spent the most CPU over the window: the page's.
-      let busiest: number | undefined;
-      let most = -1;
-      for (const [pid, p] of browserAfter) {
-        const spent = p.ticks - (browserBefore.get(pid)?.ticks ?? 0);
-        if (p.kind === "renderer" && spent > most) [busiest, most] = [pid, spent];
+      if (!before || !after || !browserBefore) {
+        cores?.stop(undefined);
+        return "no /proc: machine not watched";
       }
-      const placed = cores.stop(busiest);
+      const browserAfter = browserOf(after.procs, true);
       const seconds = (after.at - before.at) / 1000;
       const cpus = (ticks: number) => (ticks / TICK / seconds).toFixed(2);
       const machine = after.busy - before.busy;
       const span = after.total - before.total;
-      // By kind of process, and by thread name over the whole browser.
+      // By kind of process, and by thread name over the whole browser; the renderer that
+      // spent the most CPU over the window is the page's.
       const kinds = new Map<string, number>();
       const threads = new Map<string, number>();
-      const faults = new Map<string, number>();
       let browser = 0;
+      let busiest: number | undefined;
+      let most = -1;
       for (const [pid, p] of browserAfter) {
         const was = browserBefore.get(pid);
         const spent = p.ticks - (was?.ticks ?? 0);
         browser += spent;
         kinds.set(p.kind, (kinds.get(p.kind) ?? 0) + spent);
-        faults.set(p.kind, (faults.get(p.kind) ?? 0) + p.faults - (was?.faults ?? 0));
+        if (p.kind === "renderer" && spent > most) [busiest, most] = [pid, spent];
         for (const [name, t] of p.threads) {
           const key = `${p.kind}/${name}`;
           threads.set(key, (threads.get(key) ?? 0) + t - (was?.threads.get(name) ?? 0));
         }
       }
+      const placed = cores?.stop(busiest);
       // The servers: the runner's other descendants (`webServer` of the config).
       let servers = 0;
       const runner = after.procs.get(process.pid)?.ppid;
@@ -380,21 +299,18 @@ export function watchMachine(): Watched {
           .join(", ");
       // The part of the window stalled, by resource (some task, all of them).
       const stalls = [...after.pressure]
-        .map(
-          ([k, v]) =>
-            `${k} ${(((v - (before.pressure.get(k) ?? v)) / 1e6 / seconds) * 100).toFixed(1)} %`,
-        )
+        .map(([k, { total }]) => {
+          const was = before.pressure.get(k)?.total ?? total;
+          return `${k} ${(((total - was) / 1e6 / seconds) * 100).toFixed(1)} %`;
+        })
         .join(", ");
       return (
         `stalls ${stalls || "unknown (no /proc/pressure)"};` +
         ` machine ${cpus(machine)} CPUs busy of ${(span / TICK / seconds).toFixed(0)}` +
         ` (${((machine / span) * 100).toFixed(0)} %); browser ${cpus(browser)}` +
         ` (${top(kinds, 6)}); its busiest threads ${top(threads, 6)}; servers of the bench` +
-        ` ${cpus(servers)}, the runner ${cpus(workerSpent)}, the rest of the machine ${cpus(rest)};` +
-        ` the page's main thread ${placed}; major page faults: the browser's` +
-        ` ${[...faults].map(([k, n]) => `${k} ${n}`).join(", ") || "none"}, the machine's` +
-        ` ${after.faults - before.faults}, pages of files read again` +
-        ` ${after.refaults - before.refaults}`
+        ` ${cpus(servers)}, the runner ${cpus(workerSpent)}, the rest of the machine ${cpus(rest)}` +
+        (placed === undefined ? "" : `; the page's main thread ${placed}`)
       );
     },
   };

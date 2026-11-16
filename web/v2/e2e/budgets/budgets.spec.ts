@@ -414,19 +414,31 @@ async function watched(
   what: string,
   act: () => Promise<void>,
 ): Promise<Frames> {
-  await cdp.send("Performance.enable");
   const metrics = async () =>
     new Map(
       (await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value] as const),
     );
-  const before = await metrics();
-  const machine = watchMachine();
-  const frames = await framed(page, async () => {
-    await act();
-    return [];
-  });
-  const outside = machine.stop();
-  const after = await metrics();
+  await cdp.send("Performance.enable");
+  let frames: Frames;
+  let outside: string;
+  let before: Map<string, number>;
+  let after: Map<string, number>;
+  try {
+    before = await metrics();
+    // Stopped whatever `act` does: its sampler, if on, never outlives the window.
+    const machine = watchMachine();
+    try {
+      frames = await framed(page, async () => {
+        await act();
+        return [];
+      });
+    } finally {
+      outside = machine.stop();
+    }
+    after = await metrics();
+  } finally {
+    await cdp.send("Performance.disable");
+  }
   const spent = (name: string) =>
     `${(((after.get(name) ?? 0) - (before.get(name) ?? 0)) * 1000).toFixed(0)} ms`;
   const i = frames.intervals;
