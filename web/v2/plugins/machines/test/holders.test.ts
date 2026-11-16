@@ -6,7 +6,7 @@
 import { queryClient, reads, type components, type Extension, type ListData } from "@kartenn/sdk";
 import { resetContext } from "@kartenn/sdk/host";
 import { announcePlugin, fakeFetch, mount, type Handlers } from "@kartenn/sdk/testing";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import en from "../public/i18n/en.json";
 import fr from "../public/i18n/fr.json";
 import manifest from "../public/manifest.json";
@@ -21,8 +21,6 @@ import { HOLDERS_MAX } from "../src/holders.ts";
 type Interface = components["schemas"]["Interface"];
 
 const MACHINE = "4c9f2a52-0f1e-4f55-9a43-6f1f2d1b7a10";
-/** The waits of the 100 rows: happy-dom mounts them slowly on a loaded machine. */
-const SLOW = { timeout: 4000 };
 
 /** The identifier of the `n`th address, of the `n`th interface. */
 const addressOf = (n: number) => `8f3c2da1-2e5b-4d4f-9c60-${n.toString(16).padStart(12, "0")}`;
@@ -58,7 +56,15 @@ beforeAll(async () => {
   await defined;
 });
 
+// The window of the batcher (10 ms) on false timers: it closes only as `vi.waitFor` moves
+// them on, never between the rows mounted at once, however slowly happy-dom mounts them on a
+// loaded machine (a window closed early would send the 36 last addresses in two batches).
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   for (const cell of cells) cell.remove();
   cells = [];
   queryClient.clear();
@@ -134,17 +140,11 @@ describe("the machine column, its interfaces read by window", () => {
       links: { next: null },
     }));
     const mounted = column(100, handlers);
-    await vi.waitFor(
-      () =>
-        expect(mounted.filter((cell) => (cell.textContent ?? "").includes("srv-a"))).toHaveLength(
-          50,
-        ),
-      SLOW,
+    await vi.waitFor(() =>
+      expect(mounted.filter((cell) => (cell.textContent ?? "").includes("srv-a"))).toHaveLength(50),
     );
-    await vi.waitFor(
-      () =>
-        expect(mounted.filter((cell) => (cell.textContent ?? "").includes("—"))).toHaveLength(50),
-      SLOW,
+    await vi.waitFor(() =>
+      expect(mounted.filter((cell) => (cell.textContent ?? "").includes("—"))).toHaveLength(50),
     );
     expect(requests.map((r) => r.length)).toEqual([HOLDERS_MAX, 100 - HOLDERS_MAX]);
     // Each machine by the summary of its interface, linked to its record: nothing else read,
@@ -157,7 +157,7 @@ describe("the machine column, its interfaces read by window", () => {
     ]);
     expect(keptOf(3)?.pages[0]?.data.items).toEqual([]);
     // No row read again: an empty page is an answer, not a failure.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await vi.advanceTimersByTimeAsync(50);
     expect(requests).toHaveLength(2);
   });
 
@@ -168,10 +168,12 @@ describe("the machine column, its interfaces read by window", () => {
     }));
     const [cell] = column(1, handlers);
     // Said unreadable to the assistive technologies, the fixed pitch out of their reach.
-    await vi.waitFor(() => expect(cell!.textContent).toBe(`${MACHINE} (unreadable)`));
+    // In the words and the structure of the shell's (`SummaryName`).
+    const said = " (an object you cannot read, or that no longer exists)";
+    await vi.waitFor(() => expect(cell!.textContent).toBe(`${MACHINE}${said}`));
     expect(cell!.querySelector("a")).toBeNull();
-    expect(cell!.querySelector(".k-mono")?.textContent).toBe(MACHINE);
-    expect(cell!.querySelector(".k-visually-hidden")?.textContent).toBe(" (unreadable)");
+    expect(cell!.querySelector(".k-mono")?.firstChild?.textContent).toBe(MACHINE);
+    expect(cell!.querySelector(".k-mono .k-visually-hidden")?.textContent).toBe(said);
     expect(others()).toEqual(NOTHING);
   });
 
