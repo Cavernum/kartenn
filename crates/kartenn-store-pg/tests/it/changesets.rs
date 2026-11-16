@@ -129,6 +129,36 @@ async fn pending_requirements_take_the_edit_verb(pool: PgPool) -> sqlx::Result<(
     Ok(())
 }
 
+/// Task 006-40: the permissions the pending proposals require, each once; a requirement
+/// that is not a list (absent, or journaled otherwise) names none, without failing.
+#[kartenn_testing::pg_test]
+async fn the_requirements_of_the_proposals_skip_what_is_not_a_list(
+    pool: PgPool,
+) -> sqlx::Result<()> {
+    let author = person(&pool).await?;
+    let object = sqlx::types::Uuid::now_v7();
+    let rights = [
+        serde_json::json!({"required": [["core.address.edit", [object]],
+                                        ["flow.review", [object]]]}),
+        serde_json::json!({"required": [["core.address.edit", [object]]]}),
+        serde_json::json!({"required": {"core.site.edit": [object]}}),
+        serde_json::json!({"policy": null}),
+    ];
+    for required in &rights {
+        let id = changeset(&pool, author, "pending").await?;
+        sqlx::query("UPDATE changeset SET kind = 'proposal', required_rights = $2 WHERE id = $1")
+            .bind(id)
+            .bind(required)
+            .execute(&pool)
+            .await?;
+    }
+    let found = kartenn_store_pg::changesets::required_by_proposals(&pool)
+        .await
+        .expect("no failure");
+    assert_eq!(found, ["core.address.edit", "flow.review"]);
+    Ok(())
+}
+
 /// Task 024-11, migration 0071: the journal of a changeset takes `approval.self` (formerly
 /// `apply_own`): the code and the message of its reason, its request; a changeset that
 /// never named it is untouched. Its `UPDATE`s are run again on rows written as before.

@@ -140,7 +140,8 @@ pub struct Freshness {
     pub refresh: Duration,
     /// A snapshot this old is recomputed even when nothing was written: a count that the
     /// date alone changes (a flow or a binding ended, a waiver within 30 days) follows
-    /// within it (task 006-40).
+    /// within it (task 006-40). Below [`Self::refresh`], it is [`Self::refresh`]: a
+    /// snapshot is never due younger.
     pub max_age: Duration,
     /// Only the keys read this recently are recomputed.
     pub active: Duration,
@@ -218,27 +219,41 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 trait Part: PartialEq + Send + Sync + Sized + 'static {
     /// What a computation needs besides the API.
     type Origin: Clone + Send + Sync + 'static;
-    /// The part, and whether the rights its key names held throughout its computation: one
-    /// that did not is not kept under the key (task 006-40).
     fn compute(
         api: &Api,
         origin: &Self::Origin,
         now: OffsetDateTime,
-    ) -> impl Future<Output = Result<(Self, bool), Problem>> + Send;
+    ) -> impl Future<Output = Result<Self, Problem>> + Send;
+    /// Whether the rights the key of `origin` names are still those of its subject at
+    /// `at`: read before and after each computation, which is not kept otherwise (task
+    /// 006-40).
+    fn holds(
+        api: &Api,
+        origin: &Self::Origin,
+        at: OffsetDateTime,
+    ) -> impl Future<Output = Result<bool, Problem>> + Send;
     fn slots(snapshots: &Snapshots) -> &Slots<Self>;
 }
 
 impl Part for Shared {
-    /// The read scope, and whether it reads the changesets: the computation reads them
-    /// from its origin alone, which always holds.
+    /// The read scope, and whether it reads the changesets.
     type Origin = (Arc<ReadScope>, bool);
 
     async fn compute(
         api: &Api,
         (scope, changesets_read): &Self::Origin,
         now: OffsetDateTime,
-    ) -> Result<(Self, bool), Problem> {
-        Ok((shared(api, scope, *changesets_read, now).await?, true))
+    ) -> Result<Self, Problem> {
+        shared(api, scope, *changesets_read, now).await
+    }
+
+    /// The computation reads the rights from its origin alone.
+    fn holds(
+        _: &Api,
+        _: &Self::Origin,
+        _: OffsetDateTime,
+    ) -> impl Future<Output = Result<bool, Problem>> + Send {
+        std::future::ready(Ok(true))
     }
 
     fn slots(snapshots: &Snapshots) -> &Slots<Self> {
@@ -251,19 +266,21 @@ impl Part for Own {
     /// on beyond it, as its key names them ([`held`]).
     type Origin = (Arc<Subject>, Arc<ReadScope>, Arc<str>);
 
-    /// The counters read those rights at the moment of the computation, not from the key:
-    /// they are read again before and after it, and the part is kept only when they are
-    /// still those of the key (task 006-40).
     async fn compute(
         api: &Api,
-        (subject, scope, rights): &Self::Origin,
+        (subject, scope, _): &Self::Origin,
         now: OffsetDateTime,
-    ) -> Result<(Self, bool), Problem> {
-        let before = *held(api, subject, now).await? == **rights;
-        let part = own(api, subject, scope, now).await?;
-        let later = read::now(&api.pool).await.map_err(|e| store(&e))?;
-        let kept = before && *held(api, subject, later).await? == **rights;
-        Ok((part, kept))
+    ) -> Result<Self, Problem> {
+        own(api, subject, scope, now).await
+    }
+
+    /// The counters read those rights at the moment of the computation, not from the key.
+    async fn holds(
+        api: &Api,
+        (subject, _, rights): &Self::Origin,
+        at: OffsetDateTime,
+    ) -> Result<bool, Problem> {
+        Ok(*held(api, subject, at).await? == **rights)
     }
 
     fn slots(snapshots: &Snapshots) -> &Slots<Self> {
@@ -454,35 +471,44 @@ impl Snapshots {
     }
 
     /// Computes `key` (marked busy by the caller) and keeps the result; a body that
-    /// changed calls the signal. A failure keeps the previous snapshot, if any, and so
-    /// does a computation whose rights moved from those of the key: a first one answers
-    /// the read that started it, the key not kept.
+    /// changed calls the signal. A failure keeps the previous snapshot, if any. A key
+    /// whose rights are no longer those of its subject, before or after the computation,
+    /// is dropped: a recomputation is not run, a first computation answers the read that
+    /// started it (task 006-40).
     async fn recompute<T: Part>(&self, api: &Api, key: &str) -> Result<Snap<T>, Problem> {
         let origin = lock(T::slots(self))
             .get(key)
-            .map(|slot| slot.origin.clone());
-        let computed = match origin {
-            Some(origin) => self.compute::<T>(api, &origin).await,
+            .map(|slot| (slot.origin.clone(), slot.snap.clone()));
+        let computed = match &origin {
+            Some((origin, before)) => self.compute::<T>(api, origin, before.is_none()).await,
             None => Err(Problem::new(ProblemKind::Internal)),
         };
         let mut slots = lock(T::slots(self));
-        if computed.is_ok() {
+        if let Ok(Some(_)) = computed {
             // Under the lock: whoever sees the count sees the snapshot.
             self.computations.fetch_add(1, Ordering::Relaxed);
         }
         let Some(slot) = slots.get_mut(key) else {
-            return computed.map(|(snap, _)| snap);
+            return match (computed, origin) {
+                (Ok(Some((snap, _))), _) => Ok(snap),
+                (Ok(None), Some((_, Some(before)))) => Ok(before),
+                (Ok(None), _) => Err(Problem::new(ProblemKind::Internal)),
+                (Err(problem), _) => Err(problem),
+            };
         };
         slot.busy = false;
         slot.ready.notify_waiters();
         match computed {
-            Ok((snap, false)) => {
-                if slot.snap.is_none() {
-                    slots.remove(key);
-                }
+            Ok(None) => {
+                let before = slot.snap.take();
+                slots.remove(key);
+                before.ok_or_else(|| Problem::new(ProblemKind::Internal))
+            }
+            Ok(Some((snap, false))) => {
+                slots.remove(key);
                 Ok(snap)
             }
-            Ok((snap, true)) => {
+            Ok(Some((snap, true))) => {
                 let changed = slot
                     .snap
                     .as_ref()
@@ -503,24 +529,33 @@ impl Snapshots {
         }
     }
 
-    /// A computation of a part, and whether it may be kept ([`Part::compute`]): the
-    /// revision of the outbox read first, so that a change committed during it makes the
-    /// snapshot due again.
+    /// A computation of a part, and whether it may be kept: the rights of its key held
+    /// before and after it ([`Part::holds`]); `None`, not run, when they no longer hold
+    /// before it and it is not the `first` of its key (whose read waits for a body). The
+    /// revision of the outbox is read first, so that a change committed during it makes
+    /// the snapshot due again.
     async fn compute<T: Part>(
         &self,
         api: &Api,
         origin: &T::Origin,
-    ) -> Result<(Snap<T>, bool), Problem> {
+        first: bool,
+    ) -> Result<Option<(Snap<T>, bool)>, Problem> {
         let revision = outbox::revision(&api.pool).await?;
         let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-        let (body, kept) = T::compute(api, origin, now).await?;
+        let before = T::holds(api, origin, now).await?;
+        if !before && !first {
+            return Ok(None);
+        }
+        let body = T::compute(api, origin, now).await?;
+        let later = read::now(&api.pool).await.map_err(|e| store(&e))?;
+        let kept = before && T::holds(api, origin, later).await?;
         let snap = Snap {
             body: Arc::new(body),
             at: now,
             revision,
             made: Instant::now(),
         };
-        Ok((snap, kept))
+        Ok(Some((snap, kept)))
     }
 
     /// Forgets the keys of a level unread for [`Freshness::forget`]; whether one read

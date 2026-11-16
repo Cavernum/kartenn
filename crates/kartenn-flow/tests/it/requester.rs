@@ -398,6 +398,34 @@ async fn a_right_withdrawn_given_back_and_withdrawn_again_counts_without_it(pool
     assert_eq!(after["modules"], expected["modules"], "{after}");
 }
 
+/// Task 006-40: a key whose rights are no longer those of its subject is not computed by
+/// the sweep that finds it due, and is not due at the next one: it is dropped.
+#[kartenn_testing::pg_test]
+async fn a_key_whose_rights_moved_is_dropped_by_the_sweep(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (author, _) = requester_and_stranger(&env).await;
+    let snapshots = Snapshots::new(Freshness {
+        refresh: Duration::ZERO,
+        ..Freshness::default()
+    });
+    let mine = env.app_with(author, &snapshots);
+    applied_flows(&env, &mine, env.acme, 1).await;
+    stats(&mine).await;
+    // The key with the right is left behind; the key without is born.
+    withdraw(&pool, author, Some(env.acme)).await;
+    stats(&mine).await;
+    let computed = snapshots.computations();
+    for (sweeps, network, address) in [
+        (1, "10.3.0.0/24", "10.3.0.1"),
+        (2, "10.4.0.0/24", "10.4.0.1"),
+    ] {
+        env.address(network, address, "dev").await;
+        snapshots.sweep(&env.api()).await.unwrap();
+        // What the rights share, and the key without: not the key with.
+        assert_eq!(snapshots.computations(), computed + 2 * sweeps);
+    }
+}
+
 /// Task 006-40 (b): a flow ended by its date alone, nothing written, leaves the counter
 /// once its snapshot is older than [`Freshness::max_age`].
 #[kartenn_testing::pg_test]

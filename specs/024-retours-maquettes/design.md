@@ -121,9 +121,9 @@ droits que ses modules comptent en plus de la lecture — `StatsContributor::per
 `flow.request` pour les flux de leur demandeur, tâche 006-39 : un droit retiré ou échu
 par sa date change la clé —, et l'application de ce qu'exigent les propositions en
 attente, dont dépend `to_apply`, tâche 006-40), le dernier corps calculé, sa date et la
-révision de l'outbox qu'il a vue. Un recalcul d'une clé propre relit ces droits avant
-et après son calcul : s'ils ne sont plus ceux de la clé, il est abandonné (la clé garde
-son instantané ; un premier calcul répond à sa requête sans être gardé) :
+révision de l'outbox qu'il a vue. Un calcul d'une clé propre relit ces droits avant et
+après : s'ils ne sont plus ceux de la clé, la clé est retirée (un recalcul ne tourne pas ;
+un premier calcul répond à sa requête sans être gardé) :
 
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
   encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
