@@ -1668,7 +1668,7 @@ routeur complet, sauf mention « vrai TCP ».
   donc la clé, de chaque appelant (calcul en ligne au prochain appel) ; la description
   OpenAPI de `GET /v1/stats` (« at most every 30 s once something changed ») à compléter
   de l'âge maximal au prochain changement du contrat.
-- [ ] 41. (à arbitrer : migration ou refonte des lectures) La séquence A-B-A des
+- [x] 41. (à arbitrer : migration ou refonte des lectures) La séquence A-B-A des
   instantanés des compteurs : un droit donné puis retiré pendant le calcul d'une clé
   laisse sous cette clé un compteur fait avec le droit (reste de la tâche 40, INV-63 :
   fuite d'un nombre, fenêtre d'un calcul, servi jusqu'au recalcul suivant, 5 min au
@@ -1687,6 +1687,50 @@ routeur complet, sauf mention « vrai TCP ».
   - dépend de : 40 ; arbitrage de l'utilisateur (schéma)
   - arbitrage de l'utilisateur (2026-11-16) : voie A, le compteur des écritures de
     droits tenu par déclencheur (une migration nouvelle).
+  - fait (2026-11-17) : migration `0079_rights_writes.sql` — séquence
+    `kartenn_rights_writes`, déclencheur par instruction (`AFTER INSERT OR UPDATE OR
+    DELETE OR TRUNCATE … FOR EACH STATEMENT`) sur `role`, `role_permission`, `binding`,
+    `rbac_group`, `group_member`, `issuer_attachment`, `property_declaration`, lu par
+    `kartenn_rights_written()` (`rbac::rights_written`) ; `Snapshots::compute` le lit
+    avant la première lecture des droits et après la dernière, pour une partie qui lit
+    des droits à son moment (`Part::READS_RIGHTS` : `Own` ; `Shared` lit les siens de son
+    origine) ; valeurs différentes ou `None` : non gardé (un recalcul ne tourne pas, un
+    premier calcul répond sans être gardé, comme un droit changé). Tests, rouges avant :
+    `rest/tests/it/stats.rs` — `a_right_given_and_withdrawn_during_a_computation_is_not_kept`
+    (module de test `probe` : son `StatsContributor`, trait déjà présent, donne le droit
+    puis le retire au milieu du recalcul par le balayage ; `held` valait 1 sous la clé
+    « sans ») ; `store-pg/tests/it/rbac_schema.rs` —
+    `the_writes_of_rights_are_counted_in_flight_too`.
+    choix : une séquence plutôt qu'une ligne compteur (une ligne mise à jour par
+    déclencheur sérialise les transactions qui écrivent des droits jusqu'à leur
+    validation ; `nextval` n'attend personne). `CACHE 1` : chaque `nextval` déplace la
+    valeur stockée, lue hors instantané (une séquence n'est pas versionnée), donc vue dès
+    le déclencheur, avant la validation. Écriture non validée à la seconde lecture : son
+    déclencheur a tourné après la première lecture (valeur différente, non gardé, à tort
+    peut-être mais sans fuite) ou n'a pas encore tourné (elle valide après la seconde
+    lecture, donc après toutes les lectures du calcul : invisible de lui). Le cas que la
+    séquence seule manque est l'écriture en cours à la *première* lecture (déclencheur
+    passé, valeur déjà comptée, validation pendant le calcul) : deux écritures de droits
+    en vol (une liaison ajoutée, une adhésion retirée) ou une seule dont la période
+    finit entre `now` et `later` referaient l'A-B-A. D'où un verrou consultatif partagé
+    pris par le déclencheur jusqu'à la fin de sa transaction (partagé entre écrivains :
+    aucune attente entre eux), et une prise exclusive *sans attente*
+    (`pg_try_advisory_xact_lock`) par la lecture : refusée, une écriture est en vol et la
+    lecture rend `NULL` (non gardé) ; obtenue, toute écriture comptée est validée. La
+    lecture n'attend jamais et ne fait attendre un écrivain que la durée de sa propre
+    instruction. Déclencheur par instruction plutôt que par ligne (un `nextval` par
+    instruction, une instruction sans ligne compte aussi : prudent). Tables : en plus des
+    cinq de la tâche, `issuer_attachment` (le confinement) et `property_declaration` (la
+    sensibilité d'un droit `prop.*`), lues par `visibilities_on` ; `breakglass::create`
+    écrit `group_member`, compté. Les arbres d'entités, de sites et les préfixes portés
+    par une liaison, objets écrits par les imports, ne sont pas comptés : ils font avancer
+    l'outbox (instantané de nouveau dû) et les compter laisserait non gardé tout calcul
+    pendant un import. Pas de lecture du compteur pour `Shared`.
+    reste : une transaction longue qui écrit des droits (un import de liaisons) laisse
+    chaque calcul d'une clé propre non gardé pendant sa durée (calcul en ligne à chaque
+    appel), coût non mesuré au banc (`bench-http`, REQ-024-16) ; l'A-B-A d'un arbre
+    d'entités ou de sites (une entité déplacée puis remise pendant un calcul) reste
+    couvert par la seule révision de l'outbox (au plus 30 s).
 - [ ] 42. Références des corps des droits, hors du recensement de la 33 (relevées par la
   garde de la 33f3) : l'entité d'un rattachement d'émetteur (`AttachmentItem.entity`,
   `GET /v1/issuer-attachments`, identifiant nu) et la portée d'une liaison (`Scope`,
