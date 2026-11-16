@@ -1160,6 +1160,10 @@ routeur complet, sauf mention « vrai TCP ».
     - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`), `handler.rs` (`keys`, à
       imiter : `crates/kartenn-kube/src/keys.rs`, 33e) ; `summary.rs` (`Summaries::read`)
     - dépend de : 33a–33e
+    - la garde de la 33f3 exempte en renvoi à cette tâche `FlowEvaluation`,
+      `FlowNonconformity` et `FlowTriage` (`UNSUMMARISED`, `rest/tests/it/contract.rs`) :
+      retirer ces exemptions, ne garder que ce qui n'est pas un objet du référentiel
+      (identité, changeset).
   - [x] 33f2. Politique : extrémités, points, résolutions d'axe et lignes de rapport en
     résumés ; `ModuleHandler::keys` pour `kartenn-policy` — verify :
     `k-check -p kartenn-policy` (illisible et absent laissent les mêmes octets)
@@ -1196,7 +1200,7 @@ routeur complet, sauf mention « vrai TCP ».
     reste : `detail` d'une ligne de rapport peut porter des identifiants bruts (selon la
     rubrique), hors de cette tâche (33f3, garde) ; l'export JSON d'un rapport
     (`report::export`, non servi par REST) garde `subject` en identifiant.
-  - [ ] 33f3. Restes communs et garde du contrat : l'explication d'une valeur
+  - [x] 33f3. Restes communs et garde du contrat : l'explication d'une valeur
     (`explanation`, `raw_value`) dont une référence est encore brute (reste de la 33b) ;
     l'historique d'un objet de module (`ModuleObjectDto`, commun à tous les types : `parent`
     et `domain` en identifiants nus, ni résumés ni masqués selon la lisibilité du lié,
@@ -1210,6 +1214,56 @@ routeur complet, sauf mention « vrai TCP ».
       `crates/kartenn-machines/src/handler.rs` (désérialisation de `host`),
       `crates/kartenn-rest/tests/it/contract.rs` (garde, à côté de celle des filtres `id`)
     - dépend de : 33f1, 33f2
+    fait (avant la 33f1, ses corps exemptés par renvoi) : `properties.rs` : la valeur
+    d'une explication et celle qu'elle remplace (`replaces.value`), pour une propriété
+    `ref`, résumées par `Summaries::read` aux dates de la lecture ; les valeurs d'une
+    suggestion d'une propriété `ref` en `Summary` (schéma `ExpectedValue`, `Summary` ou
+    `RawValue`, au lieu de `RawValue`) ; `modules.rs` : `parent` et `domain` de
+    `ModuleObject` (historique d'un objet de module et d'un VLAN ou d'un groupe) en
+    `Summary`, lus pour la page ; `summary.rs` : `Summaries::read` sans requête pour aucun
+    identifiant ; `kartenn-machines` : `handler.rs` (`host_input`, `HOST_FORM` : la
+    forme d'un hôte dite au lieu du texte de serde, en création comme en Merge Patch et
+    par `POST /v1/changesets`), `rest.rs` (`Writes::check` : un `host` d'une autre forme
+    refusé avant le changeset, 422 `invalid-member`, `pointer` `/host`) ; contrat et
+    `schema.d.ts` des deux SDK régénérés ; design 006 « Représentations » (garde, refus
+    d'un membre tel que lu) et 009. Tests : `rest/tests/it/contract.rs`
+    `no_response_names_an_object_by_its_identifier_alone` (tout schéma atteint depuis
+    une réponse : un objet au seul membre `id` UUID, ou un membre UUID autre que `id`,
+    hors exemptions motivées d'`UNSUMMARISED` ; une exemption inutile échoue) ;
+    `rest/tests/it/objects.rs`
+    `the_explanation_and_the_suggestion_of_a_reference_summarise_it` (explication d'une
+    valeur seule et d'un ensemble, suggestion d'une source de test, deux appelants, puis
+    entités supprimées : statut, en-têtes hors `request-id` et octets identiques) ;
+    `rest/tests/it/vlan/rest.rs`
+    `the_history_leaves_alike_an_unreadable_parent_and_an_unknown_one` (domaine d'un
+    groupe, groupe d'un VLAN) ; `machines/tests/it/rest.rs`
+    `a_host_as_read_is_refused_as_a_write` (Merge Patch et création : `invalid-member`,
+    `/host`, forme dite ; changeset : `/operations/0`, même détail).
+    choix : la garde lit le contrat de référence (modules compris) et nomme ses
+    exemptions par schéma et membre, une page `Listing_<item>` par son item ; ne sont
+    pas des objets du référentiel (exemptés) : `version`, `uid`, `pod_uid`, les lots
+    d'observation, les identités (`author`, `on_behalf_of`, `validator`, `identity`,
+    `requested_by`), brouillon, politique d'approbation, changeset d'une revue de flux et
+    `RightsGroupRef` ; renvois : `FlowEvaluation`, `FlowNonconformity`, `FlowTriage`
+    (33f1) ; `DiffObject`, `DiffItemDto.object`, `Ref`, `Operation`, `Placement`,
+    `SectionRowDto.object`, `ViolationDto.subjects`, `PendingReason.objects`,
+    `Required.objects` (33g) ; `AttachmentItem.entity` (reste ci-dessous) ; un hôte mal
+    formé refusé par la route (`invalid-member` et `pointer`, comme un membre non
+    modifiable, design 006 « Routes ») plutôt que par la violation de l'opération, dont le
+    pointeur est le corps entier pour un `Update…` de module et qu'il aurait fallu
+    porter dans `Violation` et son journal ; liés de l'historique d'un objet de module
+    lus aux dates de la route (comme 33d, 33e), non au début de chaque version comme la
+    jointure de l'historique du noyau ; la suggestion résume une valeur texte qui est un
+    UUID, pour une propriété `ref` seulement ; `Summaries::read` sans identifiant rend
+    « tout lisible » sans requête.
+    reste : `AttachmentItem.entity` (`/v1/issuer-attachments`, administration des
+    droits) rend l'entité d'un rattachement d'émetteur en identifiant nu, hors du
+    recensement de la 33 : exempté, à résumer dans une tâche à part ; les liés de
+    l'historique d'un objet de module lus aux dates de la route, quand le noyau les lit
+    au début de chaque version : un lié supprimé depuis y devient `{id}` ; la garde ne
+    voit pas les valeurs `Object` (explication, différentiel, détail d'une ligne de
+    rapport, 33f2) ; à la fusion de la 33f1 et de la 33g, retirer leurs exemptions (la
+    garde échoue sur une exemption inutile).
   - exemption de la garde : `RightsGroupRef` (le groupe de connecteur d'une grappe kube,
     33e), un groupe des droits qui n'est pas un objet du référentiel et n'a pas de
     résumé ; la garde l'exempte avec cette raison. Question laissée ouverte (antérieure
@@ -1225,6 +1279,11 @@ routeur complet, sauf mention « vrai TCP ».
   - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`),
     `crates/kartenn-rest/src/operation.rs` (`RefDto`), `summary.rs` (`Readable`)
   - dépend de : 33a, 33b
+  - la garde de la 33f3 exempte aussi, en renvoi à cette tâche : `DiffItemDto.object`,
+    `Ref`, `Operation`, `Placement`, `SectionRowDto.object`, `ViolationDto.subjects`,
+    `PendingReason.objects`, `Required.objects` (`changesets.rs`, `cycle.rs`) ; les
+    résumer ou motiver leur exemption, et retirer de `UNSUMMARISED`
+    (`rest/tests/it/contract.rs`) celles qui ne servent plus.
 - [ ] 33h. Restes de la revue de la 33a — le schéma `Summary` du contrat dit
   `["string","null"]` alors que `slug` et `href` sont omis et jamais `null` ; H23 ne dit
   pas qu'un lié masqué n'est pas un refus de droit au sens de REQ-012 (« tout refus de

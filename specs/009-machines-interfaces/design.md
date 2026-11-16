@@ -226,9 +226,11 @@ résumés `{id, label, href}` (`slug` en plus pour une entité ou un site), `{id
 un lié illisible ou absent aux dates. L'hôte se lit `{id, kind, label, href}` (`kind` :
 `machine` ou `cluster`), `{id}` seul s'il est illisible : son genre ne se dit pas ; en
 écriture, `host` reste `{machine|cluster: Ref}` (design 006, « un résumé se lit, une
-référence s'écrit par son identifiant ») : un `host` renvoyé tel que lu dans un Merge
-Patch est refusé, 422, violation `machines.operation.invalid` dont le détail commence par
-`host:`. Clés du module
+référence s'écrit par son identifiant ») : un `host` renvoyé tel que lu, en création ou
+en Merge Patch, est refusé avant le changeset, 422 `invalid-member`, `pointer` `/host`,
+le détail commençant par `host:` et disant la forme attendue (tâche 006-33f3) ; par
+`POST /v1/changesets`, violation `machines.operation.invalid` de l'opération, même
+détail. Clés du module
 (`ModuleHandler::keys`) : le nom d'une machine, le slug d'un cluster, le nom seul d'une
 interface.
 
