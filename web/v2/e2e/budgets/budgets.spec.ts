@@ -445,13 +445,15 @@ async function watched(
   // The part of the window the main thread spent in tasks (task 021-22e-m), between the two
   // reads of the metrics (`Timestamp`, the clock of the page), and per frame drawn: near
   // 100 %, a frame has no margin left, and the dropped frames measure the excess of a
-  // saturated thread rather than the work of a frame.
+  // saturated thread rather than the work of a frame. The frames drawn are those of
+  // `dropped`, counted over their own window; the tasks are read around it, by CDP, a few
+  // round trips wider (said in the line).
   const span = delta("Timestamp");
-  const drawn = ((1 - frames.dropped) * span) / (1000 / 60);
+  const drawn = frames.drawn;
   const share =
     span > 0
       ? `${((delta("TaskDuration") / span) * 100).toFixed(1)} % of the window in tasks` +
-        `${drawn >= 1 ? `, ≈ ${(delta("TaskDuration") / drawn).toFixed(1)} ms per frame drawn` : ""}`
+        `${drawn && drawn.frames > 0 ? `, ≈ ${(delta("TaskDuration") / drawn.frames).toFixed(1)} ms per frame drawn (${drawn.frames} frames in ${(drawn.span / 1000).toFixed(2)} s, the tasks over ${(span / 1000).toFixed(2)} s)` : ""}`
       : "window unknown";
   console.log(
     `INFO ${what}: dropped frames ${(frames.dropped * 100).toFixed(2)} %, ${frames.longTasks}` +
