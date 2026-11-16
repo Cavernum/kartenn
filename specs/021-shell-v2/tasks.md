@@ -7546,7 +7546,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
 
       | part d'une trame (×4) | ms | où |
       |---|---|---|
-      | rendu de Vue, microtâches de l'événement `scroll` | 6,8 | mise à jour de `TreeGrid`, lignes recyclées |
+      | rendu de Vue, microtâches de l'événement `scroll` | 6,8 | mise à jour de `TreeGrid`, lignes recyclées ; détail non établi (pas d'échantillons JavaScript dans la trace) |
       | écouteurs `scroll` (virtualiseur, `TreeGrid`, Vue) | 0,6 | |
       | mise en page et style | 5,2 | une seule par trame, forcée par le `tick` du banc |
       | peinture : pré-peinture, peinture, mise en couches, envoi | 6,5 | 1,6 + 2,6 + 2,0 + 0,3 |
@@ -7564,20 +7564,26 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       coupé) : il part à chaque trame parce que le banc écrit `scrollTop`, et coûte 18 ms
       sur 20 s. Les trames de plus de 33 ms (38) portent soit un `MajorGC` (≈ 19 ms, deux),
       soit un ralentissement uniforme de toutes les phases (×2 entre 6,7 et 7,2 s : rendu,
-      mise en page et peinture ensemble), qui va avec l'indice du type de cœur (22e-l),
-      pas avec le code.
+      mise en page et peinture ensemble) : hypothèse compatible avec l'indice du type de
+      cœur (22e-l), d'une seule passe dont les cœurs n'étaient pas relevés ; le code n'en
+      est pas exclu.
 
       Retiré : la mesure redonnée au virtualiseur pour chaque ligne à chaque rendu (Vue
       rappelle la fonction `ref` de chaque ligne à chaque correction) ; pendant un
       défilement, seules les lignes venues sont redonnées (39 → 8,5 par trame dans l'état
       `virtual` du catalogue, compteur dans la page), les autres déjà observées et jamais
-      mesurées pendant un défilement par le virtualiseur ; ≈ 0,2 ms d'une trame à ×4
-      (profil du catalogue, machine chargée). Le banc imprime la part des tâches dans la
+      mesurées pendant un défilement par le virtualiseur ; ≈ 0,2 ms d'une trame à ×4. Les
+      deux chiffres sont du catalogue (une colonne, machine chargée), pas de la page
+      réelle, à laquelle ils restent à rattacher. Le banc imprime la part des tâches dans la
       fenêtre et le travail par trame dessinée (ligne `INFO` de `watched`).
     - reste : le travail d'une trame reste au-dessus de 16,7 ms à ×4 : ce qui pèse est le
       rendu des lignes recyclées (Vue), la mise en page et la peinture de ≈ 11 lignes qui
-      changent par trame, sans travail en trop à retirer à rendu égal. Ce qui le
-      réduirait change le rendu ou le contrat, à arbitrer : moins de lignes hors de la vue
+      changent par trame. Pour la mise en page, la peinture et `scrollend`, aucun travail
+      en trop à retirer à rendu égal ; pour les 6,8 ms du rendu de Vue, ce n'est pas établi :
+      la trace n'a pas d'échantillons JavaScript, le détail vient du catalogue à une
+      colonne, non minifié. Le profil de la page réelle est le préalable de toute
+      conclusion sur ce poste. Ce qui réduirait la mise en page et la peinture change le
+      rendu ou le contrat, à arbitrer : moins de lignes hors de la vue
       (`overscan` 10, moins de lignes à peindre et à mettre en couches, mais des lignes
       vides plus tôt sous un défilement rapide) ; des lignes placées par `transform` plutôt
       que dans le flux (aucun déplacement d'élément, mais l'en-tête et la colonne collants,
@@ -7585,15 +7591,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       couche par ligne, coût non établi : la sonde sans elle, sur une machine à charge 20,
       ne dit rien). Les cinq passes filtrées sur machine calme, avec la nouvelle ligne
       `INFO`, reviennent à la session principale ; le profil JavaScript de la page réelle
-      (la trace de la passe 6 n'a pas d'échantillons) avec elles, pour départager les
-      rappels de `TopologyView` (22e-k) du rendu de `TreeGridRow`.
+      avec elles, pour départager les rappels de `TopologyView` (22e-k) du rendu de
+      `TreeGridRow`.
     - choix : l'attribution tirée de la trace par un script Node hors du dépôt, le
       détail du JavaScript d'un profil de l'état `virtual` du catalogue (une colonne, non
       minifié, ×4) faute d'échantillons dans la trace ; la mesure sautée seulement quand
       le virtualiseur n'aurait rien fait (même élément, même clé, défilement en cours) ;
       le test du compteur dans `data-grid-mounted.test.ts`, `DataGrid` partageant
-      `useVirtualRows`. Pas de relecture `ui-reviewer` ni `a11y-auditor` : rien de rendu ne
-      change. `k-web2-check --base main` : 1 303 Vitest ; tout, 2 741 captures sur 2 741
+      `useVirtualRows`, et deux pour ce dont la garde dépend : les lignes restées encore
+      observées par le `ResizeObserver` du virtualiseur (simulé : ni celui d'un vrai
+      navigateur ni le traitement d'une entrée ne sont couverts), aucun défilement commandé
+      au virtualiseur dans `ui/src` (`scrollToIndex`, `scrollToOffset`). Le travail par
+      trame dessinée compte les trames de `dropped` (`drawn`, `framesStop`), les tâches
+      lues autour par CDP, l'écart des deux fenêtres imprimé. Pas de relecture `ui-reviewer` ni `a11y-auditor` : rien de rendu ne
+      change. `k-web2-check --base main` : 1 305 Vitest ; tout, 2 741 captures sur 2 741
       (le banc est un fichier du projet Playwright des captures).
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
     objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
