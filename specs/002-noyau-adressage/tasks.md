@@ -611,10 +611,50 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
     - où : `crates/kartenn-flow/src/handler.rs` (217 à 226, 493 à 585),
       `tests/it/references.rs`
-  - [ ] 29d4. `kartenn-policy` : parcours de ses 22 types, dont chaque champ de `Fields`
+  - [x] 29d4. `kartenn-policy` : parcours de ses 22 types, dont chaque champ de `Fields`
     (`objects.rs` 26 à 91), `axis.update`, `matrix.set` et `infer.rs` (729 à 820), et
     fuites — verify : `k-check -p kartenn-policy`
     - où : `crates/kartenn-policy/tests/it/rights.rs` et un module de tests nouveau
+    - fait le 2026-11-17 : une fuite, rouge d'abord : `policy.matrix.set` à l'état `none`
+      sur une cellule vide était refusé par le plan (`policy.operation.invalid`, « the cell
+      is empty »), avant les droits ; un auteur sans aucun droit recevait ce refus pour un
+      type de flux inconnu, clos ou d'un autre type, et le refus de ses droits pour un type
+      de flux en vigueur dont la cellule porte une règle ; un lecteur recevait ce refus au
+      lieu de `core.reference.unknown`. `matrix.rs` (`planned_set`) : une cellule vide vidée
+      a un plan qui n'écrit rien. Module nouveau `tests/it/references.rs` :
+      `every_reference_of_every_operation_is_checked` (26 couples opération × champ sur les
+      13 types qui citent par identifiant, le type de flux d'une cellule sous `allow` et
+      sous `none`, les 9 autres types listés sans référence ; pour chacun
+      un identifiant inconnu, un objet d'un autre type et un objet clos : une seule violation
+      `core.reference.unknown` comparée entière, message, opération, `detail` et objets ;
+      rien d'écrit, révisions comprises), `no_right_reaches_through_a_hidden_reference`
+      (chaque couple, deux auteurs : sans aucun droit, refus de ses droits égal pour l'objet
+      en vigueur et les trois cachés, comparé entier, identifiants tirés masqués ; avec tous
+      les droits d'écrire sans lire la politique, règles d'inférence dans `lab` : refus des
+      droits égaux là où la référence en exige (domaine d'une règle d'inférence, règle
+      qu'une mise à jour écrit), ailleurs l'objet en vigueur appliqué et les cachés refusés
+      à l'identique), `a_hidden_domain_answers_the_same_bytes` (par HTTP, `POST
+      /v1/changesets` : statut 422 et octets égaux pour un domaine inconnu, clos et hors
+      d'atteinte, une fois masqués l'identifiant donné, le changeset et la requête ; créée
+      dans `lab`). Attente changée dans `matrix.rs` (tests) : vider une cellule vide est
+      appliqué sans rien écrire ; `rest.rs` (tests) : `Env::app` partagé
+    - choix : cellule vide vidée en plan `noop` plutôt qu'en refus (le choix de la 010-18,
+      « une cellule déjà vide est refusée », est retourné : seul moyen, dans le module, de
+      ne rien dire avant les droits) ; la comparaison des réponses masque l'identifiant
+      donné et ceux que la requête tire, garde ceux des objets du test ; l'auteur des
+      règles d'inférence est lié au domaine `lab` (une liaison sur l'entité propriétaire ne
+      donne pas `policy.inference.admin` sur une règle ancrée dans son domaine)
+    - reste : sous `if_match`, un type de flux absent rend la cellule périmée
+      (`policy.matrix.stale`) avant les références et les droits, comme un type de flux en
+      vigueur dont l'empreinte diffère : pas de fuite sans connaître l'empreinte, mais un
+      lecteur reçoit `stale` et non `core.reference.unknown` ; la mise à jour d'un objet de
+      la politique caché à un auteur qui l'écrit sans le lire (identifiant inconnu, d'un
+      autre type ou clos) est refusée par son écriture (`changeset.operation.no_version`),
+      avant les désignations cachées, à l'identique pour les trois : l'oracle d'existence
+      de la tâche 31, mais pas sa règle ; les références de la politique n'exigent aucune
+      lecture (tâche 31) ; une liaison de `policy.inference.admin` sur une entité n'atteint
+      pas les règles d'inférence ancrées dans ses domaines (REQ-010-46, à vérifier dans la
+      spec 010)
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en

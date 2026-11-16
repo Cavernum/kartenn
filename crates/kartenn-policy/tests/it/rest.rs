@@ -45,7 +45,7 @@ impl Authenticator for As {
 
 impl Env {
     /// The router of an instance with the module, as the person `identity`.
-    fn app(&self, identity: Uuid) -> Router {
+    pub(crate) fn app(&self, identity: Uuid) -> Router {
         let api = Api {
             pool: self.pool.clone(),
             ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),

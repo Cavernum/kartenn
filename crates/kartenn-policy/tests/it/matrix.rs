@@ -186,10 +186,16 @@ async fn a_view_written_and_read_back_keeps_one_rule_per_cell(pool: PgPool) {
         .await;
     assert_eq!(living_rules(&pool).await, 1);
     assert_eq!(read(&env).await.cells.len(), 1);
+    // An empty cell emptied: nothing to close, nothing written (INV-63, task 002-29d4: no
+    // refusal of the plan tells whether a cell holds a rule before the rights do).
+    let (revision, view) = (env.revision().await, read(&env).await);
+    env.applied(vec![set("dev", file, "prod", "none", json!({}))])
+        .await;
+    assert_eq!(living_rules(&pool).await, 1);
+    assert_eq!((env.revision().await, read(&env).await), (revision, view));
 }
 
-/// A deny cell without its text, a conditional one without patterns, and an empty cell
-/// emptied are refused.
+/// A deny cell without its text and a conditional one without patterns are refused.
 #[kartenn_testing::pg_test]
 async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -201,10 +207,6 @@ async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
         ),
         (
             set("prod", file, "dev", "conditional", json!({})),
-            "policy.operation.invalid",
-        ),
-        (
-            set("prod", file, "dev", "none", json!({})),
             "policy.operation.invalid",
         ),
     ] {

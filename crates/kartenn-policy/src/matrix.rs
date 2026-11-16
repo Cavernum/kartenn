@@ -465,10 +465,14 @@ mod write {
             "deny" => "deny",
             "none" => {
                 // The cell emptied: its rule closed by the core (D33 checks its referrers).
-                let existing = set
-                    .completed
-                    .existing
-                    .ok_or_else(|| invalid(operation, "the cell is empty"))?;
+                // An empty cell, of a flow type absent among others, has nothing to close: its
+                // plan writes nothing, so that the flow type is judged by the pipeline
+                // (`core.reference.unknown`), after the rights of an author who does not
+                // read it, and no refusal of the plan tells him first whether it holds a rule
+                // (INV-63, task 002-29d4).
+                let Some(existing) = set.completed.existing else {
+                    return Ok(plan(RULE, object, false, json!({ "noop": true })));
+                };
                 let mut planned = plan(RULE, existing, false, json!({ "noop": true }));
                 planned.core.push(Operation::Close {
                     kind: ObjectKind::from_name(RULE).expect("a module type"),

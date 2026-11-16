@@ -16,6 +16,7 @@ mod matrix;
 mod mismatch;
 mod obligation;
 mod preview;
+mod references;
 mod report;
 mod rest;
 mod rights;
