@@ -219,6 +219,9 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 trait Part: PartialEq + Send + Sync + Sized + 'static {
     /// What a computation needs besides the API.
     type Origin: Clone + Send + Sync + 'static;
+    /// Whether its computation reads rights at its moment, not from its origin alone: a
+    /// write of rights during it then leaves it unkept (task 006-41).
+    const READS_RIGHTS: bool;
     fn compute(
         api: &Api,
         origin: &Self::Origin,
@@ -238,6 +241,7 @@ trait Part: PartialEq + Send + Sync + Sized + 'static {
 impl Part for Shared {
     /// The read scope, and whether it reads the changesets.
     type Origin = (Arc<ReadScope>, bool);
+    const READS_RIGHTS: bool = false;
 
     async fn compute(
         api: &Api,
@@ -265,6 +269,8 @@ impl Part for Own {
     /// The subject, its read scope, and where it holds the rights its own counters depend
     /// on beyond it, as its key names them ([`held`]).
     type Origin = (Arc<Subject>, Arc<ReadScope>, Arc<str>);
+    /// The pending proposals it may apply, and the counters of the modules.
+    const READS_RIGHTS: bool = true;
 
     async fn compute(
         api: &Api,
@@ -533,7 +539,11 @@ impl Snapshots {
     /// before and after it ([`Part::holds`]); `None`, not run, when they no longer hold
     /// before it and it is not the `first` of its key (whose read waits for a body). The
     /// revision of the outbox is read first, so that a change committed during it makes
-    /// the snapshot due again.
+    /// the snapshot due again. A part that reads rights at its moment
+    /// ([`Part::READS_RIGHTS`]) is kept only when no write of rights ran from before the
+    /// first read of its rights to after the last ([`rbac::rights_written`], task
+    /// 006-41): its rights the same at both ends, a right given then withdrawn in between
+    /// would leave under its key a count made with the right.
     async fn compute<T: Part>(
         &self,
         api: &Api,
@@ -541,14 +551,17 @@ impl Snapshots {
         first: bool,
     ) -> Result<Option<(Snap<T>, bool)>, Problem> {
         let revision = outbox::revision(&api.pool).await?;
+        let written = rights_written::<T>(api).await?;
         let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
-        let before = T::holds(api, origin, now).await?;
+        let before = written.is_some() && T::holds(api, origin, now).await?;
         if !before && !first {
             return Ok(None);
         }
         let body = T::compute(api, origin, now).await?;
         let later = read::now(&api.pool).await.map_err(|e| store(&e))?;
-        let kept = before && T::holds(api, origin, later).await?;
+        let kept = before
+            && T::holds(api, origin, later).await?
+            && rights_written::<T>(api).await? == written;
         let snap = Snap {
             body: Arc::new(body),
             at: now,
@@ -636,6 +649,16 @@ impl Snapshots {
                 tracing::warn!(name: "stats.sweep.failed", problem = ?problem, "the snapshots of the statistics could not be swept");
             }
         }
+    }
+}
+
+/// The count of the writes of rights when `T` reads rights at its moment, `None` while
+/// one is in flight; `Some(0)` for a part that reads none.
+async fn rights_written<T: Part>(api: &Api) -> Result<Option<i64>, Problem> {
+    if T::READS_RIGHTS {
+        Ok(rbac::rights_written(&api.pool).await?)
+    } else {
+        Ok(Some(0))
     }
 }
 

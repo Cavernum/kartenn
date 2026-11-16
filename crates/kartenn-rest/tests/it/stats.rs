@@ -4,6 +4,7 @@
 //! the `ETag`, `computed_at` and the snapshots recomputed once the outbox moved (M18).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use axum::body::Body;
@@ -21,10 +22,15 @@ use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
 use kartenn_service::authz::Unrestricted;
+use kartenn_service::module::{
+    BoxFuture, Contribution, Module, ModuleRead, ModuleRegistry, StatsContributor, StatsScope,
+};
 use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::port::StoreError;
 use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
+use kartenn_store_pg::rbac;
 use kartenn_store_pg::write::PgStore;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -563,4 +569,125 @@ async fn to_apply_follows_a_withdrawn_right_of_application(pool: PgPool) {
     .unwrap();
     let (_, _, after) = stats(&mine, None).await;
     assert_eq!(after["pending"]["to_apply"], 0, "{after}");
+}
+
+/// The right the counter of [`Probe`] depends on.
+const PROBE: &str = "probe.gauge.read";
+
+/// A module of test whose counter `held` says whether its caller holds [`PROBE`] at the
+/// moment of the computation; armed, it gives the right before reading it and withdraws
+/// it after, in the middle of the computation of a key (task 006-41).
+#[derive(Debug)]
+struct Probe {
+    pool: PgPool,
+    armed: Arc<AtomicBool>,
+}
+
+impl StatsContributor for Probe {
+    fn contribute<'a>(
+        &'a self,
+        _read: &'a mut dyn ModuleRead,
+        scope: &'a StatsScope<'a>,
+    ) -> BoxFuture<'a, Result<Contribution, StoreError>> {
+        Box::pin(async move {
+            let subject = scope.subject.expect("a caller");
+            let armed = self.armed.swap(false, Ordering::SeqCst);
+            if armed {
+                probe_right(&self.pool, subject.id, true).await;
+            }
+            let mut conn = self.pool.acquire().await.unwrap();
+            let held =
+                rbac::visibilities_on(&mut conn, subject, &[PROBE], OffsetDateTime::now_utc())
+                    .await?
+                    .pop()
+                    .is_some_and(|v| v.global);
+            if armed {
+                probe_right(&self.pool, subject.id, false).await;
+            }
+            Ok(Contribution {
+                objects: Vec::new(),
+                counters: vec![("held", u64::from(held))],
+            })
+        })
+    }
+
+    fn permissions(&self) -> &'static [&'static str] {
+        &[PROBE]
+    }
+}
+
+/// Gives [`PROBE`] to the roles `identity` is bound to, or withdraws it, as an
+/// administrator editing the role would.
+async fn probe_right(pool: &PgPool, identity: Uuid, given: bool) {
+    let sql = if given {
+        "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+         SELECT b.role_id, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid()
+           FROM binding b JOIN group_member m ON m.group_id = b.group_id
+          WHERE m.identity_id = $1"
+    } else {
+        "DELETE FROM role_permission
+          WHERE permission = $2
+            AND role_id IN (SELECT b.role_id FROM binding b
+                              JOIN group_member m ON m.group_id = b.group_id
+                             WHERE m.identity_id = $1)"
+    };
+    let moved = sqlx::query(sql)
+        .bind(identity)
+        .bind(PROBE)
+        .execute(pool)
+        .await
+        .unwrap()
+        .rows_affected();
+    assert_eq!(moved, 1);
+}
+
+#[derive(Debug)]
+struct ProbeModule(Arc<Probe>);
+
+impl Module for ProbeModule {
+    fn name(&self) -> &'static str {
+        "probe"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.1"
+    }
+    fn stats(&self) -> Option<Arc<dyn StatsContributor>> {
+        Some(self.0.clone())
+    }
+}
+
+/// Task 006-41: a right given then withdrawn in the middle of the computation of a key,
+/// the same before and after it, leaves no counter made with the right under the key
+/// without it. The key « without » is born, the outbox moves, and the sweep recomputes
+/// it while the right comes and goes: the next read counts without the right.
+#[kartenn_testing::pg_test]
+async fn a_right_given_and_withdrawn_during_a_computation_is_not_kept(pool: PgPool) {
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let armed = Arc::new(AtomicBool::new(false));
+    let probe = Arc::new(Probe {
+        pool: pool.clone(),
+        armed: armed.clone(),
+    });
+    let modules = Arc::new(ModuleRegistry::new(vec![Arc::new(ProbeModule(probe))]).unwrap());
+    let api = Api {
+        modules,
+        ..api(&pool)
+    };
+    let snapshots = snapshots(Duration::ZERO);
+    let mine = router(
+        kartenn_rest::v1(api.clone()).layer(Extension(snapshots.clone())),
+        &pool,
+        reader,
+    );
+    let (_, _, before) = stats(&mine, None).await;
+    assert_eq!(before["modules"]["probe"]["held"], 0, "{before}");
+    armed.store(true, Ordering::SeqCst);
+    domain(&pool, "moved").await;
+    snapshots.sweep(&api).await.unwrap();
+    assert!(
+        !armed.load(Ordering::SeqCst),
+        "the sweep recomputed the key"
+    );
+    let (_, _, after) = stats(&mine, None).await;
+    assert_eq!(after["modules"]["probe"]["held"], 0, "{after}");
 }
