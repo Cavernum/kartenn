@@ -15,12 +15,14 @@ import { HOLDERS_MAX } from "../src/holders.ts";
 // The machine column of a list of addresses reads the interfaces of its rows by window
 // (task 021-11p10-e): one request `GET /v1/interfaces?address=…` per window of 64 addresses
 // at most, followed to its last page, each row given its interfaces under the key of its
-// read alone (that of the tab of an address and of the search).
+// read alone (that of the tab of an address and of the search). Each machine by the summary
+// of its interface (task 11p10-d4): nothing read, nor mounted to read it.
 
 type Interface = components["schemas"]["Interface"];
 
 const MACHINE = "4c9f2a52-0f1e-4f55-9a43-6f1f2d1b7a10";
-const ENTITY = "0b7d1c8e-3a54-4b1c-8f0e-2d6a9c4e5f21";
+/** The waits of the 100 rows: happy-dom mounts them slowly on a loaded machine. */
+const SLOW = { timeout: 4000 };
 
 /** The identifier of the `n`th address, of the `n`th interface. */
 const addressOf = (n: number) => `8f3c2da1-2e5b-4d4f-9c60-${n.toString(16).padStart(12, "0")}`;
@@ -30,7 +32,7 @@ const ifaceOf = (n: number) => `6a1d3e70-58c4-4f0b-9e2a-${n.toString(16).padStar
 const iface = (n: number, also: number[] = []): Interface => ({
   id: ifaceOf(n),
   href: `/v1/interfaces/${ifaceOf(n)}`,
-  machine: { id: MACHINE },
+  machine: { id: MACHINE, label: "srv-a", href: `/v1/machines/${MACHINE}` },
   name: `eth${n}`,
   mac: null,
   enabled: true,
@@ -43,6 +45,8 @@ const iface = (n: number, also: number[] = []): Interface => ({
 });
 
 let cells: HTMLElement[] = [];
+/** The paths of the requests sent, in order. */
+const paths: string[] = [];
 
 beforeAll(async () => {
   const defined = announcePlugin({
@@ -63,10 +67,17 @@ afterEach(() => {
 
 /** `n` cells of the column, rows 0 to n − 1, mounted at once over `handlers`. */
 function column(n: number, handlers: Handlers): HTMLElement[] {
+  const fake = fakeFetch(handlers);
+  paths.length = 0;
   const first = mount("machines-column", {
     properties: { row: { id: addressOf(0) } },
     context: { locale: "en" },
-    fetch: fakeFetch({ "GET /v1/machines/{id}": () => machine(), ...handlers }),
+    fetch: (input, init) => {
+      paths.push(
+        new URL(String(input instanceof Request ? input.url : input), "http://x").pathname,
+      );
+      return fake(input, init);
+    },
   });
   cells = [first.element];
   for (let row = 1; row < n; row++) {
@@ -77,15 +88,6 @@ function column(n: number, handlers: Handlers): HTMLElement[] {
   }
   return cells;
 }
-
-const machine = () =>
-  ({
-    id: MACHINE,
-    href: `/v1/machines/${MACHINE}`,
-    name: "srv-a",
-    kind: "physical",
-    owner: { id: ENTITY },
-  }) as never;
 
 /** The rows read so far by the requests on `/v1/interfaces`, request by request. */
 function interfaces(answer: (asked: string[], cursor: string | null) => unknown) {
@@ -100,6 +102,21 @@ function interfaces(answer: (asked: string[], cursor: string | null) => unknown)
   return { requests, handlers };
 }
 
+/**
+ * What was read or mounted to read besides the lists of interfaces: the paths of the other
+ * requests, and those of the other queries of the cache (an observer, even of a disabled
+ * query, holds one). None for a machine named by its summary.
+ */
+const others = () => ({
+  requests: paths.filter((path) => path !== "/v1/interfaces"),
+  queries: queryClient
+    .getQueryCache()
+    .getAll()
+    .map((query) => String(query.queryKey[1]))
+    .filter((path) => path !== "/v1/interfaces"),
+});
+const NOTHING = { requests: [], queries: [] };
+
 /** The page kept for the row `n`, under the key of its read alone. */
 const keptOf = (n: number) =>
   queryClient.getQueryData<ListData<Interface>>(
@@ -107,7 +124,7 @@ const keptOf = (n: number) =>
   );
 
 describe("the machine column, its interfaces read by window", () => {
-  it("100 rows: two requests, 64 then 36 addresses; each row its interfaces, none for the others", async () => {
+  it("100 rows: two requests, 64 then 36 addresses; each row its interfaces, none for the others; no read of a machine", async () => {
     // The even rows are held by an interface; the others by none.
     const { requests, handlers } = interfaces((asked) => ({
       items: asked
@@ -117,13 +134,23 @@ describe("the machine column, its interfaces read by window", () => {
       links: { next: null },
     }));
     const mounted = column(100, handlers);
-    await vi.waitFor(() =>
-      expect(mounted.filter((cell) => (cell.textContent ?? "").includes("srv-a"))).toHaveLength(50),
+    await vi.waitFor(
+      () =>
+        expect(mounted.filter((cell) => (cell.textContent ?? "").includes("srv-a"))).toHaveLength(
+          50,
+        ),
+      SLOW,
     );
-    await vi.waitFor(() =>
-      expect(mounted.filter((cell) => (cell.textContent ?? "").includes("—"))).toHaveLength(50),
+    await vi.waitFor(
+      () =>
+        expect(mounted.filter((cell) => (cell.textContent ?? "").includes("—"))).toHaveLength(50),
+      SLOW,
     );
     expect(requests.map((r) => r.length)).toEqual([HOLDERS_MAX, 100 - HOLDERS_MAX]);
+    // Each machine by the summary of its interface, linked to its record: nothing else read,
+    // nothing mounted to read it.
+    expect(mounted[0]!.querySelector("a")?.textContent).toBe("srv-a");
+    expect(others()).toEqual(NOTHING);
     // Each row under the key of its read alone, with its own address only.
     expect(keptOf(2)?.pages[0]?.data.items).toEqual([
       { ...iface(2), addresses: iface(2).addresses },
@@ -132,6 +159,33 @@ describe("the machine column, its interfaces read by window", () => {
     // No row read again: an empty page is an answer, not a failure.
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(requests).toHaveLength(2);
+  });
+
+  it("a machine the caller may not read: its identifier in fixed pitch, unlinked, nothing read (11p10-d4)", async () => {
+    const { handlers } = interfaces(() => ({
+      items: [{ ...iface(0), machine: { id: MACHINE } }],
+      links: { next: null },
+    }));
+    const [cell] = column(1, handlers);
+    // Said unreadable to the assistive technologies, the fixed pitch out of their reach.
+    await vi.waitFor(() => expect(cell!.textContent).toBe(`${MACHINE} (unreadable)`));
+    expect(cell!.querySelector("a")).toBeNull();
+    expect(cell!.querySelector(".k-mono")?.textContent).toBe(MACHINE);
+    expect(cell!.querySelector(".k-visually-hidden")?.textContent).toBe(" (unreadable)");
+    expect(others()).toEqual(NOTHING);
+  });
+
+  it("a machine cited by two interfaces, once: by its summary read, whatever their order", async () => {
+    const { handlers } = interfaces(() => ({
+      items: [
+        { ...iface(0), machine: { id: MACHINE } },
+        { ...iface(0), id: ifaceOf(9) },
+      ],
+      links: { next: null },
+    }));
+    const [cell] = column(1, handlers);
+    await vi.waitFor(() => expect(cell!.textContent).toBe("srv-a"));
+    expect(cell!.querySelector("a")?.textContent).toBe("srv-a");
   });
 
   it("an interface holding two requested addresses goes to each row, with its address", async () => {

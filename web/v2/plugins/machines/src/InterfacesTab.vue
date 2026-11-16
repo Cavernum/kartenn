@@ -22,12 +22,12 @@ import {
 } from "@kartenn/ui";
 import { computed } from "vue";
 import CitedName from "./CitedName.vue";
-import { useList, useNotified } from "./data.ts";
+import { useList } from "./data.ts";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
 import InterfaceGrid from "./InterfaceGrid.vue";
 import PageRoot from "./PageRoot.vue";
-import { Names, type Interface } from "./reads.ts";
+import type { Interface } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ object: ObjectRef | null; row: unknown }>();
@@ -37,7 +37,6 @@ const AHEAD = 20;
 
 const t = useTexts();
 const { context, element } = useHosted();
-const names = useNotified((changed, live) => new Names(changed, live));
 const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : undefined);
 
 const network = computed(() => (props.object?.type === "prefix" ? props.object.id : null));
@@ -71,7 +70,7 @@ const networkRows = computed(() =>
       iface: iface.id,
       address: a.id,
       name: iface.name,
-      machine: iface.machine.id,
+      machine: iface.machine,
       value: a.value,
       primary: a.primary,
     })),
@@ -148,10 +147,8 @@ const capped = computed(() => listed.value.more && listed.value.pages >= MAX_PAG
             >
             <CitedName
               v-else-if="column.id === 'machine'"
-              :id="line.machine"
-              :names="names"
-              type="machines.machine"
-              :page="PAGES.machine(line.machine)"
+              :summary="line.machine"
+              :page="PAGES.machine(line.machine.id)"
             />
             <a
               v-else-if="column.id === 'value'"
@@ -166,7 +163,6 @@ const capped = computed(() => listed.value.more && listed.value.pages >= MAX_PAG
           v-else
           :label="t('tab.title')"
           :interfaces="listed.items ?? []"
-          :names="names"
           :loading="listed.items === undefined"
           :more="listed.more"
           @window="(w) => ahead(w, listed.items?.length ?? 0)"

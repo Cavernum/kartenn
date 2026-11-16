@@ -4,6 +4,7 @@
   "retry": "Retry",
   "warning": "Warning:",
   "code": "Code",
+  "cited": { "unreadable": "unreadable" },
   "request": "Request",
   "network": "The server did not answer.",
   "kind": {

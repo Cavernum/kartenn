@@ -68,6 +68,16 @@ const iface = (vlan: Interface["vlan"] = ACCESS()) =>
     vlan,
   }) as Interface;
 const vlan = { id: VLAN, vid: 310, name: "hotes", group: { id: ENTITY }, status: "active" };
+/**
+ * The types of the objects whose read by identifier the cache holds (`["v1", type, id, …]`,
+ * a list's second part a path): an observer, even of a disabled query, holds one.
+ */
+const objectQueries = () =>
+  queryClient
+    .getQueryCache()
+    .getAll()
+    .map((query) => String(query.queryKey[1]))
+    .filter((part) => !part.startsWith("/"));
 const page = <T>(items: T[], next?: string) => ({ items, links: next ? { next } : {} }) as never;
 
 /** A user who holds every permission, or none of `missing`. */
@@ -195,8 +205,6 @@ describe("the search of the interfaces (task 18cc)", () => {
     // A VID in two groups: two lists, their interfaces merged.
     "GET /v1/vlans": ({ query }: { query: URLSearchParams }) =>
       page(query.get("vid") === "310" ? [{ id: VLAN }, { id: VLAN_B }] : []),
-    "GET /v1/machines/{id}": () => machine() as never,
-    "GET /v1/vlans/{id}": () => vlan as never,
   });
 
   it("searches by MAC, address and VID, the criteria in the query of the page, found again at a step back", async () => {
@@ -211,6 +219,8 @@ describe("the search of the interfaces (task 18cc)", () => {
     await vi.waitFor(() => expect(field(element, "MAC").value).toBe(MAC));
     await vi.waitFor(() => expect(rows(element, "Interfaces found")).toEqual([ROW]));
     expect(asked).toEqual([`${MAC}||`]);
+    // Its machine and its VLAN by their summaries (11p10-d4): no object read nor mounted.
+    expect(objectQueries()).toEqual([]);
     // Said by the live region there from the start, the visible count hidden from it.
     const status = element.querySelector("[role=status]")!;
     expect(status.textContent).toBe("Interfaces found: 1.");
@@ -316,8 +326,6 @@ describe("the search of the interfaces (task 18cc)", () => {
           lists.push(query.get("address")!);
           return page(query.get("address") === "a0" ? [iface()] : []);
         },
-        "GET /v1/machines/{id}": () => machine() as never,
-        "GET /v1/vlans/{id}": () => vlan as never,
       } as never),
     });
     const { element } = mounted;
@@ -501,7 +509,6 @@ describe("the « Interfaces » tab (task 18cc)", () => {
             ]),
           ]);
         },
-        "GET /v1/machines/{id}": () => machine() as never,
       }),
     });
     const { element } = mounted;
@@ -528,14 +535,18 @@ describe("the « Interfaces » tab (task 18cc)", () => {
     expect(element.querySelector("h1, h2")).toBeNull();
   });
 
-  it("of a network: the next page as the window nears its end, each machine named once", async () => {
+  it("of a network: the next page as the window nears its end, each machine by its summary, none read (11p10-d4)", async () => {
     const pages: string[] = [];
     const named = new Map<string, number>();
     const many = (from: number, n: number) =>
       Array.from({ length: n }, (_, i) => ({
         ...held([{ id: `addr-${from + i}`, value: `192.0.2.${from + i + 1}`, primary: true }]),
         id: `i${from + i}`,
-        machine: { id: `m${(from + i) % 3}` },
+        machine: {
+          id: `m${(from + i) % 3}`,
+          label: `srv-m${(from + i) % 3}`,
+          href: `/v1/machines/m${(from + i) % 3}`,
+        },
       }));
     mounted = mount("machines-tab", {
       object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
@@ -556,8 +567,10 @@ describe("the « Interfaces » tab (task 18cc)", () => {
     await vi.waitFor(() => expect(rows(element, "Interfaces")).toHaveLength(7));
     await vi.waitFor(() => expect(rows(element, "Interfaces")[6]![1]).toBe("srv-m0"));
     expect(pages).toEqual(["first", "p2"]);
-    // Three machines for seven interfaces: each named once, through the shared cache.
-    expect([...named.values()]).toEqual([1, 1, 1]);
+    // Three machines for seven interfaces, each by the summary of its interface: none read,
+    // no query of one in the cache (`["v1", type, id, …]`; a list's second part is a path).
+    expect(named.size).toBe(0);
+    expect(objectQueries()).toEqual([]);
     // Let go once the tab is gone: an invalidation reads nothing again.
     mounted.unmount();
     mounted = null;
@@ -571,7 +584,7 @@ describe("the « Interfaces » tab (task 18cc)", () => {
     await queryClient.invalidateQueries();
     await new Promise((done) => setTimeout(done, 20));
     expect(pages).toEqual(["first", "p2"]);
-    expect([...named.values()]).toEqual([1, 1, 1]);
+    expect(named.size).toBe(0);
   });
 
   it("of an address and of a VLAN: the interfaces that hold or carry it", async () => {
@@ -581,8 +594,6 @@ describe("the « Interfaces » tab (task 18cc)", () => {
         asked.push(query.toString());
         return page([iface()]);
       },
-      "GET /v1/machines/{id}": () => machine() as never,
-      "GET /v1/vlans/{id}": () => vlan as never,
     };
     mounted = mount("machines-tab", {
       object: { type: "vlan", id: VLAN, href: `/v1/vlans/${VLAN}` },
@@ -612,8 +623,6 @@ describe("the « Interfaces » tab (task 18cc)", () => {
           second.push(query.get("cursor")!);
           return refused ? problem(403, "forbidden") : page([]);
         },
-        "GET /v1/machines/{id}": () => machine() as never,
-        "GET /v1/vlans/{id}": () => vlan as never,
       }),
     });
     const { element } = mounted;

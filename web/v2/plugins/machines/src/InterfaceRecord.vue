@@ -174,10 +174,7 @@ function violations(problem: ApiProblem): boolean {
     <Skeleton v-if="!iface && !read.error" variant="text" :rows="3" />
     <AttributeList v-else-if="iface" :items="attributes">
       <template #machine>
-        <CitedName
-          :summary="iface.machine"
-          :page="iface.machine.label ? PAGES.machine(iface.machine.id) : undefined"
-        />
+        <CitedName :summary="iface.machine" :page="PAGES.machine(iface.machine.id)" />
       </template>
       <template #state>
         <StatusBadge
