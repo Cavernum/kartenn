@@ -2222,6 +2222,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
       principale)
       - où : `web/v2/sdk/src/data/batch.ts` (`createBatcher`)
       - dépend de : 11p10-d1 à d4, de préférence 006-33f1 et 006-33g
+      - versé par la revue de la d2 (mineurs, 2026-11-16) : `fieldText`
+        (`views/collections.ts`) rend `""` pour un libellé vide là où `SummaryName`
+        rend l'identifiant, à aligner avec le nom résumé partagé ; une valeur
+        `core.vlan` en chaîne (brouillon) donne « aucun VLAN » sans test qui le fixe
+        (`views/parts/vlan.ts`) ; l'onglet VLAN d'un réseau lit la fiche d'un VLAN
+        illisible et passe entier en erreur, sa phrase `carries` tire encore le nom
+        de la fiche lue (`views/record/NetworkVlanTab.vue`) ; aucun test ne monte
+        l'onglet VLAN ni les attributs de fiche (groupe, ancre, domaine, parent)
       - reste (d4) : mettre en commun dans `@kartenn/ui` (changement de contrat, à
         arbitrer) le nom d'un objet résumé, aujourd'hui écrit deux fois avec la même règle,
         les mêmes mots et la même structure : `SummaryName` du shell et `CitedName` du
