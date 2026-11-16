@@ -7408,12 +7408,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       et à la fin du test ; le témoin (20 s sans défilement, ×4, à l'accueil puis l'arbre
       monté) ; un témoin de vitesse (travail fixe de 10⁵ tours par trame, 10 s) ; par
       fenêtre, les intervalles des trames, le fil principal par CDP (`Performance` :
-      tâches, scripts, mise en page, style, CPU du fil), le CPU de la machine, du
-      navigateur par processus et par fil, des serveurs et du reste, le cœur du fil
-      principal (part sur les cœurs rapides, GHz, occupation de son jumeau SMT et des
-      autres cœurs de son cache L3), les défauts de page ; les longues trames dès 50 ms
-      (somme) et celles qui portent une tâche longue (détail) ; `K_BENCH_TRACE=<dossier>`
-      enregistre une trace Chromium de la fenêtre. Quatorze passes filtrées :
+      tâches, scripts, mise en page, style, CPU du fil), les attentes du noyau, le CPU de
+      la machine, du navigateur par processus et par fil, des serveurs et du reste ; les
+      longues trames dès 50 ms (somme) et celles qui portent une tâche longue (détail).
+      Débrayables, coupés par défaut : `K_BENCH_CORES=1`, le cœur du fil principal (part
+      des échantillons sur les cœurs rapides, GHz ; un parcours de `/proc` toutes les
+      50 ms, à tenir hors des fenêtres d'un verdict) ; `K_BENCH_TRACE=<dossier>`, une
+      trace Chromium de la fenêtre. Les sondes des hypothèses écartées (défauts de page,
+      jumeau SMT, voisins du cache L3), relevées aux passes 6 à 14, sont retirées après la
+      revue. Quatorze passes filtrées, toutes sonde comprise (cœurs échantillonnés dès la
+      passe 2) :
 
       | passe | charge 1 min | témoin (accueil / arbre) | trames perdues (défilement / bench-a40) | tâches longues (la plus longue) | fil principal |
       |---|---|---|---|---|---|
@@ -7432,8 +7436,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       | 13 | 2,3 | 0,00 / 0,18 % | 14,59 / 12,58 % | 0 / 0 | 85 %, 4,54 GHz, SMT 9 %, L3 1,19 |
       | 14 | 2,1 | 0,00 / 0,19 % | 16,78 / 16,83 % | 1 (54) / 1 (51) | 100 %, 4,88 GHz, SMT 5 %, L3 1,30 |
 
-      Ce qui est établi. (a) Le navigateur et la machine ne perdent rien d'eux-mêmes : le
-      témoin perd 0 à 0,27 % dans les mêmes conditions (même charge, même attente d'E/S).
+      Ce qui est établi. (a) Pour une page au repos, le navigateur et la machine ne
+      perdent rien d'eux-mêmes : le témoin perd 0 à 0,27 % dans les mêmes conditions
+      (même charge, même attente d'E/S) ; cela ne dit rien d'une page chargée.
       (b) La charge ne dit rien : 1,9 à 3,3 sur 24 CPU dans treize passes sur quatorze
       (la moyenne compte aussi les tâches en attente d'E/S), pour 5 à 33 % de trames
       perdues ; la machine n'occupe que 2 à 4 CPU pendant les fenêtres. (c) Pendant le
@@ -7441,21 +7446,34 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       de CPU sur 20 s, tâches 19,4 à 20,0 s (au repos, le ralenti ×4 de CDP lui fait déjà
       tourner 0,76 CPU) ; la trace (passe 6) compte 40 à 48 trames du fil principal par
       seconde, ≈ 21 ms de travail chacune à ×4 (événement `scroll` 7,4 ms, et un
-      `scrollend` à chaque trame : 880 de chaque). Ce qui distingue une passe de 33 %
-      d'une passe de 5 à 20 % : le type de cœur. Le processeur a deux sortes de cœurs
+      `scrollend` à chaque trame : 880 de chaque).
+
+      Indice fort, à confirmer : le type de cœur. Le processeur a deux sortes de cœurs
       (5,16 et 3,29 GHz au plus) ; épinglé sur les lents, le banc perd 32,5 et 32,8 %,
-      quatre tâches longues par fenêtre (le 38 % de la 22e-j en est). Entre une passe à
-      5 % et une à 17 % sur les cœurs rapides (12 et 14), rien de la machine ne diffère :
-      même cœur, même fréquence, même voisinage SMT et L3, même témoin de vitesse
-      (8,3 ms), pas de défaut de page ; le travail de la page par fenêtre non plus
-      (scripts 0,70 s, mise en page 2,4 s, style 2,05 s, quel que soit le nombre de
-      trames). Les deux fenêtres d'une même passe se suivent (5/7,5, 16,8/16,8,
-      19,4/20,9) : l'état se fixe à la passe (instance du navigateur, compilation de
-      V8, rythme du ralenti de CDP contre l'horloge des trames), non établi. Pas de
-      trace d'une bonne passe : la seule tracée est mauvaise (20,4 %), aucune n'est
-      descendue sous 5 %. Écarté : la charge, l'attente d'E/S (le témoin n'en souffre
-      pas), la mémoire (0 à 9 défauts de page majeurs du rendu par fenêtre), la
-      fréquence sur cœur rapide, le jumeau SMT. (d) Les tâches de 51 à 81 ms : une trame
+      quatre tâches longues par fenêtre, mais d'une seule passe (7). Que le 38 % de la
+      22e-j vienne d'un cœur lent est une hypothèse : le cœur n'y était pas relevé.
+      Épingler sur les rapides ne retire pas démontrablement le mode haut : la passe 8,
+      épinglée sur les rapides, perd 8,10 % au premier défilement et 24,05 % au second.
+      Entre une passe à 5 % et une à 17 % sur les cœurs rapides (12 et 14), rien de la
+      machine ne diffère : même cœur, même fréquence, même voisinage SMT et L3, même
+      témoin de vitesse (8,3 ms), pas de défaut de page ; le travail de la page par
+      fenêtre non plus (scripts 0,70 s, mise en page 2,4 s, style 2,05 s, quel que soit
+      le nombre de trames). Les deux fenêtres d'une même passe se suivent souvent
+      (12 : 5,17/7,51 ; 14 : 16,78/16,83 ; 11 : 19,36/20,90), pas toujours (6 :
+      20,36/9,75, la première tracée ; 8 : 8,10/24,05 ; 5 : 10,92/15,99) : un état fixé à
+      la passe n'est pas établi. Pas de trace d'une bonne passe : la seule tracée est
+      mauvaise (20,4 %), aucune n'est descendue sous 5 %. Écarté : la charge, l'attente
+      d'E/S (le témoin n'en souffre pas), la mémoire (0 à 9 défauts de page majeurs du
+      rendu par fenêtre), la fréquence sur cœur rapide, le jumeau SMT.
+
+      Biais de la sonde, non mesuré : aucune passe de contrôle sans elle. Les médianes
+      instrumentées (14,32 et 10,34 %, ci-dessous) ne se comparent pas telles quelles aux
+      7,70 % non instrumentés de la 22e-j ; la passe 1, sans l'échantillonneur de cœurs,
+      est parmi les plus basses (6,09 %). La quinzième passe permise n'a pas été lancée :
+      l'analyse antivirus durait encore, elle aurait mesuré la même machine ; les passes
+      restantes reviennent à la session principale.
+
+      (d) Les tâches de 51 à 81 ms : une trame
       de défilement qui porte un ramasse-miettes majeur de V8 (`MajorGC` 16 à 20 ms à
       ×4, toutes les ≈ 5 s : à +1,7, 6,7, 11,7, 16,8 s dans la trace) sur l'écouteur
       `scroll` du virtualiseur (`ui.screens`, 14 à 43 ms à ×4) et les rappels de trame
@@ -7468,9 +7486,11 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       passes (charge 2 sur 24 CPU), à écarter ; retrancher le témoin retranche 0 à
       0,27 point, sans effet ; la médiane de cinq passes donne 14,32 % (passes 1 à 5),
       10,34 % (9 à 13), 7,70 % (les cinq de la 22e-j), plus stable que la passe seule
-      (5 à 20 %) mais toujours loin de 2 %. Recommandé : (1) épingler le navigateur du
-      banc sur les cœurs les plus rapides (`taskset`, ensemble lu de `cpuinfo_max_freq`),
-      ce qui retire le mode à 33 % ; (2) la médiane de cinq passes pour les trames
+      (5 à 20 %) mais toujours loin de 2 % (instrumentées, voir le biais ci-dessus).
+      Recommandé : (1) épingler le navigateur du banc sur les cœurs les plus rapides
+      (`taskset`, ensemble lu de `cpuinfo_max_freq`), qui écarte le cœur lent sans
+      retirer démontrablement le mode haut (passe 8 : 24,05 % au second défilement) ;
+      (2) la médiane de cinq passes pour les trames
       perdues, comme `bench-ui`, la règle « aucune tâche longue » tenue sur la pire ;
       (3) tenir le budget pour non atteint tant que le fil principal reste saturé
       pendant le défilement à ×4 (tâches 19,4 à 20,0 s sur 20 s, ≈ 18 à 22 ms par trame
@@ -7480,7 +7500,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       `scroll` du virtualiseur, le `scrollend` de chaque trame) plutôt qu'un réglage du
       banc.
     - reste : cinq passes de suite sur machine calme (l'analyse antivirus finie), dont une
-      tracée, pour la trace d'une bonne passe et la dispersion hors analyse ; l'arbitrage
+      tracée, pour la trace d'une bonne passe et la dispersion hors analyse ; une passe
+      sonde coupée (`K_BENCH_CORES` absent, sans trace) contre une passe sonde ouverte,
+      pour le biais de la sonde ; une seconde passe épinglée sur les cœurs lents, pour
+      l'indice du type de cœur ; l'arbitrage
       de la proposition ; le compteur `longtask` voit des tâches longues (51 à 57 ms) que
       l'observateur des longues trames ne rapporte pas dans la même fenêtre, à
       comprendre.
@@ -7491,7 +7514,9 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       trames imprimées abaissé à 50 ms (lecture seule, aucun verdict ne change). Pas de
       relecture `ui-reviewer` ni `a11y-auditor` : rien de rendu ne change. Passes :
       quatorze sur quinze, douze libres dont une tracée, deux épinglées (`taskset` sur
-      toute la commande).
+      toute la commande). Après la revue : l'échantillonneur de cœurs débrayable, coupé
+      par défaut (`K_BENCH_CORES=1`), les sondes écartées retirées, la fenêtre de la
+      machine fermée et `Performance` désactivé dans un `finally`.
       `k-web2-check --base main` : 1 302 Vitest ; tout, 2 741 captures sur 2 741 (le banc
       est un fichier du projet Playwright des captures).
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
