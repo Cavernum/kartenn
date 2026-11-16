@@ -1455,7 +1455,7 @@ routeur complet, sauf mention « vrai TCP ».
   date change (flux échu, dérogation qui entre dans les 30 jours) attend une écriture ou
   le jour UTC suivant (proposition : un âge maximal d'instantané, quelques minutes, dans
   `Snapshots::due`). Les deux vont à la tâche 40.
-- [ ] 40. Instantanés des compteurs de l'accueil : recalcul lié aux droits de sa clé, âge
+- [x] 40. Instantanés des compteurs de l'accueil : recalcul lié aux droits de sa clé, âge
   maximal, droits du compteur `to_apply` (restes de la 39, relevés par sa revue) :
   (a) le recalcul d'arrière-plan d'une clé `Own` (`Own::compute`, par `contributions`)
   relit `flow.request` en direct, sans lien avec l'empreinte de la clé (`Origin` =
@@ -1481,3 +1481,30 @@ routeur complet, sauf mention « vrai TCP ».
     `crates/kartenn-flow/src/stats.rs` (`proposals_for`) ; tests voisins
     `crates/kartenn-flow/tests/it/requester.rs` ; design 024 « Instantanés »
   - dépend de : 39
+  fait : `kartenn-rest/src/stats.rs` — (a) l'origin d'une clé `Own` porte l'empreinte
+  `held` de sa requête ; `Part::compute` rend la partie et si elle se garde : `Own` relit
+  `held` avant le calcul (à son `now`) et après (à un `now` relu), une empreinte autre que
+  celle de la clé abandonne le recalcul (la clé garde son instantané ; un premier calcul
+  répond à sa requête et la clé n'est pas gardée) ; (b) `Freshness::max_age` (5 min par
+  défaut) dans `Snapshots::due` ; (c) `held` ajoute l'application (`verb_permission`,
+  `Verb::Apply`) de ce qu'exigent les propositions en attente,
+  `kartenn-store-pg/src/changesets.rs` `required_by_proposals` ; design 024
+  (« Instantanés »). Tests, rouges avant :
+  `flow/tests/it/requester.rs` — `a_right_withdrawn_given_back_and_withdrawn_again_counts_without_it`,
+  `a_flow_ended_by_its_date_leaves_the_counter_within_the_age` ;
+  `rest/tests/it/stats.rs` — `to_apply_follows_a_withdrawn_right_of_application` (le cas
+  « à vérifier » de (c) était réel : `to_apply` restait à 1 après le retrait de
+  `core.prefix.apply`).
+  choix : (c) les droits de `to_apply` ne sont pas une liste fixe (une application par
+  sorte d'objet, plus `prop.<clé>.apply` pour toute clé) ni ceux d'un module : lus des
+  propositions en attente à chaque requête (une requête de plus) plutôt que déclarés par
+  `StatsContributor::permissions()`, qui garde les droits des modules ; propositions de
+  l'appelant comprises (en trop, sans effet) ; un recalcul abandonné compte dans
+  `computations` ; âge maximal de 5 min, pour les deux niveaux ; aucun corps ni contrat
+  changé (la description OpenAPI de `GET /v1/stats` ne dit pas l'âge maximal).
+  reste : `held` coûte deux requêtes par appel de `GET /v1/stats` (propositions en
+  attente, droits), et quatre de plus par calcul d'une clé propre, non mesuré au banc
+  (`bench-http`, REQ-024-16) ; une proposition qui arrive ou part change l'empreinte, et
+  donc la clé, de chaque appelant (calcul en ligne au prochain appel) ; la description
+  OpenAPI de `GET /v1/stats` (« at most every 30 s once something changed ») à compléter
+  de l'âge maximal au prochain changement du contrat.

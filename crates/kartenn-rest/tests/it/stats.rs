@@ -515,3 +515,52 @@ async fn the_sweep_keeps_the_keys_read_lately(pool: PgPool) {
     stats(&app_with(&pool, reader, &one), None).await;
     assert_eq!(one.computations(), 6, "the least recently read pushed out");
 }
+
+/// Task 006-40 (c): `to_apply` depends on where the caller holds the application of what
+/// the pending proposals require, beyond its read scope. Once that right is withdrawn,
+/// nothing written, the next read no longer counts the proposal.
+#[kartenn_testing::pg_test]
+async fn to_apply_follows_a_withdrawn_right_of_application(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let mut applying: Vec<&str> = READ_ALL.to_vec();
+    applying.push("core.prefix.apply");
+    let maintainer = person(&pool, &applying, ("global", None)).await;
+    let mut editing: Vec<&str> = READ_ALL.to_vec();
+    editing.push("core.prefix.edit");
+    let author = person(&pool, &editing, ("domain", Some(lab))).await;
+    let submitted = app(&pool, author)
+        .oneshot(
+            Request::post("/v1/prefixes")
+                .header(header::AUTHORIZATION, "Bearer t")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({"motive": "a net", "domain": {"id": lab},
+                           "value": "10.1.0.0/16", "nature": "network"})
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(submitted.status(), StatusCode::ACCEPTED);
+    let mine = app_with(
+        &pool,
+        maintainer.clone(),
+        &snapshots(Duration::from_secs(30)),
+    );
+    let (_, _, before) = stats(&mine, None).await;
+    assert_eq!(before["pending"]["to_apply"], 1, "{before}");
+    sqlx::query(
+        "DELETE FROM role_permission
+          WHERE permission = 'core.prefix.apply'
+            AND role_id IN (SELECT b.role_id FROM binding b
+                              JOIN group_member m ON m.group_id = b.group_id
+                             WHERE m.identity_id = $1)",
+    )
+    .bind(maintainer.identity)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (_, _, after) = stats(&mine, None).await;
+    assert_eq!(after["pending"]["to_apply"], 0, "{after}");
+}
