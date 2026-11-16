@@ -6382,6 +6382,12 @@ export interface components {
      * @enum {string}
      */
     ExpectedMode: "suggest" | "default" | "check";
+    /**
+     * @description One value a source expects: a summary (an object with `id`) for a property of type
+     *     reference (its declaration's `value_type` is `ref`) and for it only; a raw value
+     *     (`RawValue`) for any other type.
+     */
+    ExpectedValue: components["schemas"]["Summary"] | components["schemas"]["RawValue"];
     /** @description How the value of a property resolves on an object (REQ-003-14, 15). */
     Explanation: {
       /** @description The objects walked, nearest first; `null` for one the caller may not read. */
@@ -6782,6 +6788,11 @@ export interface components {
       id: string;
       /** @description Its kind of the core, or its qualified type. */
       kind: string;
+      /**
+       * @description Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+       *     object whose module tells none.
+       */
+      label?: string | null;
     };
     /** @description A group of kartenn. */
     GroupItem: {
@@ -8658,11 +8669,7 @@ export interface components {
      *     attributes.
      */
     ModuleObject: {
-      /**
-       * Format: uuid
-       * @description Its addressing domain, when its type is anchored in one.
-       */
-      domain?: string | null;
+      domain?: components["schemas"]["Summary"] | null;
       /** @description Its URL. */
       href: string;
       /**
@@ -8672,11 +8679,7 @@ export interface components {
       id: string;
       /** @description Its qualified type (`machines.machine`), or its kind of the core (`vlan`). */
       kind: string;
-      /**
-       * Format: uuid
-       * @description Its parent in the tree of its module.
-       */
-      parent?: string | null;
+      parent?: components["schemas"]["Summary"] | null;
     };
     /** @description A trigger of an approval policy on a measure of a module (REQ-016-7). */
     ModuleTrigger: {
@@ -8850,6 +8853,11 @@ export interface components {
       id: string;
       /** @description Its kind. */
       kind: components["schemas"]["ObjectKind"];
+      /**
+       * @description Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+       *     object whose module tells none.
+       */
+      label?: string | null;
     };
     /**
      * @description The kind of an object of the core.

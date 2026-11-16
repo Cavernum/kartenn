@@ -1690,6 +1690,31 @@ struct Writes {
     modify: &'static str,
     modify_members: &'static [&'static str],
     nullable: &'static [&'static str],
+    /// Whether its body may name a host, its form checked before the changeset.
+    host: bool,
+}
+
+impl Writes {
+    /// 422 `invalid-member` pointing at `/host` for a host of another form than a
+    /// reference (task 006-33f3): the operation would refuse it, pointing at the body
+    /// whole (design 006 « Routes »). In the order of the kit: the media type (415) and the
+    /// body (400) first, then the members (422), then `If-Match` (428).
+    fn check(&self, headers: &HeaderMap, raw: &Bytes, media: &str) -> Result<(), Problem> {
+        if !self.host {
+            return Ok(());
+        }
+        let body = kit::body(headers, raw, media)?;
+        match body.get("host") {
+            Some(host) if !host.is_null() => crate::handler::host_input(host.clone())
+                .map(drop)
+                .map_err(|detail| {
+                    Problem::new(ProblemKind::InvalidMember)
+                        .detail(detail)
+                        .extension("pointer", Value::String("/host".into()))
+                }),
+            _ => Ok(()),
+        }
+    }
 }
 
 /// The collection of `ty`, its objects and their writes; `show` is the read of one object
@@ -1760,6 +1785,7 @@ fn collection_routes(
                   Extension(context): Extension<RequestContext>,
                   headers: HeaderMap,
                   raw: Bytes| async move {
+                writes.check(&headers, &raw, "application/json")?;
                 kit::create(
                     &api,
                     &principal,
@@ -1818,6 +1844,7 @@ fn collection_routes(
                   Path(id): Path<Uuid>,
                   headers: HeaderMap,
                   raw: Bytes| async move {
+                writes.check(&headers, &raw, MERGE_PATCH)?;
                 kit::modify_nullable(
                     &api,
                     &principal,
@@ -1850,6 +1877,7 @@ static CLUSTER_WRITES: Writes = Writes {
     modify: "machines.update_cluster",
     modify_members: CLUSTER_PATCH,
     nullable: &["site"],
+    host: false,
 };
 static MACHINE_WRITES: Writes = Writes {
     create: "machines.create_machine",
@@ -1857,6 +1885,7 @@ static MACHINE_WRITES: Writes = Writes {
     modify: "machines.update_machine",
     modify_members: MACHINE_PATCH,
     nullable: &["host", "member_of"],
+    host: true,
 };
 static INTERFACE_WRITES: Writes = Writes {
     create: "machines.create_interface",
@@ -1864,6 +1893,7 @@ static INTERFACE_WRITES: Writes = Writes {
     modify: "machines.update_interface",
     modify_members: INTERFACE_PATCH,
     nullable: &["mac", "vlan"],
+    host: false,
 };
 
 /// `POST /v1/interfaces/{id}/attachments`: attaches an address under the `If-Match` of the

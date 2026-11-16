@@ -198,50 +198,7 @@ impl Summaries {
         valid_at: OffsetDateTime,
         as_of: Option<OffsetDateTime>,
     ) -> Result<Self, Problem> {
-        let ids: Vec<Uuid> = ids
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let mut found = HashMap::new();
-        // The objects of the modules, by module: their keys are the modules'.
-        let mut of_modules: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
-        for (id, kind, key) in natural_keys(&api.pool, &ids, valid_at, as_of)
-            .await
-            .map_err(|e| store(&e))?
-        {
-            let Some(target) = Target::named(&kind, &api.modules) else {
-                continue;
-            };
-            match key {
-                Some(raw) => {
-                    if let Some(key) = key_of(target, &raw) {
-                        found.insert(id, (target, key));
-                    }
-                }
-                None => of_modules
-                    .entry(target.as_str())
-                    .or_insert_with(|| (target, Vec::new()))
-                    .1
-                    .push(id),
-            }
-        }
-        for (target, objects) in of_modules.into_values() {
-            let Some(handler) =
-                ModuleKind::parse(target.as_str()).and_then(|kind| api.modules.handler_of(kind))
-            else {
-                continue;
-            };
-            let mut reader = PgModuleRead::open(&api.pool, instant(valid_at), as_of.map(instant))
-                .await
-                .map_err(|e| store(&e))?;
-            let keys = handler.keys(&mut reader, &objects).await?;
-            found.extend(
-                keys.into_iter()
-                    .filter(|(id, _)| objects.contains(id))
-                    .map(|(id, label)| (id, (target, Key::Label(label)))),
-            );
-        }
+        let found = keys(api, ids, valid_at, as_of).await?;
         let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
         for (id, (target, _)) in &found {
             by_target
@@ -257,6 +214,88 @@ impl Summaries {
         Ok(Self { found, readable })
     }
 
+    /// The labels of `ids` at `valid_at` as asserted at `as_of`, of those that existed
+    /// then and whose key is known, without a judgement of their readability: for objects
+    /// the caller is known to read (task 006-33f3).
+    ///
+    /// # Errors
+    ///
+    /// The store's error.
+    pub async fn labels(
+        api: &Api,
+        ids: impl IntoIterator<Item = Uuid>,
+        valid_at: OffsetDateTime,
+        as_of: Option<OffsetDateTime>,
+    ) -> Result<HashMap<Uuid, String>, Problem> {
+        Ok(keys(api, ids, valid_at, as_of)
+            .await?
+            .into_iter()
+            .map(|(id, (_, key))| match key {
+                Key::Slug(label) | Key::Label(label) => (id, label),
+            })
+            .collect())
+    }
+}
+
+/// The kinds and the keys of `ids` at `valid_at` as asserted at `as_of`: one query for the
+/// core, one per module visited; none for no identifier.
+async fn keys(
+    api: &Api,
+    ids: impl IntoIterator<Item = Uuid>,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> Result<HashMap<Uuid, (Target, Key)>, Problem> {
+    let ids: Vec<Uuid> = ids
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut found = HashMap::new();
+    if ids.is_empty() {
+        return Ok(found);
+    }
+    // The objects of the modules, by module: their keys are the modules'.
+    let mut of_modules: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
+    for (id, kind, key) in natural_keys(&api.pool, &ids, valid_at, as_of)
+        .await
+        .map_err(|e| store(&e))?
+    {
+        let Some(target) = Target::named(&kind, &api.modules) else {
+            continue;
+        };
+        match key {
+            Some(raw) => {
+                if let Some(key) = key_of(target, &raw) {
+                    found.insert(id, (target, key));
+                }
+            }
+            None => of_modules
+                .entry(target.as_str())
+                .or_insert_with(|| (target, Vec::new()))
+                .1
+                .push(id),
+        }
+    }
+    for (target, objects) in of_modules.into_values() {
+        let Some(handler) =
+            ModuleKind::parse(target.as_str()).and_then(|kind| api.modules.handler_of(kind))
+        else {
+            continue;
+        };
+        let mut reader = PgModuleRead::open(&api.pool, instant(valid_at), as_of.map(instant))
+            .await
+            .map_err(|e| store(&e))?;
+        let keys = handler.keys(&mut reader, &objects).await?;
+        found.extend(
+            keys.into_iter()
+                .filter(|(id, _)| objects.contains(id))
+                .map(|(id, label)| (id, (target, Key::Label(label)))),
+        );
+    }
+    Ok(found)
+}
+
+impl Summaries {
     /// The kind of `id`, if it existed at the dates of the read.
     #[must_use]
     pub fn target(&self, id: Uuid) -> Option<Target> {

@@ -309,6 +309,284 @@ fn every_list_of_a_collection_of_objects_declares_the_id_filter() {
     assert_eq!(lists.len(), 29, "the lists of objects: {lists:?}");
 }
 
+/// What the guard of the summaries lets through, as `(schema, member, why)`: `*` for every
+/// schema or every member, `{id}` for an object of its identifier alone. A schema of a page
+/// (`Listing_<item>`) is named by its item.
+const UNSUMMARISED: &[(&str, &str, &str)] = &[
+    // No reference to an object of the referential.
+    (
+        "*",
+        "version",
+        "the version of the object itself, its ETag (REQ-006-14)",
+    ),
+    (
+        "*",
+        "uid",
+        "the identifier its cluster gives the object itself",
+    ),
+    (
+        "KubeObservation",
+        "pod_uid",
+        "the identifier its cluster gives a pod",
+    ),
+    (
+        "KubeObservation",
+        "opened_batch",
+        "a batch of the synchronisation",
+    ),
+    (
+        "KubeObservation",
+        "closed_batch",
+        "a batch of the synchronisation",
+    ),
+    (
+        "*",
+        "author",
+        "an identity, no object of the network (task 33)",
+    ),
+    ("ChangesetDto", "on_behalf_of", "an identity"),
+    ("ChangesetDto", "validator", "an identity"),
+    ("Me", "identity", "the identity of the caller"),
+    ("MemberItem", "identity", "an identity"),
+    ("PolicyReport", "requested_by", "an identity"),
+    (
+        "ChangesetDto",
+        "draft",
+        "a draft, no object of the network (task 33)",
+    ),
+    (
+        "ChangesetDto",
+        "policy",
+        "a policy of approval, no object of the network",
+    ),
+    (
+        "ChangesetPending",
+        "policy",
+        "a policy of approval, no object of the network",
+    ),
+    (
+        "FlowReview",
+        "changeset",
+        "a changeset, no object of the network (task 33)",
+    ),
+    (
+        "RightsGroupRef",
+        "{id}",
+        "a group of the rights, no object of the referential, without summary (task 33e)",
+    ),
+    // To summarise, each by its task.
+    ("FlowEvaluation", "*", "the ends of a flow: task 33f1"),
+    ("FlowNonconformity", "*", "the ends of a flow: task 33f1"),
+    ("FlowTriage", "*", "the ends of a flow: task 33f1"),
+    ("DiffObject", "{id}", "the diff of a changeset: task 33g"),
+    ("DiffItemDto", "object", "the diff of a changeset: task 33g"),
+    (
+        "Ref",
+        "{id}",
+        "the operations of a changeset, as written: task 33g",
+    ),
+    (
+        "Operation",
+        "*",
+        "the operations of a changeset, as written: task 33g",
+    ),
+    ("Placement", "*", "the placements of a changeset: task 33g"),
+    (
+        "SectionRowDto",
+        "object",
+        "the sections of a changeset: task 33g",
+    ),
+    (
+        "ViolationDto",
+        "subjects",
+        "the violations of a changeset: task 33g",
+    ),
+    (
+        "PendingReason",
+        "objects",
+        "why a changeset is held: task 33g",
+    ),
+    (
+        "Required",
+        "objects",
+        "the approvals of a changeset: task 33g",
+    ),
+    (
+        "Cascaded",
+        "{ref}",
+        "the closures of a changeset, their kind told to any reader of the changeset: \
+         task 33g",
+    ),
+    (
+        "Unsupported",
+        "{ref}",
+        "what the inverse of a changeset does not restore: task 33g",
+    ),
+    (
+        "AttachmentItem",
+        "entity",
+        "the entity of an issuer attachment, read by the administration of the rights: \
+         task 42",
+    ),
+    (
+        "Scope",
+        "{ref}",
+        "the scope of a binding, read by the administration of the rights: task 42",
+    ),
+    (
+        "HeldScope",
+        "{ref}",
+        "the scope of a binding the caller holds, read by the administration of the \
+         rights: task 42",
+    ),
+    // No reference to an object of the referential, by its shape.
+    (
+        "ChangesetRef",
+        "{ref}",
+        "a changeset, no object of the network (task 33)",
+    ),
+    (
+        "GroupMember",
+        "{ref}",
+        "an identity or a group of an issuer, no object of the network",
+    ),
+    (
+        "EventReady",
+        "instance",
+        "the instance that serves the stream, no object of the network",
+    ),
+    (
+        "EventChangeset",
+        "changeset",
+        "a changeset, no object of the network",
+    ),
+    (
+        "EventChanges",
+        "*",
+        "keys and revisions to invalidate, of the visible objects alone (REQ-022-4)",
+    ),
+    (
+        "EventObject",
+        "{ref}",
+        "keys and revisions to invalidate, of the visible objects alone (REQ-022-4)",
+    ),
+];
+
+/// The members of a reference without label: an object named by these and no other,
+/// `{id, kind}` or `{id, type, href}`, tells nothing a human reads.
+const IDENTIFYING: [&str; 4] = ["id", "kind", "type", "href"];
+
+/// Whether `schema` is an identifier, alone, in a set or nullable.
+fn names_an_object(schema: &Value) -> bool {
+    if !schema.is_object() {
+        return false;
+    }
+    schema["format"] == "uuid"
+        || names_an_object(&schema["items"])
+        || ["oneOf", "anyOf"].iter().any(|k| {
+            schema[*k]
+                .as_array()
+                .is_some_and(|all| all.iter().any(names_an_object))
+        })
+}
+
+/// The members of the schemas reached from `schema` (by `$ref`, `allOf`, `oneOf`, `anyOf`,
+/// `prefixItems`, `items`, `additionalProperties` and `properties`), inline within the
+/// component `within`, that name an object by its identifier alone: `(component, member)`,
+/// `{id}` for an object that has no other member, `{ref}` for one that has no member but
+/// [`IDENTIFYING`] (its kind, its URL, no label).
+fn bare_references(
+    reference: &Value,
+    schema: &Value,
+    within: &str,
+    seen: &mut std::collections::BTreeSet<String>,
+    found: &mut std::collections::BTreeSet<(String, String)>,
+) {
+    if let Some(target) = schema["$ref"].as_str() {
+        let name = target
+            .trim_start_matches("#/components/schemas/")
+            .to_owned();
+        if seen.insert(name.clone()) {
+            let component = name.strip_prefix("Listing_").unwrap_or(&name).to_owned();
+            let schema = &reference["components"]["schemas"][&name];
+            bare_references(reference, schema, &component, seen, found);
+        }
+        return;
+    }
+    for key in ["allOf", "oneOf", "anyOf", "prefixItems"] {
+        for inner in schema[key].as_array().into_iter().flatten() {
+            bare_references(reference, inner, within, seen, found);
+        }
+    }
+    for key in ["items", "additionalProperties"] {
+        if schema[key].is_object() {
+            bare_references(reference, &schema[key], within, seen, found);
+        }
+    }
+    let Some(members) = schema["properties"].as_object() else {
+        return;
+    };
+    if members.get("id").is_some_and(names_an_object) {
+        if members.len() == 1 {
+            found.insert((within.to_owned(), "{id}".to_owned()));
+        } else if members.keys().all(|m| IDENTIFYING.contains(&m.as_str())) {
+            found.insert((within.to_owned(), "{ref}".to_owned()));
+        }
+    }
+    for (member, inner) in members {
+        if member != "id" && names_an_object(inner) {
+            found.insert((within.to_owned(), member.clone()));
+        }
+        bare_references(reference, inner, within, seen, found);
+    }
+}
+
+/// REQ-006-42 (task 006-33f3): no schema of a response, nor of the data of an event
+/// (`x-kartenn-events`), names an object by its identifier alone, as `{id}`, as a bare
+/// identifier (a member of format `uuid` but `id`) or as a reference without label (no
+/// member but [`IDENTIFYING`]), outside a summary; save what [`UNSUMMARISED`] lets
+/// through, each with its reason, and every exemption still in use. Out of its sight: the
+/// bodies of the requests, the free values (`Object`, the value of a property, a diff), an
+/// identifier that does not say its format.
+#[test]
+fn no_response_names_an_object_by_its_identifier_alone() {
+    let reference = reference();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut found = std::collections::BTreeSet::new();
+    for item in reference["paths"].as_object().unwrap().values() {
+        for operation in item.as_object().unwrap().values() {
+            for response in operation["responses"].as_object().into_iter().flatten() {
+                for media in response.1["content"].as_object().into_iter().flatten() {
+                    bare_references(&reference, &media.1["schema"], "", &mut seen, &mut found);
+                }
+            }
+            for data in operation["x-kartenn-events"]
+                .as_object()
+                .into_iter()
+                .flatten()
+            {
+                bare_references(&reference, data.1, "", &mut seen, &mut found);
+            }
+        }
+    }
+    let exempts = |(schema, member): &(String, String)| {
+        UNSUMMARISED
+            .iter()
+            .position(|(s, m, _)| (*s == "*" || s == schema) && (*m == "*" || m == member))
+    };
+    let unexplained: Vec<_> = found.iter().filter(|f| exempts(f).is_none()).collect();
+    assert!(
+        unexplained.is_empty(),
+        "identifiers alone in responses, to summarise (REQ-006-42): {unexplained:?}"
+    );
+    let used: std::collections::BTreeSet<usize> = found.iter().filter_map(exempts).collect();
+    let stale: Vec<_> = (0..UNSUMMARISED.len())
+        .filter(|i| !used.contains(i))
+        .map(|i| UNSUMMARISED[i])
+        .collect();
+    assert!(stale.is_empty(), "exemptions no longer used: {stale:?}");
+}
+
 /// The extension `x-kartenn` of the reference (023/A5, task 023-5): every collection of
 /// the core and of the business modules tells the clients its natural key, among the
 /// filters of its list, and its columns; `kartenn policy check` is named.

@@ -38,6 +38,7 @@ use crate::objects::{Api, Target, audited, gate_target, instant, journaled, stor
 use crate::openapi::{documented, listing_of, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 use crate::rights::IdentityRef;
+use crate::summary::{Summaries, Summary};
 
 /// The transversal routes of every type of object of the modules of `modules`, and of the
 /// VLANs of the core, served the same way (spec 026).
@@ -70,10 +71,10 @@ struct ModuleObjectDto {
     id: Uuid,
     /// Its qualified type (`machines.machine`), or its kind of the core (`vlan`).
     kind: String,
-    /// Its parent in the tree of its module.
-    parent: Option<Uuid>,
-    /// Its addressing domain, when its type is anchored in one.
-    domain: Option<Uuid>,
+    /// Its parent in the tree of its module, summarised (REQ-006-42).
+    parent: Option<Summary>,
+    /// Its addressing domain, when its type is anchored in one, summarised.
+    domain: Option<Summary>,
     /// Its URL.
     href: String,
 }
@@ -101,19 +102,40 @@ struct ModuleVersionDto {
     object: ModuleObjectDto,
 }
 
+/// The identifier of column `name` of `version`.
+fn uuid_of(version: &Version, name: &str) -> Option<Uuid> {
+    version
+        .fields
+        .get(name)
+        .and_then(Value::as_str)
+        .and_then(|text| text.parse().ok())
+}
+
+/// The parent and the domain of `version`: a VLAN has its group as parent, a group
+/// anchored on a domain that domain (spec 026).
+fn links_of(version: &Version) -> (Option<Uuid>, Option<Uuid>) {
+    let uuid = |name: &str| uuid_of(version, name);
+    let parent = uuid("parent_id").or_else(|| uuid("group_id"));
+    let domain = uuid("domain_id").or_else(|| {
+        (version.fields.get("anchor_kind").and_then(Value::as_str) == Some("domain"))
+            .then(|| uuid("anchor_id"))
+            .flatten()
+    });
+    (parent, domain)
+}
+
 /// A version as served, its author named for whoever reads the object (Q-021-29), as
-/// [`crate::objects`] serves those of the core.
-fn module_version_of(target: Target, version: &Version) -> Result<ModuleVersionDto, Problem> {
+/// [`crate::objects`] serves those of the core; its parent and its domain summarised
+/// among `summaries` (REQ-006-42).
+fn module_version_of(
+    target: Target,
+    version: &Version,
+    summaries: &Summaries,
+) -> Result<ModuleVersionDto, Problem> {
     let at = |t: OffsetDateTime| rfc3339(instant(t));
     let (motive, author) = journaled(version)?;
-    let uuid = |name: &str| {
-        version
-            .fields
-            .get(name)
-            .and_then(Value::as_str)
-            .and_then(|text| text.parse().ok())
-    };
-    let id = uuid("id").unwrap_or_default();
+    let id = uuid_of(version, "id").unwrap_or_default();
+    let (parent, domain) = links_of(version);
     Ok(ModuleVersionDto {
         valid_from: at(version.valid_from),
         valid_to: version.valid_to.map(at),
@@ -125,14 +147,8 @@ fn module_version_of(target: Target, version: &Version) -> Result<ModuleVersionD
         object: ModuleObjectDto {
             id,
             kind: target.as_str().to_owned(),
-            // A VLAN has its group as parent, a group anchored on a domain that domain
-            // (spec 026).
-            parent: uuid("parent_id").or_else(|| uuid("group_id")),
-            domain: uuid("domain_id").or_else(|| {
-                (version.fields.get("anchor_kind").and_then(Value::as_str) == Some("domain"))
-                    .then(|| uuid("anchor_id"))
-                    .flatten()
-            }),
+            parent: parent.map(|id| summaries.of(id)),
+            domain: domain.map(|id| summaries.of(id)),
             href: target.href(id),
         },
     })
@@ -230,9 +246,15 @@ async fn history(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
+    // The linked objects read at the dates of the route, readable now (task 006-33f3).
+    let linked = versions.iter().flat_map(|v| {
+        let (parent, domain) = links_of(v);
+        parent.into_iter().chain(domain)
+    });
+    let summaries = Summaries::read(&api, &context, linked, moment.valid_at, moment.as_of).await?;
     let items = versions
         .iter()
-        .map(|v| module_version_of(target, v))
+        .map(|v| module_version_of(target, v, &summaries))
         .collect::<Result<Vec<_>, _>>()?;
     let criteria = json!({ "object": id, "history": true });
     let event =
@@ -269,6 +291,10 @@ struct EndDto {
     kind: &'static str,
     /// Identifier.
     id: Uuid,
+    /// Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an
+    /// object whose module tells none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
     /// Its URL.
     href: String,
 }
@@ -374,10 +400,19 @@ async fn edges(
                 .map(|id| (*name, id)),
         );
     }
+    // The keys of the ends read, at the dates of the route (task 006-33f3).
+    let labels = Summaries::labels(
+        &api,
+        readable.iter().map(|(_, id)| *id),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
     let end_of = |name: &'static str, id: Uuid| {
         Target::named(name, &api.modules).map(|end| EndDto {
             kind: end.as_str(),
             id,
+            label: labels.get(&id).cloned(),
             href: end.href(id),
         })
     };

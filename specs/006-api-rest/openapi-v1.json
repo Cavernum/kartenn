@@ -2529,6 +2529,19 @@
         ],
         "type": "string"
       },
+      "ExpectedValue": {
+        "description": "One value a source expects: a summary (an object with `id`) for a property of type\nreference (its declaration's `value_type` is `ref`) and for it only; a raw value\n(`RawValue`) for any other type.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Summary",
+            "description": "For a property of type reference, the summary of the object it names (REQ-006-42):\n`{id}` alone for an object the caller may not read or that is absent."
+          },
+          {
+            "$ref": "#/components/schemas/RawValue",
+            "description": "Any other value, raw."
+          }
+        ]
+      },
       "Explanation": {
         "description": "How the value of a property resolves on an object (REQ-003-14, 15).",
         "properties": {
@@ -3427,6 +3440,13 @@
           "kind": {
             "description": "Its kind of the core, or its qualified type.",
             "type": "string"
+          },
+          "label": {
+            "description": "Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an\nobject whose module tells none.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -8362,11 +8382,14 @@
         "description": "The record of an object of a module (ADR 0026, clause 4); the module serves its own\nattributes.",
         "properties": {
           "domain": {
-            "description": "Its addressing domain, when its type is anchored in one.",
-            "format": "uuid",
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Summary",
+                "description": "Its addressing domain, when its type is anchored in one, summarised."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "href": {
@@ -8383,11 +8406,14 @@
             "type": "string"
           },
           "parent": {
-            "description": "Its parent in the tree of its module.",
-            "format": "uuid",
-            "type": [
-              "string",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Summary",
+                "description": "Its parent in the tree of its module, summarised (REQ-006-42)."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -8820,6 +8846,13 @@
           "kind": {
             "$ref": "#/components/schemas/ObjectKind",
             "description": "Its kind."
+          },
+          "label": {
+            "description": "Its natural key as a human reads it (REQ-006-42), as in a summary; absent for an\nobject whose module tells none.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [

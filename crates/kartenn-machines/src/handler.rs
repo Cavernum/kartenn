@@ -87,9 +87,26 @@ struct Completed {
 /// The host of a machine, as received.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-enum HostInput {
+pub(crate) enum HostInput {
     Machine(Ref),
     Cluster(Ref),
+}
+
+/// The form a host is written in, told to whoever writes another, as the host read
+/// (design 006 « Représentations »: a summary is read, a reference written by its
+/// identifier).
+const HOST_FORM: &str = r#"host: {"machine": {"id": …}} or {"cluster": {"id": …}} expected, a reference by its identifier (a summary is read, not written)"#;
+
+/// The host `value` names; [`HOST_FORM`] for a value of another form.
+pub(crate) fn host_input(value: Value) -> Result<HostInput, String> {
+    serde_json::from_value(value).map_err(|_| HOST_FORM.to_owned())
+}
+
+/// The host of a creation, refused as [`host_input`] refuses it.
+fn host_field<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<HostInput>, D::Error> {
+    Option::<Value>::deserialize(d)?
+        .map(|value| host_input(value).map_err(serde::de::Error::custom))
+        .transpose()
 }
 
 /// `machines.create_cluster`.
@@ -119,7 +136,7 @@ struct CreateMachine {
     owner: Option<Ref>,
     #[serde(default)]
     site: Option<Ref>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "host_field")]
     host: Option<HostInput>,
     #[serde(default)]
     member_of: Option<Ref>,
@@ -571,7 +588,7 @@ impl Handler {
             let (machine_host, cluster_host) = if host.is_null() {
                 (None, None)
             } else {
-                host_of(decode::<HostInput>(host.clone(), "host")?, resolve)?
+                host_of(host_input(host.clone()).map_err(invalid)?, resolve)?
             };
             if machine_host == Some(machine) {
                 return Err(
