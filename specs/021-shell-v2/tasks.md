@@ -7519,6 +7519,27 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       machine fermée et `Performance` désactivé dans un `finally`.
       `k-web2-check --base main` : 1 302 Vitest ; tout, 2 741 captures sur 2 741 (le banc
       est un fichier du projet Playwright des captures).
+  - [ ] 22e-m. Le travail d'une trame de défilement de l'arbre sous le temps d'une trame :
+    à ×4, le fil principal est saturé pendant tout le défilement (tâches 19,4 à 20,0 s
+    sur 20 s, ≈ 18 à 22 ms par trame dessinée, sonde 22e-l) : l'écouteur `scroll` du
+    virtualiseur (14 à 43 ms à ×4), la mise en page forcée dans les rappels de trame (8 à
+    16 ms), un `scrollend` par trame. Mesurer d'abord la part de chacun dans la trace de
+    la 22e-l (pas de nouvelle passe pour cela), puis retirer ce qui se retire sans
+    changer le rendu : lectures de mise en page groupées avant les écritures, travail de
+    l'écouteur borné à ce que la fenêtre change, `scrollend` traité une fois par arrêt ;
+    ce que l'utilisateur gagne : un défilement qui garde une marge sur l'appareil que
+    figure le ×4, et un budget de l'arbre qui se mesure ; ce qu'il perd : rien de
+    visible — verify : tests de `TreeGrid` et de `virtualRows` inchangés, captures du
+    changement, la part des tâches dans la fenêtre imprimée par le banc (`INFO`), puis
+    cinq passes filtrées par la session principale sur machine calme
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (`onScroll`, `endScrolling`,
+      `useVirtualRows`, l'en-tête collant lignes 853 à 895), `ui/src/components/internal/virtualRows.ts`
+      (`rowsInView`, `readEstimate`, `measure`), `web/v2/e2e/budgets/budgets.spec.ts`
+      (`watched`) ; relevé de la 22e-l ci-dessus, point (d) ; trace de la passe 6 dans le
+      scratchpad de la session (à relire avant qu'il soit vidé)
+    - taille : moyenne (un composant, un module interne, le banc) ; un choix qui change
+      le rendu ou le contrat de `TreeGrid` s'arrête et se rapporte
+    - dépend de : 22e-l (relevé) ; passe avant 22e-k, qui ne touche pas le défilement
   - [ ] 22e-k. La reconstruction des nœuds à la mesure du changement : `nodeOf` gardé par
     objet lu (`WeakMap`, vidée au changement de langue, du dictionnaire ou des valeurs du
     brouillon de `shownById`), les mots d'un genre et d'une nature lus une fois par langue
