@@ -7,6 +7,7 @@ import {
   type Page,
   type Request,
 } from "@playwright/test";
+import { loadLine, watchMachine } from "../bench/machine.ts";
 import { benchPage, framed, heap, quantile, settle, timed, type Frames } from "../bench/measure.ts";
 import { BASE_URL, isBatch, readsOf, STATE } from "../fixtures/env.ts";
 import { atRest, loginIn } from "../fixtures/journeys.ts";
@@ -401,6 +402,155 @@ const scrollRows = (page: Page) =>
     [ROWS, SCROLL_MS] as const,
   );
 
+/**
+ * The window of `act` watched (task 021-22e-l): its frames counted (`framed`), the machine
+ * meanwhile (`watchMachine`), and the main thread of the page by CDP (`Performance`: its
+ * tasks, scripts, layout and style, and the CPU time of the thread). Printed for reading in
+ * one line `INFO <what>`; the frames given back for the verdicts.
+ */
+async function watched(
+  page: Page,
+  cdp: CDPSession,
+  what: string,
+  act: () => Promise<void>,
+): Promise<Frames> {
+  const metrics = async () =>
+    new Map(
+      (await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value] as const),
+    );
+  await cdp.send("Performance.enable");
+  let frames: Frames;
+  let outside: string;
+  let before: Map<string, number>;
+  let after: Map<string, number>;
+  try {
+    before = await metrics();
+    // Stopped whatever `act` does: its sampler, if on, never outlives the window.
+    const machine = watchMachine();
+    try {
+      frames = await framed(page, async () => {
+        await act();
+        return [];
+      });
+    } finally {
+      outside = machine.stop();
+    }
+    after = await metrics();
+  } finally {
+    await cdp.send("Performance.disable");
+  }
+  const spent = (name: string) =>
+    `${(((after.get(name) ?? 0) - (before.get(name) ?? 0)) * 1000).toFixed(0)} ms`;
+  const i = frames.intervals;
+  console.log(
+    `INFO ${what}: dropped frames ${(frames.dropped * 100).toFixed(2)} %, ${frames.longTasks}` +
+      ` long tasks (the longest ${frames.longest.toFixed(1)} ms); frame intervals` +
+      ` ${i ? `median ${i.p50.toFixed(1)} ms, p99 ${i.p99.toFixed(1)} ms, longest ${i.max.toFixed(1)} ms, ${i.gaps} over 1.5 frames` : "unknown"};` +
+      ` main thread of the page: tasks ${spent("TaskDuration")}, scripts ${spent("ScriptDuration")},` +
+      ` layout ${spent("LayoutDuration")}, style ${spent("RecalcStyleDuration")}, CPU of the` +
+      ` thread ${spent("ThreadTime")}; ${outside}`,
+  );
+  return frames;
+}
+
+/**
+ * The witness of the frames (task 021-22e-l): `SCROLL_MS` of animation frames counted in the
+ * same page, nothing scrolled, the CPU as the caller left it (slowed down, as for the
+ * scroll). What the browser and the machine drop of themselves, against which the scroll's
+ * dropped frames are read.
+ */
+async function witness(page: Page, cdp: CDPSession, what: string): Promise<Frames> {
+  await settle(page);
+  return watched(page, cdp, `witness, ${what}, nothing scrolled for ${SCROLL_MS / 1000} s`, () =>
+    page.waitForTimeout(SCROLL_MS),
+  );
+}
+
+/** Rounds of the fixed work of `speedWitness`, in each frame. */
+const FIXED_WORK = 100_000;
+
+/**
+ * The speed of the page's main thread (task 021-22e-l): 10 s of frames, each running the
+ * same `FIXED_WORK` rounds of arithmetic, the CPU as the caller left it; their median and
+ * 90th percentile in ms. The idle witness drops nothing of itself: this one tells how fast
+ * the thread that draws the tree runs in this pass, all else equal.
+ */
+async function speedWitness(page: Page, cdp: CDPSession, what: string): Promise<void> {
+  await settle(page);
+  let spent: number[] = [];
+  await watched(
+    page,
+    cdp,
+    `witness of speed, ${what}, ${FIXED_WORK} rounds a frame for 10 s`,
+    async () => {
+      spent = await page.evaluate(
+        (rounds) =>
+          new Promise<number[]>((resolve) => {
+            const times: number[] = [];
+            const until = performance.now() + 10_000;
+            let x = 1;
+            const tick = () => {
+              const t = performance.now();
+              for (let i = 0; i < rounds; i++) x = (x * 1_103_515_245 + 12_345) % 2_147_483_648;
+              times.push(performance.now() - t);
+              if (performance.now() < until) requestAnimationFrame(tick);
+              else resolve(x < 0 ? [] : times);
+            };
+            requestAnimationFrame(tick);
+          }),
+        FIXED_WORK,
+      );
+    },
+  );
+  console.log(
+    `INFO speed of the main thread, ${what}: the fixed work ${quantile(spent, 0.5).toFixed(1)} ms` +
+      ` at its median, ${quantile(spent, 0.9).toFixed(1)} ms at its 90th percentile (${spent.length} frames)`,
+  );
+}
+
+/**
+ * A Chromium trace of `act` when `K_BENCH_TRACE` names a directory (task 021-22e-l), off by
+ * default: the threads of every process of the browser, its frames and its garbage
+ * collections. A diagnosis, never a verdict: tracing costs the page some of its time.
+ */
+async function traced(page: Page, what: string, act: () => Promise<void>): Promise<void> {
+  const dir = process.env.K_BENCH_TRACE;
+  const browser = page.context().browser();
+  if (!dir || !browser) return act();
+  const path = `${dir}/${what}-${Date.now()}.json`;
+  await browser.startTracing(page, {
+    path,
+    categories: [
+      "toplevel",
+      "devtools.timeline",
+      "disabled-by-default-devtools.timeline",
+      "disabled-by-default-devtools.timeline.frame",
+      "v8",
+      "v8.execute",
+      "blink",
+      "cc",
+      "viz",
+      "gpu",
+      "benchmark",
+      "disabled-by-default-v8.gc",
+    ],
+  });
+  try {
+    await act();
+  } finally {
+    await browser.stopTracing();
+    console.log(`INFO trace ${what}: ${path}`);
+  }
+}
+
+// The load of the machine at the start and at the end of each test (task 021-22e-l).
+test.beforeEach(({}, info) => {
+  console.log(`INFO machine at the start of « ${info.title} »: ${loadLine()}`);
+});
+test.afterEach(({}, info) => {
+  console.log(`INFO machine at the end of « ${info.title} »: ${loadLine()}`);
+});
+
 /** The long animation frames of the page watched from now on (task 021-22e-i). */
 const watchFrames = (page: Page) =>
   page.evaluate(() => {
@@ -415,11 +565,13 @@ const watchFrames = (page: Page) =>
 
 /**
  * The animation frames of 100 ms or more that started between `from` and `to` (clock of the
- * page), printed with where their time went (task 021-22e-i): tasks before the frame, its
+ * page), and those that hold a long task (blocking time above zero, task 021-22e-l), printed
+ * with where their time went (task 021-22e-i): tasks before the frame, its
  * `requestAnimationFrame` callbacks, style and layout, and the scripts the browser names.
+ * Before them, every long animation frame of the window (50 ms or more) summed.
  */
 async function longFramesBetween(page: Page, what: string, from: number, to: number) {
-  const lines = await page.evaluate(
+  const { lines, summary } = await page.evaluate(
     ([f, t]) => {
       interface Script {
         invoker: string;
@@ -438,8 +590,14 @@ async function longFramesBetween(page: Page, what: string, from: number, to: num
       };
       const all = ((window as unknown as { __kLoaf?: Loaf[] }).__kLoaf ?? []) as Loaf[];
       const ms = (v: number) => Math.max(0, v).toFixed(0);
-      return all
-        .filter((e) => e.startTime >= f && e.startTime <= t && e.duration >= 100)
+      const inWindow = all.filter((e) => e.startTime >= f && e.startTime <= t);
+      const sum = (pick: (e: Loaf) => number) => ms(inWindow.reduce((s, e) => s + pick(e), 0));
+      const summary =
+        `${inWindow.length} of 50 ms or more, ${sum((e) => e.duration)} ms in all` +
+        ` (blocking ${sum((e) => e.blockingDuration)} ms; style and layout` +
+        ` ${sum((e) => (e.styleAndLayoutStart ? e.startTime + e.duration - e.styleAndLayoutStart : 0))} ms)`;
+      const lines = inWindow
+        .filter((e) => e.duration >= 100 || e.blockingDuration > 0)
         .map((e) => {
           const end = e.startTime + e.duration;
           const render = e.renderStart || end;
@@ -458,11 +616,13 @@ async function longFramesBetween(page: Page, what: string, from: number, to: num
             ` style and layout ${ms(end - style)}; ${scripts || "no script named"}`
           );
         });
+      return { lines, summary };
     },
     [from, to] as const,
   );
   console.log(
-    `INFO long frames ${what}: ${lines.length === 0 ? "none" : `${lines.length}; ${lines.join(" | ")}`}`,
+    `INFO long frames ${what}: ${summary}; of 100 ms or blocking:` +
+      ` ${lines.length === 0 ? "none" : `${lines.length}; ${lines.join(" | ")}`}`,
   );
 }
 
@@ -503,7 +663,7 @@ async function readsWhile(page: Page, what: string, container: string, span: [nu
  * the stream, the frames for reading; checked: the changes seen and the reads of the
  * container.
  */
-async function scrollWhileWritten(page: Page): Promise<void> {
+async function scrollWhileWritten(page: Page, cdp: CDPSession): Promise<void> {
   const { domain, container } = seeded();
   const other = await domainId(page, OTHER_DOMAIN);
   if (!other) {
@@ -529,9 +689,8 @@ async function scrollWhileWritten(page: Page): Promise<void> {
     }
     const before = writer.writes.written;
     const opened = await page.evaluate(() => performance.now());
-    frames = await framed(page, async () => {
+    frames = await watched(page, cdp, `while scrolling, ${OTHER_DOMAIN} written`, async () => {
       span = await scrollRows(page);
-      return [];
     });
     duringWindow = writer.writes.written - before;
     await longFramesBetween(page, `while scrolling, ${OTHER_DOMAIN} written`, opened, span[1]);
@@ -966,6 +1125,11 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
 }) => {
   const cdp = await benchOf(page);
   await loginIn(page, "alice");
+  // The witness before the tree (task 021-22e-l): the home of the shell, at rest.
+  await slowDown(cdp);
+  await witness(page, cdp, "at home, no tree");
+  await speedWitness(page, cdp, "at home");
+  await fullSpeed(cdp);
   await openContainer(page);
   // Every row the tree will hold, read first at full speed: the end of the tree in the
   // window until no page of the container has been read for 10 s. A page is 100 children
@@ -1063,10 +1227,11 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   // the drawing alone, and the reads it would set off are counted.
   let span: [number, number] = [0, 0];
   const opened = await page.evaluate(() => performance.now());
-  const frames = await framed(page, async () => {
-    span = await scrollRows(page);
-    return [];
-  });
+  const frames = await watched(page, cdp, "while scrolling", () =>
+    traced(page, "tree-scroll", async () => {
+      span = await scrollRows(page);
+    }),
+  );
   // The levels of the tree go stale 30 s after their last read (`FRESHNESS.children`), and
   // the topography rebuilt every node then (task 021-22e-i): when, against the window.
   const lastRead = await page.evaluate(
@@ -1147,7 +1312,10 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
     await settle(page);
   }
   // The same scroll, another domain written all along (A40).
-  await scrollWhileWritten(page);
+  await scrollWhileWritten(page, cdp);
+  // The witness after the scrolls (task 021-22e-l): the tree mounted, at rest.
+  await witness(page, cdp, "the tree mounted");
+  await speedWitness(page, cdp, "the tree mounted");
   await settle(page);
 
   // From the top: the window ends near the last of the 10⁴ rows, where 50 presses would

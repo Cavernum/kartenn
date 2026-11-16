@@ -43,6 +43,12 @@ export interface Frames {
   windowDropped?: number;
   /** For a scroll: the rows it went through. */
   rows?: number;
+  /**
+   * The intervals between the frames counted, for reading (task 021-22e-l): their median,
+   * 99th percentile and longest, in ms, and how many held at least one frame missed (over
+   * 1.5 frames of 16.67 ms).
+   */
+  intervals?: { p50: number; p99: number; max: number; gaps: number };
 }
 
 interface Runtime {
@@ -189,8 +195,20 @@ function runtime(): void {
         0,
       );
       const span = windows.reduce((sum, [from, to]) => sum + (to - from), 0);
+      const between = times
+        .slice(1)
+        .map((t, i) => t - times[i]!)
+        .sort((a, b) => a - b);
+      const at = (q: number) =>
+        between[Math.min(between.length - 1, Math.floor(q * between.length))] ?? 0;
       return {
         dropped,
+        intervals: {
+          p50: at(0.5),
+          p99: at(0.99),
+          max: between.at(-1) ?? 0,
+          gaps: between.filter((d) => d > 1.5 * FRAME).length,
+        },
         ...(span > 0 ? { windowDropped: Math.max(0, 1 - inside / (span / FRAME)) } : {}),
         ...(await tasksBetween(started, end)),
       };
