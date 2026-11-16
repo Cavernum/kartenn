@@ -10,7 +10,7 @@ import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
 import { rankedRefusal, refusalWords, useTime, useWrites } from "../../time/index.ts";
 import { useKeyLabel } from "../data.ts";
-import ObjectName from "../record/ObjectName.vue";
+import SummaryName from "../record/SummaryName.vue";
 import AcknowledgeDialog from "./AcknowledgeDialog.vue";
 import type { Anomaly } from "./anomaly.ts";
 
@@ -121,7 +121,7 @@ watch(
         show-key
       />
       <template v-else-if="column.id === 'message'">{{ row.message }}</template>
-      <ObjectName
+      <SummaryName
         v-else-if="column.id === 'object'"
         :summary="(row as unknown as Anomaly).object"
       />

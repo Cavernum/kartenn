@@ -15,7 +15,7 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
-import ObjectName from "./ObjectName.vue";
+import SummaryName from "./SummaryName.vue";
 import { derivedOf, explanationOriginOf } from "./provenance.ts";
 import ValueSource from "./ValueSource.vue";
 
@@ -64,7 +64,7 @@ const inheritedDerived = computed(() =>
         <p v-else-if="origin.kind === 'direct'">{{ t("views.record.direct") }}</p>
         <p v-else-if="origin.kind === 'inherited'">
           {{ t("views.record.inheritedFrom") }}
-          <ObjectName :summary="origin.origin" with-kind />
+          <SummaryName :summary="origin.origin" with-kind />
         </p>
         <p v-else><ValueSource :origin="origin" /></p>
         <p v-if="inheritedDerived">
@@ -77,7 +77,7 @@ const inheritedDerived = computed(() =>
         <p>{{ t("views.record.chain") }}</p>
         <ol class="k-explanation__chain">
           <li v-for="node in chain" :key="node.id">
-            <ObjectName :summary="node" with-kind />
+            <SummaryName :summary="node" with-kind />
           </li>
         </ol>
       </template>
