@@ -154,30 +154,15 @@ pub async fn natural_keys(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let parts = [
-        ("entity", "entity", &["id", "slug"][..], "x.slug"),
-        ("site", "site", &["id", "slug"], "x.slug"),
-        ("domain", "addressing_domain", &["id", "slug"], "x.slug"),
-        ("prefix", "prefix", &["id", "prefix"], "x.prefix::text"),
-        ("range", "ip_range", &["id", "range"], "x.range::text"),
-        ("address", "address", &["id", "address"], "x.address::text"),
-        ("vlan_group", "vlan_group", &["id", "slug"], "x.slug"),
-        (
-            "vlan",
-            "vlan",
-            &["id", "vid", "name"],
-            "x.vid::text || ' · ' || x.name",
-        ),
-    ];
-    let mut sql = Vec::with_capacity(parts.len() + 1);
-    for (kind, table, columns, key) in parts {
+    let mut sql = Vec::with_capacity(KEYED.len() + 1);
+    for (kind, table, columns, key) in KEYED {
         let relation =
             snapshot(table, columns).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         sql.push(format!(
             "SELECT x.id, '{kind}'::text, {key} FROM {relation} x WHERE x.id = ANY($3)"
         ));
     }
-    let modules = snapshot("module_object", &["id", "kind"])
+    let modules = snapshot(MODULE_OBJECT.0, MODULE_OBJECT.1)
         .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
     sql.push(format!(
         "SELECT x.id, x.kind, NULL::text FROM {modules} x WHERE x.id = ANY($3)"
@@ -188,6 +173,85 @@ pub async fn natural_keys(
         .bind(ids)
         .fetch_all(pool)
         .await
+}
+
+/// The kinds of the core that have a natural key ([`natural_keys`]): kind, table, columns
+/// read, key as an SQL expression of the row `x`.
+const KEYED: [(&str, &str, &[&str], &str); 8] = [
+    ("entity", "entity", &["id", "slug"], "x.slug"),
+    ("site", "site", &["id", "slug"], "x.slug"),
+    ("domain", "addressing_domain", &["id", "slug"], "x.slug"),
+    ("prefix", "prefix", &["id", "prefix"], "x.prefix::text"),
+    ("range", "ip_range", &["id", "range"], "x.range::text"),
+    ("address", "address", &["id", "address"], "x.address::text"),
+    ("vlan_group", "vlan_group", &["id", "slug"], "x.slug"),
+    (
+        "vlan",
+        "vlan",
+        &["id", "vid", "name"],
+        "x.vid::text || ' · ' || x.name",
+    ),
+];
+
+/// The objects of the modules, whose keys their modules give.
+const MODULE_OBJECT: (&str, &[&str]) = ("module_object", &["id", "kind"]);
+
+/// [`natural_keys`] of objects each read at its own date of validity, as asserted at
+/// `as_of`, in one query whatever the number of pairs (spec 006, task 006-33i): for each
+/// pair `(id, valid_at)` of `pairs` whose object existed then, the pair, its kind and its
+/// key as stored (`None` for an object of a module); the others left out.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn natural_keys_at(
+    pool: &PgPool,
+    pairs: &[(Uuid, OffsetDateTime)],
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<Vec<(Uuid, OffsetDateTime, String, Option<String>)>> {
+    type Row = (i64, String, Option<String>);
+    if pairs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (ids, dates): (Vec<Uuid>, Vec<OffsetDateTime>) = pairs.iter().copied().unzip();
+    let relation = |table: &str, columns: &[&str]| {
+        crate::temporal::snapshot_at(table, columns, "p.at")
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))
+    };
+    let mut sql = Vec::with_capacity(KEYED.len() + 1);
+    for (kind, table, columns, key) in KEYED {
+        let relation = relation(table, columns)?;
+        sql.push(format!(
+            "SELECT p.n, '{kind}'::text, {key} FROM p CROSS JOIN LATERAL {relation} x
+              WHERE x.id = p.id"
+        ));
+    }
+    let modules = relation(MODULE_OBJECT.0, MODULE_OBJECT.1)?;
+    sql.push(format!(
+        "SELECT p.n, x.kind, NULL::text FROM p CROSS JOIN LATERAL {modules} x
+          WHERE x.id = p.id"
+    ));
+    // `$2` is the `as_of` of the relations; the pairs by their rank, not by a date that
+    // the round trip would have to give back alike.
+    let sql = format!(
+        "WITH p AS MATERIALIZED (
+             SELECT * FROM unnest($1::uuid[], $3::timestamptz[]) WITH ORDINALITY AS p(id, at, n))
+         {}",
+        sql.join(" UNION ALL ")
+    );
+    let rows: Vec<Row> = sqlx::query_as(AssertSqlSafe(sql))
+        .bind(&ids)
+        .bind(as_of)
+        .bind(&dates)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(n, kind, key)| {
+            let (id, at) = *pairs.get(usize::try_from(n).ok()?.checked_sub(1)?)?;
+            Some((id, at, kind, key))
+        })
+        .collect())
 }
 
 /// Records that `object` is known as `external_id` by `source`.

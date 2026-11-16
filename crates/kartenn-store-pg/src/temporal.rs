@@ -99,15 +99,25 @@ pub fn select_at(
 ///
 /// [`TemporalError::Identifier`] for an invalid table or column name.
 pub fn snapshot(table: &str, columns: &[&str]) -> Result<String, TemporalError> {
+    snapshot_at(table, columns, "$1::timestamptz")
+}
+
+/// [`snapshot`], the rows valid at `valid_at`, an SQL expression of the query (a column of
+/// a relation joined laterally, a parameter) and never a value of a caller.
+///
+/// # Errors
+///
+/// [`TemporalError::Identifier`] for an invalid table or column name.
+pub fn snapshot_at(table: &str, columns: &[&str], valid_at: &str) -> Result<String, TemporalError> {
     let table = identifier(table)?;
     let cols = column_list(columns)?;
     Ok(format!(
         "(SELECT {cols} FROM {table} \
-          WHERE valid_period @> $1::timestamptz \
+          WHERE valid_period @> {valid_at} \
             AND ($2::timestamptz IS NULL OR sys_start <= $2::timestamptz) \
           UNION ALL \
           SELECT {cols} FROM {table}_history \
-          WHERE $2::timestamptz IS NOT NULL AND valid_period @> $1::timestamptz \
+          WHERE $2::timestamptz IS NOT NULL AND valid_period @> {valid_at} \
             AND sys_start <= $2::timestamptz AND sys_end > $2::timestamptz \
             AND tstzrange(sys_start, sys_end) @> $2::timestamptz)"
     ))

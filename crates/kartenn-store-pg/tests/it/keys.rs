@@ -1,8 +1,8 @@
 //! Natural keys and external identifiers resolved at a date (REQ-002-40, 41).
 
 use kartenn_store_pg::keys::{
-    SlugKind, address_by_value, bind_external, by_external, by_slug, prefix_by_value,
-    range_by_bounds,
+    SlugKind, address_by_value, bind_external, by_external, by_slug, natural_keys_at,
+    prefix_by_value, range_by_bounds,
 };
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -45,6 +45,49 @@ async fn slugs_resolve_at_a_date_and_follow_renames(pool: PgPool) -> sqlx::Resul
         None,
         "per kind"
     );
+    Ok(())
+}
+
+/// Task 006-33i: the keys of pairs (object, date) in one query, each at its own date, as
+/// asserted at `as_of`; a pair whose object did not exist then is left out.
+#[kartenn_testing::pg_test]
+async fn keys_at_their_own_dates_in_one_query(pool: PgPool) -> sqlx::Result<()> {
+    let before: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await?;
+    let id = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO addressing_domain (id, slug, valid_period, changeset_id) VALUES
+         ($1, 'prod', tstzrange('2026-01-01', '2026-06-01'), gen_random_uuid()),
+         ($1, 'prod-eu', tstzrange('2026-06-01', NULL), gen_random_uuid())",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await?;
+    let pairs = [
+        (id, day(MARCH_2026)),
+        (id, day(JULY_2026)),
+        (id, day(MARCH_2025)),
+        (Uuid::now_v7(), day(MARCH_2026)),
+    ];
+    let mut found = natural_keys_at(&pool, &pairs, None).await?;
+    found.sort_by_key(|(_, at, _, _)| *at);
+    let domain = |at: i64, slug: &str| (id, day(at), "domain".to_owned(), Some(slug.to_owned()));
+    assert_eq!(
+        found,
+        [domain(MARCH_2026, "prod"), domain(JULY_2026, "prod-eu")]
+    );
+    let now: OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await?;
+    assert_eq!(natural_keys_at(&pool, &pairs, Some(now)).await?.len(), 2);
+    assert!(
+        natural_keys_at(&pool, &pairs, Some(before))
+            .await?
+            .is_empty(),
+        "not yet asserted"
+    );
+    assert!(natural_keys_at(&pool, &[], None).await?.is_empty());
     Ok(())
 }
 
