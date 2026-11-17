@@ -7,6 +7,7 @@ import { createMemoryHistory, createRouter, RouterView, type RouteRecordRaw } fr
 import { crumbsOf } from "../src/frame/breadcrumb.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { installSession } from "../src/frame/session.ts";
+import { HELP_FETCHED } from "../src/plugins/loader.ts";
 import ShellFrame from "../src/frame/ShellFrame.vue";
 import {
   forgetSettings,
@@ -396,5 +397,17 @@ describe("the frame out of a session", () => {
     const root = await frame("/about");
     for (const part of PARTS) expect(root.querySelector(part), part).not.toBeNull();
     expect(root.querySelector(".k-frame")?.getAttribute("data-sidebar")).toBe("expanded");
+  });
+
+  it("marks the preload of the help once its chunk is read (task 021-26b)", async () => {
+    // The journeys wait for it before leaving the first screen: Firefox reports a load of
+    // the chunk cut short by the navigation as an integrity error of the page left.
+    // The preloads of the frames mounted before settled first, their marks cleared.
+    await new Promise((done) => setTimeout(done, 100));
+    performance.clearMarks(HELP_FETCHED);
+    await frame("/about");
+    await vi.waitFor(() =>
+      expect(performance.getEntriesByName(HELP_FETCHED, "mark")).toHaveLength(1),
+    );
   });
 });

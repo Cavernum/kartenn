@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { readsOf } from "../fixtures/env.ts";
 import {
   apiCall,
+  atRest,
   DATA,
   expect,
   expectAccessible,
@@ -246,6 +247,9 @@ test("the list screens without a toolbar or a footer fill the window as well", a
     await expect(grid.getByRole("row").nth(1)).toBeVisible();
     await expect(grid).toHaveAttribute("data-virtual", "true");
     await expectFilled(page);
+    // Left at rest, its plugins and its help loaded (`atRest`: Firefox and the loads cut
+    // short, task 021-26b).
+    await atRest(page);
   }
 });
 

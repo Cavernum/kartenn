@@ -80,6 +80,14 @@ function inserted(script: HTMLScriptElement): Promise<void> {
 export const PLUGINS_FETCHED = "kartenn:plugins-fetched";
 
 /**
+ * The mark set once the preload of the help of the shortcuts, read in an idle moment after
+ * the frame is shown (`ShellFrame`), has settled: the other module of the first screen
+ * loaded after it, which the journeys wait for with `PLUGINS_FETCHED`, for the same reason
+ * (task 021-26b).
+ */
+export const HELP_FETCHED = "kartenn:help-fetched";
+
+/**
  * Loads one plugin. `fetches` receives each fetch it starts, which the mark waits for while
  * the plugin is set aside at the first that fails; `fetched` is called once its entry is
  * loaded.
