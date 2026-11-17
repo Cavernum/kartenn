@@ -49,6 +49,12 @@ use crate::rules::{
 };
 use crate::tracked::{PathType, Protocol, ServiceType};
 
+/// The fields whose reference needs the right to read the object it designates, checked
+/// before the writes (009/M16 extended, INV-63), as the host and the clusters of a machine
+/// in `kartenn-machines` (task 002-29c2): the cluster of a `sync`, which its connector
+/// reads (task 002-29d2). A first step: every reference after v0.2 (task 002-31).
+const READ_CHECKED: &[&str] = &["cluster"];
+
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Handler;
@@ -1499,6 +1505,81 @@ fn owned_columns(
     Ok(owned)
 }
 
+/// What the plan of a `sync` reads of its cluster, living at the start of its period.
+#[derive(Clone, Copy)]
+struct Mirror<'a> {
+    body: &'a Map<String, Value>,
+    completed: &'a Completed,
+    kind: ModuleKind,
+    cluster: Uuid,
+    /// The pod domain of the cluster.
+    domain: Uuid,
+    name: &'a str,
+}
+
+/// The plan of a `sync` of `kind` in `cluster` that writes nothing and is refused
+/// (task 002-29d2): `refusal`, told by [`told`] when the plan is written, once the rights
+/// of its author are granted, the read of the cluster among them. It asks the reads
+/// `cited` of the fields of the upsert, as the plan of a living cluster would: an author
+/// who does not read the cluster gets the same refusal. A cluster not in force at the
+/// start of the period is refused before, by the pipeline (`core.reference.unknown`): its
+/// refusal at the write is a guard, so that such a plan is never applied.
+fn withheld(
+    kind: ModuleKind,
+    object: Uuid,
+    cluster: Uuid,
+    cited: &[(&str, Uuid)],
+    refusal: &Violation,
+) -> ModulePlan {
+    let data = json!({
+        "noop": true,
+        "reads": reads(cited),
+        "refused": {
+            "rule": refusal.rule.id,
+            "message": refusal.message,
+            "subjects": refusal.subjects,
+            "detail": refusal.detail,
+        },
+    });
+    // Created: no right of its author is asked on an object that does not exist before the
+    // writes, which refuse it; it is neither registered nor touched.
+    ModulePlan {
+        kind,
+        object,
+        creates: true,
+        domains: Vec::new(),
+        keys: vec![cluster_key(cluster)],
+        core: Vec::new(),
+        data,
+    }
+}
+
+/// The refusal [`withheld`] keeps, as the plan would have told it.
+fn told(refused: &Value) -> Violation {
+    let id = refused.get("rule").and_then(Value::as_str);
+    let rule = crate::rules::KUBE_RULES
+        .iter()
+        .copied()
+        .find(|rule| Some(rule.id) == id)
+        .unwrap_or(&OPERATION_INVALID);
+    let subjects: Vec<Uuid> = refused
+        .get("subjects")
+        .cloned()
+        .and_then(|s| serde_json::from_value(s).ok())
+        .unwrap_or_default();
+    let message = refused
+        .get("message")
+        .and_then(Value::as_str)
+        .filter(|m| !m.is_empty())
+        .map_or_else(
+            || format!("kube.sync: a withheld refusal without its message ({refused})"),
+            str::to_owned,
+        );
+    let mut violation = Violation::new(rule, message).with_subjects(subjects);
+    violation.detail = refused.get("detail").filter(|d| !d.is_null()).cloned();
+    violation
+}
+
 impl Handler {
     fn plan_create_cluster(
         operation: &ModuleOperation,
@@ -1594,18 +1675,73 @@ impl Handler {
         }) {
             return Err(invalid(format!("{kind}: unknown field `{foreign}`")));
         }
+        let given = body
+            .get("cluster")
+            .ok_or_else(|| invalid("cluster: required"))?;
+        // Its completion reads a cluster in force at the start of the period, never one its
+        // changeset creates: refused, as its author knows of it (review of 002-29d2).
+        if matches!(serde_json::from_value(given.clone()), Ok(Ref::Local(_))) {
+            return Err(invalid(
+                "cluster: a cluster created by the same changeset is not synced by it",
+            ));
+        }
+        // Read by its author before the writes (`READ_CHECKED`, task 002-29d2).
         let cluster = reference(
-            body.get("cluster")
-                .ok_or_else(|| invalid("cluster: required"))?,
+            given,
             "cluster",
             ObjectKind::Module(cluster_kind()),
             resolve,
         )?;
-        let domain = completed
-            .pod_domain
-            .ok_or_else(|| invalid(format!("cluster: {cluster} is not a living cluster")))?;
         let name = mirror_name(kind, &body)?;
-        let home = home_of(kind, &body, &completed, cluster)?;
+        // The references of the fields an upsert writes (the machine of a node), resolved
+        // whatever its cluster, so that a cluster absent and one out of reach ask the same
+        // reads.
+        let mirrored = (body.get("action").and_then(Value::as_str) == Some("upsert"))
+            .then(|| mirror_columns(kind, &body, resolve));
+        let cited = match &mirrored {
+            Some(Ok((_, cited))) => cited.clone(),
+            _ => Vec::new(),
+        };
+        // A cluster not in force at the start of the period is a designation that names
+        // nothing, refused by the pipeline (`core.reference.unknown`) after the read of the
+        // cluster for an author who does not hold it (INV-63, task 002-29d2): its plan
+        // writes nothing, so that no write tells him otherwise.
+        let Some(domain) = completed.pod_domain else {
+            let absent = invalid(format!("cluster: {cluster} is not a living cluster"));
+            return Ok(withheld(kind, object, cluster, &cited, &absent));
+        };
+        let mirror = Mirror {
+            body: &body,
+            completed: &completed,
+            kind,
+            cluster,
+            domain,
+            name: &name,
+        };
+        // A refusal that tells what the cluster holds (a namespace, an object of a name, its
+        // domains) is told once its read is granted: by the write of the plan.
+        Ok(Self::plan_mirror(&mirror, object, mirrored)
+            .unwrap_or_else(|refusal| withheld(kind, object, cluster, &cited, &refusal)))
+    }
+
+    /// The plan of a `sync` whose cluster lives at the start of its period; `mirrored`, the
+    /// columns of an upsert.
+    #[allow(clippy::too_many_lines)] // one branch per action
+    fn plan_mirror(
+        mirror: &Mirror<'_>,
+        object: Uuid,
+        mirrored: Option<Result<Columns, Violation>>,
+    ) -> Result<ModulePlan, Violation> {
+        let Mirror {
+            body,
+            completed,
+            kind,
+            cluster,
+            domain,
+            name,
+        } = *mirror;
+        let own = fields_of(kind);
+        let home = home_of(kind, body, completed, cluster)?;
         let keys = vec![cluster_key(cluster)];
         // A service is anchored in the service domain of its cluster, an ingress in its
         // external domain, else its service domain (design « Types d'objets »), the other
@@ -1620,10 +1756,11 @@ impl Handler {
         } else {
             domain
         };
-        match body.get("action").and_then(Value::as_str) {
-            Some("upsert") => {
-                let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
-                let mut owned = owned_columns(kind, &body, &completed, domain, &mut columns)?;
+        // An upsert is the action whose columns are resolved.
+        match (body.get("action").and_then(Value::as_str), mirrored) {
+            (_, Some(columns)) => {
+                let (mut columns, cited) = columns?;
+                let mut owned = owned_columns(kind, body, completed, domain, &mut columns)?;
                 // The labels the upsert writes, as checked; else those stored.
                 let labels: Option<std::collections::BTreeMap<String, String>> = columns
                     .get("labels")
@@ -1639,7 +1776,7 @@ impl Handler {
                     // stays the same object (019/X3), closed meanwhile or not (X9): its
                     // identifier opens again, a new version after the gap.
                     let id = completed.reopened.unwrap_or(object);
-                    let mut row = mirror_row(kind, id, home, &name);
+                    let mut row = mirror_row(kind, id, home, name);
                     row.extend(columns);
                     (id, true, json!({ "create": row }))
                 };
@@ -1689,10 +1826,10 @@ impl Handler {
                     data,
                 })
             }
-            Some("close") => {
+            (Some("close"), None) => {
                 let existing = completed
                     .existing
-                    .ok_or_else(|| missing(kind, home, &name))?;
+                    .ok_or_else(|| missing(kind, home, name))?;
                 // Cited by admitted values, a namespace stays, absent, until an
                 // administrator lets it go (`kube.namespace.held`, Q-019-35): a refused
                 // closure would refuse every batch of the cluster.
@@ -1742,7 +1879,7 @@ impl Handler {
             // A cited object gone from the cluster stays, absent since the instant of
             // observation, until an object of its identity comes back (REQ-019-21, 22;
             // 019/X9): identity alone, no tracked field.
-            Some(action @ ("mark_absent" | "clear_absent")) => {
+            (Some(action @ ("mark_absent" | "clear_absent")), None) => {
                 if let Some(field) = body
                     .keys()
                     .find(|k| own.contains(&k.as_str()) && !IDENTITY.contains(&k.as_str()))
@@ -1753,7 +1890,7 @@ impl Handler {
                 }
                 let existing = completed
                     .existing
-                    .ok_or_else(|| missing(kind, home, &name))?;
+                    .ok_or_else(|| missing(kind, home, name))?;
                 let absent = action == "mark_absent";
                 Ok(ModulePlan {
                     kind,
@@ -1770,8 +1907,10 @@ impl Handler {
                     },
                 })
             }
-            Some(other) => Err(invalid(format!("action: {other} is not an action of sync"))),
-            None => Err(invalid("action: required")),
+            (Some(other), None) => {
+                Err(invalid(format!("action: {other} is not an action of sync")))
+            }
+            (None, None) => Err(invalid("action: required")),
         }
     }
 }
@@ -2122,7 +2261,21 @@ impl ModuleHandler for Handler {
         object: Uuid,
         resolve: &Resolve<'_>,
     ) -> Result<ModulePlan, Violation> {
-        match operation.name.as_str() {
+        // The references of the fields of `READ_CHECKED`, each read under the permission of
+        // its kind.
+        let cited = std::cell::RefCell::new(Vec::new());
+        let checked = |r: Ref, kind: ObjectKind, field: &str| {
+            let id = resolve(r, kind, field)?;
+            if READ_CHECKED.contains(&field) {
+                cited.borrow_mut().push(json!([
+                    kartenn_service::reads::read_permission(kind.name()),
+                    id
+                ]));
+            }
+            Some(id)
+        };
+        let resolve: &Resolve<'_> = &checked;
+        let mut plan = match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),
             "update_cluster" => Self::plan_update_cluster(operation, resolve),
             "sync" if operation.body.get("action").and_then(Value::as_str) == Some("unselect") => {
@@ -2133,7 +2286,17 @@ impl ModuleHandler for Handler {
                 crate::settings::plan(operation, object, resolve)
             }
             other => Err(invalid(format!("kube.{other}: unknown operation"))),
+        }?;
+        let cited = cited.into_inner();
+        if !cited.is_empty()
+            && let Some(data) = plan.data.as_object_mut()
+        {
+            match data.entry("reads").or_insert_with(|| json!([])) {
+                Value::Array(reads) => reads.extend(cited),
+                other => *other = Value::Array(cited),
+            }
         }
+        Ok(plan)
     }
 
     /// A node cites the networks created for its new pod ranges, a service the addresses
@@ -2213,6 +2376,10 @@ impl ModuleHandler for Handler {
         changeset: Uuid,
     ) -> BoxFuture<'a, Result<(), WriteError>> {
         Box::pin(async move {
+            // A refusal of a `sync` that reads its cluster, told once the rights are granted.
+            if let Some(refused) = plan.data.get("refused") {
+                return Err(WriteError::Rule(told(refused)));
+            }
             // What a re-derivation by the settings read, checked under the locks (Q-019-36).
             crate::settings::recheck(tx, plan, period).await?;
             // A closure: the core ends the object, then the module's rows (`close`).
@@ -2582,5 +2749,29 @@ impl ModuleHandler for Handler {
                 )))
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A refusal withheld is told as the plan would have told it; one that lost its
+    /// message says so, never an empty message.
+    #[test]
+    fn a_withheld_refusal_is_told_with_its_message() {
+        let subject = Uuid::now_v7();
+        let refusal =
+            Violation::new(&crate::rules::NAME_INVALID, "name: Shop").with_subjects([subject]);
+        let plan = withheld(namespace_kind(), Uuid::now_v7(), subject, &[], &refusal);
+        assert_eq!(told(&plan.data["refused"]), refusal);
+        let lost = told(&json!({"rule": "kube.name.invalid"}));
+        assert_eq!(lost.rule.id, "kube.name.invalid");
+        assert!(lost.message.contains("without its message"), "{lost:?}");
+        let unknown = told(&json!({"rule": "nowhere", "message": "m"}));
+        assert_eq!(
+            (unknown.rule.id, unknown.message.as_str()),
+            (OPERATION_INVALID.id, "m")
+        );
     }
 }

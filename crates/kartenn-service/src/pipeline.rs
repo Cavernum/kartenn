@@ -2877,26 +2877,26 @@ async fn stages<S: Store, A: Authorizer>(
     let mut required = crate::rights::Required::new();
     // The lacks of the one who applies: the changeset stays pending.
     let mut unapplied = Vec::new();
-    // REQ-005-22: the objects the changeset closes or changes, before its writes.
+    // The operation of each of `authored`.
+    let authored_origins: Vec<usize> = match mode {
+        Mode::Validation { authored: n, .. } => {
+            origins.iter().copied().filter(|o| *o < n).collect()
+        }
+        Mode::Submission => origins.clone(),
+    };
+    // REQ-005-22: the objects the changeset closes or changes, before its writes; INV-63
+    // (tasks 002-29c2, 29d2): the reads a module requires on the objects that exist
+    // already, before the writes that would tell an author without them otherwise, an
+    // operation refused by one of them refused by it alone.
     let before = async {
-        crate::rights::check_objects(
+        crate::rights::check_before(
             &mut tx,
             authorizer,
             edit,
-            &authored,
-            crate::rights::Phase::Before,
-            Some(&mut required),
-            &mut violations,
-        )
-        .await?;
-        // INV-63 (task 002-29c2): the reads a module requires on the objects that exist
-        // already, before the writes that would tell an author without them otherwise.
-        crate::rights::check_guards(
-            &mut tx,
-            authorizer,
             author,
             &authored,
-            crate::rights::Phase::Before,
+            &authored_origins,
+            Some(&mut required),
             &mut violations,
         )
         .await?;

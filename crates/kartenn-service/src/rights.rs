@@ -221,6 +221,69 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     Ok(())
 }
 
+/// Before the writes, the author's rights on the objects the changeset closes or changes
+/// ([`check_objects`]) and the reads its modules ask on objects that exist already
+/// ([`check_guards`]); `origins`, the operation of each of `planned`. INV-63 (tasks
+/// 002-29c2, 29d2): an operation whose read is refused answers by that refusal alone, the
+/// rights on what it would change not added to it: found through the object its author
+/// may not read (the namespace a cluster holds under a name), they would tell him that
+/// this object exists.
+#[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
+pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    edit: Check<'_>,
+    author: &Subject,
+    planned: &[Planned],
+    origins: &[usize],
+    required: Option<&mut Required>,
+    violations: &mut Vec<Violation>,
+) -> Result<(), StoreError> {
+    let created: BTreeSet<Uuid> = crate::resolution::created(planned).into_iter().collect();
+    let mut asked: BTreeMap<String, Vec<(Uuid, usize)>> = BTreeMap::new();
+    for (p, origin) in planned.iter().zip(origins) {
+        if let Planned::Module { handler, plan, .. } = p {
+            for (permission, object) in handler.reads(plan) {
+                if !created.contains(&object) {
+                    asked.entry(permission).or_default().push((object, *origin));
+                }
+            }
+        }
+    }
+    let mut unread: BTreeSet<usize> = BTreeSet::new();
+    for (permission, pairs) in asked {
+        let ids: Vec<Uuid> = pairs.iter().map(|(id, _)| *id).collect();
+        let denied: BTreeSet<Uuid> = authorizer
+            .authorize_in(tx, author, &permission, &ids)
+            .await?
+            .into_iter()
+            .collect();
+        unread.extend(
+            pairs
+                .iter()
+                .filter(|(id, _)| denied.contains(id))
+                .map(|(_, origin)| *origin),
+        );
+    }
+    let kept: Vec<Planned> = planned
+        .iter()
+        .zip(origins)
+        .filter(|(_, origin)| !unread.contains(origin))
+        .map(|(p, _)| p.clone())
+        .collect();
+    check_objects(
+        tx,
+        authorizer,
+        edit,
+        &kept,
+        Phase::Before,
+        required,
+        violations,
+    )
+    .await?;
+    check_guards(tx, authorizer, author, planned, Phase::Before, violations).await
+}
+
 /// The permission to edit an object of `kind` (005, K12; spec 024, REQ-024-9);
 /// `<type>.edit` for an object of a module (ADR 0026, clause 5).
 /// INV-63 (task 002-29d4): the objects among `denied` that `subject` reads, in order, which

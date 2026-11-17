@@ -25,8 +25,9 @@ use sqlx::types::time::OffsetDateTime;
 
 /// Its verification and purge (task 019-6c).
 mod retention;
-/// The same journal through its route (task 019-6b).
-mod route;
+/// The same journal through its route (task 019-6b); its router serves the references
+/// (task 002-29d2).
+pub(crate) mod route;
 
 /// `n` hours.
 const fn hours(n: u64) -> std::time::Duration {

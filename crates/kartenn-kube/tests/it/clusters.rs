@@ -2912,7 +2912,7 @@ impl Env {
 /// looked for at the start of its period: not yet in force there, a closure or a mark of
 /// absence finds nothing, an upsert would create another object whose name is taken over
 /// the period. A reference it resolves (the machine of a node) is read at that start, a
-/// cluster not yet in force there is not a living one. Nothing is written.
+/// cluster not yet in force there names nothing (task 002-29d2). Nothing is written.
 #[kartenn_testing::pg_test]
 async fn an_antedated_batch_reaches_nothing_not_yet_in_force(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -2976,10 +2976,6 @@ async fn an_antedated_batch_reaches_nothing_not_yet_in_force(pool: PgPool) {
             ),
             "core.reference.unknown",
         ),
-        (
-            sync("upsert", "namespace", late, "shop", json!({})),
-            "kube.operation.invalid",
-        ),
     ];
     for (operation, rule) in cases {
         let outcome = env
@@ -2999,4 +2995,22 @@ async fn an_antedated_batch_reaches_nothing_not_yet_in_force(pool: PgPool) {
         }
         assert_eq!(env.versions().await, before, "{operation:?}");
     }
+    // A cluster not yet in force: a designation that names nothing (task 002-29d2).
+    let outcome = env
+        .submit_by(
+            env.connector,
+            vec![within(sync("upsert", "namespace", late, "shop", json!({})))],
+        )
+        .await;
+    let Outcome::Refused { violations, .. } = &outcome else {
+        panic!("{outcome:?}")
+    };
+    assert!(
+        violations
+            .iter()
+            .any(|v| v.rule.id == "core.reference.unknown"
+                && v.detail.as_ref().is_some_and(|d| d["field"] == "cluster")),
+        "{outcome:?}"
+    );
+    assert_eq!(env.versions().await, before);
 }

@@ -78,7 +78,7 @@ impl Authenticator for As {
 }
 
 /// The identity `identity` of `kind`, by a token.
-fn principal(identity: Uuid, kind: IdentityKind) -> Principal {
+pub(crate) fn principal(identity: Uuid, kind: IdentityKind) -> Principal {
     Principal {
         identity,
         kind,
@@ -90,7 +90,7 @@ fn principal(identity: Uuid, kind: IdentityKind) -> Principal {
 
 /// The router of an instance with both modules and their routes, as `who`, its event
 /// stream on `hub` when given.
-fn app(pool: &PgPool, who: Principal, hub: Option<&Arc<Hub>>) -> Router {
+pub(crate) fn app(pool: &PgPool, who: Principal, hub: Option<&Arc<Hub>>) -> Router {
     let modules: Vec<Arc<dyn Module>> = vec![Arc::new(Machines), Arc::new(Kube)];
     let api = Api {
         pool: pool.clone(),

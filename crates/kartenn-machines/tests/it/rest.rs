@@ -2437,3 +2437,68 @@ async fn renaming_the_host_changes_the_etag_of_its_guest(pool: PgPool) {
     assert_eq!(body["host"]["label"], "hv2");
     assert_ne!(etag_of(&app, &uri).await, before);
 }
+
+/// INV-63 (tasks 002-29c2, 29d2): the read a module asks on a reference, refused, is the
+/// refusal of its operation alone, without the other rights of the operation; so an author
+/// who reads neither the host he gives nor may edit the machine gets, through HTTP, the
+/// same status and the same bytes for a host that lives out of his reach as for one
+/// unknown or closed, but the identifiers of the request itself.
+#[kartenn_testing::pg_test]
+async fn a_host_not_read_answers_alone_and_as_an_absent_one(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (acme, other) = (env.entity("acme").await, env.entity("other").await);
+    let (mine, _) = env.machine("mine", acme).await;
+    let (far, _) = env.machine("far", other).await;
+    let (gone, _) = env.machine("gone", other).await;
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("machines.machine").unwrap(),
+        id: Ref::Id(gone),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    let author = env.person(&["machines.read"], Some(acme)).await;
+    let app = env.app(author);
+    let answer = |host: Uuid| {
+        let app = app.clone();
+        async move {
+            let submission = json!({"motive": "host", "operations": [
+                {"op": "machines.update_machine", "id": {"id": mine},
+                 "host": {"machine": {"id": host}}},
+            ]});
+            let (status, _, mut body) = call(
+                &app,
+                "POST",
+                "/v1/changesets",
+                Some(("application/json", submission)),
+                &[],
+            )
+            .await;
+            let members = body.as_object_mut().unwrap();
+            members.remove("instance");
+            members.remove("changeset");
+            (
+                status,
+                body.to_string().replace(&host.to_string(), "<host>"),
+            )
+        }
+    };
+    let expected = answer(far).await;
+    let body: Value = serde_json::from_str(&expected.1).unwrap();
+    assert_eq!(
+        body["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| (v["rule"].clone(), v["detail"].clone()))
+            .collect::<Vec<_>>(),
+        [(
+            json!("core.object.forbidden"),
+            json!("1 object(s) need machines.read")
+        )],
+        "the read alone: {body}"
+    );
+    for host in [Uuid::now_v7(), gone] {
+        assert_eq!(answer(host).await, expected, "{host} answers as {far}");
+    }
+}

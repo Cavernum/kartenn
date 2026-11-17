@@ -98,6 +98,14 @@ ADR 0026 clause 4).
   fiche de `crate-scout` (Q-019-12).
 - Le rôle `kube_connector`, le groupe du connecteur et sa liaison se créent à la tâche
   019-11 ; `docs/spec/permissions.md` les montre une fois générés.
+- Le connecteur lit son cluster : le champ `cluster` d'un `kube.sync` exige
+  `kube.cluster.read` sur le cluster, vérifié avant les écritures (tâche 002-29d2,
+  INV-63), si bien qu'un connecteur qui ne le lit pas reçoit pour lui la réponse d'un
+  cluster absent. Le cluster n'étant ancré dans aucun domaine, la liaison de
+  `kube_connector` aux domaines désignés ne lui accorde pas cette lecture : il faut une
+  liaison qui atteigne le cluster, sans quoi chaque lot est refusé ; sa forme est
+  laissée à la tâche 019-11, sous la réserve de `connector_role_confined` (le connecteur
+  de A ne lit pas B).
 - `prop.*` dans le rôle n'est borné que par le périmètre et par `kube.connector.direct` :
   le connecteur ne remplace jamais une valeur de provenance humaine (019, design
   § Politique et flux).
