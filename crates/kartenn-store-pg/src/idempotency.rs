@@ -80,6 +80,8 @@ pub(crate) fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, S
                     .map_err(store_err)?,
                 // `null` for a rule that structures nothing.
                 detail: entry.get("detail").filter(|d| !d.is_null()).cloned(),
+                // What was withheld from the answer is not journaled (INV-63).
+                withheld: Box::default(),
             })
         })
         .collect()

@@ -2494,7 +2494,7 @@ async fn a_host_not_read_answers_alone_and_as_an_absent_one(pool: PgPool) {
             .collect::<Vec<_>>(),
         [(
             json!("core.object.forbidden"),
-            json!("1 object(s) need machines.read")
+            json!("objects you do not read need machines.read")
         )],
         "the read alone: {body}"
     );

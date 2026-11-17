@@ -417,10 +417,10 @@ mod write {
         if let Some(compared) = data.get("revision").and_then(Value::as_u64) {
             fresh(conn, compared, changeset).await?;
         }
-        if data.get("empty").is_some() {
+        if let Some(tag) = data.get(EMPTY).and_then(Value::as_str) {
             return Err(WriteError::Rule(Violation::new(
                 &crate::rules::OPERATION_INVALID,
-                "policy.matrix.set: the cell is empty",
+                format!("{tag}: the cell is empty"),
             )));
         }
         Ok(())
@@ -449,6 +449,10 @@ mod write {
             )))
         }
     }
+
+    /// The key of the data of the plan of an empty cell emptied, refused at its write
+    /// ([`check_set`]); its value, the tag of the operation.
+    const EMPTY: &str = "empty";
 
     /// The plan of the cell itself, once its tag is checked.
     fn planned_set(
@@ -485,7 +489,7 @@ mod write {
                 // An empty cell, or a flow type absent: refused at the write, after the
                 // rights (`check_set`, INV-63).
                 let Some(existing) = set.completed.existing else {
-                    return Ok(plan(RULE, object, false, json!({ "empty": true })));
+                    return Ok(plan(RULE, object, false, json!({ EMPTY: operation.tag() })));
                 };
                 let mut planned = plan(RULE, existing, false, json!({ "noop": true }));
                 planned.core.push(Operation::Close {

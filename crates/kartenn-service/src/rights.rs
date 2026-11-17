@@ -13,9 +13,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use kartenn_core::authz::{Verb, verb_permission};
-use kartenn_core::period::Period;
+use kartenn_core::period::{Instant, Period};
 use kartenn_core::properties::PropertyKey;
-use kartenn_core::rules::{self, Violation};
+use kartenn_core::rules::{self, Rule, Violation};
 use uuid::Uuid;
 
 use crate::authz::{Authorizer, POLICY_ADMIN, Subject};
@@ -72,6 +72,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
     let subject = check.subject;
+    let at = period.map(Period::start);
     // An approval policy decides what needs approval: administered, whatever the verb.
     let policies: Vec<Uuid> = planned
         .iter()
@@ -100,7 +101,15 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     // A guard reveals a version to whoever writes the changeset; the read of the one who
     // applies it is not asked.
     if check.verb == Verb::Edit {
-        check_guards(tx, authorizer, subject, planned, Phase::After, violations).await?;
+        check_guards(
+            tx,
+            authorizer,
+            subject,
+            planned,
+            (Phase::After, at),
+            violations,
+        )
+        .await?;
     }
     let mut objects: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
@@ -149,10 +158,8 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         if denied.is_empty() {
             continue;
         }
-        let message = format!("{} object(s) need {permission}", denied.len());
-        let shown = named(tx, authorizer, (subject, check.verb), denied).await?;
-        violations
-            .push(Violation::new(&rules::PROP_FORBIDDEN_EFFECT, message).with_subjects(shown));
+        let rule = (&rules::PROP_FORBIDDEN_EFFECT, permission.as_str());
+        violations.push(refusal(tx, authorizer, check, rule, denied, at).await?);
     }
     crate::rbac::check(
         tx,
@@ -168,7 +175,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         authorizer,
         check,
         planned,
-        Phase::After,
+        (Phase::After, at),
         required,
         violations,
     )
@@ -179,15 +186,20 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
 /// does an object an operation of a module cites without writing it (its handler's
 /// [`reads`](crate::module::ModuleHandler::reads), 009/M16). In `phase`: before the writes,
 /// the reads on the objects that exist already (INV-63, task 002-29c2: no write answers
-/// before them); after, the guards and the reads on the objects the changeset creates.
+/// before them); after, the guards and the reads on the objects the changeset creates. A
+/// refusal names the objects in force at `at` ([`refusal`]).
 pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     subject: &Subject,
     planned: &[Planned],
-    phase: Phase,
+    (phase, at): (Phase, Option<Instant>),
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
+    let check = Check {
+        subject,
+        verb: Verb::Edit,
+    };
     let created: BTreeSet<Uuid> = crate::resolution::created(planned).into_iter().collect();
     let mut guarded: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
     for p in planned {
@@ -213,9 +225,8 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
             .authorize_in(tx, subject, &permission, &ids)
             .await?;
         if !denied.is_empty() {
-            let message = format!("{} object(s) need {permission}", denied.len());
-            let shown = named(tx, authorizer, (subject, Verb::Edit), denied).await?;
-            violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(shown));
+            let rule = (&rules::OBJECT_FORBIDDEN, permission.as_str());
+            violations.push(refusal(tx, authorizer, check, rule, denied, at).await?);
         }
     }
     Ok(())
@@ -227,18 +238,24 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
 /// 002-29c2, 29d2): an operation whose read is refused answers by that refusal alone, the
 /// rights on what it would change not added to it: found through the object its author
 /// may not read (the namespace a cluster holds under a name), they would tell him that
-/// this object exists.
+/// this object exists. `at`, the start of the period of the changeset.
+///
+/// # Errors
+///
+/// A [`StoreError`] when `origins` and `planned` differ in length ([`aligned`]), or from the
+/// store or the authoriser.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     edit: Check<'_>,
     author: &Subject,
-    planned: &[Planned],
-    origins: &[usize],
+    (planned, origins): (&[Planned], &[usize]),
+    at: Option<Instant>,
     required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
+    aligned(planned, origins)?;
     let created: BTreeSet<Uuid> = crate::resolution::created(planned).into_iter().collect();
     let mut asked: BTreeMap<String, Vec<(Uuid, usize)>> = BTreeMap::new();
     for (p, origin) in planned.iter().zip(origins) {
@@ -276,34 +293,85 @@ pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
         authorizer,
         edit,
         &kept,
-        Phase::Before,
+        (Phase::Before, at),
         required,
         violations,
     )
     .await?;
-    check_guards(tx, authorizer, author, planned, Phase::Before, violations).await
+    check_guards(
+        tx,
+        authorizer,
+        author,
+        planned,
+        (Phase::Before, at),
+        violations,
+    )
+    .await
 }
 
-/// The permission to edit an object of `kind` (005, K12; spec 024, REQ-024-9);
-/// `<type>.edit` for an object of a module (ADR 0026, clause 5).
-/// INV-63 (task 002-29d4): the objects among `denied` that `subject` reads, in order, which
-/// alone a refusal of his right to edit names; an object out of his reading, or not in
-/// force (one a plan draws), is counted in its message but not named, so that the refusal
-/// does not tell him which object a plan completed for him, nor whether it exists. The
-/// lacks of whoever applies (`verb` other than edit) keep every object: they hold the
-/// changeset for a review that needs them (REQ-024-11).
-async fn named<T: WriteTx + Send, A: Authorizer>(
+/// The refusal of `permission` to `check` on `denied`, under `rule`. INV-63 (tasks
+/// 002-29d4, 29d6): it names, and counts, only the objects among `denied` its subject
+/// reads ([`read_among`]); the others, out of his reading or not in force (one a plan
+/// draws), are neither named nor counted, so that the refusal tells him neither which
+/// object a plan completed for him, nor whether it exists, nor how many objects out of his
+/// reading a write reaches. They are kept in [`Violation::withheld`]: the audit of the
+/// refusal targets every object refused (REQ-012-8, 10), and the lacks of whoever applies
+/// decide a validation on all of them (REQ-024-11). Judged when the refusal is found, on
+/// the objects as they are then: before the writes for those a changeset closes.
+async fn refusal<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
-    (subject, verb): (&Subject, Verb),
+    check: Check<'_>,
+    (rule, permission): (&'static Rule, &str),
     denied: Vec<Uuid>,
-) -> Result<Vec<Uuid>, StoreError> {
-    if verb != Verb::Edit {
-        return Ok(denied);
+    at: Option<Instant>,
+) -> Result<Violation, StoreError> {
+    let shown = read_among(tx, authorizer, check.subject, &denied, at).await?;
+    let named: BTreeSet<Uuid> = shown.iter().copied().collect();
+    let withheld = denied.into_iter().filter(|id| !named.contains(id));
+    Ok(Violation::new(rule, needed(shown.len(), permission))
+        .with_subjects(shown)
+        .with_withheld(withheld))
+}
+
+/// `origins` gives the operation of each of `planned` (task 002-29d7): zipped, a longer
+/// `planned` would be cut, and what it planned would escape the check of the edit without
+/// a refusal. A store error, internal, rather than a panic of the request.
+fn aligned(planned: &[Planned], origins: &[usize]) -> Result<(), StoreError> {
+    if planned.len() == origins.len() {
+        Ok(())
+    } else {
+        Err(StoreError(format!(
+            "{} operations planned for {} origins: the rights are not checked",
+            planned.len(),
+            origins.len()
+        )))
     }
+}
+
+/// The message of a refusal of `permission` that names `named` objects: none named, it
+/// says that its objects are out of the reading of whom it answers.
+fn needed(named: usize, permission: &str) -> String {
+    if named == 0 {
+        format!("objects you do not read need {permission}")
+    } else {
+        format!("{named} object(s) need {permission}")
+    }
+}
+
+/// The objects among `ids` that `subject` reads, in their order (INV-63, tasks 002-29d4,
+/// 29d6): in force at `at`, the start of the period of the changeset (now when `None`),
+/// and readable by him; an object without a read permission (a property) counts as read.
+pub(crate) async fn read_among<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    subject: &Subject,
+    ids: &[Uuid],
+    at: Option<Instant>,
+) -> Result<Vec<Uuid>, StoreError> {
     let mut by_read: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
     let mut read: BTreeSet<Uuid> = BTreeSet::new();
-    for (id, kind) in tx.kinds_in_force(&denied, None).await? {
+    for (id, kind) in tx.kinds_in_force(ids, at).await? {
         match crate::pipeline::read_permission(kind) {
             Some(permission) => by_read.entry(permission).or_default().push(id),
             None => {
@@ -319,9 +387,11 @@ async fn named<T: WriteTx + Send, A: Authorizer>(
             .collect();
         read.extend(ids.into_iter().filter(|id| !unread.contains(id)));
     }
-    Ok(denied.into_iter().filter(|id| read.contains(id)).collect())
+    Ok(ids.iter().copied().filter(|id| read.contains(id)).collect())
 }
 
+/// The permission to edit an object of `kind` (005, K12; spec 024, REQ-024-9);
+/// `<type>.edit` for an object of a module (ADR 0026, clause 5).
 fn edit_permission(kind: ObjectKind) -> String {
     match kind {
         ObjectKind::Domain => "core.domain.edit".into(),
@@ -442,14 +512,15 @@ async fn written<T: WriteTx>(
 /// Checks the right of `check` on the objects of the changeset in `phase` (REQ-005-22;
 /// spec 024, REQ-024-10, 11): `core.<kind>.edit` on each for its author, its `apply` or
 /// `approval.self` for whoever applies it, seen from the transaction. Every edit permission
-/// asked is added to `required` when given.
+/// asked is added to `required` when given. A refusal names the objects in force at `at`,
+/// the start of the period of the changeset ([`refusal`]).
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
     check: Check<'_>,
     planned: &[Planned],
-    phase: Phase,
+    (phase, at): (Phase, Option<Instant>),
     mut required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
@@ -465,9 +536,8 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
         if denied.is_empty() {
             continue;
         }
-        let message = format!("{} object(s) need {permission}", denied.len());
-        let shown = named(tx, authorizer, (check.subject, check.verb), denied).await?;
-        violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(shown));
+        let rule = (&rules::OBJECT_FORBIDDEN, permission.as_str());
+        violations.push(refusal(tx, authorizer, check, rule, denied, at).await?);
     }
     Ok(())
 }
@@ -475,4 +545,29 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
 /// Objects of the differential, all properties.
 pub(crate) fn diff_objects(effects: &Effects) -> BTreeSet<Uuid> {
     effects.values().flatten().copied().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Task 002-29d7: operations and origins of different lengths are an internal error,
+    /// never a check cut short nor a panic.
+    #[test]
+    fn origins_out_of_step_are_an_internal_error() {
+        let planned = [Planned::Close {
+            kind: ObjectKind::Address,
+            id: Uuid::nil(),
+            expected: None,
+            cascade: false,
+            shared: false,
+        }];
+        assert!(aligned(&planned, &[0]).is_ok());
+        let error = aligned(&planned, &[]).expect_err("one origin missing");
+        assert!(
+            error.0.contains("1 operations planned for 0 origins"),
+            "{error:?}"
+        );
+        assert!(aligned(&[], &[0]).is_err());
+    }
 }

@@ -2862,28 +2862,26 @@ async fn stages<S: Store, A: Authorizer>(
             },
         }),
     };
-    // What the author wrote: the operations of review a validator joins are checked under
-    // the validator alone (REQ-016-11).
-    let authored: std::borrow::Cow<'_, [Planned]> = match mode {
-        Mode::Validation { authored: n, .. } if origins.iter().any(|o| *o >= n) => planned
-            .iter()
-            .zip(&origins)
-            .filter(|(_, o)| **o < n)
-            .map(|(p, _)| p.clone())
-            .collect::<Vec<_>>()
-            .into(),
-        _ => planned.as_slice().into(),
+    // What the author wrote, with the operation of each: the operations of review a
+    // validator joins are checked under the validator alone (REQ-016-11). Filtered
+    // together, they stay aligned (task 002-29d7).
+    let (authored, authored_origins): (std::borrow::Cow<'_, [Planned]>, Vec<usize>) = match mode {
+        Mode::Validation { authored: n, .. } if origins.iter().any(|o| *o >= n) => {
+            let (authored, origins): (Vec<Planned>, Vec<usize>) = planned
+                .iter()
+                .zip(&origins)
+                .filter(|(_, o)| **o < n)
+                .map(|(p, o)| (p.clone(), *o))
+                .unzip();
+            (authored.into(), origins)
+        }
+        _ => (planned.as_slice().into(), origins.clone()),
     };
     let mut required = crate::rights::Required::new();
     // The lacks of the one who applies: the changeset stays pending.
     let mut unapplied = Vec::new();
-    // The operation of each of `authored`.
-    let authored_origins: Vec<usize> = match mode {
-        Mode::Validation { authored: n, .. } => {
-            origins.iter().copied().filter(|o| *o < n).collect()
-        }
-        Mode::Submission => origins.clone(),
-    };
+    // Refusals name the objects in force at the start of the changeset (task 002-29d6).
+    let at = window.map(Period::start);
     // REQ-005-22: the objects the changeset closes or changes, before its writes; INV-63
     // (tasks 002-29c2, 29d2): the reads a module requires on the objects that exist
     // already, before the writes that would tell an author without them otherwise, an
@@ -2894,8 +2892,8 @@ async fn stages<S: Store, A: Authorizer>(
             authorizer,
             edit,
             author,
-            &authored,
-            &authored_origins,
+            (&authored, &authored_origins),
+            at,
             Some(&mut required),
             &mut violations,
         )
@@ -2906,7 +2904,7 @@ async fn stages<S: Store, A: Authorizer>(
                 authorizer,
                 application,
                 &planned,
-                crate::rights::Phase::Before,
+                (crate::rights::Phase::Before, at),
                 None,
                 &mut unapplied,
             )
@@ -3154,23 +3152,26 @@ async fn stages<S: Store, A: Authorizer>(
             // REQ-024-11: the application of the validator on everything the changeset
             // touches; REQ-016-11: the review permission the module names, on objects that
             // now exist in the transaction.
-            let mut denied: Vec<Uuid> = unapplied.iter().flat_map(|v| v.subjects.clone()).collect();
+            // Every object refused decides, those withheld from the answer included
+            // (INV-63, task 002-29d6).
+            let mut unreviewed: Vec<Uuid> = Vec::new();
             for (permission, objects) in &reviewed {
-                denied.extend(or_roll_back!(
+                unreviewed.extend(or_roll_back!(
                     tx,
                     authorizer
                         .authorize_in(&mut tx, &validator_subject, permission, objects)
                         .await
                 ));
             }
-            if !denied.is_empty() {
-                tx.rollback().await?;
+            if !unreviewed.is_empty() || unapplied.iter().any(|v| v.objects().next().is_some()) {
                 let violation = if validator == author.id {
-                    approval_self_missing(&unapplied)
+                    Ok(approval_self_missing(&unapplied))
                 } else {
-                    forbidden(validator, denied)
+                    let who = (&validator_subject, validator);
+                    forbidden(&mut tx, authorizer, who, (&unapplied, unreviewed), at).await
                 };
-                let error = RequestError::Review(violation);
+                tx.rollback().await?;
+                let error = RequestError::Review(violation?);
                 return Err(crate::review::audited(store, context, error, changeset).await);
             }
             kind
@@ -3294,20 +3295,42 @@ fn not_pending(id: Uuid) -> Violation {
     .with_subjects([id])
 }
 
-fn forbidden(validator: Uuid, denied: Vec<Uuid>) -> Violation {
-    Violation::new(
+/// The validator lacks the application of the objects of `unapplied` and the review of
+/// `unreviewed` (spec 024, REQ-024-11; REQ-016-11): `changeset.approval.forbidden`. INV-63
+/// (task 002-29d6): it names and counts only the objects he reads, the others withheld
+/// for its audit: those of `unapplied` as their refusals judged them when found (before
+/// the writes for the objects the changeset closes), those of `unreviewed`, which exist
+/// in the transaction, at `at` ([`crate::rights::read_among`]).
+async fn forbidden<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    (subject, validator): (&crate::authz::Subject, Uuid),
+    (unapplied, unreviewed): (&[Violation], Vec<Uuid>),
+    at: Option<Instant>,
+) -> Result<Violation, StoreError> {
+    let read = crate::rights::read_among(tx, authorizer, subject, &unreviewed, at).await?;
+    let mut shown: Vec<Uuid> = unapplied.iter().flat_map(|v| v.subjects.clone()).collect();
+    let mut withheld: Vec<Uuid> = unapplied.iter().flat_map(|v| v.withheld.to_vec()).collect();
+    withheld.extend(unreviewed.into_iter().filter(|id| !read.contains(id)));
+    shown.extend(read);
+    let on = if shown.is_empty() {
+        "objects it does not read".to_owned()
+    } else {
+        format!("{} object(s)", shown.len())
+    };
+    Ok(Violation::new(
         &rules::APPROVAL_FORBIDDEN,
-        format!(
-            "{validator} lacks the right to validate on {} object(s)",
-            denied.len()
-        ),
+        format!("{validator} lacks the right to validate on {on}"),
     )
-    .with_subjects(denied)
+    .with_subjects(shown)
+    .with_withheld(withheld))
 }
 
 /// The author lacks `approval.self` (spec 024, REQ-024-11, 13):
 /// `changeset.approval.self.missing`, naming each permission lacking, with the objects
-/// concerned.
+/// concerned. INV-63 (task 002-29d6): told to its author, at its submission, at its replays
+/// (the reason stored) and when he validates it, it names the objects he reads, as the
+/// refusals of `unapplied` judged them when found; the others withheld, for its audit.
 fn approval_self_missing(unapplied: &[Violation]) -> Violation {
     let lacking: Vec<&str> = unapplied.iter().map(|v| v.message.as_str()).collect();
     Violation::new(
@@ -3315,6 +3338,7 @@ fn approval_self_missing(unapplied: &[Violation]) -> Violation {
         format!("its author lacks approval.self: {}", lacking.join("; ")),
     )
     .with_subjects(unapplied.iter().flat_map(|v| v.subjects.clone()))
+    .with_withheld(unapplied.iter().flat_map(|v| v.withheld.to_vec()))
 }
 
 /// Why the author of a changeset does not apply it (spec 024, REQ-024-12): a policy

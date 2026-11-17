@@ -965,6 +965,45 @@ async fn a_refusal_of_rights_names_no_object_out_of_reach(pool: PgPool) {
     assert!(answers.iter().flatten().all(Vec::is_empty), "{answers:?}");
 }
 
+/// Task 002-29d6, point 4: an editor of the policy bound to a scope, who reads none of
+/// it, empties an empty cell and gets the refusal of his rights, not the 422 of a cell
+/// already empty that an editor bound everywhere gets: the rule the plan draws for it is
+/// in no scope. Kept: it is the answer he gets for a cell that holds a rule out of his
+/// scope and for a flow type absent, so that the refusal does not tell him which cells
+/// hold a rule (INV-63).
+#[kartenn_testing::pg_test]
+async fn a_scoped_editor_empties_an_empty_cell_as_a_held_one(pool: PgPool) {
+    let world = World::new(&pool).await;
+    let kept = world.fixtures();
+    let scoped = world
+        .granted(
+            &["policy.rule.admin"],
+            &["policy.settings.edit", "policy.settings.approval.self"],
+        )
+        .await;
+    let emptied = |source: &str, destination: &str, flow_type: Uuid| {
+        op(
+            "matrix.set",
+            json!({ "source": source, "destination": destination,
+                    "flow_type": { "id": flow_type }, "state": "none" }),
+        )
+    };
+    let held = world
+        .submit_as(scoped, vec![emptied("prod", "dev", world.flow_type)])
+        .await;
+    let held = seen(&held, world.flow_type, &kept);
+    assert!(held.contains("core.object.forbidden"), "{held}");
+    let empty = world
+        .submit_as(scoped, vec![emptied("dev", "prod", world.flow_type)])
+        .await;
+    assert_eq!(seen(&empty, world.flow_type, &kept), held, "an empty cell");
+    let absent = Uuid::now_v7();
+    let none = world
+        .submit_as(scoped, vec![emptied("prod", "dev", absent)])
+        .await;
+    assert_eq!(seen(&none, absent, &kept), held, "a flow type absent");
+}
+
 /// INV-63 on the references of the module (task 002-29d4), for each field of each
 /// operation type, an author with every right to write but none to read the policy, his
 /// rules of inference in the domain `lab`: where the reference needs a right (the domain of

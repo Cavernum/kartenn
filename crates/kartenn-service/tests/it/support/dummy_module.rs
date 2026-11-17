@@ -164,6 +164,10 @@ struct UpdateThing {
     /// amendment 10).
     #[serde(default)]
     release: Option<Ref>,
+    /// An address it cites without writing it: its read is asked before the writes
+    /// ([`ModuleHandler::reads`], 009/M16).
+    #[serde(default)]
+    reads: Option<Ref>,
 }
 
 /// The bounds of a period to bind: `None` start is the instant of the transaction.
@@ -303,7 +307,7 @@ impl ModuleHandler for Handler {
                     cascade: false,
                 })
                 .collect();
-            let data = if release.is_some() {
+            let mut data = if release.is_some() {
                 serde_json::json!({
                     "label": update.label, "update": true, "release": true,
                     "shared_core": [0], "cites": [],
@@ -311,6 +315,11 @@ impl ModuleHandler for Handler {
             } else {
                 serde_json::json!({"label": update.label, "update": true})
             };
+            if let Some(cited) = update.reads {
+                let cited = resolve(cited, ObjectKind::Address, "reads")
+                    .ok_or_else(|| invalid("unknown address".into()))?;
+                data["reads"] = cited.to_string().into();
+            }
             return Ok(ModulePlan {
                 kind: kind(),
                 object: target,
@@ -375,6 +384,15 @@ impl ModuleHandler for Handler {
                 "provenances": provenances,
             }),
         })
+    }
+
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        plan.data["reads"]
+            .as_str()
+            .and_then(|id| id.parse().ok())
+            .map(|id| ("core.address.read".to_owned(), id))
+            .into_iter()
+            .collect()
     }
 
     fn provenance(&self, plan: &ModulePlan, index: usize) -> Option<String> {

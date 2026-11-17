@@ -58,6 +58,12 @@ pub struct Violation {
     /// rule's: `{property, resolved, expected, source, revision}` for
     /// `prop.resolution.expected_mismatch`.
     pub detail: Option<serde_json::Value>,
+    /// Objects in cause not told to whom the violation answers (INV-63, task 002-29d6): a
+    /// refusal of rights names only the objects its subject reads, the others kept here for
+    /// its audit (REQ-012-8, 10) and for the decisions that need every object refused.
+    /// Never written in an answer nor in the journal. Boxed: a violation stays small, as
+    /// the error of many results.
+    pub withheld: Box<[Uuid]>,
 }
 
 impl Violation {
@@ -70,7 +76,22 @@ impl Violation {
             message: message.into(),
             operation: None,
             detail: None,
+            withheld: Box::default(),
         }
+    }
+
+    /// Adds objects in cause not told ([`Violation::withheld`]).
+    #[must_use]
+    pub fn with_withheld(mut self, withheld: impl IntoIterator<Item = Uuid>) -> Self {
+        let mut all = std::mem::take(&mut self.withheld).into_vec();
+        all.extend(withheld);
+        self.withheld = all.into_boxed_slice();
+        self
+    }
+
+    /// Every object in cause: those told, then those withheld.
+    pub fn objects(&self) -> impl Iterator<Item = Uuid> + '_ {
+        self.subjects.iter().chain(self.withheld.iter()).copied()
     }
 
     /// Adds the structured values the message cites.

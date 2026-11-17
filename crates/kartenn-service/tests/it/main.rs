@@ -33,6 +33,7 @@ mod module_ending;
 mod module_events;
 mod module_measures;
 mod module_pipeline;
+mod module_reads;
 mod module_review;
 mod obligations;
 mod on_behalf;
