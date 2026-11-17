@@ -805,16 +805,27 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       d'`edit_permission` rendue à sa fonction, `matrix.rs` clé `EMPTY` dont la valeur est
       l'étiquette de l'opération. Attentes changées (message) : `kartenn-kube`
       `clusters.rs`, `kartenn-machines` `machines.rs` et `rest.rs`
+    - corrigé après revue (2026-11-17), rouges d'abord : (a) `Violation::withheld`
+      (`kartenn-core`, `Box<[Uuid]>`, ni répondu ni journalisé) garde les objets refusés
+      non nommés ; `audit.rs` `denial` cible `objects()`, tous les objets refusés
+      (REQ-012-8, 10 ; régression de la 29d4 pour l'édition) ; la validation décide sur
+      tous (`objects()`) ; la raison stockée garde les seuls nommés
+      (`the_audit_of_a_refusal_targets_what_its_answer_does_not_name`, cibles de
+      `a_validator_is_told_only_the_objects_he_reads`) ; seule la consultation du journal
+      d'audit (`core.audit.read`) lit ces cibles ; (b) ce que nomment la raison et
+      `forbidden` est jugé quand le refus est trouvé (avant les écritures pour les objets
+      que le changeset ferme), plus après : `approval_self_missing` redevient une fonction
+      sans lecture (`the_reason_names_an_object_the_changeset_closes`,
+      `a_validator_is_told_an_object_the_changeset_closes`) ; (c) `check_before` rend une
+      `StoreError` interne au lieu de paniquer (`aligned`, test unitaire
+      `origins_out_of_step_are_an_internal_error`)
     - choix : le message d'un refus qui ne nomme rien ne compte rien (`objects you do not
-      read need <p>`) ; les manques de qui applique comptent dans leur message ce que leur
-      présentation nomme, leurs objets entiers ; la présentation est faite avant le
-      `rollback` de la validation, dans la transaction
-    - reste : l'événement `authz.access.denied` d'un refus de droits ne cible que les
-      objets nommés (depuis la 29d4 pour l'édition, ici pour l'application) : à trancher si
-      l'audit doit garder la liste entière ; un refus `policy.admin` de qui applique ne
-      nomme plus, dans la raison de l'auteur, les politiques d'approbation (hors
-      `kinds_in_force`) ; coût : deux lectures de plus par refus d'application (banc de la
-      29d7, point 1)
+      read need <p>`) ; les manques de qui applique comptent dans leur message ce qu'ils
+      nomment, les autres objets dans `withheld` ; les objets d'une revue que refuse le
+      validateur, qui existent dans la transaction, sont jugés après les écritures
+    - reste : un refus `policy.admin` de qui applique ne nomme pas, dans la raison de
+      l'auteur, les politiques d'approbation (hors `kinds_in_force`), gardées pour l'audit ;
+      coût : une lecture de plus par refus d'application (banc de la 29d7, point 1)
   - [ ] 29d5. (à arbitrer) La prolongation d'un flux terminé (F20) : `plan_update`
     (`crates/kartenn-flow/src/handler.rs`, `UPDATE_ENDED`) refuse `flow.update.ended` à la
     planification, avant les droits, sur le flux lu par la complétion : un auteur sans
