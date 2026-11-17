@@ -657,6 +657,27 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       apprend, identifiant par identifiant, la source du flux qu'il édite — à trancher avec la tâche 31 (lecture exigée des références) ou en
       exigeant la lecture des extrémités pour `update` comme pour `register` (modèle de
       droits)
+  - [ ] 29d6. Restes du refus de droits qui ne nomme que ce que l'auteur lit (revue
+    ciblée de la 29d4, 2026-11-17, `crates/kartenn-service/src/rights.rs` `named`) :
+    (1) le message garde le compte des objets refusés, cachés compris : sur les effets
+    de propriété (`check`), un auteur qui écrit une propriété sur un préfixe lu apprend
+    combien d'objets non lus elle atteint (INV-63) ; (2) la raison stockée d'un
+    changeset retenu (`StoredReason.objects`, `approval_self_missing`,
+    `pipeline.rs` 3125 et 3311), servie à l'auteur à la soumission et au rejeu, garde
+    tous les objets : un auteur qui édite une règle sans la lire en reçoit
+    l'identifiant (gravité faible : il faut l'édition sans la lecture) ; (3) à
+    vérifier : `forbidden(validator, denied)` (`pipeline.rs` 3297) rend au validateur
+    tous les objets qu'il ne peut appliquer, lus ou non ; (4) à vérifier : un éditeur
+    de politique lié par portée qui vide une cellule vide reçoit le refus des droits
+    au lieu du 422 « the cell is empty » (`kartenn-policy/src/matrix.rs` 488,
+    identifiant tiré, `creates=false`) ; (5) `kinds_in_force(&denied, None)` juge à
+    maintenant et ignore la période du changeset ; mineurs : doc d'`edit_permission`,
+    étiquette `policy.matrix.set` en dur, clé `"empty"` sans constante — verify : test
+    rouge d'abord par point confirmé ; séparer les objets montrés de ceux que la revue
+    emploie touche le pipeline : s'arrêter et rapporter si c'est le cas
+    - où : `crates/kartenn-service/src/{rights.rs,pipeline.rs}`,
+      `crates/kartenn-policy/src/matrix.rs`, `crates/kartenn-store-pg/src/idempotency.rs`
+    - dépend de : 29d4
   - [ ] 29d5. (à arbitrer) La prolongation d'un flux terminé (F20) : `plan_update`
     (`crates/kartenn-flow/src/handler.rs`, `UPDATE_ENDED`) refuse `flow.update.ended` à la
     planification, avant les droits, sur le flux lu par la complétion : un auteur sans
