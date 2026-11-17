@@ -1326,7 +1326,7 @@ routeur complet, sauf mention « vrai TCP ».
     (`cargo run -p kartenn-server --all-features -- openapi`) et les types des SDK
     (`node scripts/gen.mjs` sous `web/sdk` et `web/v2/sdk`), et lit ses cibles par
     `Summaries::read` (`summary.rs`) :
-  - [ ] 33g1. Objets clos par cascade (`Cascaded`, arbitrage du 2026-11-16, option 1) :
+  - [x] 33g1. Objets clos par cascade (`Cascaded`, arbitrage du 2026-11-16, option 1) :
     `{id, kind, slug, label, href}` pour un objet que l'appelant lit, `{id}` seul sinon,
     dans le changeset lu, appliqué et simulé — verify : `k-check -p kartenn-rest cascad`
     (deux appelants, objet clos par cascade illisible pour l'un : `{id}`, mêmes octets
@@ -1336,6 +1336,30 @@ routeur complet, sauf mention « vrai TCP ».
       (`Summaries`) ; modèle : `kartenn-machines/src/rest.rs` (`HostSummary`, `host`) ;
       test voisin `rest/tests/it/simulated.rs`, cascade de `rest/tests/it/vlan/references.rs`
       `closing_a_group_cascades_its_vlans`
+    fait : `changesets.rs` (`Cascaded` : `id`, puis `kind`, `slug`, `label`, `href`
+    omis ensemble pour un objet illisible ou absent ; `cascaded` lit les clés par
+    `Summaries::read` à l'instant qui précède la fermeture, `cascaded_by` pour un
+    changeset appliqué ou rejoué ; `applied` et `replayed` prennent le contexte de la
+    requête) ; `cycle.rs` (`represent` : à `valid_from` du changeset) ;
+    `kartenn-store-pg` `changesets.rs` (`valid_from`, lue seulement s'il y a des
+    fermetures) ; `drafts.rs` (rejeu d'une soumission) ; `UNSUMMARISED` sans `Cascaded` ;
+    contrat et `schema.d.ts` des deux SDK régénérés ; `web/v2/sdk/src/data/write.ts`
+    (`afterApplied` n'invalide que les fermetures qui disent leur genre) ;
+    `web/v2/shell/src/views/edit/close.ts` et `ClosePanel.vue` (les fermetures sans genre
+    comptées à part et en dernier, « Objets que vous ne pouvez pas lire · n »,
+    `edit.close.unreadable`,
+    test `shell/test/close.test.ts`) ; design 006
+    « Idempotence », rejeu. Test : `rest/tests/it/vlan/rest.rs`
+    `the_closures_of_a_cascade_say_their_kind_with_their_key_only` (simulation,
+    application et lecture d'un groupe fermé avec ses deux VLAN : `kind`, `label`,
+    `href` pour un lecteur des VLAN, `{id}` pour un lecteur des seuls changesets ; les
+    VLAN effacés, le lecteur des VLAN reçoit les octets du second, en-têtes compris).
+    choix : clés lues à `valid_from` du changeset moins une microseconde, telles
+    qu'affirmées maintenant (une fermeture sous `within` d'une autre période peut donc
+    laisser `{id}` à un lecteur : perte d'information, pas de fuite) ; simulation lue à
+    l'instant de la requête ; lisibilité jugée maintenant, comme partout (un objet fermé
+    que l'autorisateur ne situe plus reste `{id}`) ; le rejeu d'une clé d'idempotence
+    sert les résumés du moment, non ceux de la première réponse.
   - [ ] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
     `DiffItemDto.object` (échantillon d'une simulation) et les valeurs de type référence
     de `before`/`after`, démasquées selon la lisibilité de l'objet et non de la cible —
