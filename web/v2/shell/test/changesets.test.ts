@@ -197,6 +197,34 @@ describe("the review of a changeset", () => {
     expect(groups[1]!.changes[0]).toMatchObject({ before: "masqué", after: "masqué" });
   });
 
+  it("titles an object by its label and shows a reference by its summary (REQ-006-42)", () => {
+    const team = { id: D1, slug: "team", label: "team", href: `/v1/entities/${D1}` };
+    const groups = diffGroups(
+      [
+        {
+          object: { id: P1, label: "192.0.2.0/24", href: `/v1/prefixes/${P1}` },
+          property: "policy.team",
+          before: { id: C1 },
+          after: team,
+          masked: false,
+        },
+        {
+          object: { id: C1 },
+          property: "policy.teams",
+          before: null,
+          after: [team, { id: C1 }],
+          masked: false,
+        },
+        { object: { id: C1 }, property: "doc", before: null, after: { id: 7 }, masked: false },
+      ] as never,
+      { property: () => null, masked: "masqué", object: (id) => `objet ${id.slice(-2)}` },
+    );
+    expect(groups.map((g) => g.title)).toEqual(["192.0.2.0/24", "objet e1"]);
+    expect(groups[0]!.changes[0]).toMatchObject({ before: C1, after: "team" });
+    expect(groups[1]!.changes[0]).toMatchObject({ after: `team, ${C1}` });
+    expect(groups[1]!.changes[1]).toMatchObject({ after: '{"id":7}' });
+  });
+
   it("shows the counted differential of a changeset not applied, a group per property", () => {
     const groups = countedGroups(
       [

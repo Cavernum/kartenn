@@ -36,6 +36,13 @@ async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
     .fetch_one(pool)
     .await
     .unwrap();
+    grant(pool, identity, entries, ("global", None)).await;
+    identity
+}
+
+/// Grants `entries` on `scope` (`("global", None)`, `("domain", Some(id))`…) to the person
+/// `identity`, by a role of their own.
+async fn grant(pool: &PgPool, identity: Uuid, entries: &[&str], scope: (&str, Option<Uuid>)) {
     let role = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -60,12 +67,11 @@ async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
     sqlx::query(kartenn_testing::BIND_IDENTITY)
         .bind(identity)
         .bind(role)
-        .bind("global")
-        .bind(None::<Uuid>)
+        .bind(scope.0)
+        .bind(scope.1)
         .execute(pool)
         .await
         .unwrap();
-    identity
 }
 
 fn app_as(pool: &PgPool, identity: Uuid) -> Router {
@@ -746,4 +752,233 @@ async fn a_sensitive_value_is_masked_without_its_right(pool: PgPool) {
     assert_eq!(masked["items"][0]["masked"], true);
     assert!(!masked.to_string().contains("s3cret"), "{masked}");
     assert!(!masked["counts"].is_null());
+}
+
+/// The status, the headers but the identifier of the request, and the bytes of the body
+/// of `GET uri`.
+async fn answer(app: &Router, uri: &str) -> (StatusCode, header::HeaderMap, Vec<u8>) {
+    let response = send(app, get(uri)).await;
+    let status = response.status();
+    let mut headers = response.headers().clone();
+    assert!(headers.remove("request-id").is_some());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+/// Declares the property `key` of type `value_type` on the prefixes, with `params`.
+async fn declare_on_prefixes(pool: &PgPool, key: &str, value_type: &str, params: &str) -> Uuid {
+    sqlx::query_scalar(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, sensitive, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1, $2, 'single', ARRAY['prefix'], $3::jsonb, false,
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+         RETURNING id",
+    )
+    .bind(key)
+    .bind(value_type)
+    .bind(params)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// Creates the prefix `value` in the domain `domain`; its identifier.
+async fn create_prefix(app: &Router, pool: &PgPool, domain: &str, value: &str) -> Uuid {
+    let (status, body) = submit(
+        app,
+        json!([{"op": "create_prefix", "domain": {"id": domain}, "prefix": value,
+                "nature": "network"}]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    sqlx::query_scalar("SELECT DISTINCT id FROM prefix WHERE prefix = $1::cidr")
+        .bind(value)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Task 006-33g2, REQ-006-42, INV-63, 005: the objects of the differential of a changeset
+/// and the values of type reference it changes are the summary of their object for a
+/// caller who may read it, its identifier alone for one who may not; the target gone, the
+/// same bytes and headers for both, as for an object that never was. The sample of a
+/// simulation summarises alike, its values still JSON text.
+#[kartenn_testing::pg_test]
+async fn the_diff_leaves_alike_an_unreadable_target_and_an_unknown_one(pool: PgPool) {
+    let admin = app_as(&pool, person(&pool, &["*"]).await);
+    let (lab, _) = domain(&admin, &pool, "lab").await;
+    let net = create_prefix(&admin, &pool, &lab, "192.0.2.0/24").await;
+    let team: Uuid = sqlx::query_scalar(
+        "INSERT INTO entity (id, slug, parent_id, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'team', NULL, tstzrange(now() - interval '1 day', NULL),
+                 gen_random_uuid()) RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let property =
+        declare_on_prefixes(&pool, "policy.team", "ref", r#"{"target": "entity"}"#).await;
+    let assign = json!([{"op": "assign_property", "object": {"id": net}, "kind": "prefix",
+                         "property": {"id": property}, "values": [team.to_string()]}]);
+    let object = json!({"id": net, "label": "192.0.2.0/24", "href": format!("/v1/prefixes/{net}")});
+    let full = json!({"id": team, "slug": "team", "label": "team",
+                      "href": format!("/v1/entities/{team}")});
+    let bare = json!({"id": team});
+
+    // The sample of a simulation: the object and the reference summarised.
+    let simulate = |operations: &Value| {
+        post(
+            "/v1/changesets?simulate=true",
+            &json!({"motive": "m", "operations": operations}),
+        )
+    };
+    let simulated = json_of(send(&admin, simulate(&assign)).await).await;
+    let sample = &simulated["sample"][0];
+    assert_eq!(sample["object"], object, "{simulated}");
+    let after: Value = serde_json::from_str(sample["after"].as_str().unwrap()).unwrap();
+    assert_eq!(after, full, "{simulated}");
+    let blind_writer = app_as(
+        &pool,
+        person(
+            &pool,
+            &[
+                "core.changeset.read",
+                "core.prefix.read",
+                "core.prefix.edit",
+                "prop.policy.team.read",
+                "prop.policy.team.edit",
+            ],
+        )
+        .await,
+    );
+    let simulated = json_of(send(&blind_writer, simulate(&assign)).await).await;
+    let sample = &simulated["sample"][0];
+    assert_eq!(sample["object"], object, "blind: {simulated}");
+    let after: Value = serde_json::from_str(sample["after"].as_str().unwrap()).unwrap();
+    assert_eq!(after, bare, "blind: {simulated}");
+
+    let (status, body) = submit(&admin, assign).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let diff = format!(
+        "/v1/changesets/{}/diff",
+        body["changeset"]["id"].as_str().unwrap()
+    );
+    let reader = app_as(
+        &pool,
+        person(
+            &pool,
+            &[
+                "core.changeset.read",
+                "core.prefix.read",
+                "core.entity.read",
+            ],
+        )
+        .await,
+    );
+    let blind = app_as(
+        &pool,
+        person(&pool, &["core.changeset.read", "core.prefix.read"]).await,
+    );
+    let no_prefix = app_as(
+        &pool,
+        person(&pool, &["core.changeset.read", "core.entity.read"]).await,
+    );
+    for (app, object, after) in [
+        (&reader, &object, &full),
+        (&blind, &object, &bare),
+        (&no_prefix, &json!({"id": net}), &full),
+    ] {
+        let shown = json_of(send(app, get(&diff)).await).await;
+        assert_eq!(
+            shown["items"],
+            json!([{"property": "policy.team", "object": object, "before": null,
+                    "after": after, "masked": false}]),
+            "{shown}"
+        );
+    }
+    let unreadable = answer(&blind, &diff).await;
+    assert_eq!(unreadable.0, StatusCode::OK);
+    sqlx::query("DELETE FROM entity WHERE id = $1")
+        .bind(team)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        answer(&reader, &diff).await,
+        unreadable,
+        "unreadable and unknown"
+    );
+}
+
+/// Task 006-33g2 (rest of 006-33g1): an object of the differential closed since (a closure
+/// itself leaves no line) is summarised as the changeset left it, judged readable where it
+/// was then: a reader scoped to its domain reads its key, a reader scoped to another
+/// domain its identifier alone; the object gone, the same bytes and headers for both.
+#[kartenn_testing::pg_test]
+async fn the_diff_of_an_object_closed_since_is_read_where_it_lived(pool: PgPool) {
+    let admin = app_as(&pool, person(&pool, &["*"]).await);
+    let (lab, _) = domain(&admin, &pool, "lab").await;
+    let (other, _) = domain(&admin, &pool, "other").await;
+    let net = create_prefix(&admin, &pool, &lab, "192.0.2.0/24").await;
+    let property = declare_on_prefixes(
+        &pool,
+        "net.note",
+        "text",
+        r#"{"min_len": 1, "max_len": 64}"#,
+    )
+    .await;
+    let (status, body) = submit(
+        &admin,
+        json!([{"op": "assign_property", "object": {"id": net}, "kind": "prefix",
+                "property": {"id": property}, "values": ["kept"]}]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let diff = format!(
+        "/v1/changesets/{}/diff",
+        body["changeset"]["id"].as_str().unwrap()
+    );
+    let (status, body) = submit(
+        &admin,
+        json!([{"op": "close", "kind": "prefix", "id": {"id": net}}]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    // The journal of the changesets is read under a global right only.
+    let scoped = async |domain: &str| {
+        let reader = person(&pool, &["core.changeset.read"]).await;
+        let domain: Uuid = domain.parse().unwrap();
+        grant(
+            &pool,
+            reader,
+            &["core.prefix.read"],
+            ("domain", Some(domain)),
+        )
+        .await;
+        app_as(&pool, reader)
+    };
+    let inside = scoped(&lab).await;
+    let outside = scoped(&other).await;
+    let object = json!({"id": net, "label": "192.0.2.0/24", "href": format!("/v1/prefixes/{net}")});
+    for (app, object) in [(&inside, &object), (&outside, &json!({"id": net}))] {
+        let shown = json_of(send(app, get(&diff)).await).await;
+        assert_eq!(
+            shown["items"],
+            json!([{"property": "net.note", "object": object, "before": null,
+                    "after": "kept", "masked": false}]),
+            "{shown}"
+        );
+    }
+    let unreadable = answer(&outside, &diff).await;
+    assert_eq!(unreadable.0, StatusCode::OK);
+    sqlx::query("DELETE FROM prefix WHERE id = $1")
+        .bind(net)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        answer(&inside, &diff).await,
+        unreadable,
+        "closed and unknown"
+    );
 }

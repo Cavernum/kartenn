@@ -588,6 +588,20 @@ async fn declared(api: &Api, moment: &Moment) -> Result<Vec<DeclarationRead>, Pr
     .map_err(|e| store(&e))
 }
 
+/// The keys of the properties of type reference declared at `valid_at` as asserted at
+/// `as_of`.
+pub(crate) async fn declared_refs(
+    api: &Api,
+    valid_at: time::OffsetDateTime,
+    as_of: Option<time::OffsetDateTime>,
+) -> Result<BTreeSet<String>, Problem> {
+    let all = property_read::DeclarationFilter::default();
+    let found = property_read::declarations(&api.pool, valid_at, as_of, all, None, i64::MAX)
+        .await
+        .map_err(|e| store(&e))?;
+    Ok(ref_keys(&found))
+}
+
 /// The keys of the properties of type reference among `declarations`.
 fn ref_keys(declarations: &[DeclarationRead]) -> BTreeSet<String> {
     declarations
@@ -598,7 +612,7 @@ fn ref_keys(declarations: &[DeclarationRead]) -> BTreeSet<String> {
 }
 
 /// The objects a value of type reference names: its identifier, or those of a set.
-fn references(value: &Value) -> Vec<Uuid> {
+pub(crate) fn references(value: &Value) -> Vec<Uuid> {
     let one = |v: &Value| v.as_str().and_then(|s| s.parse::<Uuid>().ok());
     match value {
         Value::Array(values) => values.iter().filter_map(one).collect(),
@@ -609,7 +623,7 @@ fn references(value: &Value) -> Vec<Uuid> {
 /// A value of type reference with each identifier it holds replaced by the summary of
 /// its object among `summaries` (REQ-006-42): `{id}` alone for an object the caller may
 /// not read or that was absent at the dates of the read.
-fn summarised(value: Value, summaries: &Summaries) -> Value {
+pub(crate) fn summarised(value: Value, summaries: &Summaries) -> Value {
     let one = |v: Value| match v.as_str().and_then(|s| s.parse::<Uuid>().ok()) {
         Some(id) => serde_json::to_value(summaries.of(id)).expect("a summary serialises"),
         None => v,

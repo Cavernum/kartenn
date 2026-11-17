@@ -426,8 +426,6 @@ const UNSUMMARISED: &[(&str, &str, &str)] = &[
         "a changeset, no object of the network",
     ),
     // To summarise, each by its task.
-    ("DiffObject", "{id}", "the diff of a changeset: task 33g"),
-    ("DiffItemDto", "object", "the diff of a changeset: task 33g"),
     (
         "Ref",
         "{id}",

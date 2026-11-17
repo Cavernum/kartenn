@@ -103,7 +103,7 @@ const sections = computed(() => first.value?.sections ?? []);
 
 /**
  * The name of an object of the differential when the cache holds it (its record or a row
- * read before): the differential serves its identifier only (contract 006).
+ * read before), for an object the differential does not label (contract 006, REQ-006-42).
  */
 function cachedName(id: string): string | null {
   for (const query of queryClient

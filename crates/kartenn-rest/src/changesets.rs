@@ -673,23 +673,64 @@ impl From<&kartenn_service::pipeline::SectionSample> for SectionSampleDto {
 pub(crate) struct DiffItemDto {
     /// Property key.
     property: String,
-    /// The object.
-    object: Uuid,
-    /// The value before, as JSON text; `null`: no value.
+    /// The object, as summarised (REQ-006-42).
+    object: Summary,
+    /// The value before, as JSON text; `null`: no value. For a property of type
+    /// reference, the summary of each object it names.
     before: Option<String>,
-    /// The value after, as JSON text; `null`: no value.
+    /// The value after, as JSON text; `null`: no value. For a property of type
+    /// reference, the summary of each object it names.
     after: Option<String>,
 }
 
-impl From<&DiffItem> for DiffItemDto {
-    fn from(d: &DiffItem) -> Self {
-        Self {
-            property: d.property.clone(),
-            object: d.object,
-            before: d.before.clone(),
-            after: d.after.clone(),
-        }
+/// The first entries of a simulated differential as served (task 006-33g2): each object
+/// summarised, and each object a value of type reference names, as the caller of
+/// `context` may read them now (a simulation closes nothing).
+async fn sampled(
+    api: &Api,
+    context: &RequestContext,
+    sample: &[DiffItem],
+) -> Result<Vec<DiffItemDto>, Problem> {
+    let now = OffsetDateTime::now_utc();
+    let refs = crate::properties::declared_refs(api, now, None).await?;
+    let parsed = |text: Option<&String>| -> Result<Option<Value>, Problem> {
+        text.map(|t| serde_json::from_str(t).map_err(cycle::internal))
+            .transpose()
+    };
+    let mut entries = Vec::with_capacity(sample.len());
+    let mut ids = Vec::new();
+    for item in sample {
+        ids.push(item.object);
+        let values = if refs.contains(&item.property) {
+            let (before, after) = (parsed(item.before.as_ref())?, parsed(item.after.as_ref())?);
+            for value in before.iter().chain(&after) {
+                ids.extend(crate::properties::references(value));
+            }
+            Some((before, after))
+        } else {
+            None
+        };
+        entries.push((item, values));
     }
+    let summaries = Summaries::read(api, context, ids, now, None).await?;
+    let text = |value: Option<Value>| {
+        value.map(|v| crate::properties::summarised(v, &summaries).to_string())
+    };
+    Ok(entries
+        .into_iter()
+        .map(|(item, values)| {
+            let (before, after) = match values {
+                Some((before, after)) => (text(before), text(after)),
+                None => (item.before.clone(), item.after.clone()),
+            };
+            DiffItemDto {
+                property: item.property.clone(),
+                object: summaries.of(item.object),
+                before,
+                after,
+            }
+        })
+        .collect())
 }
 
 /// A changeset applied.
@@ -1070,7 +1111,7 @@ pub(crate) async fn answered(
                 valid,
                 violations: violations(api, &found, answer.pointers).await?,
                 diff: diff.iter().map(DiffCountDto::from).collect(),
-                sample: sample.iter().map(DiffItemDto::from).collect(),
+                sample: sampled(api, context, &sample).await?,
                 // A simulation closes nothing: the objects are read as they are at the
                 // request, whatever the period asked, a `valid_from` to come included.
                 cascaded: cascaded(api, context, &closures, OffsetDateTime::now_utc()).await?,
