@@ -1911,3 +1911,31 @@ routeur complet, sauf mention « vrai TCP ».
   - dépend de : 33f3 ; la forme d'une portée lue (`kind` gardé à côté du résumé, ou omis
     avec `label` comme l'hôte d'une machine, 33d) touche le contrat des droits : à
     trancher avec l'utilisateur
+- [ ] 43. (sécurité, avant la v0.2) La simulation et les réponses d'écriture masquent
+  les propriétés sensibles comme le différentiel lu — REQ-005-21. Constat de la 33g2 et
+  de sa revue (2026-11-17, par lecture, antérieur) : `POST /v1/changesets?simulate=true`
+  et toute écriture simulée servent `diff` par `DiffCountDto::from` (`masked: None`,
+  `changesets.rs` vers 1111) et `sample` depuis `diff_first`
+  (`kartenn-store-pg/src/diff.rs` vers 298), sans `sensitive_keys` ni
+  `sensitive_disclosed` ; les réponses appliquée et en attente de même (`counted`, vers
+  993). Un auteur qui édite un objet sans `prop.<clé>.read` simule une opération qui
+  change la valeur effective d'une propriété sensible et lit l'ancienne valeur dans
+  `before` (de `counts` comme de `sample`), sans événement `data.sensitive.read`. Le
+  différentiel lu (`GET /v1/changesets/{id}/diff`) masque, lui (`disclosed`,
+  `cycle.rs` vers 762 ; `counts()`, vers 310), avec audit : s'en servir. À établir
+  d'abord par un test rouge : quelle opération y donne accès sans droit `prop.<clé>`
+  (héritage par déplacement ou rattachement, écriture sans lecture) — verify : test
+  rouge par route (simulation, appliquée, en attente, rejouée) : valeur sensible
+  `null` et marquée masquée sans `prop.<clé>.read`, servie et auditée avec ;
+  `k-check -p kartenn-rest`
+  - où : `crates/kartenn-rest/src/changesets.rs` (`sampled`, `counted`,
+    `DiffCountDto`), `cycle.rs` (`disclosed`, `counts`), `kartenn-store-pg/src/diff.rs`
+    (`diff_first`) ; tests voisins `crates/kartenn-rest/tests/it/cycle.rs`
+  - versé par la revue de la 33g2 (à arbitrer ou écrire, pas des fuites) : le temps de
+    réponse du différentiel distingue un objet illisible présent d'un absent (une
+    lecture contre trois à cinq, `cycle.rs` 578 `diff_summaries`) — lire la période sans
+    condition, ou l'écrire comme limite de REQ-006-42 ; les références de `counts` et
+    de l'échantillon (texte JSON) échappent à la garde `UNSUMMARISED` — exemption à
+    écrire dans la garde ; `declared_refs` (`properties.rs` 593) lit toutes les
+    déclarations à chaque page ; `summaryText` (`web/v2/shell/src/changesets/model.ts`
+    183) prend une valeur JSON `{id}` ordinaire pour un résumé
