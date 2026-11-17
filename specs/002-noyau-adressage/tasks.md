@@ -609,7 +609,8 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       lecture (`kube.settings.edit` : réelle close, absente refusée)
   - [x] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
-    - où : `crates/kartenn-flow/src/handler.rs` (217 à 226, 493 à 585),
+    - où : `crates/kartenn-flow/src/handler.rs` (`resolved` 215 à 221, `identity_changed`
+      283 à 291, `plan_flow` 502 à 593, `plan_update` 595 à 708, `apply_plan` 852 à 854),
       `tests/it/references.rs`
     - fait le 2026-11-16 : deux fuites de `update`, rouges d'abord. Le plan comparait
       l'identité donnée (extrémités, service, type) à celle du flux lu par la complétion,
@@ -628,22 +629,46 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       plus le type d'un `update`, comparés sur règle, message, indice, objets et détail,
       l'identifiant cité masqué), `a_hidden_flow_answers_the_same_bytes` (`POST
       /v1/changesets` d'un `waive` : statut et octets égaux pour un flux inconnu, d'un
-      autre type, clos et hors d'atteinte)
+      autre type, clos et hors d'atteinte),
+      `the_extension_of_a_flow_out_of_reach_answers_as_an_absent_one` (prolongation d'un
+      flux daté en vigueur hors d'atteinte, dont le plan ajoute l'ancre `core.owner` sur
+      son entité : entité hors d'atteinte, entité lue par l'auteur et close en base — le
+      service refuse de clore une entité qui ancre un flux en vigueur,
+      `core.anchor.in_use`, l'état ne naît que d'une clôture concurrente, tâche 30 —,
+      identifiant d'un autre type, même réponse qu'un flux absent ; vert sans correction : l'objet de
+      l'ancre est le flux que le plan écrit, exempté du contrôle des désignations,
+      `pipeline.rs` 1368, et la valeur de l'entité n'est pas une désignation ; les droits
+      sur le flux refusent avant l'écriture de l'ancre)
     - choix : les objets créés par la soumission (le flux d'un `request`) et les
       identifiants du changeset refusé et du problème, neufs à chaque appel, sont masqués
       dans les comparaisons ; les extrémités et le service d'un `request` (F12) et le
       service d'un `register` ne demandent aucun droit : hors d'atteinte, l'opération est
-      acceptée, absente, refusée (`core.reference.unknown`) — un oracle comme le site,
-      laissé à la tâche 31 ; seules les réponses absente, d'un autre type et close y sont
+      acceptée, absente, refusée (`core.reference.unknown`) — un oracle laissé à la tâche
+      31, plus large que le site pour les extrémités d'un `request` (le flux accepté est
+      relu par son demandeur, valeurs et évaluations comprises : voir la tâche 31) ; seules les réponses absente, d'un autre type et close y sont
       comparées entre elles
     - reste : la prolongation d'un flux terminé, refusée par le plan avant les droits
       (`flow.update.ended`), test rouge `an_ended_flow_answers_as_an_absent_one` ignoré
-      (29d5)
+      (29d5) ; un oracle antérieur à la 29d3, que la comparaison après les droits laisse :
+      qui détient `flow.edit` sur un flux sans lire ses adresses (ni `flow.read`) donne une
+      source : égale à la sienne, la mise à jour passe ; différente, en vigueur ou non,
+      `apply` la refuse (`flow.update.identity`, `handler.rs` 646 et 852) avant le refus
+      des désignations cachées (`core.reference.unknown`, `pipeline.rs` 3018) : il
+      apprend, identifiant par identifiant, la source du flux qu'il édite — à trancher avec la tâche 31 (lecture exigée des références) ou en
+      exigeant la lecture des extrémités pour `update` comme pour `register` (modèle de
+      droits)
   - [ ] 29d5. (à arbitrer) La prolongation d'un flux terminé (F20) : `plan_update`
     (`crates/kartenn-flow/src/handler.rs`, `UPDATE_ENDED`) refuse `flow.update.ended` à la
     planification, avant les droits, sur le flux lu par la complétion : un auteur sans
     droit sur un flux distingue un flux terminé d'un flux inconnu ou hors d'atteinte
-    (INV-63). Refusée après les droits (dans `apply`), la référence du flux terminé, qui
+    (INV-63). Plus large qu'une existence : le refus ne sort que pour une prolongation,
+    une fin donnée postérieure à la fin stockée ou `end: null` (`extends`, `handler.rs`
+    299 ; `complete` 353 à 367 ; `plan_update` 677 à 688), une fin antérieure recevant le
+    refus de ses droits ; un auteur sans aucun droit qui connaît l'identifiant apprend que
+    le flux a existé, qu'il est terminé, et sa date de fin exacte par dichotomie sur
+    `end`. Ce poids pèse sur les options : (C) laisse fuir cette date jusqu'après la v0.2
+    (la tâche 31 est après elle) ; (A) et (B) la ferment dès leur livraison. Refusée
+    après les droits (dans `apply`), la référence du flux terminé, qui
     n'est plus en vigueur au début de la période, est refusée avant par le contrôle des
     désignations : `core.reference.unknown` pour qui le lit, là où REQ-011-4 (critère
     « prolonger un flux `expired` : refusé (`flow.update.ended`) ») et le test
@@ -693,9 +718,21 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   et remplace l'exception posée par la 29c2 pour les seuls hôtes et grappes. Spec d'abord :
   le modèle des droits (spec 005, M16 de la spec 009 généralisée), l'amendement 17 de
   l'ADR 0026, REQ-002-12 ; à établir : les usages légitimes qui désignent un objet sans le
-  lire (propriétaire, site, adresse d'un rattachement, extrémités et service d'une
-  demande de flux sans lecture de ses extrémités, F12 de la spec 011, et service d'une
-  écriture directe de flux : 29d3) et ce qu'ils deviennent — verify :
+  lire (propriétaire, site, adresse d'un rattachement, service d'une demande ou d'une
+  écriture directe de flux : 29d3) et ce qu'ils deviennent ; à part, les extrémités
+  d'une demande de flux (F12 de la spec 011), qui ne sont pas de la classe du site :
+  au-delà de l'existence (inconnue ou close : `core.reference.unknown` ; en vigueur :
+  acceptée), la demande acceptée crée un flux que son demandeur relit sous
+  `flow.request` (`crates/kartenn-flow/src/rest.rs` 10 à 16), servi avec ses extrémités
+  par type, identifiant et valeur à la date — l'adresse, le préfixe, la plage, les
+  adresses d'une interface ou d'une machine (`ENDPOINT_VALUES`, `rest.rs` 730) — et ses
+  évaluations entières (REQ-027-2, `rest.rs` 13 et 14), rendues aussi par la réponse de
+  `POST /v1/flows` ; son triage, calculé à la complétion contre la politique sur
+  l'extrémité cachée (`handler.rs`, `triage` 448 à 500), décide de l'issue (appliquée,
+  201, ou à instruire, 202) : le demandeur apprend la valeur de l'extrémité qu'il ne lit
+  pas, le verdict de chaque règle sur elle, donc sa classification par la politique
+  (environnement, zone). REQ-011-17 promet une « explication réduite comme
+  REQ-010-25 » au demandeur ; le code sert les évaluations entières — verify :
   un auteur sans `<type>.read` sur la cible reçoit des réponses égales pour une cible
   hors de portée, inconnue, d'un autre type et close, pour chaque champ de référence de
   chaque module ; `k-check`
