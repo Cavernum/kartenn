@@ -607,10 +607,56 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       seule ; un test par HTTP du statut et des octets (aucun test de `kartenn-kube`
       n'y passe) ; inscrire dans la tâche 31 la correspondance de labels close sans
       lecture (`kube.settings.edit` : réelle close, absente refusée)
-  - [ ] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
+  - [x] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
     - où : `crates/kartenn-flow/src/handler.rs` (217 à 226, 493 à 585),
       `tests/it/references.rs`
+    - fait le 2026-11-16 : deux fuites de `update`, rouges d'abord. Le plan comparait
+      l'identité donnée (extrémités, service, type) à celle du flux lu par la complétion,
+      sans droits : `flow.update.identity` avant les droits disait à un auteur sans droit
+      sur un flux qu'il existe, et l'égalité servait d'oracle sur ses extrémités, son
+      service et son type ; et il ne résolvait ces références que pour un flux existant,
+      si bien qu'une extrémité close qu'il lit lui était refusée (`core.reference.unknown`,
+      révélé avant les droits) pour un flux existant seulement. `handler.rs` : les
+      références de l'identité sont résolues que le flux existe ou non ; un changement
+      d'identité ne planifie plus rien (ni prolongation ni instruction) et `apply` le
+      refuse (`WriteError::Rule`), après les droits. Tests nouveaux de
+      `tests/it/references.rs` : `every_reference_of_every_operation_is_checked` (chaque
+      champ de chaque type, dont l'identité d'un `update` d'un flux en vigueur),
+      `the_references_designate_objects_in_force` (onze cas : clos, d'un autre type),
+      `no_right_reaches_through_a_hidden_reference` (quinze couples opération × champ,
+      plus le type d'un `update`, comparés sur règle, message, indice, objets et détail,
+      l'identifiant cité masqué), `a_hidden_flow_answers_the_same_bytes` (`POST
+      /v1/changesets` d'un `waive` : statut et octets égaux pour un flux inconnu, d'un
+      autre type, clos et hors d'atteinte)
+    - choix : les objets créés par la soumission (le flux d'un `request`) et les
+      identifiants du changeset refusé et du problème, neufs à chaque appel, sont masqués
+      dans les comparaisons ; les extrémités et le service d'un `request` (F12) et le
+      service d'un `register` ne demandent aucun droit : hors d'atteinte, l'opération est
+      acceptée, absente, refusée (`core.reference.unknown`) — un oracle comme le site,
+      laissé à la tâche 31 ; seules les réponses absente, d'un autre type et close y sont
+      comparées entre elles
+    - reste : la prolongation d'un flux terminé, refusée par le plan avant les droits
+      (`flow.update.ended`), test rouge `an_ended_flow_answers_as_an_absent_one` ignoré
+      (29d5)
+  - [ ] 29d5. (à arbitrer) La prolongation d'un flux terminé (F20) : `plan_update`
+    (`crates/kartenn-flow/src/handler.rs`, `UPDATE_ENDED`) refuse `flow.update.ended` à la
+    planification, avant les droits, sur le flux lu par la complétion : un auteur sans
+    droit sur un flux distingue un flux terminé d'un flux inconnu ou hors d'atteinte
+    (INV-63). Refusée après les droits (dans `apply`), la référence du flux terminé, qui
+    n'est plus en vigueur au début de la période, est refusée avant par le contrôle des
+    désignations : `core.reference.unknown` pour qui le lit, là où REQ-011-4 (critère
+    « prolonger un flux `expired` : refusé (`flow.update.ended`) ») et le test
+    `acceptance_of_req_011_4_an_ended_flow_is_not_extended` disent `flow.update.ended`.
+    (A) amender REQ-011-4 et F20 : un flux terminé est une référence qui ne désigne rien
+    en vigueur, `core.reference.unknown`, la règle `flow.update.ended` retirée — dans le
+    module seul ; (B) le résolveur d'un module désigne un objet à une autre date que le
+    début de la période (la dernière du flux), le refus du module venant après les
+    droits — touche le contrat de module (ADR 0026) et le pipeline ; (C) renvoyer à la
+    tâche 31 — verify : `an_ended_flow_answers_as_an_absent_one` (ignoré) vert ;
+    `k-check -p kartenn-flow`
+    - où : `crates/kartenn-flow/src/handler.rs` (`plan_update`, `apply_plan`),
+      `tests/it/extensions.rs` (370 à 392), `specs/011-registre-flux/requirements.md` (101)
   - [ ] 29d4. `kartenn-policy` : parcours de ses 22 types, dont chaque champ de `Fields`
     (`objects.rs` 26 à 91), `axis.update`, `matrix.set` et `infer.rs` (729 à 820), et
     fuites — verify : `k-check -p kartenn-policy`
@@ -647,7 +693,9 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   et remplace l'exception posée par la 29c2 pour les seuls hôtes et grappes. Spec d'abord :
   le modèle des droits (spec 005, M16 de la spec 009 généralisée), l'amendement 17 de
   l'ADR 0026, REQ-002-12 ; à établir : les usages légitimes qui désignent un objet sans le
-  lire (propriétaire, site, adresse d'un rattachement) et ce qu'ils deviennent — verify :
+  lire (propriétaire, site, adresse d'un rattachement, extrémités et service d'une
+  demande de flux sans lecture de ses extrémités, F12 de la spec 011, et service d'une
+  écriture directe de flux : 29d3) et ce qu'ils deviennent — verify :
   un auteur sans `<type>.read` sur la cible reçoit des réponses égales pour une cible
   hors de portée, inconnue, d'un autre type et close, pour chaque champ de référence de
   chaque module ; `k-check`
