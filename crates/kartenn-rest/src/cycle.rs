@@ -35,8 +35,8 @@ use kartenn_store_pg::property_read;
 use kartenn_store_pg::read;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
-use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use time::{Duration, OffsetDateTime};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
@@ -51,7 +51,9 @@ use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, instant, store};
 use crate::operation::OperationDto;
 use crate::problem::{Problem, ProblemKind};
+use crate::properties::{references, summarised};
 use crate::resources::{entity_tag, stale};
+use crate::summary::{Summaries, Summary};
 
 /// How a validation is answered: 200 when applied, no `Location`.
 const VALIDATION: Answer<'static> = Answer {
@@ -66,7 +68,7 @@ fn time(at: OffsetDateTime) -> String {
     rfc3339(instant(at))
 }
 
-fn internal(e: impl std::fmt::Display) -> Problem {
+pub(crate) fn internal(e: impl std::fmt::Display) -> Problem {
     tracing::error!(name: "http.changeset.serialise", error = %e, "a changeset does not serialise");
     Problem::new(ProblemKind::Internal)
 }
@@ -525,45 +527,70 @@ pub(crate) async fn show(
     Ok(response)
 }
 
-/// An object of the differential.
-#[derive(Debug, Serialize, ToSchema)]
-struct DiffObject {
-    /// Identifier.
-    id: Uuid,
-}
-
 /// One object of the differential, as served.
 #[derive(Debug, Serialize, ToSchema)]
 struct DiffEntry {
     /// Property key.
     property: String,
-    /// The object.
-    object: DiffObject,
-    /// The value before; `null`: no value, or masked.
+    /// The object, as summarised (REQ-006-42).
+    object: Summary,
+    /// The value before; `null`: no value, or masked. For a property of type reference,
+    /// the summary of each object it names.
     #[schema(value_type = Object)]
     before: Value,
-    /// The value after; `null`: no value, or masked.
+    /// The value after; `null`: no value, or masked. For a property of type reference,
+    /// the summary of each object it names.
     #[schema(value_type = Object)]
     after: Value,
     /// The values are masked: the caller may not read them.
     masked: bool,
 }
 
-/// A differential entry as served, its values masked unless `shown`.
-fn diff_entry(item: &DiffItem, shown: bool) -> Result<DiffEntry, Problem> {
-    let value = |text: &Option<String>| -> Result<Value, Problem> {
-        match text {
-            Some(text) if shown => serde_json::from_str(text).map_err(internal),
-            _ => Ok(Value::Null),
-        }
+/// A value of the differential as served: `null` unless `shown`.
+fn diff_value(text: Option<&String>, shown: bool) -> Result<Value, Problem> {
+    match text {
+        Some(text) if shown => serde_json::from_str(text).map_err(internal),
+        _ => Ok(Value::Null),
+    }
+}
+
+/// The summaries of `ids`, the objects of the differential of the changeset `changeset`
+/// and those its values of type reference name, read at the dates of `moment`; those
+/// absent then, closed since, read as the changeset left them (at the start of its
+/// period) or, closed by it, as it found them (the instant before), each judged readable
+/// where it was then (task 006-33g2).
+async fn diff_summaries(
+    api: &Api,
+    context: &RequestContext,
+    changeset: Uuid,
+    ids: &[Uuid],
+    moment: &Moment,
+) -> Result<Summaries, Problem> {
+    let summaries = Summaries::read(
+        api,
+        context,
+        ids.iter().copied(),
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await?;
+    // The period is read only for a page that names an object absent now.
+    if ids.iter().all(|id| summaries.target(*id).is_some()) {
+        return Ok(summaries);
+    }
+    let Some(from) = kartenn_store_pg::changesets::valid_from(&api.pool, changeset).await? else {
+        return Ok(summaries);
     };
-    Ok(DiffEntry {
-        property: item.property.clone(),
-        object: DiffObject { id: item.object },
-        before: value(&item.before)?,
-        after: value(&item.after)?,
-        masked: !shown,
-    })
+    summaries
+        .or_closed(api, context, ids.iter().copied(), from)
+        .await?
+        .or_closed(
+            api,
+            context,
+            ids.iter().copied(),
+            from - Duration::MICROSECOND,
+        )
+        .await
 }
 
 /// A section of the differential contributed by a module, as counted with the
@@ -678,29 +705,7 @@ pub(crate) async fn diff(
         let cursor = page.next_current(&api.ring, &name, &moment, json!(found[size - 1].0));
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let sensitive = property_read::sensitive_keys(&api.pool)
-        .await
-        .map_err(|e| store(&e))?;
-    let mut wanted: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
-    for (_, item) in &found {
-        if sensitive.contains(&item.property) {
-            wanted
-                .entry(item.property.clone())
-                .or_default()
-                .push(item.object);
-        }
-    }
-    let shown = disclosed(&api, &context, wanted).await?;
-    let items = found
-        .iter()
-        .map(|(_, item)| {
-            diff_entry(
-                item,
-                !sensitive.contains(&item.property)
-                    || shown.contains(&(item.property.clone(), item.object)),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let items = diff_entries(&api, &context, id, &found, &moment).await?;
     audit_read(
         &api,
         &context,
@@ -730,6 +735,65 @@ pub(crate) async fn diff(
         );
     }
     Ok(response)
+}
+
+/// The entries `found` of the differential of changeset `id` as served at the dates of
+/// `moment`: the values of a sensitive property masked unless disclosed, each object and
+/// each object a value of type reference names summarised ([`diff_summaries`]).
+async fn diff_entries(
+    api: &Api,
+    context: &RequestContext,
+    id: Uuid,
+    found: &[(i64, DiffItem)],
+    moment: &Moment,
+) -> Result<Vec<DiffEntry>, Problem> {
+    let sensitive = property_read::sensitive_keys(&api.pool)
+        .await
+        .map_err(|e| store(&e))?;
+    let mut wanted: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+    for (_, item) in found {
+        if sensitive.contains(&item.property) {
+            wanted
+                .entry(item.property.clone())
+                .or_default()
+                .push(item.object);
+        }
+    }
+    let shown = disclosed(api, context, wanted).await?;
+    let refs = crate::properties::declared_refs(api, moment.valid_at, moment.as_of).await?;
+    let mut entries = Vec::with_capacity(found.len());
+    let mut ids = Vec::new();
+    for (_, item) in found {
+        let open = !sensitive.contains(&item.property)
+            || shown.contains(&(item.property.clone(), item.object));
+        let before = diff_value(item.before.as_ref(), open)?;
+        let after = diff_value(item.after.as_ref(), open)?;
+        let reference = refs.contains(&item.property);
+        ids.push(item.object);
+        if reference {
+            ids.extend(references(&before));
+            ids.extend(references(&after));
+        }
+        entries.push((item, open, reference, before, after));
+    }
+    let summaries = diff_summaries(api, context, id, &ids, moment).await?;
+    let summarise = |value: Value, reference: bool| {
+        if reference {
+            summarised(value, &summaries)
+        } else {
+            value
+        }
+    };
+    Ok(entries
+        .into_iter()
+        .map(|(item, open, reference, before, after)| DiffEntry {
+            property: item.property.clone(),
+            object: summaries.of(item.object),
+            before: summarise(before, reference),
+            after: summarise(after, reference),
+            masked: !open,
+        })
+        .collect())
 }
 
 /// The rows of the section `section` of the changeset `id`, by pages (REQ-008-26).

@@ -162,11 +162,33 @@ export function reviewActions(changeset: Changeset, context: ReviewContext): Rev
   return [];
 }
 
-/** A value of the differential as text: a string as it is, anything else as JSON. */
+/**
+ * A value of the differential as text: a string as it is, the summary of an object (a
+ * value of type reference, REQ-006-42) its label or else its identifier, a set of them
+ * each, anything else as JSON.
+ */
 function shown(value: unknown, masked: string): string | undefined {
   if (value === masked) return masked;
   if (value === null || value === undefined) return undefined;
-  return typeof value === "string" ? value : JSON.stringify(value);
+  if (typeof value === "string") return value;
+  const one = summaryText(value);
+  if (one !== undefined) return one;
+  if (Array.isArray(value) && value.length > 0) {
+    const each = value.map(summaryText);
+    if (each.every((text) => text !== undefined)) return each.join(", ");
+  }
+  return JSON.stringify(value);
+}
+
+const SUMMARY_MEMBERS = new Set(["id", "slug", "label", "href"]);
+
+/** The text of the summary of an object: its label, else its identifier; none otherwise. */
+function summaryText(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  if (!Object.keys(value).every((key) => SUMMARY_MEMBERS.has(key))) return undefined;
+  const { id, label } = value as { id?: unknown; label?: unknown };
+  if (typeof id !== "string") return undefined;
+  return typeof label === "string" ? label : id;
 }
 
 function kindOf(before: string | undefined, after: string | undefined): DiffKind {
@@ -180,7 +202,10 @@ export interface DiffWords {
   property: (key: string) => string | null;
   /** What a masked value shows (« masqué »). */
   masked: string;
-  /** The title of the object of a group: its name when known, else its identifier. */
+  /**
+   * The title of the object of a group the differential does not label (the caller may
+   * not read it, or it is gone): its name when known, else its identifier.
+   */
   object: (id: string) => string;
 }
 
@@ -195,7 +220,7 @@ export function diffGroups(entries: readonly DiffEntry[], words: DiffWords): Dif
     const id = entry.object.id;
     let group = groups.get(id);
     if (!group) {
-      const title = words.object(id);
+      const title = entry.object.label ?? words.object(id);
       // The identifier beside a name only: never twice.
       group = {
         id,

@@ -246,15 +246,43 @@ impl Summaries {
         ids: impl IntoIterator<Item = Uuid>,
         lived: OffsetDateTime,
     ) -> Result<Self, Problem> {
-        let found = keys(api, ids, lived, None).await?;
-        let readable = readable_placed(
+        Self {
+            found: HashMap::new(),
+            readable: Readable::all(),
+        }
+        .or_closed(api, context, ids, lived)
+        .await
+    }
+
+    /// These summaries, completed for those of `ids` absent at the dates of their read by
+    /// their summaries as [`Summaries::read_closed`] reads them at `lived`: the objects
+    /// closed since (task 006-33g2). No absent identifier: no query.
+    ///
+    /// # Errors
+    ///
+    /// The store's or the authoriser's error.
+    pub async fn or_closed(
+        mut self,
+        api: &Api,
+        context: &RequestContext,
+        ids: impl IntoIterator<Item = Uuid>,
+        lived: OffsetDateTime,
+    ) -> Result<Self, Problem> {
+        let absent: Vec<Uuid> = ids
+            .into_iter()
+            .filter(|id| !self.found.contains_key(id))
+            .collect();
+        let closed = keys(api, absent, lived, None).await?;
+        self.readable = readable_placed(
+            self.readable,
             api,
             context,
-            found.iter().map(|(id, (t, _))| (*id, *t)),
+            closed.iter().map(|(id, (t, _))| (*id, *t)),
             Some(lived),
         )
         .await?;
-        Ok(Self { found, readable })
+        self.found.extend(closed);
+        Ok(self)
     }
 
     /// The labels of `ids` at `valid_at` as asserted at `as_of`, of those that existed
@@ -410,11 +438,13 @@ async fn readable_among(
     context: &RequestContext,
     found: impl IntoIterator<Item = (Uuid, Target)>,
 ) -> Result<Readable, Problem> {
-    readable_placed(api, context, found, None).await
+    readable_placed(Readable::all(), api, context, found, None).await
 }
 
-/// [`readable_among`], each object placed where it was at `placed` (`None`: now).
+/// `readable` completed with [`readable_among`], each object placed where it was at
+/// `placed` (`None`: now).
 async fn readable_placed(
+    mut readable: Readable,
     api: &Api,
     context: &RequestContext,
     found: impl IntoIterator<Item = (Uuid, Target)>,
@@ -428,7 +458,6 @@ async fn readable_placed(
             .1
             .push(id);
     }
-    let mut readable = Readable::all();
     for (target, ids) in by_target.into_values() {
         readable = readable.placed(api, context, target, ids, placed).await?;
     }

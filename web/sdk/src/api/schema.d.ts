@@ -6062,38 +6062,39 @@ export interface components {
     };
     /** @description One object of the differential, as served. */
     DiffEntry: {
-      /** @description The value after; `null`: no value, or masked. */
+      /**
+       * @description The value after; `null`: no value, or masked. For a property of type reference,
+       *     the summary of each object it names.
+       */
       after: Record<string, never>;
-      /** @description The value before; `null`: no value, or masked. */
+      /**
+       * @description The value before; `null`: no value, or masked. For a property of type reference,
+       *     the summary of each object it names.
+       */
       before: Record<string, never>;
       /** @description The values are masked: the caller may not read them. */
       masked: boolean;
-      /** @description The object. */
-      object: components["schemas"]["DiffObject"];
+      /** @description The object, as summarised (REQ-006-42). */
+      object: components["schemas"]["Summary"];
       /** @description Property key. */
       property: string;
     };
     /** @description One object of the differential (REQ-003-19). */
     DiffItemDto: {
-      /** @description The value after, as JSON text; `null`: no value. */
-      after?: string | null;
-      /** @description The value before, as JSON text; `null`: no value. */
-      before?: string | null;
       /**
-       * Format: uuid
-       * @description The object.
+       * @description The value after, as JSON text; `null`: no value. For a property of type
+       *     reference, the summary of each object it names.
        */
-      object: string;
+      after?: string | null;
+      /**
+       * @description The value before, as JSON text; `null`: no value. For a property of type
+       *     reference, the summary of each object it names.
+       */
+      before?: string | null;
+      /** @description The object, as summarised (REQ-006-42). */
+      object: components["schemas"]["Summary"];
       /** @description Property key. */
       property: string;
-    };
-    /** @description An object of the differential. */
-    DiffObject: {
-      /**
-       * Format: uuid
-       * @description Identifier.
-       */
-      id: string;
     };
     /** @description The differential of a changeset: its counts, and its objects by pages. */
     DiffPage: {

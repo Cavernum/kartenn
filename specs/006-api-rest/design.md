@@ -175,8 +175,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     courant à chaque page (comme 006-13b), migration 0038 d'index `(submitted_at, id)` ;
     élément `{id, href, state, kind, author, motive, submitted_at}` ;
   - différentiel : `GET …/{id}/diff?property=…` → `{counts, items, links: {next}}`,
-    `counts` le décompte journalisé, `items` `{property, object: {id}, before, after,
-    masked}` dans l'ordre `seq` du journal, curseur sur `seq` ;
+    `counts` le décompte journalisé, `items` `{property, object, before, after,
+    masked}` dans l'ordre `seq` du journal, curseur sur `seq` ; `object` et chaque objet
+    d'une valeur de type référence résumés (REQ-006-42, 006-33g2), lus aux dates de la
+    route, un objet fermé depuis tel que le changeset l'a laissé (début de sa période) ou,
+    fermé par lui, tel qu'il l'a trouvé (l'instant d'avant), jugé là où il était alors ;
+    l'échantillon d'une simulation (`sample`) de même, ses valeurs restant du texte JSON ;
   - propositions : `GET /v1/proposals`, celles que l'appelant peut valider (REQ-004-43,
     sans `core.changeset.read`), plus anciennes d'abord, curseur sur `(submitted_at,
     id)` ; élément comme dans la liste, plus `required` (`[{permission, objects}]`) ;

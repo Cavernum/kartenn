@@ -1745,11 +1745,11 @@
         "description": "One object of the differential, as served.",
         "properties": {
           "after": {
-            "description": "The value after; `null`: no value, or masked.",
+            "description": "The value after; `null`: no value, or masked. For a property of type reference,\nthe summary of each object it names.",
             "type": "object"
           },
           "before": {
-            "description": "The value before; `null`: no value, or masked.",
+            "description": "The value before; `null`: no value, or masked. For a property of type reference,\nthe summary of each object it names.",
             "type": "object"
           },
           "masked": {
@@ -1757,8 +1757,8 @@
             "type": "boolean"
           },
           "object": {
-            "$ref": "#/components/schemas/DiffObject",
-            "description": "The object."
+            "$ref": "#/components/schemas/Summary",
+            "description": "The object, as summarised (REQ-006-42)."
           },
           "property": {
             "description": "Property key.",
@@ -1778,23 +1778,22 @@
         "description": "One object of the differential (REQ-003-19).",
         "properties": {
           "after": {
-            "description": "The value after, as JSON text; `null`: no value.",
+            "description": "The value after, as JSON text; `null`: no value. For a property of type\nreference, the summary of each object it names.",
             "type": [
               "string",
               "null"
             ]
           },
           "before": {
-            "description": "The value before, as JSON text; `null`: no value.",
+            "description": "The value before, as JSON text; `null`: no value. For a property of type\nreference, the summary of each object it names.",
             "type": [
               "string",
               "null"
             ]
           },
           "object": {
-            "description": "The object.",
-            "format": "uuid",
-            "type": "string"
+            "$ref": "#/components/schemas/Summary",
+            "description": "The object, as summarised (REQ-006-42)."
           },
           "property": {
             "description": "Property key.",
@@ -1804,20 +1803,6 @@
         "required": [
           "property",
           "object"
-        ],
-        "type": "object"
-      },
-      "DiffObject": {
-        "description": "An object of the differential.",
-        "properties": {
-          "id": {
-            "description": "Identifier.",
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
         ],
         "type": "object"
       },

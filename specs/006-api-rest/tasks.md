@@ -1404,7 +1404,7 @@ routeur complet, sauf mention « vrai TCP ».
     sans genre invalide son identifiant et toutes les listes (`write.test.ts`) ; libellé
     de la 021-11p10-d1 au pluriel (« Objets illisibles pour vous, ou absents »), testé
     dans `ClosePanel.vue` (`close.test.ts`).
-  - [ ] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
+  - [x] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
     `DiffItemDto.object` (échantillon d'une simulation) et les valeurs de type référence
     de `before`/`after`, démasquées selon la lisibilité de l'objet et non de la cible —
     verify : `k-check -p kartenn-rest diff` (deux appelants : cible illisible et cible
@@ -1412,6 +1412,36 @@ routeur complet, sauf mention « vrai TCP ».
     - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`, `diff_entry`),
       `changesets.rs` (≈ 607, `DiffItemDto`) ; valeurs de référence comme la 33b
       (`properties.rs`) ; test voisin `rest/tests/it/cycle.rs`
+    fait : `cycle.rs` (`DiffEntry.object` en `Summary`, `DiffObject` retiré ;
+    `diff_entries`, `diff_summaries` : objets et cibles des valeurs `ref` montrées lus
+    aux dates de la route, puis les absents par `Summaries::or_closed` au début de la
+    période du changeset, puis à l'instant d'avant) ; `changesets.rs` (`DiffItemDto.object`
+    en `Summary`, `sampled` : échantillon résumé à l'instant de la requête, valeurs `ref`
+    résumées et toujours en texte JSON) ; `summary.rs` (`Summaries::or_closed`, sur lequel
+    repose `read_closed`) ; `properties.rs` (`declared_refs`, `references` et
+    `summarised` partagés) ; `UNSUMMARISED` sans `DiffObject` ni `DiffItemDto.object` ;
+    contrat et `schema.d.ts` des deux SDK régénérés ; design 006 « Routes »
+    (différentiel) ; `web/v2/shell/src/changesets/model.ts` (`diffGroups` : titre d'un
+    groupe par le `label` servi, une valeur résumée lue par son libellé, sinon son
+    identifiant, test `shell/test/changesets.test.ts`). Tests : `rest/tests/it/cycle.rs`
+    `the_diff_leaves_alike_an_unreadable_target_and_an_unknown_one` (lecteur, lecteur
+    sans les entités, lecteur sans les préfixes ; la cible effacée, le lecteur reçoit les
+    octets et en-têtes de l'aveugle ; échantillon d'une simulation par l'administrateur
+    et par un rédacteur qui ne lit pas les entités),
+    `the_diff_of_an_object_closed_since_is_read_where_it_lived` (appelants à portée d'un
+    domaine : celui du préfixe fermé depuis lit sa clé, l'autre `{id}` ; le préfixe
+    effacé, mêmes octets).
+    choix : une fermeture ne laisse aucune ligne au différentiel (seuls ses effets sur
+    d'autres objets en laissent), d'où un objet absent lu d'abord tel que le changeset
+    l'a laissé (`valid_from`), puis tel qu'il l'a trouvé (`valid_from` moins une
+    microseconde, une cible qu'il ferme) ; la période n'est lue que si une page nomme un
+    absent ; les déclarations `ref` lues aux dates de la route (une propriété déclarée
+    depuis ou par le changeset même reste en identifiants nus) ; `DiffEntry.object`
+    prend le schéma commun `Summary`, sans `kind` (`href` le dit).
+    reste : `counts` (décompte, route et changeset lu, simulation) garde des
+    identifiants nus pour une propriété `ref`, aucun libellé n'y fuit ; l'échantillon
+    d'une simulation ne masque pas une propriété sensible (antérieur à la 33g2, à
+    arbitrer : l'auteur voit-il les effets hérités d'une valeur sensible ?).
   - [ ] 33g3. Opérations rendues et inverse : `Ref` et `Operation` des opérations d'un
     changeset lu (telles qu'écrites), `Unsupported` de l'inverse — verify :
     `k-check -p kartenn-rest operations` (deux appelants, cible illisible et inconnue
