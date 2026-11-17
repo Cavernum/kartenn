@@ -740,6 +740,69 @@ async function scrollWhileWritten(page: Page, cdp: CDPSession): Promise<void> {
   );
 }
 
+/**
+ * The level of the container's 10⁴ children read again during a window at rest (task
+ * 021-22e-k): one changeset in the domain of the container — a network of its own in
+ * 2001:db8::/32 (RFC 3849), a root of the domain after the container, out of the rows in
+ * view — invalidates the trees of that domain (A40), the container's children with them:
+ * its pages read again, the level notified when the read starts and when it ends. Before
+ * the task, each notification built the 10⁴ nodes again (≈ 190 ms at ×4, task 22e-i).
+ * Printed for reading (`INFO`), never a verdict: the window, its long frames, the pages
+ * of the container read again, the changes at the stream.
+ */
+async function invalidatedAtRest(page: Page, cdp: CDPSession): Promise<void> {
+  const { domain, container } = seeded();
+  const children = `/v1/prefixes/${container}/children`;
+  const what = "at rest, the container's children read again";
+  let span: [number, number] = [0, 0];
+  let reread = 0;
+  let failure: string | undefined;
+  const frames = await watched(page, cdp, what, async () => {
+    const from = await page.evaluate(() => performance.now());
+    const readSince = () =>
+      page.evaluate(
+        ([path, f]) =>
+          performance
+            .getEntriesByType("resource")
+            .filter((e) => new URL(e.name).pathname === path && e.startTime >= f).length,
+        [children, from] as const,
+      );
+    const prefix = `2001:db8:${(Date.now() & 0xffff).toString(16)}::/48`;
+    const response = await page.request.post("/v1/changesets?approval=self", {
+      headers: { Origin: BASE_URL },
+      data: {
+        motive: "browser bench, a level of the tree read again",
+        operations: [{ op: "create_prefix", domain: { id: domain }, prefix, nature: "network" }],
+      },
+    });
+    if (!response.ok()) {
+      failure = `POST /v1/changesets (${prefix}): ${response.status()} ${(await response.text()).slice(0, 200)}`;
+    } else {
+      // Its pages read again, until none has started for 2 s (30 s at most).
+      const deadline = Date.now() + 30_000;
+      let quiet = Date.now();
+      while (Date.now() < deadline && (reread === 0 || Date.now() - quiet < 2_000)) {
+        const now = await readSince();
+        if (now !== reread) {
+          reread = now;
+          quiet = Date.now();
+        }
+        await page.waitForTimeout(200);
+      }
+    }
+    span = [from, await page.evaluate(() => performance.now())];
+  });
+  await longFramesBetween(page, what, ...span);
+  await streamBetween(page, what, ...span);
+  const named = await changesNaming(page, domain, ...span);
+  console.log(
+    `INFO ${what}: ${reread} pages of the container read in ${((span[1] - span[0]) / 1000).toFixed(1)} s,` +
+      ` ${named} changes naming its domain at the stream; ${frames.longTasks} long tasks,` +
+      ` the longest ${frames.longest.toFixed(1)} ms` +
+      (failure ? `; the write refused: ${failure}` : ""),
+  );
+}
+
 /** The median and the worst of `samples`, printed for reading. */
 function spread(name: string, samples: number[], unit: "ms" | ""): void {
   const shown = (v: number) => (unit === "ms" ? `${v.toFixed(1)} ms` : v.toFixed(3));
@@ -1326,6 +1389,9 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   }
   // The same scroll, another domain written all along (A40).
   await scrollWhileWritten(page, cdp);
+  // The level of 10⁴ read again, at rest (task 021-22e-k).
+  await settle(page);
+  await invalidatedAtRest(page, cdp);
   // The witness after the scrolls (task 021-22e-l): the tree mounted, at rest.
   await witness(page, cdp, "the tree mounted");
   await speedWitness(page, cdp, "the tree mounted");
