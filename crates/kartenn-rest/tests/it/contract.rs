@@ -374,10 +374,58 @@ const UNSUMMARISED: &[(&str, &str, &str)] = &[
         "{id}",
         "a group of the rights, no object of the referential, without summary (task 33e)",
     ),
+    // The bodies of a flow, served as is to every reader of the flow, never cut by what
+    // the reader reads (spec 027, REQ-027-2): data of the flow, by identifier; the data of
+    // the objects come from their own routes alone.
+    (
+        "FlowEvaluation",
+        "source",
+        "an address of the pair of a recorded evaluation, a datum of the flow (REQ-027-2)",
+    ),
+    (
+        "FlowEvaluation",
+        "destination",
+        "an address of the pair of a recorded evaluation, a datum of the flow (REQ-027-2)",
+    ),
+    (
+        "FlowEvaluation",
+        "decisive",
+        "the decisive rule or pattern of a recorded evaluation, a datum of the flow \
+         (REQ-027-2)",
+    ),
+    (
+        "FlowEvaluation",
+        "unmet_conditions",
+        "the conditions a recorded evaluation found unmet, a datum of the flow (REQ-027-2)",
+    ),
+    (
+        "FlowTriage",
+        "unmet_conditions",
+        "the conditions the triage of a request found unmet, a datum of the flow \
+         (REQ-027-2)",
+    ),
+    (
+        "FlowNonconformity",
+        "flow",
+        "the flow itself, as its own reads name it (REQ-027-2)",
+    ),
+    (
+        "FlowNonconformity",
+        "entity",
+        "the entity of the flow, a datum of the flow (REQ-027-2)",
+    ),
+    (
+        "FlowNonconformity",
+        "rule",
+        "the rule in cause, its key beside (`rule_key`), a datum of the flow (REQ-027-2)",
+    ),
+    ("FlowNonconformity", "requester", "an identity"),
+    (
+        "FlowNonconformity",
+        "changeset",
+        "a changeset, no object of the network",
+    ),
     // To summarise, each by its task.
-    ("FlowEvaluation", "*", "the ends of a flow: task 33f1"),
-    ("FlowNonconformity", "*", "the ends of a flow: task 33f1"),
-    ("FlowTriage", "*", "the ends of a flow: task 33f1"),
     ("DiffObject", "{id}", "the diff of a changeset: task 33g"),
     ("DiffItemDto", "object", "the diff of a changeset: task 33g"),
     (
