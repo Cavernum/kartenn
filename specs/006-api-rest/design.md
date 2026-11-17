@@ -549,7 +549,13 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     journal du changeset (même statut, même corps). La réponse est fonction du journal,
     lui-même immuable : « inchangée » sans stocker de réponse. Arbitrage du 2026-10-19
     (006-15) : le journal garde aussi les fermetures ajoutées par cascade
-    (`changeset.cascaded`, `[{kind, id}]` dans l'ordre de l'expansion), et le 422 sert
+    (`changeset.cascaded`, `[{kind, id}]` dans l'ordre de l'expansion ; servies en résumés,
+    arbitrage du 2026-11-16, 006-33g1 : `{id, kind, slug, label, href}` pour un objet que
+    l'appelant lit, la clé lue à l'instant qui précède le début de la période du
+    changeset, `{id}` seul sinon, sans le genre ; la simulation lit les clés au moment de
+    la requête, rien n'étant fermé ; la lisibilité suit les droits du moment de la
+    réponse, chaque objet situé là où il était à l'instant lu, le rejeu peut donc
+    différer de la première réponse par ces seuls résumés, REQ-006-15), et le 422 sert
     les erreurs puis les avertissements, dans l'ordre des colonnes `violations` et
     `anomalies` du journal. Statut rejoué : 202 pour un changeset d'approbation ou de
     proposition (même décidé depuis), sinon 201 (`applied`) ou 422 (`refused`) ; seul

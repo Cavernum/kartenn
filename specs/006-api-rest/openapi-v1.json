@@ -799,8 +799,12 @@
         "type": "string"
       },
       "Cascaded": {
-        "description": "An object closed by cascade (REQ-004-26).",
+        "description": "An object closed by cascade (REQ-004-26), as summarised (REQ-006-42, task 006-33g1):\nits kind with its key, read just before its closure, for an object the caller may read;\n`{id}` alone for one the caller may not read or that was absent then, which says not\nits kind.",
         "properties": {
+          "href": {
+            "description": "Its URL; absent with `label`.",
+            "type": "string"
+          },
           "id": {
             "description": "Identifier.",
             "format": "uuid",
@@ -808,11 +812,18 @@
           },
           "kind": {
             "$ref": "#/components/schemas/TargetKind",
-            "description": "Its kind."
+            "description": "Its kind; absent with `label`."
+          },
+          "label": {
+            "description": "Its natural key as a human reads it; absent if the caller may not read the object\nor if it was absent then.",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Slug, for a kind that has one; absent with `label`.",
+            "type": "string"
           }
         },
         "required": [
-          "kind",
           "id"
         ],
         "type": "object"

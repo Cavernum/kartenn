@@ -460,12 +460,6 @@ const UNSUMMARISED: &[(&str, &str, &str)] = &[
         "the approvals of a changeset: task 33g",
     ),
     (
-        "Cascaded",
-        "{ref}",
-        "the closures of a changeset, their kind told to any reader of the changeset: \
-         task 33g",
-    ),
-    (
         "Unsupported",
         "{ref}",
         "what the inverse of a changeset does not restore: task 33g",

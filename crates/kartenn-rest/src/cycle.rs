@@ -486,7 +486,7 @@ async fn represent(
         operations: operations(api, context, &found.operations).await?,
         violations: violations(api, &found.violations, Pointers::Operations).await?,
         diff: counts(api, context, s.id, found.diff.clone()).await?,
-        cascaded: cascaded(&found.cascaded),
+        cascaded: cascaded(api, context, &found.cascaded, found.valid_from).await?,
         links: ChangesetLinks {
             diff: format!("{}/diff", href(s.id)),
         },

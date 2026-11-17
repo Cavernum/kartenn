@@ -418,6 +418,7 @@
       "valid": "La clôture passe les règles",
       "alone": "Seul cet objet se clôt.",
       "withIt": "Se closent avec lui : {list}.",
+      "unreadable": "Objets illisibles pour vous, ou absents",
       "refused": "Clôture refusée par les règles",
       "refusedDependents": "S'il a des dépendants, cochez « Clore aussi ce qui en dépend » pour les clore avec lui.",
       "warnings": "Avertissements de la clôture",

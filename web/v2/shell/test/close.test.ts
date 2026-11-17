@@ -93,6 +93,18 @@ describe("the closure of an object", () => {
     expect(verdict.errors).toEqual([]);
     expect(verdict.warnings).toHaveLength(1);
   });
+
+  it("counts apart the closures the caller may not read, which say not their kind", () => {
+    const verdict = closeVerdict(
+      "prefix",
+      simulated({ cascaded: [{ id: P1 }, { kind: "address", id: A1 }, { id: V1 }] }),
+      true,
+    );
+    expect(verdict.cascaded).toEqual([
+      { kind: "address", count: 1 },
+      { kind: null, count: 2 },
+    ]);
+  });
 });
 
 describe("the close panel of a record", () => {
@@ -260,6 +272,7 @@ describe("the close panel of a record", () => {
             body: op?.cascade
               ? simulated({
                   cascaded: [
+                    { id: "0b5e3c1a-0000-4000-8000-0000000000f1" },
                     { kind: "address", id: A1 },
                     { kind: "range", id: V1 },
                   ],
@@ -279,6 +292,9 @@ describe("the close panel of a record", () => {
     cascade.click();
     await expect.poll(() => root.textContent).toContain("Se closent avec lui");
     expect(root.textContent).toContain("La clôture passe les règles");
+    // A closure the caller may not read comes without its kind: counted last, in the words
+    // of an unreadable reference (021-11p10-d1).
+    expect(root.textContent).toMatch(/· 1, Objets illisibles pour vous, ou absents · 1\./);
     const last = seen.filter((s) => s.url.includes("simulate")).at(-1)!;
     expect(last.body?.operations).toEqual([
       { op: "close", kind: "prefix", id: { id: P1 }, expected: V1, cascade: true },

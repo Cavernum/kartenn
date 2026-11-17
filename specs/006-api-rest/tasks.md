@@ -1321,7 +1321,7 @@ routeur complet, sauf mention « vrai TCP ».
     à la 33e) : un lecteur de la grappe sans droit sur les droits voit l'identifiant du
     groupe.
   - dépend de : 33a–33e
-- [ ] 33g. Changesets : le différentiel (`DiffObject {id}`), les opérations rendues
+- [ ] 33g. Changesets (découpée le 2026-11-16 : 33g1 à 33g5) : le différentiel (`DiffObject {id}`), les opérations rendues
   (`RefDto`) et les valeurs de type référence dans `before`/`after`, démasquées
   aujourd'hui selon la lisibilité de l'objet et non de la cible (revue de la 33a : hors
   du recensement 33b–33f, et la garde du contrat de la 33f échouerait sur eux) — verify :
@@ -1347,6 +1347,90 @@ routeur complet, sauf mention « vrai TCP ».
     d'un objet illisible se dit. Options : résumer (`kind` omis avec `label` pour un
     illisible, comme l'hôte d'une machine, 33d) ; ou ne garder que les objets lisibles
     avec un compte des autres.
+  - reste pour 33g2 à 33g5 (établi par la 33g1) : un objet que le changeset ferme
+    (différentiel, opérations, placements, sujets) n'est plus situé maintenant ; pour un
+    appelant à portée, l'autorisateur le juge hors de tout placement et `Summaries::read`
+    le rend `{id}` même s'il le lisait : le lire par `Summaries::read_closed` à l'instant
+    qui précède sa fermeture, et tester avec un appelant à portée.
+  - découpée le 2026-11-16 (33g1 à 33g5, chacune dans un contexte d'agent) ; chacune
+    retire de `UNSUMMARISED` les exemptions qu'elle rend inutiles, régénère le contrat
+    (`cargo run -p kartenn-server --all-features -- openapi`) et les types des SDK
+    (`node scripts/gen.mjs` sous `web/sdk` et `web/v2/sdk`), et lit ses cibles par
+    `Summaries::read` (`summary.rs`) :
+  - [x] 33g1. Objets clos par cascade (`Cascaded`, arbitrage du 2026-11-16, option 1) :
+    `{id, kind, slug, label, href}` pour un objet que l'appelant lit, `{id}` seul sinon,
+    dans le changeset lu, appliqué et simulé — verify : `k-check -p kartenn-rest cascad`
+    (deux appelants, objet clos par cascade illisible pour l'un : `{id}`, mêmes octets
+    qu'un absent hors l'identifiant ; le genre ne se dit qu'avec la clé)
+    - où : `crates/kartenn-rest/src/changesets.rs` (`Cascaded`, `cascaded`, `applied`,
+      `answered` `Outcome::Simulated`), `cycle.rs` (`represent`), `summary.rs`
+      (`Summaries`) ; modèle : `kartenn-machines/src/rest.rs` (`HostSummary`, `host`) ;
+      test voisin `rest/tests/it/simulated.rs`, cascade de `rest/tests/it/vlan/references.rs`
+      `closing_a_group_cascades_its_vlans`
+    fait : `changesets.rs` (`Cascaded` : `id`, puis `kind`, `slug`, `label`, `href`
+    omis ensemble pour un objet illisible ou absent ; `cascaded` lit les clés par
+    `Summaries::read` à l'instant qui précède la fermeture, `cascaded_by` pour un
+    changeset appliqué ou rejoué ; `applied` et `replayed` prennent le contexte de la
+    requête) ; `cycle.rs` (`represent` : à `valid_from` du changeset) ;
+    `kartenn-store-pg` `changesets.rs` (`valid_from`, lue seulement s'il y a des
+    fermetures) ; `drafts.rs` (rejeu d'une soumission) ; `UNSUMMARISED` sans `Cascaded` ;
+    contrat et `schema.d.ts` des deux SDK régénérés ; `web/v2/sdk/src/data/write.ts`
+    (`afterApplied` n'invalide que les fermetures qui disent leur genre) ;
+    `web/v2/shell/src/views/edit/close.ts` et `ClosePanel.vue` (les fermetures sans genre
+    comptées à part et en dernier, « Objets que vous ne pouvez pas lire · n »,
+    `edit.close.unreadable`,
+    test `shell/test/close.test.ts`) ; design 006
+    « Idempotence », rejeu. Test : `rest/tests/it/vlan/rest.rs`
+    `the_closures_of_a_cascade_say_their_kind_with_their_key_only` (simulation,
+    application et lecture d'un groupe fermé avec ses deux VLAN : `kind`, `label`,
+    `href` pour un lecteur des VLAN, `{id}` pour un lecteur des seuls changesets ; les
+    VLAN effacés, le lecteur des VLAN reçoit les octets du second, en-têtes compris).
+    choix : clés lues à `valid_from` du changeset moins une microseconde, telles
+    qu'affirmées maintenant (une fermeture sous `within` d'une autre période peut donc
+    laisser `{id}` à un lecteur : perte d'information, pas de fuite) ; simulation lue à
+    l'instant de la requête, quel que soit le `valid_from` demandé, même à venir (rien
+    n'est fermé) ; le rejeu d'une clé d'idempotence sert les résumés du moment, non ceux
+    de la première réponse (REQ-006-15 amendé le 2026-11-17, changement de contrat porté
+    à la connaissance de l'utilisateur).
+    corrections de la revue (une passe) : un appelant à portée (droits limités à une
+    entité) recevait `{id}` pour toute clôture appliquée ou lue, l'autorisateur jugeant
+    l'objet maintenant, donc fermé, hors de tout placement (test rouge
+    `a_scoped_author_reads_the_closures_it_could_read` : simulation résumée, 201 en
+    `{id}`) ; `summary.rs` `Summaries::read_closed` juge chaque objet là où il était à
+    l'instant lu (`PgAuthorizer::visibility` des droits tenus maintenant, puis `outside`
+    à cette date), `Readable::placed`, `readable_placed` ; `Summaries::read` inchangé.
+    Rejeu testé (même appelant : même corps ; `core.vlan.read` retiré : `{id}`),
+    simulation par un rédacteur qui ne lit pas les VLAN (`{id}`) ; SDK : une clôture
+    sans genre invalide son identifiant et toutes les listes (`write.test.ts`) ; libellé
+    de la 021-11p10-d1 au pluriel (« Objets illisibles pour vous, ou absents »), testé
+    dans `ClosePanel.vue` (`close.test.ts`).
+  - [ ] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
+    `DiffItemDto.object` (échantillon d'une simulation) et les valeurs de type référence
+    de `before`/`after`, démasquées selon la lisibilité de l'objet et non de la cible —
+    verify : `k-check -p kartenn-rest diff` (deux appelants : cible illisible et cible
+    inconnue rendues à l'identique, octets compris)
+    - où : `crates/kartenn-rest/src/cycle.rs` (≈ 530, `DiffObject`, `diff_entry`),
+      `changesets.rs` (≈ 607, `DiffItemDto`) ; valeurs de référence comme la 33b
+      (`properties.rs`) ; test voisin `rest/tests/it/cycle.rs`
+  - [ ] 33g3. Opérations rendues et inverse : `Ref` et `Operation` des opérations d'un
+    changeset lu (telles qu'écrites), `Unsupported` de l'inverse — verify :
+    `k-check -p kartenn-rest operations` (deux appelants, cible illisible et inconnue
+    à l'identique)
+    - où : `crates/kartenn-rest/src/operation.rs` (`RefDto`, `schema(as = Ref)`),
+      `cycle.rs` (`operations` ≈ 353, `Unsupported` ≈ 1068) ; test voisin
+      `rest/tests/it/changesets.rs`
+  - [ ] 33g4. Placements et sections : `Placement` (simulation, objet et parents avant et
+    après) et `SectionRowDto.object` (sections des modules, simulation et
+    `?section=`) — verify : `k-check -p kartenn-rest placements diff_sections`
+    - où : `crates/kartenn-rest/src/changesets.rs` (`Placement`, `SectionRowDto` ≈ 457,
+      `mask_rows`), `cycle.rs` (`section_diff`) ; tests voisins
+      `rest/tests/it/placements.rs`, `diff_sections.rs`
+  - [ ] 33g5. Violations et décisions : `ViolationDto.subjects`, `PendingReason.objects`,
+    `Required.objects` — verify : `k-check -p kartenn-rest changesets` (sujet illisible
+    et inconnu à l'identique)
+    - où : `crates/kartenn-rest/src/changesets.rs` (`ViolationDto` ≈ 268, `violations`,
+      `PendingReason` ≈ 699), `cycle.rs` (`Required` ≈ 801) ; test voisin
+      `rest/tests/it/changesets.rs`
 - [x] 33i. Historique d'un objet de module : `parent` et `domain` de `ModuleObject` lus au
   début de chaque version, comme la jointure de l'historique du noyau
   (`versions_page`, `l.valid_period @> lower(h.valid_period)`), et non aux dates de la

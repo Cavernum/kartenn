@@ -78,13 +78,19 @@ impl Env {
 
     /// A person granted `entries` on `scope` (`None`: everywhere).
     async fn person(&self, entries: &[&str], scope: Option<(&str, Uuid)>) -> Uuid {
-        let pool = &self.pool;
         let identity: Uuid = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
         )
-        .fetch_one(pool)
+        .fetch_one(&self.pool)
         .await
         .unwrap();
+        self.grant(identity, entries, scope).await;
+        identity
+    }
+
+    /// Grants `entries` on `scope` (`None`: everywhere) to `identity`, by a role of its own.
+    async fn grant(&self, identity: Uuid, entries: &[&str], scope: Option<(&str, Uuid)>) {
+        let pool = &self.pool;
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -114,7 +120,6 @@ impl Env {
             .execute(pool)
             .await
             .unwrap();
-        identity
     }
 
     /// Everything on the VLANs and the prefixes, everywhere.
@@ -1455,4 +1460,216 @@ async fn the_history_summarises_the_group_as_it_was(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(answer(&scoped, &uri).await, closed, "closed and unknown");
+}
+
+/// Task 006-33g1, REQ-006-42, 005 (arbitration of 2026-11-16, option 1): the objects a
+/// cascade closes are the summary of each, its kind with its key, for a caller who reads
+/// it, and its identifier alone for one who may not, which says not its kind: in the
+/// answer of a simulation, of an application and in the changeset as read. Once the
+/// objects are gone, the changeset reads the same bytes for the reader of the VLANs as for
+/// the caller who may not read them.
+#[kartenn_testing::pg_test]
+async fn the_closures_of_a_cascade_say_their_kind_with_their_key_only(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active"), (20, "active")],
+        )
+        .await;
+    let vlans = [env.vlan_of(group, 10).await, env.vlan_of(group, 20).await];
+    let by_id = |c: &Value| c["id"].as_str().unwrap().to_owned();
+    let summarised = |cascaded: &Value| -> Vec<Value> {
+        let mut found = cascaded.as_array().unwrap().clone();
+        found.sort_by_key(by_id);
+        found
+    };
+    let mut full: Vec<Value> = vlans
+        .iter()
+        .zip([10, 20])
+        .map(|(id, vid)| {
+            json!({"id": id, "kind": "vlan", "label": format!("{vid} · v{vid}"),
+                   "href": format!("/v1/vlans/{id}")})
+        })
+        .collect();
+    full.sort_by_key(by_id);
+    let mut bare: Vec<Value> = vlans.iter().map(|id| json!({"id": id})).collect();
+    bare.sort_by_key(by_id);
+
+    let writer = env.app(
+        env.person(
+            &[
+                "core.changeset.read",
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
+            ],
+            None,
+        )
+        .await,
+    );
+    let close = Some((
+        "application/json",
+        json!({"motive": "the group goes", "operations": [
+            {"op": "close", "kind": "vlan_group", "id": {"id": group}, "cascade": true},
+        ]}),
+    ));
+    let (status, _, body) = call(
+        &writer,
+        "POST",
+        "/v1/changesets?simulate=true",
+        close.clone(),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(summarised(&body["cascaded"]), full, "simulated: {body}");
+    // A writer who may close the VLANs without reading them: their identifiers alone.
+    let blind_writer = env.app(
+        env.person(
+            &[
+                "core.changeset.read",
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
+            ],
+            None,
+        )
+        .await,
+    );
+    let (status, _, body) = call(
+        &blind_writer,
+        "POST",
+        "/v1/changesets?simulate=true",
+        close.clone(),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        summarised(&body["cascaded"]),
+        bare,
+        "simulated blind: {body}"
+    );
+    let key = [("Idempotency-Key", "close-edge".to_owned())];
+    let (status, _, applied) = call(&writer, "POST", "/v1/changesets", close.clone(), &key).await;
+    assert_eq!(status, StatusCode::CREATED, "{applied}");
+    assert_eq!(summarised(&applied["cascaded"]), full, "applied: {applied}");
+    let changeset = applied["changeset"]["id"].as_str().unwrap().to_owned();
+    // REQ-006-15 as amended: the replay is the same body for the same rights, and
+    // summarises under the rights of the moment of the replay.
+    let (status, _, replayed) = call(&writer, "POST", "/v1/changesets", close.clone(), &key).await;
+    assert_eq!(status, StatusCode::CREATED, "{replayed}");
+    assert_eq!(replayed, applied, "replayed");
+    sqlx::query(
+        "DELETE FROM role_permission WHERE permission = 'core.vlan.read'
+          AND role_id IN (SELECT role_id FROM role_permission WHERE permission = 'core.vlan.edit')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (status, _, replayed) = call(&writer, "POST", "/v1/changesets", close, &key).await;
+    assert_eq!(status, StatusCode::CREATED, "{replayed}");
+    assert_eq!(
+        summarised(&replayed["cascaded"]),
+        bare,
+        "replayed without the right: {replayed}"
+    );
+
+    let uri = format!("/v1/changesets/{changeset}");
+    let reader = env.app(
+        env.person(&["core.changeset.read", "core.vlan.read"], None)
+            .await,
+    );
+    let blind = env.app(env.person(&["core.changeset.read"], None).await);
+    for (app, wanted) in [(&reader, &full), (&blind, &bare)] {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(&summarised(&body["cascaded"]), wanted, "{body}");
+    }
+    let unreadable = answer(&blind, &uri).await;
+    sqlx::query("DELETE FROM vlan WHERE id = ANY($1)")
+        .bind(&vlans[..])
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        answer(&reader, &uri).await,
+        unreadable,
+        "unreadable and unknown"
+    );
+}
+
+/// Task 006-33g1, review: an author whose rights are scoped to the entity owning the
+/// domain of a group closes the group and its VLANs; the closures it read before are
+/// summarised for it in the simulation, the application and the changeset as read, their
+/// readability judged where they last lived, not after their closure.
+#[kartenn_testing::pg_test]
+async fn a_scoped_author_reads_the_closures_it_could_read(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let acme = env.id("entity", "acme").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active")],
+        )
+        .await;
+    let vlan = env.vlan_of(group, 10).await;
+    let full = json!([{"id": vlan, "kind": "vlan", "label": "10 · v10",
+                       "href": format!("/v1/vlans/{vlan}")}]);
+    let author = env
+        .person(
+            &[
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
+            ],
+            Some(("entity", acme)),
+        )
+        .await;
+    // The journal of the changesets is read under a global right only.
+    env.grant(author, &["core.changeset.read"], None).await;
+    let writer = env.app(author);
+    let (status, _, body) = call(&writer, "GET", &format!("/v1/vlans/{vlan}"), None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "the author reads the VLAN: {body}");
+    let close = Some((
+        "application/json",
+        json!({"motive": "the group goes", "operations": [
+            {"op": "close", "kind": "vlan_group", "id": {"id": group}, "cascade": true},
+        ]}),
+    ));
+    let (status, _, body) = call(
+        &writer,
+        "POST",
+        "/v1/changesets?simulate=true",
+        close.clone(),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["cascaded"], full, "simulated: {body}");
+    let (status, _, body) = call(&writer, "POST", "/v1/changesets", close, &[]).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["cascaded"], full, "applied: {body}");
+    let uri = format!(
+        "/v1/changesets/{}",
+        body["changeset"]["id"].as_str().unwrap()
+    );
+    let (status, _, body) = call(&writer, "GET", &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["cascaded"], full, "read: {body}");
 }

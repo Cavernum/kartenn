@@ -5698,15 +5698,29 @@ export interface components {
      * @enum {string}
      */
     Cardinality: "single" | "set";
-    /** @description An object closed by cascade (REQ-004-26). */
+    /**
+     * @description An object closed by cascade (REQ-004-26), as summarised (REQ-006-42, task 006-33g1):
+     *     its kind with its key, read just before its closure, for an object the caller may read;
+     *     `{id}` alone for one the caller may not read or that was absent then, which says not
+     *     its kind.
+     */
     Cascaded: {
+      /** @description Its URL; absent with `label`. */
+      href?: string;
       /**
        * Format: uuid
        * @description Identifier.
        */
       id: string;
-      /** @description Its kind. */
-      kind: components["schemas"]["TargetKind"];
+      /** @description Its kind; absent with `label`. */
+      kind?: components["schemas"]["TargetKind"];
+      /**
+       * @description Its natural key as a human reads it; absent if the caller may not read the object
+       *     or if it was absent then.
+       */
+      label?: string;
+      /** @description Slug, for a kind that has one; absent with `label`. */
+      slug?: string;
     };
     /** @description A changeset applied. */
     ChangesetApplied: {
