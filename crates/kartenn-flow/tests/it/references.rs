@@ -923,6 +923,80 @@ async fn an_ended_flow_answers_as_an_absent_one(pool: PgPool) {
     }
 }
 
+/// INV-63 on the extension of a flow in force (F20): its plan anchors the portion added on
+/// the entity of the flow (`core.owner`); an author without the right on the flow gets the
+/// answer of a flow that does not exist, whether that entity is out of his reach, or
+/// closed while he reads the entities.
+#[kartenn_testing::pg_test]
+async fn the_extension_of_a_flow_out_of_reach_answers_as_an_absent_one(pool: PgPool) {
+    let o = Objects::new(&pool).await;
+    let editor = o.holding(WRITE).await;
+    o.registry.grant(editor, &["core.entity.read"], None).await;
+    let left = entity(&o.registry, "left").await;
+    let far = o.far;
+    let source = address_in(
+        &o.registry,
+        far,
+        ("198.51.100.0/25", "198.51.100.1"),
+        "prod",
+    )
+    .await;
+    let dated = |entity: Uuid| {
+        let o = &o;
+        async move {
+            let mut fields = o.registry.fields(source, o.far_dev).await;
+            fields["entity"] = json!({ "id": entity });
+            fields["end"] = json!(later(20));
+            o.registry.applied(vec![flow("request", fields)]).await;
+            sqlx::query_scalar(
+                "SELECT id FROM flow.flow WHERE source_id = $1 ORDER BY id DESC LIMIT 1",
+            )
+            .bind(source)
+            .fetch_one(&o.registry.pool)
+            .await
+            .unwrap()
+        }
+    };
+    let theirs: Uuid = dated(o.other).await;
+    let orphan: Uuid = dated(left).await;
+    // The service refuses to close an entity that anchors a flow in force
+    // (`core.anchor.in_use`): closed in the base, as a closure committed meanwhile would
+    // leave it (task 002-30).
+    let closed = o
+        .registry
+        .submit_as(
+            &Unrestricted,
+            o.registry.author,
+            vec![close("entity", left)],
+        )
+        .await;
+    assert_eq!(refusal_of(&closed).0, ["core.anchor.in_use"]);
+    sqlx::query(
+        "UPDATE entity SET valid_period = tstzrange(lower(valid_period), now())
+          WHERE id = $1 AND upper_inf(valid_period)",
+    )
+    .bind(left)
+    .execute(&o.registry.pool)
+    .await
+    .unwrap();
+    let extend = |x| update(x, json!({ "end": later(60) }));
+    let unknown = Uuid::now_v7();
+    let (_, expected) = o.seen_as(editor, extend(unknown), unknown).await;
+    assert!(!expected.is_empty());
+    let mut leaks = Vec::new();
+    for (case, x) in [
+        ("entity out of reach", theirs),
+        ("entity closed", orphan),
+        ("another kind", o.far_prod),
+    ] {
+        let (answer, found) = o.seen_as(editor, extend(x), x).await;
+        if found != expected {
+            leaks.push(format!("{case}: {answer:?} / expected {expected:?}"));
+        }
+    }
+    assert!(leaks.is_empty(), "{leaks:#?}");
+}
+
 /// The answer to `POST /v1/changesets` of `operations`: its status and its bytes, the
 /// identifiers of the changeset refused and of the problem (new at each call) masked.
 async fn posted(app: &axum::Router, operations: &[Operation]) -> (StatusCode, String) {
