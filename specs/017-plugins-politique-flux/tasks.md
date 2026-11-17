@@ -303,3 +303,16 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
   D1…D37 et `docs/adr/` ; `specs/016-noyau-v0-2`, `specs/017-plugins-politique-flux`,
   `specs/021-shell-v2` ; `docs/practices/`
   dépend de : 1 à 25, 021-27
+  - versé le 2026-11-17 (orchestration des 006-33, 006-40/41, 002-29d), à vérifier par
+    un test par chemin plutôt que par lecture : la lisibilité d'un objet **clos** dans
+    les résumés. La 006-33g1 a trouvé qu'un appelant à portée recevait `{id}` pour un
+    objet qu'il lisait avant sa clôture (jugé « maintenant », hors de toute portée),
+    corrigé pour les clôtures par cascade seulement (`Summaries::read_closed`) ; la
+    006-33i mesure l'inverse sur les historiques de module (jugé par le dernier
+    placement). Chaque appelant de `Summaries::read` et de `DatedSummaries` qui peut
+    rendre un objet clos (historiques, journal, anomalies, explications) reçoit un test
+    avec un lecteur à portée. Aussi : les restes de sécurité renvoyés à la tâche 002-31
+    (droit de lire sur toute référence) sont à relire d'un bloc, leur liste a grandi
+    (site, slug de grappe, correspondance de labels, service d'un registre, extrémités
+    d'une demande de flux, source d'un flux édité) ; les tests instables sous charge
+    (`property-batch.test.ts`, `tree-grid.spec.ts` au clavier, parcours Firefox 021-26b).
