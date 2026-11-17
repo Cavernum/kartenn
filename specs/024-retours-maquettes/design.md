@@ -128,7 +128,9 @@ compteur des écritures de droits (migration 0079, tâche 006-41 : déclencheur 
 rôles, leurs permissions, les liaisons, les groupes, leurs membres, les rattachements
 d'émetteurs et les déclarations de propriétés) : une écriture validée ou en cours entre
 les deux — un droit donné puis retiré pendant le calcul, mêmes droits aux deux bouts —
-le traite de même :
+ne le garde pas, la clé gardant son instantané (en vol dès la première lecture, un
+recalcul ne tourne pas ; un premier calcul répond sans être gardé, dans la limite des
+recalculs simultanés) :
 
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
   encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
