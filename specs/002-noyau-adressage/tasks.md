@@ -749,7 +749,20 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - où : `crates/kartenn-service/src/{rights.rs,pipeline.rs}`,
       `crates/kartenn-kube/src/handler.rs`, `crates/kartenn-kube/tests/it/references.rs`
     - dépend de : 29d2
-  - [ ] 29d6. Restes du refus de droits qui ne nomme que ce que l'auteur lit (revue
+    - fait en partie le 2026-11-17, avec la 29d6 : (2) `check_before` prend
+      `(planned, origins)` et refuse (`assert_eq!`) des longueurs différentes ;
+      `authored_origins` naît du même filtre que `authored` (`pipeline.rs`, `unzip`) ;
+      (3) `tests/it/module_reads.rs` nouveau (le module de test cite une adresse par
+      `update_thing.reads`) : `an_unread_operation_leaves_the_refusals_of_the_others` (la
+      lecture seule ; plus une opération refusée à l'édition sur une autre chose, puis sur
+      la même : son refus reste), `a_revalidation_with_joined_operations_keeps_each_refusal`
+      (proposition revalidée, opération de revue jointe, l'auteur sans l'édition ni la
+      lecture de l'adresse : les deux refus, rien d'écrit) — verts sans correction ;
+      (5) `told` ne recopie plus le refus stocké (`a_withheld_refusal_is_told_with_its_message`,
+      rouge d'abord). Restent (1), banc par la session principale, et (4), à arbitrer
+    - choix : les tests de (3) dans `kartenn-service` plutôt que `kartenn-kube`, sans
+      opération de revue : le module de test en a une
+  - [x] 29d6. Restes du refus de droits qui ne nomme que ce que l'auteur lit (revue
     ciblée de la 29d4, 2026-11-17, `crates/kartenn-service/src/rights.rs` `named`) :
     (1) le message garde le compte des objets refusés, cachés compris : sur les effets
     de propriété (`check`), un auteur qui écrit une propriété sur un préfixe lu apprend
@@ -770,6 +783,38 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - où : `crates/kartenn-service/src/{rights.rs,pipeline.rs}`,
       `crates/kartenn-policy/src/matrix.rs`, `crates/kartenn-store-pg/src/idempotency.rs`
     - dépend de : 29d4
+    - fait le 2026-11-17 : rouges d'abord, `kartenn-service` `tests/it/rights.rs`. (1)
+      confirmé : `rights.rs` `refusal` nomme et compte les seuls objets que le sujet lit
+      (`read_among`, ex-`named`), message `N object(s) need <p>`, ou `objects you do not
+      read need <p>` quand il n'en nomme aucun, pour les effets, les objets et les lectures
+      (`a_refusal_counts_only_the_objects_its_author_reads` : une adresse cachée ou deux,
+      même refus) ; (2) confirmé : `approval_self_missing` (`pipeline.rs`), servie à
+      l'auteur et stockée pour le rejeu, nomme ce qu'il lit ; les manques de qui applique
+      (`unapplied`, dont la revalidation décide) et `required` gardent tous les objets
+      (`the_reason_a_changeset_is_held_for_names_only_what_its_author_reads`, raison
+      stockée et droits requis lus en base) ; (3) confirmé : `forbidden` nomme et compte ce
+      que lit le validateur, `denied` décidant toujours du refus
+      (`a_validator_is_told_only_the_objects_he_reads`) ; (4) confirmé, gardé : l'éditeur
+      lié par portée reçoit le refus de ses droits pour une cellule vide comme pour une
+      cellule tenue hors de sa portée et un type de flux absent ; le 422 lui dirait quelles
+      cellules portent une règle (`kartenn-policy` `references.rs`
+      `a_scoped_editor_empties_an_empty_cell_as_a_held_one`, vert) ; (5) confirmé :
+      `read_among` juge au début de la période du changeset (`window`), passé à
+      `check_objects`, `check_guards`, `check_before`
+      (`a_refusal_names_the_objects_in_force_at_its_period`). Mineurs : doc
+      d'`edit_permission` rendue à sa fonction, `matrix.rs` clé `EMPTY` dont la valeur est
+      l'étiquette de l'opération. Attentes changées (message) : `kartenn-kube`
+      `clusters.rs`, `kartenn-machines` `machines.rs` et `rest.rs`
+    - choix : le message d'un refus qui ne nomme rien ne compte rien (`objects you do not
+      read need <p>`) ; les manques de qui applique comptent dans leur message ce que leur
+      présentation nomme, leurs objets entiers ; la présentation est faite avant le
+      `rollback` de la validation, dans la transaction
+    - reste : l'événement `authz.access.denied` d'un refus de droits ne cible que les
+      objets nommés (depuis la 29d4 pour l'édition, ici pour l'application) : à trancher si
+      l'audit doit garder la liste entière ; un refus `policy.admin` de qui applique ne
+      nomme plus, dans la raison de l'auteur, les politiques d'approbation (hors
+      `kinds_in_force`) ; coût : deux lectures de plus par refus d'application (banc de la
+      29d7, point 1)
   - [ ] 29d5. (à arbitrer) La prolongation d'un flux terminé (F20) : `plan_update`
     (`crates/kartenn-flow/src/handler.rs`, `UPDATE_ENDED`) refuse `flow.update.ended` à la
     planification, avant les droits, sur le flux lu par la complétion : un auteur sans
