@@ -1931,6 +1931,32 @@ routeur complet, sauf mention « vrai TCP ».
   - où : `crates/kartenn-rest/src/changesets.rs` (`sampled`, `counted`,
     `DiffCountDto`), `cycle.rs` (`disclosed`, `counts`), `kartenn-store-pg/src/diff.rs`
     (`diff_first`) ; tests voisins `crates/kartenn-rest/tests/it/cycle.rs`
+  - fait (sauf la clause « servie avec » d'une réponse en attente, ci-dessous) : constat
+    établi par `rest/tests/it/sensitive_answers.rs`, rouge avant la correction sur les
+    trois réponses : un auteur titulaire de `prop.<clé>.edit` et `approval.self` sans
+    `prop.<clé>.read` lisait l'ancienne valeur (et la sienne) dans `diff[].before` d'une
+    simulation, d'une réponse appliquée et d'une réponse en attente, sans
+    `data.sensitive.read` ; la rejouée sert le même décompte journalisé. Correction :
+    `cycle.rs` (`counts` découpé en `sensitive_counted` et `mask_counts`, `disclosed` et
+    `counts` partagés) ; `changesets.rs` : `applied` et `pending` (devenue asynchrone)
+    servent `cycle::counts`, première réponse comme rejouée ; la simulation masque
+    `diff` par `mask_counts` sur les objets que l'échantillon nomme en entier
+    (`sampled_objects`) et `sample` objet par objet (`DiffItemDto.masked`, absent sinon,
+    comme `DiffCountDto.masked`), l'audit sortant une fois par `disclosed` ; contrat
+    (`openapi-v1.json`, `schema.d.ts` des deux SDK) : `masked` ajouté à l'échantillon,
+    descriptions. Tests : `sensitive_answers` (simulation, appliquée et rejouée,
+    en attente et rejouée, sans le droit puis avec), unitaire
+    `a_sample_names_the_objects_of_a_key_only_whole`.
+  - choix : marque de l'échantillon `masked: true` facultative, comme le décompte (et non
+    le booléen toujours présent du détail lu) ; un auteur qui n'a pas le droit reçoit
+    `null` pour les deux côtés, la valeur qu'il écrit comprise, comme le différentiel lu.
+  - reste (à arbitrer) : une réponse en attente (et sa rejouée) masque une propriété
+    sensible même à qui a le droit, comme la lecture d'un changeset en attente : son
+    détail n'est pas journalisé (`hold`, `pipeline.rs`), `counts` ne sait pas quels
+    objets l'entrée compte. De même, une simulation dont l'échantillon (100 entrées) ne
+    nomme pas tous les objets d'une clé sensible la masque. Pour servir ces valeurs :
+    journaliser le détail en attente, ou rendre les objets des clés sensibles dans
+    `Outcome::{Pending, Simulated}` (`kartenn-service`, hors du périmètre de la tâche).
   - versé par la revue de la 33g2 (à arbitrer ou écrire, pas des fuites) : le temps de
     réponse du différentiel distingue un objet illisible présent d'un absent (une
     lecture contre trois à cinq, `cycle.rs` 578 `diff_summaries`) — lire la période sans

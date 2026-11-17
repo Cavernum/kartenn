@@ -7,7 +7,7 @@
 //! `Idempotency-Key` (REQ-006-15, task 006-15): a key in progress → 409; a replay is
 //! answered from the journal of the first changeset, with the same status and body.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::body::Bytes;
 use axum::extract::{RawQuery, State};
@@ -500,8 +500,8 @@ pub(crate) struct DiffCountDto {
     after: Option<String>,
     /// Objects.
     count: u64,
-    /// In a changeset read: the values are masked, the caller may not read them on every
-    /// object counted (REQ-005-21).
+    /// `true`: the values of this sensitive property are masked, the caller may not read
+    /// them on every object counted (REQ-005-21); absent otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     masked: Option<bool>,
 }
@@ -681,15 +681,64 @@ pub(crate) struct DiffItemDto {
     /// The value after, as JSON text; `null`: no value. For a property of type
     /// reference, the summary of each object it names.
     after: Option<String>,
+    /// `true`: the values of this sensitive property are masked, the caller may not read
+    /// them on this object (REQ-005-21); absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    masked: Option<bool>,
+}
+
+/// The objects of the simulated differential for each key of `sensitive` it counts, those
+/// the first entries `sample` name all of: for each entry of `diff` of the key, as many
+/// distinct objects with the same change as it counts (task 006-43). The objects of a key
+/// the sample leaves out in part are unknown: its entries are masked.
+fn sampled_objects(
+    diff: &[DiffCount],
+    sample: &[DiffItem],
+    sensitive: &BTreeSet<String>,
+) -> BTreeMap<String, Vec<Uuid>> {
+    /// A change of the differential: its key, the value before and after, as JSON texts.
+    type Change<'a> = (&'a str, Option<&'a str>, Option<&'a str>);
+    let mut changes: BTreeMap<Change<'_>, BTreeSet<Uuid>> = BTreeMap::new();
+    for item in sample.iter().filter(|i| sensitive.contains(&i.property)) {
+        changes
+            .entry((
+                &item.property,
+                item.before.as_deref(),
+                item.after.as_deref(),
+            ))
+            .or_default()
+            .insert(item.object);
+    }
+    let mut complete: BTreeMap<&str, bool> = BTreeMap::new();
+    for entry in diff.iter().filter(|d| sensitive.contains(&d.property)) {
+        let named = changes
+            .get(&(
+                &entry.property,
+                entry.before.as_deref(),
+                entry.after.as_deref(),
+            ))
+            .map_or(0, BTreeSet::len);
+        let whole = u64::try_from(named).is_ok_and(|n| n == entry.count);
+        *complete.entry(&entry.property).or_insert(true) &= whole;
+    }
+    let mut out: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+    for ((key, _, _), objects) in changes {
+        if complete.get(key).copied().unwrap_or(false) {
+            out.entry(key.to_owned()).or_default().extend(objects);
+        }
+    }
+    out
 }
 
 /// The first entries of a simulated differential as served (task 006-33g2): each object
 /// summarised, and each object a value of type reference names, as the caller of
-/// `context` may read them now (a simulation closes nothing).
+/// `context` may read them now (a simulation closes nothing); the values of a property of
+/// `sensitive` masked unless `shown` discloses them on the object (task 006-43).
 async fn sampled(
     api: &Api,
     context: &RequestContext,
     sample: &[DiffItem],
+    (sensitive, shown): (&BTreeSet<String>, &BTreeSet<(String, Uuid)>),
 ) -> Result<Vec<DiffItemDto>, Problem> {
     let now = OffsetDateTime::now_utc();
     let refs = crate::properties::declared_refs(api, now, None).await?;
@@ -701,7 +750,11 @@ async fn sampled(
     let mut ids = Vec::new();
     for item in sample {
         ids.push(item.object);
-        let values = if refs.contains(&item.property) {
+        let masked = sensitive.contains(&item.property)
+            && !shown.contains(&(item.property.clone(), item.object));
+        let values = if masked {
+            Some((None, None))
+        } else if refs.contains(&item.property) {
             let (before, after) = (parsed(item.before.as_ref())?, parsed(item.after.as_ref())?);
             for value in before.iter().chain(&after) {
                 ids.extend(crate::properties::references(value));
@@ -710,7 +763,7 @@ async fn sampled(
         } else {
             None
         };
-        entries.push((item, values));
+        entries.push((item, masked, values));
     }
     let summaries = Summaries::read(api, context, ids, now, None).await?;
     let text = |value: Option<Value>| {
@@ -718,7 +771,7 @@ async fn sampled(
     };
     Ok(entries
         .into_iter()
-        .map(|(item, values)| {
+        .map(|(item, masked, values)| {
             let (before, after) = match values {
                 Some((before, after)) => (text(before), text(after)),
                 None => (item.before.clone(), item.after.clone()),
@@ -728,6 +781,7 @@ async fn sampled(
                 object: summaries.of(item.object),
                 before,
                 after,
+                masked: masked.then_some(true),
             }
         })
         .collect())
@@ -753,7 +807,8 @@ pub(crate) struct ChangesetApplied {
     secret: Option<Value>,
 }
 
-/// 201 (or 200): the changeset applied, its warnings, differential and closures by cascade.
+/// 201 (or 200): the changeset applied, its warnings, differential (masked as its read
+/// masks it, [`cycle::counts`]) and closures by cascade.
 async fn applied(
     api: &Api,
     context: &RequestContext,
@@ -767,7 +822,7 @@ async fn applied(
         changeset: summary(changeset),
         state: "applied",
         warnings: violations(api, warnings, answer.pointers).await?,
-        diff,
+        diff: cycle::counts(api, context, changeset, diff).await?,
         cascaded: cascaded_by(api, context, changeset, closures).await?,
         secret: answer.shown.cloned(),
     };
@@ -815,20 +870,21 @@ pub(crate) struct PendingReason {
     objects: Vec<Uuid>,
 }
 
-/// 202: the changeset held for a decision.
-fn pending(
+/// 202: the changeset held for a decision, its differential `diff` masked as its read
+/// masks it ([`cycle::counts`]).
+async fn pending(
+    (api, context): (&Api, &RequestContext),
     changeset: Uuid,
-    kind: &str,
-    policy: Option<Uuid>,
-    diff: &Value,
+    (kind, policy): (&str, Option<Uuid>),
+    diff: Value,
     (reason, shown): (Option<&Violation>, Option<&Value>),
-) -> Response {
+) -> Result<Response, Problem> {
     let body = ChangesetPending {
         changeset: summary(changeset),
         state: "pending",
         kind: kind.to_owned(),
         policy,
-        diff: diff.clone(),
+        diff: cycle::counts(api, context, changeset, diff).await?,
         reason: reason.map(|v| PendingReason {
             code: v.rule.id.to_owned(),
             message: v.message.clone(),
@@ -836,11 +892,11 @@ fn pending(
         }),
         secret: shown.cloned(),
     };
-    linked(
+    Ok(linked(
         (StatusCode::ACCEPTED, Json(body)).into_response(),
         changeset,
         None,
-    )
+    ))
 }
 
 /// A changeset simulated: nothing is written (REQ-004-9).
@@ -850,8 +906,11 @@ pub(crate) struct ChangesetSimulated {
     valid: bool,
     /// Every violation, errors and warnings.
     violations: Vec<ViolationDto>,
-    /// The counted differential applying would produce.
-    diff: Vec<DiffCountDto>,
+    /// The counted differential applying would produce. An entry of a sensitive property
+    /// is masked unless the caller may read it on every object it counts and `sample`
+    /// names them all (REQ-005-21).
+    #[schema(value_type = Vec<DiffCountDto>)]
+    diff: Value,
     /// Its first entries.
     sample: Vec<DiffItemDto>,
     /// The closures a cascade would add.
@@ -962,13 +1021,16 @@ pub(crate) async fn replayed(
             Problem::new(ProblemKind::Internal)
         })?;
     match (journal.kind.as_str(), journal.state.as_str()) {
-        ("approval" | "proposal", _) => Ok(pending(
-            changeset,
-            &journal.kind,
-            journal.policy,
-            &journal.diff,
-            (journal.reason.as_ref(), None),
-        )),
+        ("approval" | "proposal", _) => {
+            pending(
+                (api, context),
+                changeset,
+                (&journal.kind, journal.policy),
+                journal.diff,
+                (journal.reason.as_ref(), None),
+            )
+            .await
+        }
         (_, "applied") => {
             applied(
                 api,
@@ -1067,13 +1129,16 @@ pub(crate) async fn answered(
             policy,
             diff,
             reason,
-        } => pending(
-            changeset,
-            kind.as_str(),
-            policy,
-            &counted(&diff)?,
-            (reason.as_ref(), answer.shown),
-        ),
+        } => {
+            pending(
+                (api, context),
+                changeset,
+                (kind.as_str(), policy),
+                counted(&diff)?,
+                (reason.as_ref(), answer.shown),
+            )
+            .await?
+        }
         Outcome::Refused {
             changeset,
             violations: found,
@@ -1098,6 +1163,22 @@ pub(crate) async fn answered(
                 mask_rows(api, context, &mut section.rows).await?;
             }
             let valid = !found.iter().any(Violation::is_error);
+            // REQ-005-21 (task 006-43): the sensitive values masked as the differential
+            // read masks them, those disclosed audited once.
+            let sensitive = property_read::sensitive_keys(&api.pool)
+                .await
+                .map_err(|e| store(&e))?;
+            let mut wanted: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+            for item in sample.iter().filter(|i| sensitive.contains(&i.property)) {
+                wanted
+                    .entry(item.property.clone())
+                    .or_default()
+                    .push(item.object);
+            }
+            let shown = cycle::disclosed(api, context, wanted).await?;
+            let mut counts = counted(&diff)?;
+            let objects = sampled_objects(&diff, &sample, &sensitive);
+            cycle::mask_counts(&mut counts, &sensitive, &objects, &shown);
             // Spec 024, M6: a simulation journals one read, never a write.
             crate::kit::record_read(
                 api,
@@ -1110,8 +1191,8 @@ pub(crate) async fn answered(
             Json(ChangesetSimulated {
                 valid,
                 violations: violations(api, &found, answer.pointers).await?,
-                diff: diff.iter().map(DiffCountDto::from).collect(),
-                sample: sampled(api, context, &sample).await?,
+                diff: counts,
+                sample: sampled(api, context, &sample, (&sensitive, &shown)).await?,
                 // A simulation closes nothing: the objects are read as they are at the
                 // request, whatever the period asked, a `valid_from` to come included.
                 cascaded: cascaded(api, context, &closures, OffsetDateTime::now_utc()).await?,
@@ -1178,6 +1259,41 @@ mod tests {
     use kartenn_core::rules;
 
     use super::*;
+
+    /// Task 006-43: a sensitive key's objects are known only where the sample names every
+    /// object each of its entries counts; otherwise the key is left out, and masked.
+    #[test]
+    fn a_sample_names_the_objects_of_a_key_only_whole() {
+        let (a, b, c) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3));
+        let text = |s: &str| Some(format!("\"{s}\""));
+        let count = |key: &str, after: &str, count| DiffCount {
+            property: key.into(),
+            before: None,
+            after: text(after),
+            count,
+        };
+        let item = |key: &str, object, after: &str| DiffItem {
+            property: key.into(),
+            object,
+            before: None,
+            after: text(after),
+        };
+        let sensitive: BTreeSet<String> = ["whole".into(), "cut".into()].into();
+        let diff = [
+            count("cut", "x", 2),
+            count("open", "x", 1),
+            count("whole", "x", 1),
+            count("whole", "y", 1),
+        ];
+        let sample = [
+            item("cut", a, "x"),
+            item("open", a, "x"),
+            item("whole", b, "x"),
+            item("whole", c, "y"),
+        ];
+        let objects = sampled_objects(&diff, &sample, &sensitive);
+        assert_eq!(objects, [("whole".to_owned(), vec![b, c])].into());
+    }
 
     #[test]
     fn simulate_is_a_flag_given_once() {

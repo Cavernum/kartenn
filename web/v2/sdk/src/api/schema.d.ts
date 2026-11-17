@@ -5861,7 +5861,11 @@ export interface components {
     ChangesetSimulated: {
       /** @description The closures a cascade would add. */
       cascaded: components["schemas"]["Cascaded"][];
-      /** @description The counted differential applying would produce. */
+      /**
+       * @description The counted differential applying would produce. An entry of a sensitive property
+       *     is masked unless the caller may read it on every object it counts and `sample`
+       *     names them all (REQ-005-21).
+       */
       diff: components["schemas"]["DiffCountDto"][];
       /**
        * @description The objects whose parent applying would change at the present, with their parents
@@ -6053,8 +6057,8 @@ export interface components {
        */
       count: number;
       /**
-       * @description In a changeset read: the values are masked, the caller may not read them on every
-       *     object counted (REQ-005-21).
+       * @description `true`: the values of this sensitive property are masked, the caller may not read
+       *     them on every object counted (REQ-005-21); absent otherwise.
        */
       masked?: boolean | null;
       /** @description Property key. */
@@ -6091,6 +6095,11 @@ export interface components {
        *     reference, the summary of each object it names.
        */
       before?: string | null;
+      /**
+       * @description `true`: the values of this sensitive property are masked, the caller may not read
+       *     them on this object (REQ-005-21); absent otherwise.
+       */
+      masked?: boolean | null;
       /** @description The object, as summarised (REQ-006-42). */
       object: components["schemas"]["Summary"];
       /** @description Property key. */

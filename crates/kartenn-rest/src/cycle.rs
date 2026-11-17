@@ -288,7 +288,7 @@ pub(crate) async fn list(
 
 /// Among `wanted` (objects by sensitive key), the `(key, object)` pairs whose value the
 /// caller may see (and audited as such).
-async fn disclosed(
+pub(crate) async fn disclosed(
     api: &Api,
     context: &RequestContext,
     wanted: BTreeMap<String, Vec<Uuid>>,
@@ -305,9 +305,54 @@ async fn disclosed(
     Ok(out)
 }
 
+/// The property key of an entry of a counted differential.
+fn count_key(entry: &Value) -> Option<String> {
+    entry["property"].as_str().map(str::to_owned)
+}
+
+/// The keys of `sensitive` among the entries of the counted differential `counted`.
+pub(crate) fn sensitive_counted(counted: &Value, sensitive: &BTreeSet<String>) -> Vec<String> {
+    counted
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(count_key)
+        .filter(|k| sensitive.contains(k))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+/// Masks the entries of `counted` of a property of `sensitive` unless the caller may see
+/// its values (`shown`) on every object `objects` counts for its key; a key `objects` does
+/// not name is masked.
+pub(crate) fn mask_counts(
+    counted: &mut Value,
+    sensitive: &BTreeSet<String>,
+    objects: &BTreeMap<String, Vec<Uuid>>,
+    shown: &BTreeSet<(String, Uuid)>,
+) {
+    let open = |k: &str| {
+        objects
+            .get(k)
+            .is_some_and(|all| all.iter().all(|o| shown.contains(&(k.to_owned(), *o))))
+    };
+    for entry in counted.as_array_mut().into_iter().flatten() {
+        if let Some(k) = count_key(entry).filter(|k| sensitive.contains(k))
+            && !open(&k)
+        {
+            entry["before"] = Value::Null;
+            entry["after"] = Value::Null;
+            entry["masked"] = Value::Bool(true);
+        }
+    }
+}
+
 /// The counted differential of changeset `id` as served: an entry of a sensitive property
-/// keeps its values only if the caller may see them on every object it counts.
-async fn counts(
+/// keeps its values only if the caller may see them on every object it counts, as the
+/// detail journaled names them (none for a pending changeset: masked). Also the answer of
+/// a write that applies or holds `id`, and of its replay (task 006-43).
+pub(crate) async fn counts(
     api: &Api,
     context: &RequestContext,
     id: Uuid,
@@ -316,36 +361,13 @@ async fn counts(
     let sensitive = property_read::sensitive_keys(&api.pool)
         .await
         .map_err(|e| store(&e))?;
-    let Some(entries) = counted.as_array_mut() else {
-        return Ok(counted);
-    };
-    let key = |entry: &Value| entry["property"].as_str().map(str::to_owned);
-    let keys: Vec<String> = entries
-        .iter()
-        .filter_map(key)
-        .filter(|k| sensitive.contains(k))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
+    let keys = sensitive_counted(&counted, &sensitive);
     if keys.is_empty() {
         return Ok(counted);
     }
     let objects = changesets::diff_objects(&api.pool, id, &keys).await?;
     let shown = disclosed(api, context, objects.clone()).await?;
-    let open = |k: &str| {
-        objects
-            .get(k)
-            .is_some_and(|all| all.iter().all(|o| shown.contains(&(k.to_owned(), *o))))
-    };
-    for entry in entries.iter_mut() {
-        if let Some(k) = key(entry).filter(|k| sensitive.contains(k))
-            && !open(&k)
-        {
-            entry["before"] = Value::Null;
-            entry["after"] = Value::Null;
-            entry["masked"] = Value::Bool(true);
-        }
-    }
+    mask_counts(&mut counted, &sensitive, &objects, &shown);
     Ok(counted)
 }
 
