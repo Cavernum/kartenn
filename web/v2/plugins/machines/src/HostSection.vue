@@ -168,7 +168,6 @@ const options = computed(() =>
     };
   }),
 );
-const suggest: Suggest = (text) => Promise.resolve(filterOptions(options.value, text));
 
 const search = ref("");
 const chosen = ref<string | undefined>();
@@ -199,6 +198,28 @@ const reading = computed(() =>
     (s) => !s.error && (s.items === undefined || s.fetching || (s.more && s.pages < MAX_PAGES)),
   ),
 );
+
+/**
+ * The suggestions of a text, once the hosts are read or their reading stopped: the field
+ * asks once per text, and answered from the pages read so far it would never show the
+ * hosts of the pages still to come (task 021-26b). Its list says « loading » meanwhile.
+ */
+const suggest: Suggest = async (text, signal) => {
+  if (reading.value) {
+    await new Promise<void>((done) => {
+      const stop = watch(reading, (now) => {
+        if (!now) end();
+      });
+      function end(): void {
+        stop();
+        signal?.removeEventListener("abort", end);
+        done();
+      }
+      signal?.addEventListener("abort", end);
+    });
+  }
+  return filterOptions(options.value, text);
+};
 
 async function refuse(reason: string): Promise<void> {
   error.value = reason;

@@ -652,6 +652,40 @@ describe("the record of a machine (task 18cb)", () => {
     expect(second).toEqual(["p2", "p2"]);
   });
 
+  it("suggests, for a text typed while the hosts are read, the hosts of the pages still to come (task 021-26b)", async () => {
+    history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
+    // The second page of the machines held: `srv-b` is on it.
+    let release!: () => void;
+    const held = new Promise<void>((done) => (release = done));
+    mounted = mount("machines-machines", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...reads,
+        "GET /v1/machines": async ({ query }) => {
+          if (!query.get("cursor")) {
+            return { items: [machine()], links: { next: "/v1/machines?cursor=p2" } } as never;
+          }
+          await held;
+          return page([{ ...machine("srv-b"), id: OTHER }]);
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "Reading the hosts…");
+    const input = element.querySelector<HTMLInputElement>("section form input[role=combobox]")!;
+    input.value = "srv-b";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // Past the pause of the typing (150 ms): the text asked while its host is not read yet.
+    await new Promise((done) => setTimeout(done, 300));
+    release();
+    // Not typed again: the suggestion comes with its page.
+    await vi.waitFor(() => {
+      const options = [...document.querySelectorAll<HTMLElement>("[role=option]")];
+      expect(options.map((o) => o.textContent?.trim())).toEqual(["srv-bmachine"]);
+    });
+    input.blur();
+  });
+
   it("refuses the button without machines.edit, says why", async () => {
     history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
     const posted: unknown[] = [];
