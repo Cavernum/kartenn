@@ -435,7 +435,8 @@ impl From<&kartenn_service::placements::Placement> for Placement {
 }
 
 /// The closures `closures`, taking effect at `closed`, as the caller of `context` may read
-/// them now: their keys read at the last instant they lived (task 006-33g1).
+/// them now: their keys read at the last instant they lived, each judged readable where it
+/// was then (task 006-33g1). No closure: no query.
 ///
 /// # Errors
 ///
@@ -446,18 +447,9 @@ pub(crate) async fn cascaded(
     closures: &[(ObjectKind, Uuid)],
     closed: OffsetDateTime,
 ) -> Result<Vec<Cascaded>, Problem> {
-    if closures.is_empty() {
-        return Ok(Vec::new());
-    }
     let lived = closed - Duration::MICROSECOND;
-    let linked = Summaries::read(
-        api,
-        context,
-        closures.iter().map(|&(_, id)| id),
-        lived,
-        None,
-    )
-    .await?;
+    let linked =
+        Summaries::read_closed(api, context, closures.iter().map(|&(_, id)| id), lived).await?;
     Ok(closures
         .iter()
         .map(|&(kind, id)| {
@@ -483,6 +475,7 @@ async fn cascaded_by(
     changeset: Uuid,
     closures: &[(ObjectKind, Uuid)],
 ) -> Result<Vec<Cascaded>, Problem> {
+    // The period is read only for a changeset that closed something by cascade.
     if closures.is_empty() {
         return Ok(Vec::new());
     }
@@ -1078,7 +1071,8 @@ pub(crate) async fn answered(
                 violations: violations(api, &found, answer.pointers).await?,
                 diff: diff.iter().map(DiffCountDto::from).collect(),
                 sample: sample.iter().map(DiffItemDto::from).collect(),
-                // Nothing is closed yet: the objects read as they are.
+                // A simulation closes nothing: the objects are read as they are at the
+                // request, whatever the period asked, a `valid_from` to come included.
                 cascaded: cascaded(api, context, &closures, OffsetDateTime::now_utc()).await?,
                 sections,
                 placements: placements.items.iter().map(Placement::from).collect(),

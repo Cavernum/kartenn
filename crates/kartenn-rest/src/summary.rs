@@ -123,11 +123,25 @@ impl Readable {
     ///
     /// The authoriser's error.
     pub async fn of(
+        self,
+        api: &Api,
+        context: &RequestContext,
+        target: Target,
+        ids: impl IntoIterator<Item = Uuid>,
+    ) -> Result<Self, Problem> {
+        self.placed(api, context, target, ids, None).await
+    }
+
+    /// [`Readable::of`], each object placed where it was at `placed` (`None`: now) under
+    /// the rights the caller holds now: for objects closed since, judged where they last
+    /// lived (task 006-33g1).
+    async fn placed(
         mut self,
         api: &Api,
         context: &RequestContext,
         target: Target,
         ids: impl IntoIterator<Item = Uuid>,
+        placed: Option<OffsetDateTime>,
     ) -> Result<Self, Problem> {
         let Some(subject) = context.subject() else {
             return Ok(self);
@@ -141,11 +155,24 @@ impl Readable {
         if ids.is_empty() {
             return Ok(self);
         }
-        denied.extend(
-            api.authorizer()
-                .authorize_many(&subject, &target.read_permission(), &ids)
-                .await?,
-        );
+        let authorizer = api.authorizer();
+        denied.extend(match placed {
+            None => {
+                authorizer
+                    .authorize_many(&subject, &target.read_permission(), &ids)
+                    .await?
+            }
+            Some(at) => {
+                let held = authorizer
+                    .visibility(
+                        &subject,
+                        &target.read_permission(),
+                        OffsetDateTime::now_utc(),
+                    )
+                    .await?;
+                authorizer.outside(&held, &ids, at).await?
+            }
+        });
         Ok(self)
     }
 }
@@ -203,6 +230,30 @@ impl Summaries {
         let found = keys(api, ids, valid_at, as_of).await?;
         let readable =
             readable_among(api, context, found.iter().map(|(id, (t, _))| (*id, *t))).await?;
+        Ok(Self { found, readable })
+    }
+
+    /// The summaries of `ids`, objects closed since, as they last lived at `lived`: their
+    /// keys read then as asserted now, each judged readable where it was then under the
+    /// rights the caller of `context` holds now (the closures of a cascade, task 006-33g1).
+    ///
+    /// # Errors
+    ///
+    /// The store's or the authoriser's error.
+    pub async fn read_closed(
+        api: &Api,
+        context: &RequestContext,
+        ids: impl IntoIterator<Item = Uuid>,
+        lived: OffsetDateTime,
+    ) -> Result<Self, Problem> {
+        let found = keys(api, ids, lived, None).await?;
+        let readable = readable_placed(
+            api,
+            context,
+            found.iter().map(|(id, (t, _))| (*id, *t)),
+            Some(lived),
+        )
+        .await?;
         Ok(Self { found, readable })
     }
 
@@ -359,6 +410,16 @@ async fn readable_among(
     context: &RequestContext,
     found: impl IntoIterator<Item = (Uuid, Target)>,
 ) -> Result<Readable, Problem> {
+    readable_placed(api, context, found, None).await
+}
+
+/// [`readable_among`], each object placed where it was at `placed` (`None`: now).
+async fn readable_placed(
+    api: &Api,
+    context: &RequestContext,
+    found: impl IntoIterator<Item = (Uuid, Target)>,
+    placed: Option<OffsetDateTime>,
+) -> Result<Readable, Problem> {
     let mut by_target: BTreeMap<&'static str, (Target, Vec<Uuid>)> = BTreeMap::new();
     for (id, target) in found {
         by_target
@@ -369,7 +430,7 @@ async fn readable_among(
     }
     let mut readable = Readable::all();
     for (target, ids) in by_target.into_values() {
-        readable = readable.of(api, context, target, ids).await?;
+        readable = readable.placed(api, context, target, ids, placed).await?;
     }
     Ok(readable)
 }
