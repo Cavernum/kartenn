@@ -9660,6 +9660,41 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     voisines de `web/v2/e2e/budgets/budgets.spec.ts` (plugins posés avant de mesurer,
     22f-g, à imiter)
   - dépend de : —
+  - fait en partie le 2026-11-17, bornée par la session principale aux trois parcours
+    Firefox qui bloquaient le push (`moves.spec.ts` « a host cannot go under itself… » et
+    « to a host on another site… », `records.spec.ts` « the list screens without a toolbar
+    or a footer… ») ; causes établies par reproduction forcée (une lecture retardée par
+    `page.route`, échec à l'identique avant, passage après), non par une trace d'échec en
+    passe complète (aucun échec en deux passes Firefox et complète) :
+    - hôte d'une machine : un vrai défaut du plugin. Le champ « Nouvel hébergeur »
+      (`HostSection.vue`) demande ses suggestions une fois par texte ; tapé avant la fin
+      de la lecture des hôtes (`/v1/clusters`, `/v1/machines`, page après page), il
+      répondait des pages lues et ne montrait jamais les hôtes des suivantes. `suggest`
+      attend désormais la fin de cette lecture (ou son arrêt sur une page refusée), la
+      liste dit « chargement » entre-temps. Pas une régression des 11p10-d3/d4 ni de la
+      002-29d2 : l'option absente est l'hôte entier, pas sa raison de refus tirée d'un
+      résumé. Même champ dans `machines.spec.ts` (« a physical machine to a cluster »).
+      Test rouge d'abord : `machines-view.test.ts` (texte tapé pendant la lecture de la
+      deuxième page, suggestion venue avec elle, sans retaper).
+    - liste sans barre ni pied : un chargement interrompu par le parcours, pas un défaut
+      du shell. La table de l'aide des raccourcis, morceau chargé à part dans un moment
+      creux après le cadre (`ShellFrame.vue`, tâche 22r), sous l'`integrity` de la carte
+      d'imports ; `atRest` n'attendait que `PLUGINS_FETCHED`, et ce parcours quittait sa
+      première liste sans l'appeler. Le shell pose `HELP_FETCHED` une fois ce
+      préchargement réglé (`loader.ts`, test rouge d'abord dans `frame.test.ts`) ; `atRest`
+      attend les deux marques (tous les parcours qui l'appellent, `loginIn` compris) ; le
+      parcours l'appelle avant de passer à la liste suivante. Aucune tolérance ajoutée à
+      la garde.
+    Preuve : chacun des trois passé 10 fois de suite, filtré, sous Firefox ;
+    `k-web2-e2e` complet 295/295.
+  - reste : le `verify` tel qu'écrit ne se tient pas. « Un `k-check` en parallèle » : les
+    deux prennent le verrou `--pg` et se suivent. `--repeat-each 20` sur
+    `machines.spec.ts` : ses données ne se répètent pas dans une même passe (70 sur 100,
+    les 30 échecs dus à la répétition : MAC fixe par navigateur, « Interfaces trouvées :
+    2. » ; plafond de 50 brouillons par identité, `draft-limit`) ; le champ de l'hôte y a
+    passé ses suggestions 20 fois sur 20. À reprendre : des MAC uniques par passage et un
+    brouillon rendu, puis les deux fichiers 20 fois sous une charge d'une autre source ;
+    `shell/test/property-batch.test.ts` sous charge (vu par la 11p10-d4), non regardé.
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
