@@ -314,9 +314,21 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   autre que `id` (identifiant nu, seul, en tableau ou nullable), ou un objet à `id` de
   format `uuid` sans autre membre que `kind`, `type` et `href` (référence sans
   libellé) ; chaque relevé doit figurer dans `UNSUMMARISED` avec sa raison (ce qui n'est
-  pas un objet du référentiel : version, identité, changeset, groupe des droits ; ou le
-  renvoi à la tâche qui le résumera : 33f1, 33g, 42), et une exemption qui ne sert plus
-  fait échouer la garde. Elle ne voit pas : les corps des requêtes, les valeurs libres
+  pas un objet du référentiel : version, identité, changeset, groupe des droits ; une
+  donnée d'un flux ; ou le renvoi à la tâche qui le résumera : 33g, 42), et une
+  exemption qui ne sert plus fait échouer la garde. **Les corps d'un flux sont exemptés
+  des résumés** (arbitrage du 2026-11-16, tâche 006-33f1, option B) : un flux lisible est
+  servi tel quel à tout lecteur du flux (027/REQ-027-2, qui prime ici sur REQ-006-42) ;
+  ses extrémités (sorte, identifiant, valeur ou adresses à la date), son service, son
+  entité, son état, sa synthèse, son tri et ses évaluations enregistrées (adresses de la
+  paire, règle décisive, conditions non remplies), une non-conformité (flux, entité,
+  règle et sa clé) sont des données du flux, rendues par identifiant, ni résumées ni
+  réduites selon ce que le lecteur lit : un résumé y porterait un `label` (nom d'une
+  machine ou d'une interface, slug d'une entité), une donnée de l'objet que seule sa
+  route sert, sous sa permission de lecture. La garde nomme ces membres un à un
+  (`FlowEvaluation`, `FlowTriage`, `FlowNonconformity`), en citant REQ-027-2 ;
+  `fields` (`Object`) lui échappe et porte de même les identifiants du service et de
+  l'entité. Elle ne voit pas : les corps des requêtes, les valeurs libres
   (`Object` : valeur d'une propriété, différentiel, détail d'une ligne de rapport), un
   identifiant dont le schéma ne dit pas le format, un objet nommé par un membre autre
   que ceux-là (un `name`, une clé propre) qu'elle tient pour un libellé. Pour ces
