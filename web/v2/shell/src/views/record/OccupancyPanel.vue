@@ -4,14 +4,13 @@
 // in percent beside the title, and the next free address (a network) or prefix (a
 // container). Three states.
 import { reads, type components } from "@kartenn/sdk";
-import { AttributeList, Skeleton } from "@kartenn/ui";
+import { AttributeList, Panel, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { shareOf, whole } from "../occupancy.ts";
-import ViewPanel from "../parts/ViewPanel.vue";
 import { usePainted } from "./painted.ts";
 
 type Occupancy = components["schemas"]["Occupancy"];
@@ -57,7 +56,7 @@ const items = computed(() => {
 </script>
 
 <template>
-  <ViewPanel :title="t('views.record.occupancy')" :detail="share">
+  <Panel :title="t('views.record.occupancy')" :detail="share">
     <ProblemState
       v-if="occupancy.isError.value"
       :title="t('views.record.occupancyError')"
@@ -65,5 +64,5 @@ const items = computed(() => {
     />
     <Skeleton v-else-if="occupancy.isPending.value" variant="text" :rows="2" />
     <AttributeList v-else :items="items" />
-  </ViewPanel>
+  </Panel>
 </template>

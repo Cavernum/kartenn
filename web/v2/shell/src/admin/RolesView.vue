@@ -9,6 +9,7 @@ import {
   EmptyState,
   KeyLabel,
   NoValue,
+  Panel,
   Toolbar,
   type CellRef,
   type GridColumn,
@@ -25,7 +26,6 @@ import { useViewAction } from "../shortcuts/view.ts";
 import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import { useStatus } from "../views/edit/say.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
 import { refusalSentence, useAdminGate } from "./gate.ts";
 import { createRefusal, ROLE_ADMIN, touchesRole, type RoleItem } from "./model.ts";
@@ -143,7 +143,7 @@ const total = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <Panel :title="title" :detail="total" main flush>
     <template #actions>
       <Toolbar
         :label="t('admin.roles.actions')"
@@ -196,7 +196,7 @@ const total = computed(() =>
         <span v-else class="k-num">{{ value }}</span>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
   <span class="k-visually-hidden" role="status">{{ said }}</span>
   <RoleForm v-model:open="creating" mode="create" :taken="rows.map((r) => r.key)" />
 </template>

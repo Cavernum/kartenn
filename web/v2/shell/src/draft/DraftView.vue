@@ -3,12 +3,11 @@
 // same operations, simulation and foot as the draft tab of the right panel, for any draft
 // of the user; « Reprendre » makes it the active draft of the tab.
 import { drafts } from "@kartenn/sdk";
-import { Button, injectToasts } from "@kartenn/ui";
+import { Button, Panel, injectToasts } from "@kartenn/ui";
 import { computed, onScopeDispose, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import ProblemState from "../problems/ProblemState.vue";
 import { keepRecordName } from "../views/names.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import DraftOperations from "./DraftOperations.vue";
 import DraftSubmit from "./DraftSubmit.vue";
 import { useDraftQueries } from "./state.ts";
@@ -40,7 +39,7 @@ function resume(): void {
   >
     {{ t("views.errorText") }}
   </ProblemState>
-  <ViewPanel
+  <Panel
     v-else
     :title="draft?.title ?? t('app.draft')"
     :detail="isActive ? t('drafts.activeMark') : undefined"
@@ -58,5 +57,5 @@ function resume(): void {
     <template #footer>
       <DraftSubmit :id="props.id" />
     </template>
-  </ViewPanel>
+  </Panel>
 </template>

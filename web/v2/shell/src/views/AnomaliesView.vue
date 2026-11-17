@@ -2,13 +2,12 @@
 // Anomalies and gaps (REQ-021-9; design 021 « Catalogue des écrans » : `/anomalies`,
 // `?tab=gaps`): the warnings of the rules, which an acknowledgement with a motive closes,
 // and the expected properties missing; one tab each, the tab in the URL.
-import { Tabs, type TabItem } from "@kartenn/ui";
+import { Panel, Tabs, type TabItem } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import AnomalyList from "./anomalies/AnomalyList.vue";
 import GapList from "./anomalies/GapList.vue";
-import ViewPanel from "./parts/ViewPanel.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -30,10 +29,10 @@ const tab = computed({
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.anomalies") }}</h1>
-  <ViewPanel :title="t('nav.anomalies')" main>
+  <Panel :title="t('nav.anomalies')" main>
     <Tabs v-model="tab" :tabs="tabs" :label="t('views.anomalies.sections')">
       <template #anomalies><AnomalyList /></template>
       <template #gaps><GapList /></template>
     </Tabs>
-  </ViewPanel>
+  </Panel>
 </template>

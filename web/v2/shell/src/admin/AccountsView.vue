@@ -9,6 +9,7 @@
 import {
   DataGrid,
   EmptyState,
+  Panel,
   StatusBadge,
   Toolbar,
   type CellRef,
@@ -25,7 +26,6 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import type { WriteRefusal } from "../time/index.ts";
 import { useStatus } from "../views/edit/say.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { ACCOUNT_ADMIN, activeSecrets, globalRefusal, type AccountItem } from "./access.ts";
 import { useAdminDraft } from "./draft.ts";
 import { refusalSentence, useAdminGate } from "./gate.ts";
@@ -129,7 +129,7 @@ const total = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <Panel :title="title" :detail="total" main flush>
     <template #actions>
       <Toolbar
         :label="t('admin.accounts.actions')"
@@ -177,7 +177,7 @@ const total = computed(() =>
         <template v-else>{{ value }}</template>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
   <span class="k-visually-hidden" role="status">{{ said }}</span>
   <SecretDialog v-model:open="creating" :taken="rows.map((a) => a.name)" />
 </template>

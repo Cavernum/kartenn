@@ -5,7 +5,14 @@
 // elements and its batches. An import is opened by the API (`POST /v1/imports`), chunk by
 // chunk; a row chosen opens its follow-up in the Détail tab of the right panel
 // (`/imports/:id`). Three states.
-import { DataGrid, EmptyState, StatusBadge, type CellRef, type GridColumn } from "@kartenn/ui";
+import {
+  DataGrid,
+  EmptyState,
+  Panel,
+  StatusBadge,
+  type CellRef,
+  type GridColumn,
+} from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
@@ -13,7 +20,6 @@ import { revealDetail } from "../frame/detail.ts";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useFilteredList } from "../views/list.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { importBadge, type ImportItem } from "./imports.ts";
 
 const props = defineProps<{ selected?: string | undefined }>();
@@ -60,7 +66,7 @@ const total = computed(() => (complete.value ? number.value.format(rows.value.le
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush list>
+  <Panel :title="title" :detail="total" main flush list>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <NextPageAlert
       v-else-if="refreshFailed"
@@ -108,5 +114,5 @@ const total = computed(() => (complete.value ? number.value.format(rows.value.le
         <template v-else>{{ row.source }}</template>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
 </template>

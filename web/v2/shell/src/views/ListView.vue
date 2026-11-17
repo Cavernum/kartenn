@@ -21,6 +21,7 @@ import {
   FilterPicker,
   KeyLabel,
   NoValue,
+  Panel,
   StatusBadge,
   type CellRef,
   type GridColumn,
@@ -61,7 +62,6 @@ import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useProblems } from "../problems/index.ts";
 import { useFilteredList } from "./list.ts";
-import ViewPanel from "./parts/ViewPanel.vue";
 
 const props = defineProps<{ collection: Collection }>();
 const { t, locale } = useI18n();
@@ -317,7 +317,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush list>
+  <Panel :title="title" :detail="total" main flush list>
     <template #toolbar>
       <FilterPicker
         ref="picker"
@@ -465,5 +465,5 @@ function clearFilters(): void {
       </template>
       <span role="status">{{ restarted ? t("views.list.restarted") : said }}</span>
     </template>
-  </ViewPanel>
+  </Panel>
 </template>

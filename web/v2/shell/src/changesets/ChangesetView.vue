@@ -23,6 +23,7 @@ import {
   Grid,
   InlineAlert,
   KeyLabel,
+  Panel,
   Skeleton,
   Stack,
   StatusBadge,
@@ -51,7 +52,6 @@ import { useSay } from "../views/edit/say.ts";
 import { rowsOf, useKeyLabel } from "../views/data.ts";
 import { nameOf, type Item } from "../views/collections.ts";
 import { keepRecordName } from "../views/names.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import {
   countedGroups,
   diffGroups,
@@ -441,7 +441,7 @@ const counted = computed(() =>
   >
     {{ t("views.errorText") }}
   </ProblemState>
-  <ViewPanel v-else :title="title" :detail="detail" main>
+  <Panel v-else :title="title" :detail="detail" main>
     <!-- The state, then the review actions, in one bar (maquette E4). -->
     <template #toolbar>
       <Skeleton v-if="!changeset" variant="text" :rows="1" />
@@ -581,7 +581,7 @@ const counted = computed(() =>
         </template>
       </Tabs>
     </template>
-  </ViewPanel>
+  </Panel>
   <Dialog
     v-model:open="rejecting"
     :title="t('changesets.rejectTitle', { motive: title })"
