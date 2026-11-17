@@ -1152,7 +1152,7 @@ struct Unknown {
 
 /// The read permission of the objects of `kind`, `None` for the declarations and their
 /// closed lists, which every author reads (spec 003).
-fn read_permission(kind: ObjectKind) -> Option<String> {
+pub(crate) fn read_permission(kind: ObjectKind) -> Option<String> {
     Some(match kind {
         ObjectKind::Domain => "core.domain.read".into(),
         ObjectKind::Prefix => "core.prefix.read".into(),

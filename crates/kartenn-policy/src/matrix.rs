@@ -403,18 +403,35 @@ mod write {
 
     /// Under the key `policy`, before the write of the cell: the policy has the revision
     /// its matrix was compared at, less the one this changeset raised (S35). Another
-    /// changeset that wrote the policy in between makes the tag stale.
+    /// changeset that wrote the policy in between makes the tag stale. An empty cell
+    /// emptied is refused here, once the rights checked before the writes are granted.
     ///
     /// # Errors
-    /// `policy.matrix.stale`; a failure of the database.
+    /// `policy.matrix.stale`; `policy.operation.invalid` for an empty cell emptied; a
+    /// failure of the database.
     pub(crate) async fn check_set(
         conn: &mut PgConnection,
         data: &Value,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
-        let Some(compared) = data.get("revision").and_then(Value::as_u64) else {
-            return Ok(());
-        };
+        if let Some(compared) = data.get("revision").and_then(Value::as_u64) {
+            fresh(conn, compared, changeset).await?;
+        }
+        if data.get("empty").is_some() {
+            return Err(WriteError::Rule(Violation::new(
+                &crate::rules::OPERATION_INVALID,
+                "policy.matrix.set: the cell is empty",
+            )));
+        }
+        Ok(())
+    }
+
+    /// The policy has the revision `compared`, less the one `changeset` raised.
+    async fn fresh(
+        conn: &mut PgConnection,
+        compared: u64,
+        changeset: Uuid,
+    ) -> Result<(), WriteError> {
         let before: i64 = sqlx::query_scalar(
             "SELECT policy - CASE WHEN policy_by = $1 THEN 1 ELSE 0 END
                FROM policy.policy_revision",
@@ -465,13 +482,10 @@ mod write {
             "deny" => "deny",
             "none" => {
                 // The cell emptied: its rule closed by the core (D33 checks its referrers).
-                // An empty cell, of a flow type absent among others, has nothing to close: its
-                // plan writes nothing, so that the flow type is judged by the pipeline
-                // (`core.reference.unknown`), after the rights of an author who does not
-                // read it, and no refusal of the plan tells him first whether it holds a rule
-                // (INV-63, task 002-29d4).
+                // An empty cell, or a flow type absent: refused at the write, after the
+                // rights (`check_set`, INV-63).
                 let Some(existing) = set.completed.existing else {
-                    return Ok(plan(RULE, object, false, json!({ "noop": true })));
+                    return Ok(plan(RULE, object, false, json!({ "empty": true })));
                 };
                 let mut planned = plan(RULE, existing, false, json!({ "noop": true }));
                 planned.core.push(Operation::Close {

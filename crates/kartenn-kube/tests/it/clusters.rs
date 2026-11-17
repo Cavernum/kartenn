@@ -2169,7 +2169,12 @@ async fn vip_shared_read_required(pool: PgPool) {
         .iter()
         .find(|v| v.rule.id == "core.object.forbidden")
         .unwrap_or_else(|| panic!("{outcome:?}"));
-    assert!(forbidden.subjects.contains(&vip), "{forbidden:?}");
+    // Counted, not named: its author does not read it (INV-63, task 002-29d4).
+    assert_eq!(
+        (forbidden.message.as_str(), forbidden.subjects.as_slice()),
+        ("1 object(s) need core.address.read", &[][..]),
+        "{forbidden:?}"
+    );
     // Reading the addresses, the same writer attaches it.
     let reader = env
         .granted(&[&writer[..], &["core.address.read"]].concat())

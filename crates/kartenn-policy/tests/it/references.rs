@@ -285,6 +285,15 @@ impl World {
                 ),
             ])
             .await;
+        // The cell `prod` → `dev` of `ft` holds a rule.
+        world
+            .env
+            .applied(vec![op(
+                "matrix.set",
+                json!({ "source": "prod", "destination": "dev",
+                        "flow_type": { "id": world.flow_type }, "state": "allow" }),
+            )])
+            .await;
         world
     }
 
@@ -888,21 +897,86 @@ async fn every_reference_of_every_operation_is_checked(pool: PgPool) {
     assert_eq!(world.written().await, before, "nothing is written");
 }
 
+/// The objects each violation of the refusal `outcome` names, as they are.
+fn named(outcome: &Outcome) -> Vec<Vec<Uuid>> {
+    let Outcome::Refused { violations, .. } = outcome else {
+        panic!("expected a refusal, got {outcome:?}")
+    };
+    violations.iter().map(|v| v.subjects.clone()).collect()
+}
+
 /// INV-63 on the references of the module (task 002-29d4), for each field of each
 /// operation type: an author without any right gets the refusal of his rights, the same
-/// whole (rules, messages, operations, details, objects, in order) whatever the identifier
-/// names. An author with every right to write but none to read the policy, his rules of
-/// inference in the domain `lab`: where the reference needs a right (the domain of a rule
-/// of inference, the rule an update writes), the refusal of his rights for an object in
-/// force out of his reach, the same for every hidden one; elsewhere (an oracle of existence
-/// left to task 002-31), the object in force applied and every hidden one refused alike by
-/// `core.reference.unknown`, as one who reads would be.
+/// whole (rules, messages, operations, details, in order) whatever the identifier names,
+/// and naming no object, which he reads none of.
 #[kartenn_testing::pg_test]
-#[allow(clippy::too_many_lines)] // two authors, each compared on every field
 async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
     let world = World::new(&pool).await;
     let kept = world.fixtures();
     let nobody = world.granted(&[], &[]).await;
+    let mut leaks = Vec::new();
+    for f in world.fields() {
+        let name = format!("{} `{}`", f.tag, f.field);
+        let reach = world.submit_as(nobody, vec![(f.make)(f.live)]).await;
+        let expected = seen(&reach, f.live, &kept);
+        assert!(!expected.contains(UNKNOWN), "{name}: {expected}");
+        let mut answers = vec![(f.live, reach)];
+        for x in [Uuid::now_v7(), f.other, f.closed] {
+            let answer = world.submit_as(nobody, vec![(f.make)(x)]).await;
+            let got = seen(&answer, x, &kept);
+            if got != expected {
+                leaks.push(format!("{name} ({x}): {got} / expected {expected}"));
+            }
+            answers.push((x, answer));
+        }
+        for (x, answer) in &answers {
+            if named(answer).iter().any(|s| !s.is_empty()) {
+                leaks.push(format!("{name} ({x}) names objects: {answer:?}"));
+            }
+        }
+    }
+    assert!(leaks.is_empty(), "{leaks:#?}");
+}
+
+/// INV-63 (task 002-29d4): a refusal of the rights names none of the objects its author
+/// does not read, so that the cell emptied twice by an author without any right answers
+/// alike whether it holds a rule (whose identifier would come back twice) or its flow type
+/// is absent (an identifier drawn anew each time).
+#[kartenn_testing::pg_test]
+async fn a_refusal_of_rights_names_no_object_out_of_reach(pool: PgPool) {
+    let world = World::new(&pool).await;
+    let nobody = world.granted(&[], &[]).await;
+    let emptied = |flow_type: Uuid| {
+        op(
+            "matrix.set",
+            json!({ "source": "prod", "destination": "dev",
+                    "flow_type": { "id": flow_type }, "state": "none" }),
+        )
+    };
+    let absent = Uuid::now_v7();
+    let mut answers = Vec::new();
+    for flow_type in [world.flow_type, world.flow_type, absent, absent] {
+        answers.push(named(
+            &world.submit_as(nobody, vec![emptied(flow_type)]).await,
+        ));
+    }
+    assert_eq!(answers[0], answers[2], "{answers:?}");
+    assert_eq!(answers[1], answers[3], "{answers:?}");
+    assert!(answers.iter().flatten().all(Vec::is_empty), "{answers:?}");
+}
+
+/// INV-63 on the references of the module (task 002-29d4), for each field of each
+/// operation type, an author with every right to write but none to read the policy, his
+/// rules of inference in the domain `lab`: where the reference needs a right (the domain of
+/// a rule of inference, the rule an update writes), the refusal of his rights for an object
+/// in force out of his reach, the same for every hidden one; elsewhere (an oracle of
+/// existence left to task 002-31), the object in force applied and every hidden one
+/// refused alike, by `core.reference.unknown` as one who reads would be, or by the write
+/// that comes first (the object of an update, an empty cell).
+#[kartenn_testing::pg_test]
+async fn a_writer_who_does_not_read_is_answered_alike(pool: PgPool) {
+    let world = World::new(&pool).await;
+    let kept = world.fixtures();
     let blind = world
         .granted_on(
             ("domain", world.env.domain),
@@ -924,19 +998,7 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             ("policy.inference_rule.update", "id") => Some(world.far_inference),
             _ => None,
         };
-        // Without any right: the refusal of the rights, whatever `x` names.
-        let reach = world.submit_as(nobody, vec![(f.make)(f.live)]).await;
-        let expected = seen(&reach, f.live, &kept);
-        assert!(!expected.contains(UNKNOWN), "{name}: {expected}");
-        for x in hidden {
-            let answer = world.submit_as(nobody, vec![(f.make)(x)]).await;
-            let got = seen(&answer, x, &kept);
-            if got != expected {
-                leaks.push(format!("nobody, {name} ({x}): {got} / expected {expected}"));
-            }
-        }
-        // Every right to write, none to read the policy: hidden first, the object in force
-        // applied changes what follows.
+        // Hidden first: the object in force applied changes what follows.
         let answers: Vec<(Uuid, String)> = {
             let mut answers = Vec::new();
             for x in hidden {
@@ -961,6 +1023,16 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
                 "subjects": ["<x>"],
             }])
             .to_string()
+        } else if serde_json::to_value((f.make)(Uuid::nil())).unwrap()["state"] == "none" {
+            // An empty cell, that of a flow type hidden: refused at its write.
+            json!([{
+                "rule": "policy.operation.invalid",
+                "message": "policy.matrix.set: the cell is empty",
+                "operation": 0,
+                "detail": null,
+                "subjects": [],
+            }])
+            .to_string()
         } else {
             json!([{
                 "rule": UNKNOWN,
@@ -976,7 +1048,7 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
         };
         for (x, got) in answers {
             if got != expected {
-                leaks.push(format!("blind, {name} ({x}): {got} / expected {expected}"));
+                leaks.push(format!("{name} ({x}): {got} / expected {expected}"));
             }
         }
         let applied = world.submit_as(blind, vec![(f.make)(f.live)]).await;

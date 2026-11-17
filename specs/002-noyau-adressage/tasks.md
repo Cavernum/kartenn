@@ -615,35 +615,54 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     (`objects.rs` 26 à 91), `axis.update`, `matrix.set` et `infer.rs` (729 à 820), et
     fuites — verify : `k-check -p kartenn-policy`
     - où : `crates/kartenn-policy/tests/it/rights.rs` et un module de tests nouveau
-    - fait le 2026-11-17 : une fuite, rouge d'abord : `policy.matrix.set` à l'état `none`
-      sur une cellule vide était refusé par le plan (`policy.operation.invalid`, « the cell
-      is empty »), avant les droits ; un auteur sans aucun droit recevait ce refus pour un
-      type de flux inconnu, clos ou d'un autre type, et le refus de ses droits pour un type
-      de flux en vigueur dont la cellule porte une règle ; un lecteur recevait ce refus au
-      lieu de `core.reference.unknown`. `matrix.rs` (`planned_set`) : une cellule vide vidée
-      a un plan qui n'écrit rien. Module nouveau `tests/it/references.rs` :
+    - fait le 2026-11-17 : deux fuites, rouges d'abord. (1) `policy.matrix.set` à l'état
+      `none` sur une cellule vide était refusé par le plan (`policy.operation.invalid`,
+      « the cell is empty »), avant les droits ; un auteur sans aucun droit recevait ce
+      refus pour un type de flux inconnu, clos ou d'un autre type, et le refus de ses
+      droits pour un type de flux en vigueur dont la cellule porte une règle ; un lecteur
+      recevait ce refus au lieu de `core.reference.unknown`. `matrix.rs` (`planned_set`,
+      `check_set`) : le même refus, à l'écriture, après les droits vérifiés avant les
+      écritures et la lecture du type de flux ; le plan n'écrit rien et n'est jamais
+      appliqué. (2) Relevée en revue : le refus des droits nommait en `subjects` les
+      objets refusés, dont ceux qu'un plan complète pour l'auteur (la règle d'une cellule
+      tenue, la même à chaque soumission ; un identifiant tiré pour une cellule vide) ;
+      `kartenn-service/src/rights.rs` (`named`) : un refus du droit d'éditer
+      (`check_objects`, `check_guards`, effets de propriétés) ne nomme que les objets en
+      vigueur que l'auteur lit, les autres restent comptés dans le message ; les manques
+      de qui applique gardent leurs objets, dont l'instruction se sert (REQ-024-11).
+      Attentes changées : `kartenn-kube` `clusters::vip_shared_read_required`,
+      `kartenn-machines` `machines::a_machine_brought_back_hosts_from_the_next_changeset`
+      (objet compté, non nommé) ; `kartenn-service` `tests/it/rights.rs` (`with_objects`
+      accorde la lecture des objets dont ces tests comparent la liste). Module nouveau
+      `tests/it/references.rs` :
       `every_reference_of_every_operation_is_checked` (26 couples opération × champ sur les
       13 types qui citent par identifiant, le type de flux d'une cellule sous `allow` et
       sous `none`, les 9 autres types listés sans référence ; pour chacun
       un identifiant inconnu, un objet d'un autre type et un objet clos : une seule violation
       `core.reference.unknown` comparée entière, message, opération, `detail` et objets ;
       rien d'écrit, révisions comprises), `no_right_reaches_through_a_hidden_reference`
-      (chaque couple, deux auteurs : sans aucun droit, refus de ses droits égal pour l'objet
-      en vigueur et les trois cachés, comparé entier, identifiants tirés masqués ; avec tous
-      les droits d'écrire sans lire la politique, règles d'inférence dans `lab` : refus des
-      droits égaux là où la référence en exige (domaine d'une règle d'inférence, règle
-      qu'une mise à jour écrit), ailleurs l'objet en vigueur appliqué et les cachés refusés
-      à l'identique), `a_hidden_domain_answers_the_same_bytes` (par HTTP, `POST
-      /v1/changesets` : statut 422 et octets égaux pour un domaine inconnu, clos et hors
-      d'atteinte, une fois masqués l'identifiant donné, le changeset et la requête ; créée
-      dans `lab`). Attente changée dans `matrix.rs` (tests) : vider une cellule vide est
-      appliqué sans rien écrire ; `rest.rs` (tests) : `Env::app` partagé
-    - choix : cellule vide vidée en plan `noop` plutôt qu'en refus (le choix de la 010-18,
-      « une cellule déjà vide est refusée », est retourné : seul moyen, dans le module, de
-      ne rien dire avant les droits) ; la comparaison des réponses masque l'identifiant
-      donné et ceux que la requête tire, garde ceux des objets du test ; l'auteur des
-      règles d'inférence est lié au domaine `lab` (une liaison sur l'entité propriétaire ne
-      donne pas `policy.inference.admin` sur une règle ancrée dans son domaine)
+      (chaque couple, un auteur sans aucun droit : refus de ses droits égal pour l'objet en
+      vigueur et les trois cachés, comparé entier, identifiants tirés masqués, aucun objet
+      nommé), `a_refusal_of_rights_names_no_object_out_of_reach` (cellule tenue et type de
+      flux absent vidés deux fois, objets comparés sans masque),
+      `a_writer_who_does_not_read_is_answered_alike` (tous les droits d'écrire sans lire la
+      politique, règles d'inférence dans `lab` : refus des droits égaux là où la référence
+      en exige — domaine d'une règle d'inférence, règle qu'une mise à jour écrit —,
+      ailleurs l'objet en vigueur appliqué et les cachés refusés à l'identique),
+      `a_hidden_domain_answers_the_same_bytes` (par HTTP, `POST /v1/changesets` : statut
+      422 et octets égaux pour un domaine inconnu, clos et hors d'atteinte, une fois
+      masqués l'identifiant donné, le changeset et la requête ; créée dans `lab`) ;
+      `tests/it/matrix.rs` : `an_empty_cell_emptied_is_refused_at_its_write` (sans et
+      sous `if_match` lu : `policy.operation.invalid` sans objet nommé ; autre empreinte :
+      `policy.matrix.stale` ; ni version, ni objet de module, ni révision écrits) ;
+      `rest.rs` (tests) : `Env::app` partagé ; spec 010 : choix de la tâche 18 précisé,
+      tâche 23 nouvelle
+    - choix : le refus d'une cellule vide vidée passe du plan à l'écriture (`check_set`)
+      plutôt qu'en plan appliqué sans écriture, qui aurait rangé un objet tiré parmi les
+      objets touchés du changeset (`object_version`, sections) ; contrat REST inchangé
+      (422) ; la comparaison des réponses masque l'identifiant donné et ceux que la requête
+      tire, garde ceux des objets du test ; l'auteur des règles d'inférence est lié au
+      domaine `lab` (spec 010, tâche 23)
     - reste : sous `if_match`, un type de flux absent rend la cellule périmée
       (`policy.matrix.stale`) avant les références et les droits, comme un type de flux en
       vigueur dont l'empreinte diffère : pas de fuite sans connaître l'empreinte, mais un
@@ -651,10 +670,14 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       la politique caché à un auteur qui l'écrit sans le lire (identifiant inconnu, d'un
       autre type ou clos) est refusée par son écriture (`changeset.operation.no_version`),
       avant les désignations cachées, à l'identique pour les trois : l'oracle d'existence
-      de la tâche 31, mais pas sa règle ; les références de la politique n'exigent aucune
-      lecture (tâche 31) ; une liaison de `policy.inference.admin` sur une entité n'atteint
-      pas les règles d'inférence ancrées dans ses domaines (REQ-010-46, à vérifier dans la
-      spec 010)
+      de la tâche 31 (renvoi inscrit), mais pas sa règle ; de même une cellule vide vidée
+      par un tel auteur, pour un type de flux caché : refusée par son écriture ; les
+      références de la politique n'exigent aucune lecture (tâche 31) ; une liaison de
+      `policy.inference.admin` sur une entité n'atteint pas les règles d'inférence ancrées
+      dans ses domaines (spec 010, tâche 23) ; le motif d'un changeset mis en attente faute
+      d'`approval.self` (`approval_self_missing`, objets de `unapplied`) nomme encore tous
+      les objets, lus ou non : séparer les objets servis de ceux de l'instruction touche le
+      pipeline (`pipeline.rs`, `Pending`, `StoredReason`)
 - [ ] 30. Clé étrangère temporelle sur les références du noyau : la base refuse d'elle-même
   une ligne dont la référence ne désigne pas une ligne en vigueur sur toute sa période de
   validité (PostgreSQL 18, `FOREIGN KEY (…, PERIOD …) REFERENCES … (…, PERIOD …)`), en
@@ -691,6 +714,10 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   un auteur sans `<type>.read` sur la cible reçoit des réponses égales pour une cible
   hors de portée, inconnue, d'un autre type et close, pour chaque champ de référence de
   chaque module ; `k-check`
+  - versé par la 29d4 (2026-11-17) : la mise à jour d'un objet caché à qui l'écrit sans
+    le lire est refusée par son écriture (`changeset.operation.no_version`), avant les
+    désignations cachées (`core.reference.unknown`) ; une fois la lecture exigée avant
+    les écritures, ce refus ne doit plus pouvoir précéder celui des droits
   où : `crates/kartenn-service/src/pipeline.rs` (`check_designations`, `read_permission`,
   `stages`), `rights.rs` ; `specs/005-*/`, `specs/009-*/` (M16), `docs/adr/` (0026)
   dépend de : 29c2, 29d ; publication de la v0.2

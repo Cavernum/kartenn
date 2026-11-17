@@ -186,16 +186,10 @@ async fn a_view_written_and_read_back_keeps_one_rule_per_cell(pool: PgPool) {
         .await;
     assert_eq!(living_rules(&pool).await, 1);
     assert_eq!(read(&env).await.cells.len(), 1);
-    // An empty cell emptied: nothing to close, nothing written (INV-63, task 002-29d4: no
-    // refusal of the plan tells whether a cell holds a rule before the rights do).
-    let (revision, view) = (env.revision().await, read(&env).await);
-    env.applied(vec![set("dev", file, "prod", "none", json!({}))])
-        .await;
-    assert_eq!(living_rules(&pool).await, 1);
-    assert_eq!((env.revision().await, read(&env).await), (revision, view));
 }
 
-/// A deny cell without its text and a conditional one without patterns are refused.
+/// A deny cell without its text, a conditional one without patterns, and an empty cell
+/// emptied are refused.
 #[kartenn_testing::pg_test]
 async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -209,9 +203,54 @@ async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
             set("prod", file, "dev", "conditional", json!({})),
             "policy.operation.invalid",
         ),
+        (
+            set("prod", file, "dev", "none", json!({})),
+            "policy.operation.invalid",
+        ),
     ] {
         let outcome = env.submit(vec![operation]).await;
         assert!(rules(&outcome).contains(&rule), "{outcome:?}");
+    }
+}
+
+/// The versions recorded, the objects of the modules, the revisions of the policy.
+async fn traces(pool: &PgPool) -> (i64, i64, i64) {
+    sqlx::query_as(
+        "SELECT (SELECT count(*) FROM object_version), (SELECT count(*) FROM module_object),
+                (SELECT policy FROM policy.policy_revision)",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// An empty cell emptied (task 002-29d4) is refused at its write, once the rights checked
+/// before the writes are granted (INV-63): its plan writes nothing and the refusal names
+/// no object, nothing is recorded; under `if_match`, the same refusal with the tag read,
+/// `policy.matrix.stale` with another.
+#[kartenn_testing::pg_test]
+async fn an_empty_cell_emptied_is_refused_at_its_write(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (file, _) = catalogue(&env).await;
+    let before = traces(&pool).await;
+    let tag = format!("\"{}\"", fingerprint(&read(&env).await));
+    for (extra, rule) in [
+        (json!({}), "policy.operation.invalid"),
+        (json!({ "if_match": tag }), "policy.operation.invalid"),
+        (json!({ "if_match": "\"other\"" }), "policy.matrix.stale"),
+    ] {
+        let outcome = env
+            .submit(vec![set("prod", file, "dev", "none", extra)])
+            .await;
+        let kartenn_service::Outcome::Refused { violations, .. } = &outcome else {
+            panic!("{outcome:?}")
+        };
+        let found: Vec<(&str, usize)> = violations
+            .iter()
+            .map(|v| (v.rule.id, v.subjects.len()))
+            .collect();
+        assert_eq!(found, [(rule, 0)], "{outcome:?}");
+        assert_eq!(traces(&pool).await, before, "{rule}: nothing recorded");
     }
 }
 

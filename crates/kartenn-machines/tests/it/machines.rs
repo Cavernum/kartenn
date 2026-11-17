@@ -3434,13 +3434,14 @@ async fn a_machine_brought_back_hosts_from_the_next_changeset(pool: PgPool) {
                "host": {"machine": {"id": far}}}),
     );
     let together = env.submit_as(mover, vec![home.clone(), vm.clone()]).await;
+    // Counted, not named: its author does not read it (INV-63, task 002-29d4).
     assert_eq!(
         refusal(&together),
         [(
             "core.object.forbidden",
             "1 object(s) need machines.read".to_owned(),
             None,
-            1
+            0
         )]
     );
     for operations in [vec![home], vec![vm]] {
