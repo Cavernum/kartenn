@@ -238,9 +238,15 @@ réponse inchangée ; même clé, contenu différent → 422 ; même clé encore
 409. La durée de rétention doit figurer dans le contrat OpenAPI. [H8, Idempotency-Key
 -07]
 
+*Amendement du 2026-11-17 (006-33g1, changement de contrat porté à la connaissance de
+l'utilisateur)* : le rejeu sert le même résultat ; les références y sont résumées selon
+les droits de l'appelant au moment du rejeu (REQ-006-42), aucun corps n'étant gardé : un
+droit retiré entre-temps laisse `{id}` là où la première réponse résumait l'objet.
+
 Acceptation :
 - Deux `POST` identiques avec la même clé : un seul objet créé, deux réponses égales.
 - La même clé par une autre identité crée un second objet.
+- Un rejeu après le retrait du droit de lire un objet fermé par cascade le sert en `{id}`.
 
 #### REQ-006-16 — Cycle d'un changeset
 kartenn doit exposer la lecture d'un changeset (état, opérations, résultat,

@@ -1321,6 +1321,11 @@ routeur complet, sauf mention « vrai TCP ».
     d'un objet illisible se dit. Options : résumer (`kind` omis avec `label` pour un
     illisible, comme l'hôte d'une machine, 33d) ; ou ne garder que les objets lisibles
     avec un compte des autres.
+  - reste pour 33g2 à 33g5 (établi par la 33g1) : un objet que le changeset ferme
+    (différentiel, opérations, placements, sujets) n'est plus situé maintenant ; pour un
+    appelant à portée, l'autorisateur le juge hors de tout placement et `Summaries::read`
+    le rend `{id}` même s'il le lisait : le lire par `Summaries::read_closed` à l'instant
+    qui précède sa fermeture, et tester avec un appelant à portée.
   - découpée le 2026-11-16 (33g1 à 33g5, chacune dans un contexte d'agent) ; chacune
     retire de `UNSUMMARISED` les exemptions qu'elle rend inutiles, régénère le contrat
     (`cargo run -p kartenn-server --all-features -- openapi`) et les types des SDK
@@ -1357,9 +1362,22 @@ routeur complet, sauf mention « vrai TCP ».
     choix : clés lues à `valid_from` du changeset moins une microseconde, telles
     qu'affirmées maintenant (une fermeture sous `within` d'une autre période peut donc
     laisser `{id}` à un lecteur : perte d'information, pas de fuite) ; simulation lue à
-    l'instant de la requête ; lisibilité jugée maintenant, comme partout (un objet fermé
-    que l'autorisateur ne situe plus reste `{id}`) ; le rejeu d'une clé d'idempotence
-    sert les résumés du moment, non ceux de la première réponse.
+    l'instant de la requête, quel que soit le `valid_from` demandé, même à venir (rien
+    n'est fermé) ; le rejeu d'une clé d'idempotence sert les résumés du moment, non ceux
+    de la première réponse (REQ-006-15 amendé le 2026-11-17, changement de contrat porté
+    à la connaissance de l'utilisateur).
+    corrections de la revue (une passe) : un appelant à portée (droits limités à une
+    entité) recevait `{id}` pour toute clôture appliquée ou lue, l'autorisateur jugeant
+    l'objet maintenant, donc fermé, hors de tout placement (test rouge
+    `a_scoped_author_reads_the_closures_it_could_read` : simulation résumée, 201 en
+    `{id}`) ; `summary.rs` `Summaries::read_closed` juge chaque objet là où il était à
+    l'instant lu (`PgAuthorizer::visibility` des droits tenus maintenant, puis `outside`
+    à cette date), `Readable::placed`, `readable_placed` ; `Summaries::read` inchangé.
+    Rejeu testé (même appelant : même corps ; `core.vlan.read` retiré : `{id}`),
+    simulation par un rédacteur qui ne lit pas les VLAN (`{id}`) ; SDK : une clôture
+    sans genre invalide son identifiant et toutes les listes (`write.test.ts`) ; libellé
+    de la 021-11p10-d1 au pluriel (« Objets illisibles pour vous, ou absents »), testé
+    dans `ClosePanel.vue` (`close.test.ts`).
   - [ ] 33g2. Différentiel : `DiffObject {id}` (`GET /v1/changesets/{id}/diff`),
     `DiffItemDto.object` (échantillon d'une simulation) et les valeurs de type référence
     de `before`/`after`, démasquées selon la lisibilité de l'objet et non de la cible —

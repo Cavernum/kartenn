@@ -541,8 +541,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     arbitrage du 2026-11-16, 006-33g1 : `{id, kind, slug, label, href}` pour un objet que
     l'appelant lit, la clé lue à l'instant qui précède le début de la période du
     changeset, `{id}` seul sinon, sans le genre ; la simulation lit les clés au moment de
-    la requête, rien n'étant fermé ; la lisibilité est celle du moment de la réponse, le
-    rejeu peut donc différer de la première réponse par ces seuls résumés), et le 422 sert
+    la requête, rien n'étant fermé ; la lisibilité suit les droits du moment de la
+    réponse, chaque objet situé là où il était à l'instant lu, le rejeu peut donc
+    différer de la première réponse par ces seuls résumés, REQ-006-15), et le 422 sert
     les erreurs puis les avertissements, dans l'ordre des colonnes `violations` et
     `anomalies` du journal. Statut rejoué : 202 pour un changeset d'approbation ou de
     proposition (même décidé depuis), sinon 201 (`applied`) ou 422 (`refused`) ; seul
