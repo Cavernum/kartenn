@@ -3,15 +3,22 @@
 //! an object of its kind in force at the start of the period, refused otherwise by
 //! `core.reference.unknown`; and an author without the right on the object a reference
 //! names gets the same answer whatever its identifier names (INV-63). The cluster of a
-//! `sync` absent at the start of its period is left to task 002-29d2: every `sync` here
-//! names a living cluster.
+//! `sync` is read by its author before the writes (task 002-29d2): a connector that does
+//! not read it, its own cluster included, gets for it the answer it gets for a cluster
+//! absent at the start of the period (unknown, closed, created later), through the
+//! service and through HTTP alike.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use axum::Router;
+use axum::body::{Body, Bytes};
+use axum::http::{Request, StatusCode, header};
+use http_body_util::BodyExt;
 use kartenn_core::objects::Nature;
 use kartenn_kube::Kube;
 use kartenn_machines::Machines;
+use kartenn_service::authn::IdentityKind;
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::declarations::{ModuleDeclarations, core_declarations_for, sync_modules};
 use kartenn_service::module::{Module, ModuleRegistry};
@@ -22,6 +29,9 @@ use kartenn_store_pg::write::PgStore;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
+use sqlx::types::time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
+use tower::ServiceExt;
 
 const UNKNOWN: &str = "core.reference.unknown";
 
@@ -334,6 +344,15 @@ impl Env {
         self.id("machines.machine", "name", name).await
     }
 
+    /// The instant of the database, in microseconds since the epoch: the start of a period
+    /// before what follows.
+    async fn instant(&self) -> i64 {
+        sqlx::query_scalar("SELECT (extract(epoch FROM clock_timestamp()) * 1000000)::bigint")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+
     /// The living rows of the tables of the module and of `module_object`.
     async fn written(&self) -> Vec<i64> {
         let mut counts = Vec::new();
@@ -390,6 +409,14 @@ fn sync(action: &str, kind: &str, cluster: Uuid, name: &str, extra: Value) -> Op
     op("sync", fields)
 }
 
+/// `operation` over a period of its own, from `start` (microseconds) on.
+fn within(start: i64, operation: Operation) -> Operation {
+    Operation::Within {
+        period: kartenn_service::operations::PeriodSpec { start, end: None },
+        operation: Box::new(operation),
+    }
+}
+
 fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
     Operation::Close {
         kind: ObjectKind::from_name(kind).unwrap(),
@@ -400,9 +427,14 @@ fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
 }
 
 fn admitted(namespace: Uuid) -> Operation {
+    admitted_of(namespace, &["interne"])
+}
+
+/// The admitted values `values` of `namespace` on the axis of the settings.
+fn admitted_of(namespace: Uuid, values: &[&str]) -> Operation {
     op(
         "set_admitted_values",
-        json!({"namespace": {"id": namespace}, "axis": EXPOSURE, "values": ["interne"]}),
+        json!({"namespace": {"id": namespace}, "axis": EXPOSURE, "values": values}),
     )
 }
 
@@ -458,12 +490,37 @@ fn seen(outcome: &Outcome) -> Vec<(&'static str, String, Option<usize>, usize)> 
     }
 }
 
+/// `seen` with every identifier of its messages masked: the refusals of designations of
+/// different objects, compared on their messages and their operations.
+fn masked(
+    seen: &[(&'static str, String, Option<usize>, usize)],
+) -> Vec<(&'static str, String, Option<usize>, usize)> {
+    let mask = |message: &str| {
+        message
+            .split(' ')
+            .map(|word| {
+                let bare = word.trim_matches(|c: char| !c.is_ascii_hexdigit() && c != '-');
+                if Uuid::parse_str(bare).is_ok() {
+                    word.replace(bare, "…")
+                } else {
+                    word.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    seen.iter()
+        .map(|(rule, message, operation, subjects)| (*rule, mask(message), *operation, *subjects))
+        .collect()
+}
+
 /// The operation types without a reference by identifier.
 const NO_REFERENCE: &[&str] = &["kube.set_tracked_labels"];
 
 /// One operation or more per operation type of the module, every reference an identifier
-/// nothing bears, but the cluster of a `sync` (`cluster`, living: task 002-29d2) and the
-/// connector group, a group of the RBAC (task 002-29b1).
+/// nothing bears, but the connector group, a group of the RBAC (task 002-29b1), and the
+/// cluster of the `sync` of a node (`cluster`, living, so that the machine of the node is
+/// resolved: a `sync` whose cluster names nothing resolves nothing else, task 002-29d2).
 fn reference_samples(cluster: Uuid) -> Vec<Operation> {
     let id = || json!({ "id": Uuid::now_v7() });
     let fields = || {
@@ -486,6 +543,7 @@ fn reference_samples(cluster: Uuid) -> Vec<Operation> {
             "worker-1",
             json!({"machine": id()}),
         ),
+        sync("upsert", "namespace", Uuid::now_v7(), "shop", json!({})),
         op("set_label_mapping", json!({"action": "close", "id": id()})),
         op(
             "set_admitted_values",
@@ -565,6 +623,11 @@ async fn the_references_designate_objects_in_force(pool: PgPool) {
     .await;
     let mapping = env.id("kube.label_mapping", "label_value", "db").await;
     env.applied(vec![close_mapping(mapping)]).await;
+    let start = env.instant().await;
+    let late = env
+        .new_cluster("late", env.cluster("late", json!({})))
+        .await;
+    let shop = |cluster: Uuid| sync("upsert", "namespace", cluster, "shop", json!({}));
     let created = |slug: &str, extra: Value| op("create_cluster", env.cluster(slug, extra));
     let cases: Vec<(&str, Operation, Uuid)> = vec![
         (
@@ -623,6 +686,14 @@ async fn the_references_designate_objects_in_force(pool: PgPool) {
                 json!({"machine": {"id": retired}}),
             ),
             retired,
+        ),
+        // Task 002-29d2: the cluster of a `sync`, no longer refused by its plan.
+        ("sync cluster: a namespace", shop(payments), payments),
+        ("sync cluster: closed", shop(old), old),
+        (
+            "sync cluster: created later",
+            within(start, shop(late)),
+            late,
         ),
         ("admitted namespace: a cluster", admitted(prod), prod),
         ("admitted namespace: closed", admitted(left), left),
@@ -702,6 +773,24 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
     let left = env.namespace(prod, "left").await;
     env.applied(vec![sync("close", "namespace", prod, "left", json!({}))])
         .await;
+    // A namespace out of reach holding admitted values: its plan changes or closes them.
+    let kept = env.namespace(far, "kept").await;
+    env.applied(vec![admitted(kept)]).await;
+    // Clusters of `other`, out of reach like `far`: one closed, one created after `start`.
+    let theirs_too = |slug: &str| {
+        env.cluster(
+            slug,
+            json!({"owner": {"id": other},
+                   "pod_domain": {"id": far_pods}, "service_domain": {"id": far_services},
+                   "pod_containers": [{"id": far_container}],
+                   "service_networks": [{"id": far_network}]}),
+        )
+    };
+    let far_gone = env.new_cluster("far-gone", theirs_too("far-gone")).await;
+    env.applied(vec![close("kube.cluster", far_gone, true)])
+        .await;
+    let start = env.instant().await;
+    let far_late = env.new_cluster("far-late", theirs_too("far-late")).await;
     let theirs = env.machine("theirs", "physical", other).await;
     let retired = env.machine("retired", "physical", acme).await;
     env.applied(vec![close("machines.machine", retired, true)])
@@ -767,6 +856,19 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             true,
         )
         .await;
+    // A connector of `prod` that does not read it (task 002-29d2).
+    let blind = env
+        .granted(
+            &[
+                "kube.namespace.read",
+                "kube.namespace.edit",
+                "kube.namespace.approval.self",
+            ],
+            &[],
+            true,
+        )
+        .await;
+    let shop = |cluster: Uuid| sync("upsert", "namespace", cluster, "shop", json!({}));
     let settings = env
         .granted(
             &["kube.cluster.read", "kube.namespace.read"],
@@ -845,6 +947,95 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             true,
         ),
         (
+            "create.service_domain",
+            admin,
+            Box::new(|x| created(json!({"service_domain": {"id": x}}))),
+            far_services,
+            vec![unknown, other, gone_domain],
+            true,
+        ),
+        (
+            "create.external_domain",
+            admin,
+            Box::new(|x| created(json!({"external_domain": {"id": x}}))),
+            far_services,
+            vec![unknown, other, gone_domain],
+            true,
+        ),
+        (
+            "create.service_networks",
+            admin,
+            Box::new(|x| created(json!({"service_networks": [{"id": x}]}))),
+            far_network,
+            vec![unknown, other, far_services],
+            true,
+        ),
+        (
+            "update.pod_domain",
+            admin,
+            Box::new(move |x| updated(json!({"pod_domain": {"id": x}}))),
+            far_pods,
+            vec![unknown, other, gone_domain],
+            true,
+        ),
+        (
+            "update.external_domain",
+            admin,
+            Box::new(move |x| updated(json!({"external_domain": {"id": x}}))),
+            far_services,
+            vec![unknown, other, gone_domain],
+            true,
+        ),
+        (
+            "update.pod_containers",
+            admin,
+            Box::new(move |x| updated(json!({"pod_containers": [{"id": x}]}))),
+            far_container,
+            vec![unknown, other, far_pods],
+            true,
+        ),
+        (
+            "update.service_networks",
+            admin,
+            Box::new(move |x| updated(json!({"service_networks": [{"id": x}]}))),
+            far_network,
+            vec![unknown, other, far_services],
+            true,
+        ),
+        (
+            "update.machines_cluster",
+            admin,
+            Box::new(move |x| updated(json!({"machines_cluster": {"id": x}}))),
+            mc_theirs,
+            vec![unknown, theirs, mc_gone],
+            true,
+        ),
+        // Task 002-29d2: the cluster of a `sync`, read before the writes.
+        (
+            "sync.cluster",
+            connector,
+            Box::new(shop),
+            far,
+            vec![unknown, away, far_gone],
+            true,
+        ),
+        (
+            "sync.cluster: created later",
+            connector,
+            Box::new(move |x| within(start, shop(x))),
+            far,
+            vec![far_late],
+            true,
+        ),
+        (
+            "sync.cluster: its own, not read",
+            blind,
+            Box::new(shop),
+            prod,
+            vec![unknown, old, payments, far],
+            true,
+        ),
+        (
             "sync.node.machine",
             connector,
             Box::new(move |x| sync("upsert", "node", prod, "w1", json!({"machine": {"id": x}}))),
@@ -859,6 +1050,32 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             away,
             // An object of another kind out of reach: one in reach (the cluster `prod`) is
             // read by its author, who learns nothing from `core.reference.unknown`.
+            vec![unknown, far, left],
+            true,
+        ),
+        // Nothing admitted: a plan that writes nothing for one that holds nothing.
+        (
+            "admitted.namespace, none",
+            settings,
+            Box::new(|x| admitted_of(x, &[])),
+            away,
+            vec![unknown, far, left],
+            true,
+        ),
+        // Values held already: their plan changes or closes them.
+        (
+            "admitted.namespace, held",
+            settings,
+            Box::new(admitted),
+            kept,
+            vec![unknown, far, left],
+            true,
+        ),
+        (
+            "admitted.namespace, held, none",
+            settings,
+            Box::new(|x| admitted_of(x, &[])),
+            kept,
             vec![unknown, far, left],
             true,
         ),
@@ -879,6 +1096,23 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             vec![unknown, other],
             false,
         ),
+        // Last: applied when out of reach, they change `prod`.
+        (
+            "update.site",
+            admin,
+            Box::new(move |x| updated(json!({"site": {"id": x}}))),
+            paris,
+            vec![unknown, other],
+            false,
+        ),
+        (
+            "update.owner",
+            admin,
+            Box::new(move |x| updated(json!({"owner": {"id": x}}))),
+            other,
+            vec![unknown, paris],
+            true,
+        ),
     ];
     let mut leaks = Vec::new();
     for (name, who, make, reach, hidden, needs_right) in &cases {
@@ -888,6 +1122,7 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             answers.push((*h, env.submit_as(*who, vec![make(*h)]).await));
         }
         let out_of_reach = env.submit_as(*who, vec![make(*reach)]).await;
+        // Without a right, the refusal of the first hidden one, its identifiers masked.
         let expected = if *needs_right {
             seen(&out_of_reach)
         } else {
@@ -895,13 +1130,13 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
                 matches!(out_of_reach, Outcome::Applied { .. }),
                 "{name}: {out_of_reach:?}"
             );
-            vec![]
+            masked(&seen(&answers[0].1))
         };
         for (i, (h, answer)) in answers.into_iter().enumerate() {
             let equal = if *needs_right {
                 seen(&answer) == expected
             } else {
-                matches!(&answer, Outcome::Refused { .. }) && refusal_of(&answer).0 == [UNKNOWN]
+                refusal_of(&answer).0 == [UNKNOWN] && masked(&seen(&answer)) == expected
             };
             if !equal {
                 leaks.push(format!(
@@ -911,4 +1146,105 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
         }
     }
     assert!(leaks.is_empty(), "{leaks:#?}");
+}
+
+/// `POST /v1/changesets?approval=self` of the `sync` of the namespace `shop` of `cluster`
+/// from `start` (microseconds) on, by `app`: its status and the bytes of its body, but the
+/// identifiers of the request itself, each the same in every answer: the problem and the
+/// changeset refused (`instance`, `changeset`), fresh per request, and `cluster`, which
+/// its author wrote.
+async fn posted(app: &Router, start: i64, cluster: Uuid) -> (StatusCode, String) {
+    let from = OffsetDateTime::from_unix_timestamp_nanos(i128::from(start) * 1000)
+        .unwrap()
+        .format(&Rfc3339)
+        .unwrap();
+    let operations = json!([{"op": "kube.sync", "action": "upsert", "type": "kube.namespace",
+                             "cluster": {"id": cluster}, "name": "shop"}]);
+    let body = json!({"motive": "batch", "valid_from": from, "operations": operations});
+    let request = Request::builder()
+        .method("POST")
+        .uri("/v1/changesets?approval=self")
+        .header(header::AUTHORIZATION, "Bearer test")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes: Bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let mut text = String::from_utf8(bytes.to_vec()).unwrap();
+    let problem: Value = serde_json::from_str(&text).unwrap();
+    let own = [
+        problem["instance"].as_str().map(str::to_owned),
+        problem["changeset"]["id"].as_str().map(str::to_owned),
+        Some(cluster.to_string()),
+    ];
+    for (i, id) in own.into_iter().flatten().enumerate() {
+        let id = id.trim_start_matches("urn:uuid:").to_owned();
+        text = text.replace(&id, &format!("<own {i}>"));
+    }
+    (status, text)
+}
+
+/// INV-63 through HTTP (task 002-29d2): the `sync` of a connector answers with the same
+/// status and the same bytes for a cluster absent at the start of its period (unknown,
+/// closed, created later) as for a living cluster it does not read: another one, for a
+/// connector that reads the clusters of `acme`; its own, for a connector that does not
+/// read it.
+#[kartenn_testing::pg_test]
+async fn a_cluster_not_read_answers_over_http_as_an_absent_one(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let other = env.entity("other").await;
+    let far_pods = env
+        .domain("far-pods", other, Some(("192.0.2.0/25", Nature::Container)))
+        .await;
+    let far_services = env
+        .domain(
+            "far-services",
+            other,
+            Some(("192.0.2.128/26", Nature::Network)),
+        )
+        .await;
+    let (far_container, far_network) = (env.prefix(far_pods).await, env.prefix(far_services).await);
+    let theirs = |slug: &str| {
+        env.cluster(
+            slug,
+            json!({"owner": {"id": other},
+                   "pod_domain": {"id": far_pods}, "service_domain": {"id": far_services},
+                   "pod_containers": [{"id": far_container}],
+                   "service_networks": [{"id": far_network}]}),
+        )
+    };
+    let prod = env
+        .new_cluster("prod", env.cluster("prod", json!({})))
+        .await;
+    let far = env.new_cluster("far", theirs("far")).await;
+    let old = env.new_cluster("old", theirs("old")).await;
+    env.applied(vec![close("kube.cluster", old, true)]).await;
+    let start = env.instant().await;
+    let late = env.new_cluster("late", theirs("late")).await;
+    let writes = [
+        "kube.namespace.read",
+        "kube.namespace.edit",
+        "kube.namespace.approval.self",
+    ];
+    let reader = env
+        .granted(&[&writes[..], &["kube.cluster.read"]].concat(), &[], true)
+        .await;
+    let blind = env.granted(&writes, &[], true).await;
+    let before = env.written().await;
+    let absent = [Uuid::now_v7(), old, late];
+    for (who, living) in [(reader, far), (blind, prod)] {
+        let app = crate::observations::route::app(
+            &pool,
+            crate::observations::route::principal(who, IdentityKind::ServiceAccount),
+            None,
+        );
+        let expected = posted(&app, start, living).await;
+        assert!(expected.0.is_client_error(), "{expected:?}");
+        for cluster in absent {
+            let answer = posted(&app, start, cluster).await;
+            assert_eq!(answer, expected, "{cluster} answers as {living}");
+        }
+    }
+    assert_eq!(env.written().await, before, "nothing is written");
 }
