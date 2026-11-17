@@ -581,7 +581,7 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
     - reste : la correspondance est fermée par qui détient `kube.settings.edit` sans la
       lire (lecture `kube.cluster.read`, objet global) : appliquée en vigueur, refusée
       absente, un oracle comme le site (tâche 31) ; le site reste un oracle (29c2, tâche 31)
-  - [ ] 29d2. (à arbitrer) La grappe d'un `sync` absente au début de sa période :
+  - [x] 29d2. (arbitrée : option A) La grappe d'un `sync` absente au début de sa période :
     `plan_sync` (`handler.rs` 1597 à 1606) refuse à la planification
     (`kube.operation.invalid`), avant les droits ; un connecteur d'une autre grappe
     distingue ainsi une grappe absente d'une grappe vivante qu'il ne conduit pas
@@ -607,6 +607,56 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       seule ; un test par HTTP du statut et des octets (aucun test de `kartenn-kube`
       n'y passe) ; inscrire dans la tâche 31 la correspondance de labels close sans
       lecture (`kube.settings.edit` : réelle close, absente refusée)
+    - fait le 2026-11-17, rouges d'abord (le plan refusait `kube.operation.invalid`,
+      « is not a living cluster ») : `handler.rs`, `READ_CHECKED = ["cluster"]` et le
+      relais de `resolve` dans `plan` sur le modèle de `kartenn-machines` ; le champ
+      `cluster` d'un `sync` demande `kube.cluster.read` avant les écritures. `plan_sync`
+      ne refuse plus une grappe absente : plan `withheld` qui n'écrit rien (créé, donc sans
+      droit d'édition demandé avant les écritures), avec les lectures des champs de
+      l'upsert (machine d'un nœud) résolus quelle que soit la grappe ; le pipeline juge la
+      désignation (`core.reference.unknown`, révélée à qui lit la grappe, sinon après le
+      refus de la lecture). Grappe vivante : les refus du plan qui lisent son contenu
+      (espace de noms absent, objet d'un nom absent, sélection, domaines) passent au même
+      plan `withheld` et sont dits par `apply`, une fois les droits accordés (même règle,
+      même message, même opération). Tests : `references.rs`, échantillon `sync` à grappe
+      inconnue dans `every_reference_of_every_operation_is_checked` ; trois cas de grappe
+      (un espace de noms, close, créée plus tard) dans
+      `the_references_designate_objects_in_force` ; dans
+      `no_right_reaches_through_a_hidden_reference`, la grappe d'un `sync` (connecteur qui
+      lit les grappes d'`acme` : inconnue, d'un autre type, close, créée plus tard ; connecteur
+      de `prod` qui ne la lit pas, pour sa propre grappe) et les mineurs versés (création :
+      `service_domain`, `external_domain`, `service_networks` ; mise à jour : `owner`,
+      `site`, `pod_domain`, `external_domain`, `pod_containers`, `service_networks`,
+      `machines_cluster` ; `admitted.namespace` avec `values: []` et sur un espace hors
+      d'atteinte qui porte déjà des valeurs, changées ou closes), les cas sans droit requis
+      comparés sur la règle, le message (identifiants masqués), l'opération et le nombre
+      d'objets ; `a_cluster_not_read_answers_over_http_as_an_absent_one` (`POST
+      /v1/changesets`, statut et octets égaux pour inconnue, close, créée plus tard et
+      vivante non lue, une autre ou la sienne). Attente changée dans `clusters.rs`
+      (`an_antedated_batch_reaches_nothing_not_yet_in_force` : la grappe pas encore en
+      vigueur passe de `kube.operation.invalid` à `core.reference.unknown`, champ
+      `cluster`). Rôles et documentation : aucun rôle de connecteur n'est encore livré
+      (`kube_connector`, tâche 019-11) ; X10 et l'ADR 0044 lui donnent déjà
+      `kube.cluster.read`, mais sa liaison aux seuls domaines désignés n'atteint pas le
+      cluster, ancré dans aucun domaine : ADR 0044 (conséquences), design 019 (« Droits,
+      rôles et audit ») et tâche 019-11 (« à garder ») le disent ; les rôles de connecteur
+      des tests le tiennent sur l'entité. Correspondance close sans lecture inscrite à la
+      tâche 31.
+    - choix : la réponse HTTP comparée octet pour octet hors les identifiants propres à la
+      requête (`instance` et `changeset` du problème, neufs à chaque requête, et la grappe
+      que l'auteur a écrite, nommée dans `subjects`) ; le refus différé garde sa règle par
+      son identifiant (`KUBE_RULES`, `kube.operation.invalid` à défaut) ; tout refus du
+      plan après la résolution de la grappe est différé, syntaxe comprise, plutôt qu'une
+      liste des seuls refus qui lisent la grappe (plus simple à tenir, même réponse pour
+      qui la lit)
+    - reste : par lecture du pipeline, la lecture de la grappe n'est pas jugée seule :
+      un `upsert`, `close` ou `mark_absent` d'un objet qui existe sous ce nom dans une
+      grappe non lue demande aussi, avant les écritures, `kube.<type>.edit` sur cet objet
+      (`rights::check_objects`, phase `Before`), et l'upsert d'un service qui reprend une
+      adresse d'un autre détenteur de la grappe, `core.address.read` sur elle : la
+      réponse diffère alors de celle d'une grappe absente (un refus de plus), un oracle sur
+      le contenu de la grappe, donc sur son existence. Le fermer demande au pipeline de
+      juger d'abord, et seules, les lectures d'un module (`check_guards`) : tâche 31
   - [x] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
     - où : `crates/kartenn-flow/src/handler.rs` (`resolved` 215 à 221, `identity_changed`
@@ -827,6 +877,11 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
   où : `crates/kartenn-service/src/pipeline.rs` (`check_designations`, `read_permission`,
   `stages`), `rights.rs` ; `specs/005-*/`, `specs/009-*/` (M16), `docs/adr/` (0026)
   dépend de : 29c2, 29d ; publication de la v0.2
+  - versé par la 29d2 (revue de la 29d1, 2026-11-16) : la correspondance de labels
+    (`kube.set_label_mapping`, `close`) est fermée par qui détient `kube.settings.edit`
+    sans la lire (lecture `kube.cluster.read`, objet global) : réelle, elle se ferme ;
+    absente ou close, elle est refusée (`core.reference.unknown`) — un oracle, comme le
+    site.
 
 ## Différé à d'autres specs (constaté à la synchronisation)
 

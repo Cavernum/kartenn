@@ -359,7 +359,11 @@ Rôles livrés : lecteur, éditeur, approbateur reçoivent `kube.<type>.read` ;
 l'approbateur, `kube.<type>.apply` ; `kube.observation.read` n'est dans aucun des
 trois. Rôle livré par le module : `kube_connector` (contenu en X10), lié au groupe du
 connecteur sur les domaines désignés du cluster ; le module le déclare au registre
-(ajout au contrat, ADR 0044) et la synchronisation des rôles livrés le crée.
+(ajout au contrat, ADR 0044) et la synchronisation des rôles livrés le crée. Le champ
+`cluster` d'un `kube.sync` exige `kube.cluster.read` sur le cluster, avant les écritures
+(002, tâche 29d2 ; INV-63) : la liaison du rôle atteint aussi le cluster, qui n'est ancré
+dans aucun domaine, sans quoi le connecteur reçoit pour son propre cluster la réponse
+d'un cluster absent.
 
 Événements d'audit nouveaux (catalogue du noyau, ADR 0043) : `observation.batch.recorded`
 (INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`,

@@ -2008,6 +2008,12 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     à qui le lit ou tient `kube.observation.record` sur son `pod_domain` (`rest.rs`,
     `admitted`) : le rôle `kube_connector` et sa liaison aux domaines du cluster en
     tiennent compte.
+  - à garder (tâche 002-29d2, 2026-11-17) : le champ `cluster` d'un `kube.sync` exige
+    `kube.cluster.read` sur le cluster avant les écritures ; sans cette lecture, le lot
+    reçoit la réponse d'un cluster absent (`core.object.forbidden`, « 1 object(s) need
+    kube.cluster.read »). La liaison de `kube_connector` aux seuls domaines désignés ne
+    l'accorde pas (relevé ci-dessus) : elle doit atteindre le cluster, et
+    `connector_role_confined` le vérifie (le connecteur de A lit A, pas B).
   - dépend de : 10, 2
 
 ## P3 — Politique et flux
