@@ -356,6 +356,12 @@ export function useInlineEdit({
   const shownRows = computed<Item[]>(() =>
     shown.size === 0 && drafted.value.size === 0 ? [...rows()] : rows().map(shownRow),
   );
+  /**
+   * What `shownRow` lays over the rows read, as one value: the values of the draft and those
+   * of this session. What keeps rows shown by the object read (the nodes of the tree, task
+   * 021-22e-k) starts again when it changes; a page read alone does not change it.
+   */
+  const laidValues = computed(() => [drafted.value, [...shown.values()]] as const);
 
   function cellState(row: Item, column: GridColumn): CellState | undefined {
     const name = fieldName(row, column.id);
@@ -637,6 +643,7 @@ export function useInlineEdit({
   return {
     shownRows,
     shownRow,
+    laidValues,
     cellState,
     stateReason,
     heldOf,
