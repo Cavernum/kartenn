@@ -208,8 +208,10 @@ export const test = base.extend<Guarded>({
 
 /** The mark of the shell once its plugins fetch nothing more (shell/src/plugins/loader.ts). */
 const PLUGINS_FETCHED = "kartenn:plugins-fetched";
+/** The mark of the shell once the preload of the help has settled (the same module). */
+const HELP_FETCHED = "kartenn:help-fetched";
 
-/** How long `atRest` waits for the mark. */
+/** How long `atRest` waits for the marks. */
 const AT_REST_MS = 15_000;
 
 /** The contexts whose journey installed a clock (`clock.install`), for all their pages. */
@@ -217,47 +219,53 @@ const clocked = new WeakSet<BrowserContext>();
 
 /**
  * Waits until the first screen of the shell loads no more modules: its view drawn, then the
- * plugins, loaded in an idle moment after it, past their fetches (`PLUGINS_FETCHED`). A
- * journey that leaves the page before (`goto`, `reload`) cuts their loads short, which
- * Firefox reports as integrity errors of the page left: it checks the digest of a module
- * load cancelled by the navigation against the bytes it got, none (the SHA-384 of the empty
- * string; dom/script/ScriptLoader.cpp, `OnStreamComplete` calls `VerifySRI` before reading
- * the status of the channel). Task 029-4.
+ * plugins and the help of the shortcuts, loaded in an idle moment after it, past their
+ * fetches (`PLUGINS_FETCHED`, `HELP_FETCHED`). A journey that leaves the page before
+ * (`goto`, `reload`) cuts their loads short, which Firefox reports as integrity errors of
+ * the page left: it checks the digest of a module load cancelled by the navigation against
+ * the bytes it got, none (the SHA-384 of the empty string; dom/script/ScriptLoader.cpp,
+ * `OnStreamComplete` calls `VerifySRI` before reading the status of the channel). Task
+ * 029-4; the help since the 021-26b (its chunk under the import map's `integrity`).
  */
 export async function atRest(page: Page): Promise<void> {
   // A clock installed, the shell's idle moment waits on it: nothing loads before the
-  // journey moves it on, and the mark would never come.
+  // journey moves it on, and the marks would never come.
   if (clocked.has(page.context())) return;
+  const marks = [PLUGINS_FETCHED, HELP_FETCHED];
   const marked = page.evaluate(
-    (name) =>
+    (names) =>
       new Promise<void>((done) => {
-        if (performance.getEntriesByName(name, "mark").length > 0) return done();
-        const observer = new PerformanceObserver((entries) => {
-          if (entries.getEntriesByName(name, "mark").length === 0) return;
+        const set = () => names.every((n) => performance.getEntriesByName(n, "mark").length > 0);
+        if (set()) return done();
+        const observer = new PerformanceObserver(() => {
+          if (!set()) return;
           observer.disconnect();
           done();
         });
         observer.observe({ type: "mark" });
       }),
-    PLUGINS_FETCHED,
+    marks,
   );
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<"late">((done) => (timer = setTimeout(() => done("late"), AT_REST_MS)));
   const first = await Promise.race([marked, late]).finally(() => clearTimeout(timer));
   if (first !== "late") return;
   marked.catch(() => {});
-  // The modules of plugins inserted whose fetch has not ended (no resource timing yet).
-  const pending = await page.evaluate(() =>
-    [
+  // The marks missing; the modules of plugins inserted whose fetch has not ended (no
+  // resource timing yet).
+  const { missing, pending } = await page.evaluate((names) => {
+    const missing = names.filter((n) => performance.getEntriesByName(n, "mark").length === 0);
+    const pending = [
       ...document.querySelectorAll<HTMLLinkElement | HTMLScriptElement>(
         'link[rel="modulepreload"], script[type="module"][src]',
       ),
     ]
       .map((node) => (node instanceof HTMLLinkElement ? node.href : node.src))
-      .filter((url) => url.includes("/plugins/") && performance.getEntriesByName(url).length === 0),
-  );
+      .filter((url) => url.includes("/plugins/") && performance.getEntriesByName(url).length === 0);
+    return { missing, pending };
+  }, marks);
   throw new Error(
-    `atRest: no « ${PLUGINS_FETCHED} » mark after ${AT_REST_MS / 1000} s; ` +
+    `atRest: no « ${missing.join(" », « ")} » mark after ${AT_REST_MS / 1000} s; ` +
       `plugin modules still in flight: ${pending.join(", ") || "none inserted"}`,
   );
 }

@@ -79,7 +79,7 @@ import { RouterView, useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
 import { pluginLetters, pluginSpaces, registerLetters } from "../plugins/navigation.ts";
-import { whenIdle } from "../plugins/loader.ts";
+import { HELP_FETCHED, whenIdle } from "../plugins/loader.ts";
 import { refuseLetters, usePlugins } from "../plugins/registry.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
@@ -744,8 +744,15 @@ function toggleSidebar(): boolean {
 const helpOpen = ref(false);
 const loadHelp = () => import("../shortcuts/ShortcutHelp.vue");
 const ShortcutHelp = defineAsyncComponent({ loader: loadHelp, loadingComponent: Skeleton });
-// A preload lost is read again when the help opens.
-onMounted(() => whenIdle(() => void loadHelp().catch(() => {})));
+// A preload lost is read again when the help opens. Settled, it is marked (`HELP_FETCHED`).
+onMounted(() =>
+  whenIdle(
+    () =>
+      void loadHelp()
+        .catch(() => {})
+        .finally(() => performance.mark(HELP_FETCHED)),
+  ),
+);
 
 // The shortcuts (REQ-021-7, 8): the shell's, then those of the plugin's view (the keys of
 // the shell refused to them since `main.ts`). One listener on the document.
