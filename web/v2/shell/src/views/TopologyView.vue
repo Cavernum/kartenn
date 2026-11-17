@@ -231,8 +231,10 @@ const valueOf = (node: Shown) =>
   node.kind === "range" ? `${node.first} – ${node.last}` : node.value;
 // The words of a node, read once per language (task 22e-k): those of its kind from the
 // dictionary (018), those of a nature or a usage from the catalogs, each value once. They
-// start again with the language, the dictionary read again, the catalogs merged (what
-// vue-i18n follows itself: its locale and its messages).
+// start again with the language or the dictionary read again. A catalog merged later
+// (`mergeLocaleMessage`) is not seen by `messages.value`: without effect while the natures
+// and the usages are in the shared catalog, loaded with the i18n instance
+// (`views/i18n/shared`); a value without words is never kept, it is looked up again.
 const kindWords = computed(
   () =>
     new Map(
@@ -253,11 +255,11 @@ const detailWords = (kind: Node["kind"], value: string | null | undefined) => {
   if (!value || kind === "address") return "";
   const key = `views.value.${kind === "prefix" ? "nature" : "usage"}.${value}`;
   const known = valueWords.value;
-  let words = known.get(key);
-  if (words === undefined) {
-    words = te(key) ? t(key) : value;
-    known.set(key, words);
-  }
+  const kept = known.get(key);
+  if (kept !== undefined) return kept;
+  if (!te(key)) return value;
+  const words = t(key);
+  known.set(key, words);
   return words;
 };
 const detailOf = (node: Shown) =>
