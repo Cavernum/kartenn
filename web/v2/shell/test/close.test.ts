@@ -93,6 +93,18 @@ describe("the closure of an object", () => {
     expect(verdict.errors).toEqual([]);
     expect(verdict.warnings).toHaveLength(1);
   });
+
+  it("counts apart the closures the caller may not read, which say not their kind", () => {
+    const verdict = closeVerdict(
+      "prefix",
+      simulated({ cascaded: [{ id: P1 }, { kind: "address", id: A1 }, { id: V1 }] }),
+      true,
+    );
+    expect(verdict.cascaded).toEqual([
+      { kind: "address", count: 1 },
+      { kind: null, count: 2 },
+    ]);
+  });
 });
 
 describe("the close panel of a record", () => {

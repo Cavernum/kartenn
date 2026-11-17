@@ -42,8 +42,11 @@ export interface CloseVerdict {
   /** The errors, then the warnings, each with its code. */
   errors: readonly Violation[];
   warnings: readonly Violation[];
-  /** The closures the cascade adds, counted by kind, in the order first met. */
-  cascaded: readonly { kind: string; count: number }[];
+  /**
+   * The closures the cascade adds, counted by kind, in the order first met; `null`, last,
+   * counts those the caller may not read, which come without their kind (006-33g1).
+   */
+  cascaded: readonly { kind: string | null; count: number }[];
   /** Whether the refusal may come from dependents: the cascade is not asked, and could be. */
   dependents: boolean;
 }
@@ -52,13 +55,18 @@ export interface CloseVerdict {
 export function closeVerdict(kind: string, simulated: Simulated, cascade: boolean): CloseVerdict {
   const violations = simulated.violations as readonly Violation[];
   const errors = violations.filter((v) => v.severity === "error");
-  const counts = new Map<string, number>();
-  for (const c of simulated.cascaded) counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
+  const counts = new Map<string | null, number>();
+  for (const c of simulated.cascaded) {
+    const k = c.kind ?? null;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
   return {
     valid: simulated.valid,
     errors,
     warnings: violations.filter((v) => v.severity !== "error"),
-    cascaded: [...counts].map(([k, count]) => ({ kind: k, count })),
+    cascaded: [...counts]
+      .map(([k, count]) => ({ kind: k, count }))
+      .sort((a, b) => Number(a.kind === null) - Number(b.kind === null)),
     dependents:
       !cascade &&
       errors.length > 0 &&

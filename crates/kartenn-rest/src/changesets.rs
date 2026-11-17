@@ -29,6 +29,7 @@ use kartenn_store_pg::read;
 use kartenn_store_pg::write::PgStore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::{Duration, OffsetDateTime};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -41,6 +42,7 @@ use crate::operation::{OperationDto, TargetKindDto};
 use crate::problem::{Problem, ProblemKind};
 use crate::properties::masked_gap;
 use crate::rights::SecretShown;
+use crate::summary::{Summaries, Summary};
 
 /// The relation type of the link to a changeset: an extension type, hence an URI
 /// (RFC 8288 §2.1.2).
@@ -368,14 +370,31 @@ pub(crate) fn linked(mut response: Response, id: Uuid, location: Option<String>)
     response
 }
 
-/// An object closed by cascade (REQ-004-26).
+/// An object closed by cascade (REQ-004-26), as summarised (REQ-006-42, task 006-33g1):
+/// its kind with its key, read just before its closure, for an object the caller may read;
+/// `{id}` alone for one the caller may not read or that was absent then, which says not
+/// its kind.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub(crate) struct Cascaded {
-    /// Its kind.
-    #[schema(value_type = TargetKindDto)]
-    kind: ObjectKind,
     /// Identifier.
     id: Uuid,
+    /// Its kind; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<TargetKindDto>, nullable = false)]
+    kind: Option<ObjectKind>,
+    /// Slug, for a kind that has one; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    slug: Option<String>,
+    /// Its natural key as a human reads it; absent if the caller may not read the object
+    /// or if it was absent then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    label: Option<String>,
+    /// Its URL; absent with `label`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    href: Option<String>,
 }
 
 /// An object whose parent a simulated changeset changes, at the present (spec 021, A12).
@@ -415,11 +434,65 @@ impl From<&kartenn_service::placements::Placement> for Placement {
     }
 }
 
-pub(crate) fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Vec<Cascaded> {
-    closures
+/// The closures `closures`, taking effect at `closed`, as the caller of `context` may read
+/// them now: their keys read at the last instant they lived (task 006-33g1).
+///
+/// # Errors
+///
+/// The store's or the authoriser's error.
+pub(crate) async fn cascaded(
+    api: &Api,
+    context: &RequestContext,
+    closures: &[(ObjectKind, Uuid)],
+    closed: OffsetDateTime,
+) -> Result<Vec<Cascaded>, Problem> {
+    if closures.is_empty() {
+        return Ok(Vec::new());
+    }
+    let lived = closed - Duration::MICROSECOND;
+    let linked = Summaries::read(
+        api,
+        context,
+        closures.iter().map(|&(_, id)| id),
+        lived,
+        None,
+    )
+    .await?;
+    Ok(closures
         .iter()
-        .map(|&(kind, id)| Cascaded { kind, id })
-        .collect()
+        .map(|&(kind, id)| {
+            let Summary {
+                slug, label, href, ..
+            } = linked.of(id);
+            Cascaded {
+                id,
+                kind: label.is_some().then_some(kind),
+                slug,
+                label,
+                href,
+            }
+        })
+        .collect())
+}
+
+/// The closures `closures` of the applied changeset `changeset`, at the start of its
+/// period.
+async fn cascaded_by(
+    api: &Api,
+    context: &RequestContext,
+    changeset: Uuid,
+    closures: &[(ObjectKind, Uuid)],
+) -> Result<Vec<Cascaded>, Problem> {
+    if closures.is_empty() {
+        return Ok(Vec::new());
+    }
+    let closed = kartenn_store_pg::changesets::valid_from(&api.pool, changeset)
+        .await?
+        .ok_or_else(|| {
+            tracing::error!(name: "http.changeset.period_lost", %changeset, "an applied changeset has no period");
+            Problem::new(ProblemKind::Internal)
+        })?;
+    cascaded(api, context, closures, closed).await
 }
 
 /// A line of the counted differential (REQ-003-19): how many objects see a property go
@@ -649,6 +722,7 @@ pub(crate) struct ChangesetApplied {
 /// 201 (or 200): the changeset applied, its warnings, differential and closures by cascade.
 async fn applied(
     api: &Api,
+    context: &RequestContext,
     changeset: Uuid,
     warnings: &[Violation],
     diff: Value,
@@ -660,7 +734,7 @@ async fn applied(
         state: "applied",
         warnings: violations(api, warnings, answer.pointers).await?,
         diff,
-        cascaded: cascaded(closures),
+        cascaded: cascaded_by(api, context, changeset, closures).await?,
         secret: answer.shown.cloned(),
     };
     Ok(linked(
@@ -839,6 +913,7 @@ async fn refused(
 /// (design « Idempotence »): 202 for a changeset held for a decision, even decided since.
 pub(crate) async fn replayed(
     api: &Api,
+    context: &RequestContext,
     changeset: Uuid,
     answer: &Answer<'_>,
 ) -> Result<Response, Problem> {
@@ -863,6 +938,7 @@ pub(crate) async fn replayed(
         (_, "applied") => {
             applied(
                 api,
+                context,
                 changeset,
                 &journal.violations,
                 journal.diff,
@@ -942,6 +1018,7 @@ pub(crate) async fn answered(
         } => {
             applied(
                 api,
+                context,
                 changeset,
                 &warnings,
                 counted(&diff)?,
@@ -971,7 +1048,7 @@ pub(crate) async fn answered(
             changeset,
             violations: found,
         } => refused(api, changeset, found, answer).await?,
-        Outcome::Replayed { changeset, .. } => replayed(api, changeset, answer).await?,
+        Outcome::Replayed { changeset, .. } => replayed(api, context, changeset, answer).await?,
         // Nothing journaled: no changeset to link to (REQ-004-9).
         Outcome::Simulated {
             violations: found,
@@ -1001,7 +1078,8 @@ pub(crate) async fn answered(
                 violations: violations(api, &found, answer.pointers).await?,
                 diff: diff.iter().map(DiffCountDto::from).collect(),
                 sample: sample.iter().map(DiffItemDto::from).collect(),
-                cascaded: cascaded(&closures),
+                // Nothing is closed yet: the objects read as they are.
+                cascaded: cascaded(api, context, &closures, OffsetDateTime::now_utc()).await?,
                 sections,
                 placements: placements.items.iter().map(Placement::from).collect(),
                 placements_truncated: placements.truncated,

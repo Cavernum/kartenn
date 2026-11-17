@@ -1456,3 +1456,100 @@ async fn the_history_summarises_the_group_as_it_was(pool: PgPool) {
         .unwrap();
     assert_eq!(answer(&scoped, &uri).await, closed, "closed and unknown");
 }
+
+/// Task 006-33g1, REQ-006-42, 005 (arbitration of 2026-11-16, option 1): the objects a
+/// cascade closes are the summary of each, its kind with its key, for a caller who reads
+/// it, and its identifier alone for one who may not, which says not its kind: in the
+/// answer of a simulation, of an application and in the changeset as read. Once the
+/// objects are gone, the changeset reads the same bytes for the reader of the VLANs as for
+/// the caller who may not read them.
+#[kartenn_testing::pg_test]
+async fn the_closures_of_a_cascade_say_their_kind_with_their_key_only(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active"), (20, "active")],
+        )
+        .await;
+    let vlans = [env.vlan_of(group, 10).await, env.vlan_of(group, 20).await];
+    let by_id = |c: &Value| c["id"].as_str().unwrap().to_owned();
+    let summarised = |cascaded: &Value| -> Vec<Value> {
+        let mut found = cascaded.as_array().unwrap().clone();
+        found.sort_by_key(by_id);
+        found
+    };
+    let mut full: Vec<Value> = vlans
+        .iter()
+        .zip([10, 20])
+        .map(|(id, vid)| {
+            json!({"id": id, "kind": "vlan", "label": format!("{vid} · v{vid}"),
+                   "href": format!("/v1/vlans/{id}")})
+        })
+        .collect();
+    full.sort_by_key(by_id);
+    let mut bare: Vec<Value> = vlans.iter().map(|id| json!({"id": id})).collect();
+    bare.sort_by_key(by_id);
+
+    let writer = env.app(
+        env.person(
+            &[
+                "core.changeset.read",
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
+            ],
+            None,
+        )
+        .await,
+    );
+    let close = Some((
+        "application/json",
+        json!({"motive": "the group goes", "operations": [
+            {"op": "close", "kind": "vlan_group", "id": {"id": group}, "cascade": true},
+        ]}),
+    ));
+    let (status, _, body) = call(
+        &writer,
+        "POST",
+        "/v1/changesets?simulate=true",
+        close.clone(),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(summarised(&body["cascaded"]), full, "simulated: {body}");
+    let (status, _, body) = call(&writer, "POST", "/v1/changesets", close, &[]).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(summarised(&body["cascaded"]), full, "applied: {body}");
+    let changeset = body["changeset"]["id"].as_str().unwrap().to_owned();
+
+    let uri = format!("/v1/changesets/{changeset}");
+    let reader = env.app(
+        env.person(&["core.changeset.read", "core.vlan.read"], None)
+            .await,
+    );
+    let blind = env.app(env.person(&["core.changeset.read"], None).await);
+    for (app, wanted) in [(&reader, &full), (&blind, &bare)] {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(&summarised(&body["cascaded"]), wanted, "{body}");
+    }
+    let unreadable = answer(&blind, &uri).await;
+    sqlx::query("DELETE FROM vlan WHERE id = ANY($1)")
+        .bind(&vlans[..])
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        answer(&reader, &uri).await,
+        unreadable,
+        "unreadable and unknown"
+    );
+}

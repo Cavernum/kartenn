@@ -729,7 +729,7 @@ async fn submission(
             let changeset = drafts::submission_of(&api.pool, principal.identity, &key, id)
                 .await?
                 .ok_or_else(not_found)?;
-            return replayed(&api, changeset, &Answer::SUBMISSION).await;
+            return replayed(&api, &context, changeset, &Answer::SUBMISSION).await;
         }
         _ => return Err(not_found()),
     };

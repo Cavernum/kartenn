@@ -92,7 +92,13 @@ const items = (violations: readonly { detail: string; rule: string }[]) =>
 /** The closures the cascade adds, in words: « Plage · 1, Adresse · 2 ». */
 const withIt = computed(() =>
   (verdict.value?.cascaded ?? [])
-    .map((c) => `${keyLabel("kind", typeOfKind(c.kind)) ?? c.kind} · ${c.count}`)
+    .map((c) => {
+      const named =
+        c.kind === null
+          ? t("edit.close.unreadable")
+          : (keyLabel("kind", typeOfKind(c.kind)) ?? c.kind);
+      return `${named} · ${c.count}`;
+    })
     .join(", "),
 );
 /** A simulation that failed: the problem in words, its code and `Request-Id` copyable. */

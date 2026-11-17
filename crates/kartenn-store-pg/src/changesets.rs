@@ -133,6 +133,22 @@ struct Row {
     cascaded: serde_json::Value,
 }
 
+/// The start of the period of changeset `id`, if journaled: when its closures take effect
+/// (task 006-33g1).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn valid_from(pool: &PgPool, id: Uuid) -> Result<Option<OffsetDateTime>, StoreError> {
+    let found: Option<Option<OffsetDateTime>> =
+        sqlx::query_scalar("SELECT lower(default_period) FROM changeset WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(store_err)?;
+    Ok(found.flatten())
+}
+
 /// Changeset `id`, if journaled.
 ///
 /// # Errors

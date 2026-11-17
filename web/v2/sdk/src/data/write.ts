@@ -168,10 +168,14 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
 
   /**
    * What a changeset applied invalidates: the objects named, their lists, dependents. Its
-   * answer names no domain: every tree is read again, as an event naming none (A40).
+   * answer names no domain: every tree is read again, as an event naming none (A40). A
+   * closure the caller may not read comes without its kind (006-33g1): the caller's cache
+   * holds nothing of it.
    */
   function afterApplied(named: { type: string; id: string }[], body: Applied | undefined) {
-    const cascaded = (body?.cascaded ?? []).map((c) => ({ type: qualify(c.kind), id: c.id }));
+    const cascaded = (body?.cascaded ?? []).flatMap((c) =>
+      c.kind ? [{ type: qualify(c.kind), id: c.id }] : [],
+    );
     return invalidation.objects([...named, ...cascaded], body?.changeset.id ?? null, []);
   }
 
