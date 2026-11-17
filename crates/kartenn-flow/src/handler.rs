@@ -278,6 +278,18 @@ pub(crate) fn endpoint_id(
     }
 }
 
+/// The refusal of an update that changes the identity of the flow `id` (F2), once the
+/// rights of its author are checked (INV-63).
+fn identity_changed(id: Uuid) -> WriteError {
+    WriteError::Rule(
+        Violation::new(
+            &UPDATE_IDENTITY,
+            "changing an endpoint, the service or the kind of a flow creates a new flow",
+        )
+        .with_subjects([id]),
+    )
+}
+
 fn instant_at(micros: i64) -> OffsetDateTime {
     pg::time(Instant(micros))
 }
@@ -591,42 +603,57 @@ impl Handler {
             resolve,
             (input.id, ObjectKind::Module(flow_kind()), "id"),
         )?;
-        if let Some(current) = &c.current {
-            let same_side = |e: &Option<EndpointIn>, key: &str| match e {
-                None => true,
-                Some(e) => {
-                    let field = format!("{key}.id");
-                    let object = pg::kind_of(&e.kind)
-                        .and_then(|kind| resolve(e.id, endpoint_object(kind), &field));
-                    let given = (e.kind.as_str(), object);
-                    current[key][0].as_str() == Some(given.0)
+        // The identity given is resolved whether the flow exists or not, and compared to its
+        // own only once the rights of the author are checked (`apply`): neither the
+        // references it designates nor a refusal of the plan tell an author without the
+        // right on the flow what it is (INV-63, task 002-29d3).
+        let side = |e: &EndpointIn, key: &str| {
+            let field = format!("{key}.id");
+            let object =
+                pg::kind_of(&e.kind).and_then(|kind| resolve(e.id, endpoint_object(kind), &field));
+            (e.kind.clone(), object)
+        };
+        let (source, destination) = (
+            input.source.as_ref().map(|e| side(e, "source")),
+            input.destination.as_ref().map(|e| side(e, "destination")),
+        );
+        let service = input.service.map(|s| resolve(s, service_kind(), "service"));
+        let identity_changed = c.current.as_ref().is_some_and(|current| {
+            let same_side = |given: &Option<(String, Option<Uuid>)>, key: &str| {
+                given.as_ref().is_none_or(|(kind, object)| {
+                    current[key][0].as_str() == Some(kind.as_str())
                         && current[key][1]
                             .as_str()
                             .and_then(|s| s.parse::<Uuid>().ok())
-                            == given.1
-                }
+                            == *object
+                })
             };
-            let same_service = input.service.is_none_or(|s| {
+            let same_service = service.is_none_or(|s| {
                 current["service"]
                     .as_str()
                     .and_then(|s| s.parse::<Uuid>().ok())
-                    == resolve(s, service_kind(), "service")
+                    == s
             });
             let same_kind = input
                 .kind
                 .as_deref()
                 .is_none_or(|k| current["kind"].as_str() == Some(k));
-            if !(same_side(&input.source, "source")
-                && same_side(&input.destination, "destination")
+            !(same_side(&source, "source")
+                && same_side(&destination, "destination")
                 && same_service
                 && same_kind)
-            {
-                return Err(Violation::new(
-                    &UPDATE_IDENTITY,
-                    "changing an endpoint, the service or the kind of a flow creates a new flow",
-                )
-                .with_subjects([id]));
-            }
+        });
+        if identity_changed {
+            // Refused by `apply`, after the rights; nothing else is planned, no review.
+            return Ok(ModulePlan {
+                kind: flow_kind(),
+                object: id,
+                creates: matches!(input.id, Ref::Local(_)),
+                domains: Vec::new(),
+                keys: vec!["flow".into()],
+                core: Vec::new(),
+                data: json!({ "op": "update", "identity_changed": true }),
+            });
         }
         let mut patch = serde_json::Map::new();
         if let Some(refs) = input.external_refs {
@@ -821,6 +848,9 @@ impl Handler {
                     changeset,
                 )
                 .await?;
+            }
+            "update" if plan.data["identity_changed"] == true => {
+                return Err(identity_changed(plan.object));
             }
             "update" => {
                 let extension = plan.data["extend"].as_i64();
