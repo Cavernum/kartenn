@@ -649,14 +649,35 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       plan après la résolution de la grappe est différé, syntaxe comprise, plutôt qu'une
       liste des seuls refus qui lisent la grappe (plus simple à tenir, même réponse pour
       qui la lit)
-    - reste : par lecture du pipeline, la lecture de la grappe n'est pas jugée seule :
-      un `upsert`, `close` ou `mark_absent` d'un objet qui existe sous ce nom dans une
-      grappe non lue demande aussi, avant les écritures, `kube.<type>.edit` sur cet objet
-      (`rights::check_objects`, phase `Before`), et l'upsert d'un service qui reprend une
-      adresse d'un autre détenteur de la grappe, `core.address.read` sur elle : la
-      réponse diffère alors de celle d'une grappe absente (un refus de plus), un oracle sur
-      le contenu de la grappe, donc sur son existence. Le fermer demande au pipeline de
-      juger d'abord, et seules, les lectures d'un module (`check_guards`) : tâche 31
+    - corrections de la revue (2026-11-17), rouges d'abord : (1) le `sync` d'une grappe
+      que le même changeset crée (`Ref::Local`, que la complétion ne lit pas) était
+      accepté sans rien écrire ; refusé net à la planification
+      (`kube.operation.invalid`, « a cluster created by the same changeset is not synced
+      by it »), et le plan `withheld` porte toujours un refus, dit à l'écriture, si bien
+      qu'il n'est jamais appliqué ni compté parmi les objets écrits
+      (`a_sync_of_a_cluster_created_by_its_changeset_is_refused`) ; (2) le refus de plus
+      pour un objet qui existe sous un nom universel (`default`) d'une grappe vivante non
+      lue est fermé : `rights::check_before` (appelé par `stages` à la place de
+      `check_objects` puis `check_guards`, phase `Before`) écarte des droits d'édition les
+      opérations dont une lecture exigée par leur module est refusée, ce refus sortant
+      seul pour elles ; tests HTTP `a_cluster_not_read_answers_over_http_as_an_absent_one`
+      (nom neuf et `default`) et, pour `kartenn-machines`,
+      `a_host_not_read_answers_alone_and_as_an_absent_one` (`rest.rs` : hôte non lu,
+      vivant, inconnu ou clos, la lecture seule sans `machines.edit`) ; (3) refus différés
+      pour un auteur sans lecture de la grappe (workload dans un espace de noms absent,
+      `close` d'un objet absent, action inconnue) comparés à ceux d'une grappe absente
+      dans `no_right_reaches_through_a_hidden_reference` ; (4) `told` ne rend jamais un
+      message vide (test unitaire `a_withheld_refusal_is_told_with_its_message`), l'upsert
+      lit ses colonnes de leur seule présence (plus d'`expect`), ADR 0044 sans suggestion
+      de liaison. Attente changée : l'espace de noms lu d'un autre type passe de `payments`
+      à `away` (hors d'atteinte), un objet lu étant désormais nommé par le refus (29d4).
+    - reste (par lecture, non testé) : l'upsert d'un service qui reprend une adresse
+      qu'un autre détenteur de la grappe cite (`owned.adopted`) demande aussi
+      `core.address.read` sur elle ; lecture d'un module comme celle de la grappe, elle
+      sort avec elle (deux refus de lecture) quand la grappe vit, un seul quand elle est
+      absente. Le fermer demande de ne dire, d'une opération, que le refus de la lecture
+      qui la porte (la grappe) : un ordre entre les lectures d'un module, contrat de
+      module (ADR 0026), à trancher avec la tâche 31
   - [x] 29d3. `kartenn-flow` : parcours de ses cinq types (extrémités, service, entité,
     identifiant de flux) et fuites — verify : `k-check -p kartenn-flow`
     - où : `crates/kartenn-flow/src/handler.rs` (`resolved` 215 à 221, `identity_changed`
