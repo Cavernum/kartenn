@@ -12,6 +12,7 @@ import {
   FilterPicker,
   InlineAlert,
   NoValue,
+  Panel,
   StatusBadge,
   injectToasts,
   type CellRef,
@@ -28,7 +29,6 @@ import { useProblems } from "../problems/index.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useFilteredList } from "../views/list.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { holdsGlobally, IDENTITIES_READ } from "./access.ts";
 import { ExportCut, ExportStorage, exportAudit, outcomeBadge, type AuditEvent } from "./audit.ts";
 import { useAuditWords } from "./auditWords.ts";
@@ -159,7 +159,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush list>
+  <Panel :title="title" :detail="total" main flush list>
     <template #actions>
       <Button variant="ghost" :loading="exporting" @click="onExport">{{
         t("admin.audit.export")
@@ -247,5 +247,5 @@ function clearFilters(): void {
       <span class="k-num">{{ list.isPending.value ? "" : countText }}</span>
       <span role="status">{{ restarted ? t("views.list.restarted") : "" }}</span>
     </template>
-  </ViewPanel>
+  </Panel>
 </template>

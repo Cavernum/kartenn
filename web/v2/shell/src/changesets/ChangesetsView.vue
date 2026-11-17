@@ -9,6 +9,7 @@ import {
   EmptyState,
   FilterPicker,
   KeyLabel,
+  Panel,
   StatusBadge,
   type CellRef,
   type GridColumn,
@@ -23,7 +24,6 @@ import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useFilteredList } from "../views/list.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { stateBadge, type ChangesetItem } from "./model.ts";
 import { useChangesetWords } from "./words.ts";
 
@@ -109,7 +109,7 @@ function clearFilters(): void {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush list>
+  <Panel :title="title" :detail="total" main flush list>
     <template #actions>
       <Button v-if="me" variant="ghost" icon="user" :pressed="mine" @click="toggleMine">{{
         t("changesets.mine")
@@ -188,5 +188,5 @@ function clearFilters(): void {
       <span class="k-num">{{ list.isPending.value ? "" : countText }}</span>
       <span role="status">{{ restarted ? t("views.list.restarted") : "" }}</span>
     </template>
-  </ViewPanel>
+  </Panel>
 </template>

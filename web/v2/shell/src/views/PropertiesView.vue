@@ -12,6 +12,7 @@ import {
   IconButton,
   KeyLabel,
   NoValue,
+  Panel,
   Popover,
   type GridColumn,
   type GridWindow,
@@ -25,7 +26,6 @@ import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
 import type { DeclarationOfModel } from "./filters.ts";
-import ViewPanel from "./parts/ViewPanel.vue";
 import DeclarationValues from "./properties/DeclarationValues.vue";
 
 type Row = DeclarationOfModel & {
@@ -89,7 +89,7 @@ const gaps = (key: string) =>
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.properties") }}</h1>
-  <ViewPanel :title="t('nav.properties')" :detail="count" main flush list>
+  <Panel :title="t('nav.properties')" :detail="count" main flush list>
     <!-- A next page refused: the rows read stay shown, that page retried alone. -->
     <NextPageAlert
       v-if="list.isFetchNextPageError.value"
@@ -164,5 +164,5 @@ const gaps = (key: string) =>
         </Cluster>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
 </template>

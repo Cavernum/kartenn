@@ -8,7 +8,7 @@
 // its tile. The instant of the computation at the foot. Three states, for the counters as a
 // whole: they are one read.
 import { stats as statsQuery, type components } from "@kartenn/sdk";
-import { AttributeList, BarChart, Grid, Skeleton, type ChartPoint } from "@kartenn/ui";
+import { AttributeList, BarChart, Grid, Panel, Skeleton, type ChartPoint } from "@kartenn/ui";
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../data/query.ts";
@@ -21,7 +21,6 @@ import { useSession } from "../rights/index.ts";
 import { COLLECTIONS, navOf } from "./collections.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
-import ViewPanel from "./parts/ViewPanel.vue";
 
 type Stats = components["schemas"]["Stats"];
 
@@ -99,10 +98,10 @@ const tr = (key: string) => t(key);
   <Skeleton v-else-if="stats.isPending.value" variant="text" :rows="6" />
   <template v-else-if="data">
     <Grid columns="auto" gap="3" class="k-home-tiles">
-      <ViewPanel :title="t('views.home.objects')" :detail="t('views.home.readable')">
+      <Panel :title="t('views.home.objects')" :detail="t('views.home.readable')">
         <AttributeList :items="kinds" />
-      </ViewPanel>
-      <ViewPanel
+      </Panel>
+      <Panel
         v-if="data.changesets"
         :title="t('views.home.applied')"
         :detail="t('views.home.allAuthors')"
@@ -124,8 +123,8 @@ const tr = (key: string) => t(key);
           :point-label="t('views.home.chartDay')"
           :value-label="t('views.home.chartValue')"
         />
-      </ViewPanel>
-      <ViewPanel
+      </Panel>
+      <Panel
         v-if="reviews"
         :title="t('views.home.toReview')"
         :detail="t('views.home.toReviewDetail')"
@@ -139,8 +138,8 @@ const tr = (key: string) => t(key);
         <template #footer>
           <KLink to="/proposals">{{ t("views.home.review") }}</KLink>
         </template>
-      </ViewPanel>
-      <ViewPanel :title="t('views.home.mine')" :detail="t('views.home.mineDetail')">
+      </Panel>
+      <Panel :title="t('views.home.mine')" :detail="t('views.home.mineDetail')">
         <dl class="k-home-figures">
           <div>
             <dt>{{ t("views.home.inReview") }}</dt>
@@ -150,8 +149,8 @@ const tr = (key: string) => t(key);
         <template v-if="reviews" #footer>
           <KLink to="/changesets">{{ t("views.home.myChangesets") }}</KLink>
         </template>
-      </ViewPanel>
-      <ViewPanel :title="t('views.home.anomalies')">
+      </Panel>
+      <Panel :title="t('views.home.anomalies')">
         <dl class="k-home-figures">
           <div>
             <dt>{{ t("views.home.anomaliesOpen") }}</dt>
@@ -161,8 +160,8 @@ const tr = (key: string) => t(key);
         <template #footer>
           <KLink to="/anomalies">{{ t("views.home.seeAnomalies") }}</KLink>
         </template>
-      </ViewPanel>
-      <ViewPanel v-if="data.vlans" :title="t('nav.vlans')" :detail="t('views.home.readable')">
+      </Panel>
+      <Panel v-if="data.vlans" :title="t('nav.vlans')" :detail="t('views.home.readable')">
         <AttributeList
           :items="[
             {
@@ -179,10 +178,10 @@ const tr = (key: string) => t(key);
             },
           ]"
         />
-      </ViewPanel>
+      </Panel>
       <!-- The tiles of the plugins after the core's (REQ-021-13): an error stays in its tile,
            a plugin still loading has its skeleton. -->
-      <ViewPanel
+      <Panel
         v-for="widget in widgets"
         :key="placeId(widget.extension)"
         :title="labelOf(tr, widget.extension)"
@@ -194,7 +193,7 @@ const tr = (key: string) => t(key);
           :label="labelOf(tr, widget.extension)"
           :status="widget.status"
         />
-      </ViewPanel>
+      </Panel>
     </Grid>
     <p class="k-home-muted">
       {{ t("views.home.computed") }}

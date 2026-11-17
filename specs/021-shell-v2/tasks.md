@@ -8554,7 +8554,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       - reste : la règle de la surface vit encore dans `ViewPanel` (deux copies des règles
         du panneau jusqu'à la i2) ; le détail d'un compte est un nombre nu, lu sans son
         unité (comme les écrans du shell : à voir par la i2 au lecteur d'écran).
-    - [ ] 22f-i2. Le shell emploie `Panel` à la place de `ViewPanel` : les vingt et une
+    - [x] 22f-i2. Le shell emploie `Panel` à la place de `ViewPanel` : les vingt et une
       vues et parties qui l'importent (remplacement mécanique de l'import et de la
       balise), `EcranPanneau` des maquettes, les sélecteurs `k-view-panel` des parcours et
       des captures (`k-panel`), `ViewPanel.vue` supprimé ; la règle de la surface
@@ -8576,6 +8576,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       - taille : une vingtaine de fichiers, mais un même remplacement mécanique ; une
         seule famille de vérification
       - dépend de : 22f-i1
+      - fait : les vingt et une vues et parties importent `Panel` de `@kartenn/ui`,
+        `EcranPanneau` le rend, `ViewPanel.vue` supprimé ; la règle de la surface dans
+        `ShellFrame.vue` (après `.k-frame__surface`), avec `--k-panel-list-basis:
+        var(--k-space-0)` ; sélecteurs `k-panel` dans `records.spec.ts`, `layout.spec.ts`,
+        `clavier.spec.ts` et les règles de la matrice d'`E10Plugin` et `E15Matrice` ; ligne
+        42 de l'inventaire (design 020). `k-web2-check --base main` : 2745 captures sur 2745
+        inchangées (tout, `ShellFrame` touché), Vitest 1324 ; parcours de la 22f-h de
+        `records.spec.ts`.
+      - choix : `EcranPanneau` gardé comme enveloppe des maquettes (sans `list`), plutôt que
+        `Panel` dans chacune ; au reste de la i1 : la règle de la surface ne lit que le
+        `data-list` de la section, celui du corps sert aux règles de `Panel` (contrat
+        inchangé) ; nom `Panel` gardé.
+      - reste : le détail d'un écran de liste est un compte nu (« Flux, 1 234 ») ; pas
+        d'échec AA selon la relecture a11y, mais une unité (pluriel i18n, « 1 234 lignes »)
+        lèverait l'ambiguïté au lecteur d'écran, au prix de captures réécrites : hors de
+        cette tâche, qui ne devait en changer aucune. La règle de `ShellFrame` dépend des
+        classes internes de `Panel` (`.k-panel__body`) : seuls les captures et le parcours
+        de la 22f-h en verraient un renommage.
     - [ ] 22f-i3. Plugin `machines`, liste des machines : `MachineList` dans un `Panel`
       `list`, la grille paginée au reste de la fenêtre comme les écrans du shell ; le
       formulaire de création (`DraftForm`) déplacé hors de la surface qui défile (sous

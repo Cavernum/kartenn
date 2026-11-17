@@ -17,6 +17,7 @@ import {
   CodeBadge,
   KeyLabel,
   Menu,
+  Panel,
   Skeleton,
   Split,
   Stack,
@@ -61,7 +62,6 @@ import {
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
 import { keepRecordName } from "./names.ts";
-import ViewPanel from "./parts/ViewPanel.vue";
 import { VLAN_STATES } from "./parts/vlan.ts";
 import AnomaliesTab from "./record/AnomaliesTab.vue";
 import ContentTab from "./record/ContentTab.vue";
@@ -340,7 +340,7 @@ const summaryOf = (field: string) => {
   >
     {{ t("views.errorText") }}
   </ProblemState>
-  <ViewPanel v-else :title="name" :detail="detail" main>
+  <Panel v-else :title="name" :detail="detail" main>
     <template #actions>
       <Button
         icon="pencil"
@@ -397,7 +397,7 @@ const summaryOf = (field: string) => {
       </Tabs>
       <template #side>
         <Stack gap="3">
-          <ViewPanel :title="t('views.record.attributes')">
+          <Panel :title="t('views.record.attributes')">
             <Skeleton v-if="record.isPending.value" variant="text" :rows="4" />
             <AttributeList v-else :items="attributes">
               <template v-for="field in ['domain', 'parent']" :key="field" #[field]>
@@ -430,7 +430,7 @@ const summaryOf = (field: string) => {
               </template>
               <template #id><CodeBadge :code="props.id" /></template>
             </AttributeList>
-          </ViewPanel>
+          </Panel>
           <OccupancyPanel v-if="props.collection.kind === 'prefix'" :id="props.id" />
           <VlanOccupancyPanel
             v-if="props.collection.kind === 'vlan_group'"
@@ -438,7 +438,7 @@ const summaryOf = (field: string) => {
             :name="name"
             :range="range"
           />
-          <ViewPanel
+          <Panel
             v-for="extension in pluginPanels"
             :key="placeId(extension)"
             :title="labelOf(tr, extension)"
@@ -450,10 +450,10 @@ const summaryOf = (field: string) => {
               :label="labelOf(tr, extension)"
               :object="object"
             />
-          </ViewPanel>
+          </Panel>
         </Stack>
       </template>
     </Split>
-  </ViewPanel>
+  </Panel>
   <PluginAction v-model:open="actionOpen" :extension="acting" :object="object" />
 </template>

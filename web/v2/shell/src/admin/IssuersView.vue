@@ -15,6 +15,7 @@ import {
   Dialog,
   EmptyState,
   InlineAlert,
+  Panel,
   Select,
   Stack,
   TextField,
@@ -34,7 +35,6 @@ import type { WriteRefusal } from "../time/index.ts";
 import { nameOf, type Item } from "../views/collections.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { useStatus } from "../views/edit/say.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import {
   attachmentKey,
   attachmentOp,
@@ -212,7 +212,7 @@ async function attach(): Promise<void> {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <Panel :title="title" :detail="total" main flush>
     <template #actions>
       <Toolbar
         :label="t('admin.issuers.actions')"
@@ -254,7 +254,7 @@ async function attach(): Promise<void> {
       :refusal="draft.refusal.value"
       :note="null"
     />
-  </ViewPanel>
+  </Panel>
   <span class="k-visually-hidden" role="status">{{ said }}</span>
   <Dialog v-model:open="attaching" :title="t('admin.issuers.attachTitle')" size="md">
     <form :id="formId" novalidate @submit.prevent="attach">

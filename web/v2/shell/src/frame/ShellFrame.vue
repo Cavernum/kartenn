@@ -1129,6 +1129,18 @@ onBeforeUnmount(
     container: k-surface / inline-size;
   }
 
+  /* A list screen whose grid is virtualised (`Panel` `list`, its grid a child of its body)
+   * fills the surface, never less than its content: one elastic row, and the grid of the
+   * panel counted at its floor (a header and six rows), not at a list's height, so that a
+   * short window still shrinks it there and the surface scrolls only below (021-22f-h,
+   * contract of `Panel`, 021-22f-i1). Every other screen keeps its own height. */
+  /* stylelint-disable-next-line selector-max-compound-selectors -- the chain of the panel's rules, whole, so that the surface never fills alone */
+  .k-frame__surface:has(> [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]) {
+    --k-panel-list-basis: var(--k-space-0);
+
+    grid-template-rows: minmax(auto, 1fr);
+  }
+
   .k-frame__layers {
     display: contents;
   }

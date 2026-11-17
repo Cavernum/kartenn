@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// The panel of the work surface in the mock-ups: the one of the shell's screens
-// (`views/parts/ViewPanel.vue`, task 021-11), its slots passed through, so that a mock-up
-// and its screen draw the same panel.
-import ViewPanel from "../../views/parts/ViewPanel.vue";
+// The panel of the work surface in the mock-ups: the one of the shell's screens (`Panel` of
+// @kartenn/ui, tasks 021-11 and 22f-i1), its slots passed through, so that a mock-up and its
+// screen draw the same panel.
+import { Panel } from "@kartenn/ui";
 
 const props = defineProps<{
   title: string;
@@ -14,7 +14,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <ViewPanel
+  <Panel
     :title="props.title"
     :detail="props.detail"
     :mono="props.mono"
@@ -24,5 +24,5 @@ const props = defineProps<{
     <template v-for="(_, name) in $slots" #[name]="scope">
       <slot :name="name" v-bind="scope ?? {}" />
     </template>
-  </ViewPanel>
+  </Panel>
 </template>

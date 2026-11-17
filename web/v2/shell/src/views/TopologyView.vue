@@ -22,6 +22,7 @@ import { drafts, queryClient, reads, type components, type TimeArg } from "@kart
 import {
   EmptyState,
   InlineAlert,
+  Panel,
   Select,
   Split,
   Stack,
@@ -82,7 +83,6 @@ import { cellExtension, gridColumns, stableObjectRefs, useExtensions } from "../
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
-import ViewPanel from "./parts/ViewPanel.vue";
 import { shareOf } from "./occupancy.ts";
 import {
   askNextPage,
@@ -811,7 +811,7 @@ onBeforeUnmount(() => stopIntent());
   </template>
   <Split v-else side-size="lg" gap="3">
     <template #side>
-      <ViewPanel :title="t('nav.prefixes')" :detail="domainSlug" mono flush>
+      <Panel :title="t('nav.prefixes')" :detail="domainSlug" mono flush>
         <template #actions>
           <Select
             :model-value="domain"
@@ -911,9 +911,9 @@ onBeforeUnmount(() => stopIntent());
           />
           <EditHint v-else :why="focusWhy" :apply-lacks="focusApplyLacks" :held="focusHeld" />
         </template>
-      </ViewPanel>
+      </Panel>
     </template>
-    <ViewPanel
+    <Panel
       v-if="chosen"
       :title="valueOf(chosen)"
       :detail="detailOf(chosen)"
@@ -942,12 +942,12 @@ onBeforeUnmount(() => stopIntent());
         :node-edit="edit"
       />
       <p v-else>{{ t("views.topology.leaf") }}</p>
-    </ViewPanel>
-    <ViewPanel v-else :title="t('views.topology.content')" main>
+    </Panel>
+    <Panel v-else :title="t('views.topology.content')" main>
       <EmptyState icon="folder-tree" :title="t('views.topology.choose')">
         {{ t("views.topology.chooseText") }}
       </EmptyState>
-    </ViewPanel>
+    </Panel>
   </Split>
 </template>
 

@@ -7,8 +7,8 @@
 // section, its actions at the end of the header, an optional toolbar under it, its body, an
 // optional footer. The page title is the h1 of the view; every panel title is an h2, and
 // only the main panel is a named region (the list of landmarks stays short). The panel of
-// the shell's screens (`ViewPanel`, tasks 021-11 and 22f-h), made public for the plugins
-// (021-22f-i1), so that a plugin's list screen fills the window as the shell's do.
+// the shell's screens (once its `ViewPanel`, tasks 021-11 and 22f-h), made public for the
+// plugins (021-22f-i1), so that a plugin's list screen fills the window as the shell's do.
 import { useId } from "vue";
 
 const props = withDefaults(

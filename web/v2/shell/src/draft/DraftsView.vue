@@ -18,6 +18,7 @@ import {
   InlineAlert,
   Menu,
   NoValue,
+  Panel,
   StatusBadge,
   TextField,
   injectToasts,
@@ -38,7 +39,6 @@ import ProblemState from "../problems/ProblemState.vue";
 import { useWrites } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { draftWhy } from "./state.ts";
 
 type Row = DraftList["items"][number];
@@ -265,7 +265,7 @@ async function create(): Promise<void> {
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel
+  <Panel
     ref="view"
     :title="title"
     :detail="list.isSuccess.value ? t('drafts.count', { n: rows.length }) : undefined"
@@ -355,7 +355,7 @@ async function create(): Promise<void> {
     <template #footer>
       <span class="k-drafts__muted">{{ t("drafts.retention") }}</span>
     </template>
-  </ViewPanel>
+  </Panel>
   <AlertDialog
     v-model:open="confirmOpen"
     :title="t('drafts.deleteTitle', { title: deleting?.title ?? '' })"

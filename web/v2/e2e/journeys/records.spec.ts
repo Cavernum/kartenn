@@ -139,7 +139,7 @@ test("a long list keeps a few dozen rows, reads ahead, and opens a row by keyboa
 const heightsOf = (page: Page) =>
   page.evaluate(() => {
     const surface = document.getElementById("k-surface")!;
-    const panel = surface.querySelector<HTMLElement>(".k-view-panel[data-main]")!;
+    const panel = surface.querySelector<HTMLElement>(".k-panel[data-main]")!;
     const grid = panel.querySelector<HTMLElement>("[role='grid']")!;
     const style = getComputedStyle(grid);
     return {
@@ -156,7 +156,7 @@ const heightsOf = (page: Page) =>
       root: grid.closest(".k-data-grid-frame")!.getBoundingClientRect().height,
       // The room of the panel's body under the grid's root: none unless stretched.
       slack:
-        panel.querySelector(".k-view-panel__body")!.getBoundingClientRect().bottom -
+        panel.querySelector(".k-panel__body")!.getBoundingClientRect().bottom -
         grid.closest(".k-data-grid-frame")!.getBoundingClientRect().bottom,
       virtual: grid.hasAttribute("data-virtual"),
       least:

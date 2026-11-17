@@ -9,6 +9,7 @@ import {
   DataGrid,
   EmptyState,
   NoValue,
+  Panel,
   StatusBadge,
   type CellRef,
   type GridColumn,
@@ -19,7 +20,6 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { draftedStates } from "./access.ts";
 import { useAdminDraft } from "./draft.ts";
 import type { IdentityItem } from "./model.ts";
@@ -77,7 +77,7 @@ const total = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <Panel :title="title" :detail="total" main flush>
     <ProblemState
       v-if="query.isError.value"
       :title="t('admin.identities.error')"
@@ -118,5 +118,5 @@ const total = computed(() =>
         <template v-else>{{ value }}</template>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
 </template>

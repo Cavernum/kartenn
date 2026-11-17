@@ -7,6 +7,7 @@ import {
   DataGrid,
   EmptyState,
   KeyLabel,
+  Panel,
   Toolbar,
   type CellRef,
   type GridColumn,
@@ -23,7 +24,6 @@ import { useViewAction } from "../shortcuts/view.ts";
 import type { WriteRefusal } from "../time/index.ts";
 import { useKeyLabel } from "../views/data.ts";
 import { useStatus } from "../views/edit/say.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import { useAdminDraft } from "./draft.ts";
 import { refusalSentence, useAdminGate } from "./gate.ts";
 import GroupForm from "./GroupForm.vue";
@@ -111,7 +111,7 @@ const total = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush>
+  <Panel :title="title" :detail="total" main flush>
     <!-- At the start: the right panel may cover the end of the surface. -->
     <template #actions>
       <Toolbar
@@ -164,7 +164,7 @@ const total = computed(() =>
         <span v-else class="k-num">{{ value }}</span>
       </template>
     </DataGrid>
-  </ViewPanel>
+  </Panel>
   <span class="k-visually-hidden" role="status">{{ said }}</span>
   <GroupForm v-model:open="creating" :taken="rows.map((g) => g.key)" />
 </template>

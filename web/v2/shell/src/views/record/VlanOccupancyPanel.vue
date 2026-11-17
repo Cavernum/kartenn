@@ -8,6 +8,7 @@ import {
   AttributeList,
   BarList,
   ExpandableGrid,
+  Panel,
   Skeleton,
   Stack,
   StatusBadge,
@@ -21,7 +22,6 @@ import { useQuery } from "../../data/query.ts";
 import { useProblems } from "../../problems/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useTime } from "../../time/index.ts";
-import ViewPanel from "../parts/ViewPanel.vue";
 import { SLICE_STATES } from "../parts/vlan.ts";
 
 type Occupancy = components["schemas"]["VlanOccupancy"];
@@ -111,7 +111,7 @@ const sliceColumns = computed<GridColumn[]>(() => [
 </script>
 
 <template>
-  <ViewPanel :title="t('views.record.occupancy')" :detail="share">
+  <Panel :title="t('views.record.occupancy')" :detail="share">
     <ProblemState
       v-if="occupancy.isError.value"
       :title="t('views.vlan.occupancyError')"
@@ -162,5 +162,5 @@ const sliceColumns = computed<GridColumn[]>(() => [
         </template>
       </ExpandableGrid>
     </Stack>
-  </ViewPanel>
+  </Panel>
 </template>

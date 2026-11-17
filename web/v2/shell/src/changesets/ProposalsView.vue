@@ -4,7 +4,7 @@
 // each with the permissions its author lacks, leading to its record and its review
 // actions. Its count is the badge of the entry in the sidebar, read again on the event
 // `changeset`, never by polling.
-import { CodeBadge, DataGrid, EmptyState, type CellRef, type GridColumn } from "@kartenn/ui";
+import { CodeBadge, DataGrid, EmptyState, Panel, type CellRef, type GridColumn } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
@@ -12,7 +12,6 @@ import KLink from "../prefetch/KLink.vue";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useFilteredList } from "../views/list.ts";
-import ViewPanel from "../views/parts/ViewPanel.vue";
 import type { ProposalItem } from "./model.ts";
 import { useChangesetWords } from "./words.ts";
 
@@ -52,7 +51,7 @@ const countText = computed(() =>
 
 <template>
   <h1 class="k-visually-hidden">{{ title }}</h1>
-  <ViewPanel :title="title" :detail="total" main flush list>
+  <Panel :title="title" :detail="total" main flush list>
     <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <NextPageAlert
       v-else-if="refreshFailed"
@@ -101,7 +100,7 @@ const countText = computed(() =>
       <span class="k-num">{{ list.isPending.value ? "" : countText }}</span>
       <span role="status">{{ restarted ? t("views.list.restarted") : "" }}</span>
     </template>
-  </ViewPanel>
+  </Panel>
 </template>
 
 <style>
