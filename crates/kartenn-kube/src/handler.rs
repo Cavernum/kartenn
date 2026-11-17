@@ -1554,7 +1554,9 @@ fn withheld(
     }
 }
 
-/// The refusal [`withheld`] keeps, as the plan would have told it.
+/// The refusal [`withheld`] keeps, as the plan would have told it. One that lost its
+/// message says so, without the stored refusal itself, which is internal to the plan (task
+/// 002-29d7, point 5).
 fn told(refused: &Value) -> Violation {
     let id = refused.get("rule").and_then(Value::as_str);
     let rule = crate::rules::KUBE_RULES
@@ -1572,7 +1574,7 @@ fn told(refused: &Value) -> Violation {
         .and_then(Value::as_str)
         .filter(|m| !m.is_empty())
         .map_or_else(
-            || format!("kube.sync: a withheld refusal without its message ({refused})"),
+            || "kube.sync: a withheld refusal without its message".to_owned(),
             str::to_owned,
         );
     let mut violation = Violation::new(rule, message).with_subjects(subjects);
@@ -2765,9 +2767,20 @@ mod tests {
             Violation::new(&crate::rules::NAME_INVALID, "name: Shop").with_subjects([subject]);
         let plan = withheld(namespace_kind(), Uuid::now_v7(), subject, &[], &refusal);
         assert_eq!(told(&plan.data["refused"]), refusal);
-        let lost = told(&json!({"rule": "kube.name.invalid"}));
-        assert_eq!(lost.rule.id, "kube.name.invalid");
-        assert!(lost.message.contains("without its message"), "{lost:?}");
+        // Task 002-29d7, point 5: the stored refusal is internal; its JSON is not told.
+        let lost = told(&json!({"rule": "kube.name.invalid", "subjects": [subject]}));
+        assert_eq!(
+            (
+                lost.rule.id,
+                lost.message.as_str(),
+                lost.subjects.as_slice()
+            ),
+            (
+                "kube.name.invalid",
+                "kube.sync: a withheld refusal without its message",
+                &[subject][..]
+            )
+        );
         let unknown = told(&json!({"rule": "nowhere", "message": "m"}));
         assert_eq!(
             (unknown.rule.id, unknown.message.as_str()),
