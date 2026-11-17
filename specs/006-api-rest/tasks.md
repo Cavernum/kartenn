@@ -1945,11 +1945,26 @@ routeur complet, sauf mention « vrai TCP ».
     comme `DiffCountDto.masked`), l'audit sortant une fois par `disclosed` ; contrat
     (`openapi-v1.json`, `schema.d.ts` des deux SDK) : `masked` ajouté à l'échantillon,
     descriptions. Tests : `sensitive_answers` (simulation, appliquée et rejouée,
-    en attente et rejouée, sans le droit puis avec), unitaire
-    `a_sample_names_the_objects_of_a_key_only_whole`.
+    en attente et rejouée, sans le droit puis avec, audit compté exactement), unitaire
+    `a_sample_names_the_objects_of_a_key_only_whole`. Passe de revue : déplacement d'un
+    préfixe sous un parent porteur d'une valeur héritable sensible (simulation et
+    appliquée : masquée sans le droit, servie et auditée avec ; pas de fuite après la
+    correction, même chemin que l'écriture directe) ; échantillon tronqué (101 objets :
+    décompte masqué, échantillon servi, 100 événements) ; `counts` borné à
+    `DISCLOSED_MOST` (= `cursor::MAX_SIZE`, 1000) objets par clé (`diff_objects(…, most)`,
+    au-delà : masqué sans contrôle ni événement par objet, la lecture
+    `GET /v1/changesets/{id}[/diff]` comprise) ; une réponse d'écriture dont la divulgation
+    ne peut être lue ou auditée répondait 503, l'écriture acquise (établi par un test) :
+    `counts_answered` la masque et répond 201/202 ; le panneau de simulation des brouillons
+    (`DraftOperations.vue`) dit « masqué » (`changesets.masked`, comme `countedGroups`),
+    test monté dans `shell/test/changesets.test.ts`.
   - choix : marque de l'échantillon `masked: true` facultative, comme le décompte (et non
     le booléen toujours présent du détail lu) ; un auteur qui n'a pas le droit reçoit
-    `null` pour les deux côtés, la valeur qu'il écrit comprise, comme le différentiel lu.
+    `null` pour les deux côtés, la valeur qu'il écrit comprise, comme le différentiel lu ;
+    plafond des objets divulgués par clé : la taille maximale d'une page du détail (1000),
+    partagé par la lecture et les réponses ; repli d'une divulgation en échec : masquer
+    les clés sensibles (toutes les entrées si les clés ne se lisent pas), journalisé
+    `http.changeset.diff_masked`.
   - reste (à arbitrer) : une réponse en attente (et sa rejouée) masque une propriété
     sensible même à qui a le droit, comme la lecture d'un changeset en attente : son
     détail n'est pas journalisé (`hold`, `pipeline.rs`), `counts` ne sait pas quels
@@ -1957,6 +1972,16 @@ routeur complet, sauf mention « vrai TCP ».
     nomme pas tous les objets d'une clé sensible la masque. Pour servir ces valeurs :
     journaliser le détail en attente, ou rendre les objets des clés sensibles dans
     `Outcome::{Pending, Simulated}` (`kartenn-service`, hors du périmètre de la tâche).
+  - reste : mesurer au banc (session principale) le coût de `counts` pour un changeset
+    de 5·10⁴ objets d'une clé sensible (lecture bornée de `changeset_diff`, puis
+    `authorize_many` et un événement par objet jusqu'à 1000), à la première réponse et à
+    chaque rejeu ; une réponse en attente rejouée après son approbation ne rend plus le
+    corps de la première (son détail est alors journalisé : valeurs servies à qui a le
+    droit), conforme à REQ-006-15 amendée le 2026-11-17 (rejeu recalculé, aucun corps
+    gardé) ; non relus pour une valeur sensible : le flux SSE, les opérations du journal
+    d'un changeset, les messages de violation et `PendingReason.message` ; les autres
+    parties d'une réponse appliquée (`violations`, `cascaded_by`) peuvent encore répondre
+    5xx après l'écriture.
   - versé par la revue de la 33g2 (à arbitrer ou écrire, pas des fuites) : le temps de
     réponse du différentiel distingue un objet illisible présent d'un absent (une
     lecture contre trois à cinq, `cycle.rs` 578 `diff_summaries`) — lire la période sans

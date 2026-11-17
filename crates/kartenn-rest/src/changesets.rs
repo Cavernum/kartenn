@@ -808,7 +808,7 @@ pub(crate) struct ChangesetApplied {
 }
 
 /// 201 (or 200): the changeset applied, its warnings, differential (masked as its read
-/// masks it, [`cycle::counts`]) and closures by cascade.
+/// masks it, [`cycle::counts_answered`]) and closures by cascade.
 async fn applied(
     api: &Api,
     context: &RequestContext,
@@ -822,7 +822,7 @@ async fn applied(
         changeset: summary(changeset),
         state: "applied",
         warnings: violations(api, warnings, answer.pointers).await?,
-        diff: cycle::counts(api, context, changeset, diff).await?,
+        diff: cycle::counts_answered(api, context, changeset, diff).await,
         cascaded: cascaded_by(api, context, changeset, closures).await?,
         secret: answer.shown.cloned(),
     };
@@ -871,7 +871,7 @@ pub(crate) struct PendingReason {
 }
 
 /// 202: the changeset held for a decision, its differential `diff` masked as its read
-/// masks it ([`cycle::counts`]).
+/// masks it ([`cycle::counts_answered`]).
 async fn pending(
     (api, context): (&Api, &RequestContext),
     changeset: Uuid,
@@ -884,7 +884,7 @@ async fn pending(
         state: "pending",
         kind: kind.to_owned(),
         policy,
-        diff: cycle::counts(api, context, changeset, diff).await?,
+        diff: cycle::counts_answered(api, context, changeset, diff).await,
         reason: reason.map(|v| PendingReason {
             code: v.rule.id.to_owned(),
             message: v.message.clone(),

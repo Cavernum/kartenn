@@ -348,10 +348,16 @@ pub(crate) fn mask_counts(
     }
 }
 
+/// The most objects of a sensitive key whose values a counted differential serves, each
+/// authorised and audited: those of a page of the detail ([`crate::cursor::MAX_SIZE`]);
+/// past it, the key is masked (task 006-43).
+const DISCLOSED_MOST: i64 = crate::cursor::MAX_SIZE as i64;
+
 /// The counted differential of changeset `id` as served: an entry of a sensitive property
 /// keeps its values only if the caller may see them on every object it counts, as the
-/// detail journaled names them (none for a pending changeset: masked). Also the answer of
-/// a write that applies or holds `id`, and of its replay (task 006-43).
+/// detail journaled names them (none for a pending changeset: masked), at most
+/// [`DISCLOSED_MOST`] of them. Also the answer of a write that applies or holds `id`, and
+/// of its replay (task 006-43, [`counts_answered`]).
 pub(crate) async fn counts(
     api: &Api,
     context: &RequestContext,
@@ -365,10 +371,41 @@ pub(crate) async fn counts(
     if keys.is_empty() {
         return Ok(counted);
     }
-    let objects = changesets::diff_objects(&api.pool, id, &keys).await?;
+    let objects = changesets::diff_objects(&api.pool, id, &keys, DISCLOSED_MOST).await?;
     let shown = disclosed(api, context, objects.clone()).await?;
     mask_counts(&mut counted, &sensitive, &objects, &shown);
     Ok(counted)
+}
+
+/// [`counts`] in the answer of a write already acquired: a failure to read or audit what
+/// it would disclose masks the values instead (every sensitive entry, every entry if the
+/// sensitive keys cannot be read) rather than answer 5xx for a changeset that is written.
+pub(crate) async fn counts_answered(
+    api: &Api,
+    context: &RequestContext,
+    id: Uuid,
+    counted: Value,
+) -> Value {
+    match counts(api, context, id, counted.clone()).await {
+        Ok(served) => served,
+        Err(problem) => {
+            tracing::warn!(name: "http.changeset.diff_masked", changeset = %id, ?problem, "the sensitive values of an answer could not be disclosed, masked");
+            let mut masked = counted;
+            match property_read::sensitive_keys(&api.pool).await {
+                Ok(sensitive) => {
+                    mask_counts(&mut masked, &sensitive, &BTreeMap::new(), &BTreeSet::new());
+                }
+                Err(_) => {
+                    for entry in masked.as_array_mut().into_iter().flatten() {
+                        entry["before"] = Value::Null;
+                        entry["after"] = Value::Null;
+                        entry["masked"] = Value::Bool(true);
+                    }
+                }
+            }
+            masked
+        }
+    }
 }
 
 /// The operations as served: the values of a sensitive property masked without

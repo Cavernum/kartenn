@@ -138,6 +138,7 @@ async fn disclosures(pool: &PgPool) -> i64 {
 /// (`sighted`).
 struct Scene {
     pool: PgPool,
+    admin: Router,
     assign: Value,
     blind: Router,
     sighted: Router,
@@ -205,6 +206,7 @@ async fn scene(pool: PgPool) -> Scene {
     );
     Scene {
         pool,
+        admin,
         assign: assign(WRITTEN),
         blind,
         sighted,
@@ -255,7 +257,8 @@ async fn a_simulation_masks_a_sensitive_value_without_its_right(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_shown(&body["diff"][0]);
     assert_shown(&body["sample"][0]);
-    assert!(disclosures(&scene.pool).await > before);
+    // One disclosure for the object, the count and the sample together.
+    assert_eq!(disclosures(&scene.pool).await, before + 1);
 }
 
 #[kartenn_testing::pg_test]
@@ -284,12 +287,270 @@ async fn an_applied_answer_and_its_replay_mask_a_sensitive_value_without_its_rig
     let (status, body) = post(&scene.sighted, uri, &scene.assign, Some("sighted-1")).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
     assert_shown(&body["diff"][0]);
-    let first = disclosures(&scene.pool).await;
-    assert!(first > before);
+    // One disclosure per answer: the first, then its replay.
+    assert_eq!(disclosures(&scene.pool).await, before + 1);
     let (status, body) = post(&scene.sighted, uri, &scene.assign, Some("sighted-1")).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
     assert_shown(&body["diff"][0]);
-    assert!(disclosures(&scene.pool).await > first);
+    assert_eq!(disclosures(&scene.pool).await, before + 2);
+}
+
+/// Declares the heritable sensitive text property `key` on the prefixes of the addressing
+/// tree.
+async fn heritable(pool: &PgPool, key: &str) -> Uuid {
+    sqlx::query_scalar(
+        "INSERT INTO property_declaration (id, key, value_type, cardinality, carriers,
+                                           type_params, inherit_tree, sensitive, valid_period,
+                                           changeset_id)
+         VALUES (gen_random_uuid(), $1, 'text', 'single', ARRAY['prefix'],
+                 '{\"min_len\": 1, \"max_len\": 64}', 'addressing', true,
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+         RETURNING id",
+    )
+    .bind(key)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// The identifier of the prefix `prefix`.
+async fn prefix_id(pool: &PgPool, prefix: &str) -> Uuid {
+    sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = $1::cidr")
+        .bind(prefix)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// The entry of `key` in the counted differential `diff`.
+fn entry_of<'a>(diff: &'a Value, key: &str) -> &'a Value {
+    diff.as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["property"] == key)
+        .unwrap_or_else(|| panic!("no entry of {key} in {diff}"))
+}
+
+/// Task 006-43, inheritance: a prefix moved under a parent that carries a heritable
+/// sensitive value inherits it; whoever moves it may edit the property without reading it
+/// (REQ-005-22) and reads neither side of its effective value, in the simulation as in the
+/// applied answer; with the right, both are served and audited.
+#[kartenn_testing::pg_test]
+async fn a_move_under_a_sensitive_parent_masks_the_inherited_value(pool: PgPool) {
+    let scene = scene(pool).await;
+    let pool = &scene.pool;
+    let property = heritable(pool, "sec.zone").await;
+    let domain: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'lab'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let create = |local: u32, prefix: &str, nature: &str| {
+        json!({"op": "create_prefix", "local": local, "domain": {"id": domain},
+               "prefix": prefix, "nature": nature})
+    };
+    let (status, body) = post(
+        &scene.admin,
+        "/v1/changesets?approval=self",
+        &json!([
+            create(1, "198.51.100.0/24", "container"),
+            create(2, "203.0.113.0/24", "container"),
+            create(3, "203.0.113.0/25", "network")
+        ]),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let parent = prefix_id(pool, "198.51.100.0/24").await;
+    let child = prefix_id(pool, "203.0.113.0/25").await;
+    let (status, body) = post(
+        &scene.admin,
+        "/v1/changesets?approval=self",
+        &json!([{"op": "assign_property", "object": {"id": parent}, "kind": "prefix",
+                 "property": {"id": property}, "values": [SECRET]}]),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let mover = [
+        "core.prefix.read",
+        "core.prefix.edit",
+        "core.prefix.approval.self",
+        "prop.sec.zone.edit",
+        "prop.sec.zone.approval.self",
+    ];
+    let blind = app_as(pool, person(pool, &mover).await);
+    let sighted = app_as(
+        pool,
+        person(pool, &[&mover[..], &["prop.sec.zone.read"]].concat()).await,
+    );
+    let moved = |to: &str| json!([{"op": "update_prefix", "id": {"id": child}, "prefix": to}]);
+    let inherited = |entry: &Value| {
+        assert_eq!(entry["property"], "sec.zone", "{entry}");
+        assert!(entry["before"].is_null(), "{entry}");
+        assert_eq!(entry["after"], text(SECRET), "{entry}");
+        assert_ne!(entry["masked"], true, "{entry}");
+    };
+
+    let before = disclosures(pool).await;
+    for uri in [
+        "/v1/changesets?simulate=true",
+        "/v1/changesets?approval=self",
+    ] {
+        let (status, body) = post(&blind, uri, &moved("198.51.100.0/25"), None).await;
+        assert!(status.is_success(), "{body}");
+        let masked = entry_of(&body["diff"], "sec.zone");
+        assert!(masked["after"].is_null(), "{body}");
+        assert_eq!(masked["masked"], true, "{body}");
+        assert!(!body.to_string().contains(SECRET), "{body}");
+        assert_eq!(disclosures(pool).await, before);
+        // Back where it was, for the next route or the sighted mover.
+        if status == StatusCode::CREATED {
+            let (status, body) = post(&sighted, uri, &moved("203.0.113.0/25"), None).await;
+            assert_eq!(status, StatusCode::CREATED, "{body}");
+        }
+    }
+    let before = disclosures(pool).await;
+    let (status, body) = post(
+        &sighted,
+        "/v1/changesets?simulate=true",
+        &moved("198.51.100.0/25"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    inherited(entry_of(&body["diff"], "sec.zone"));
+    let sampled = body["sample"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["property"] == "sec.zone")
+        .unwrap();
+    inherited(sampled);
+    assert_eq!(disclosures(pool).await, before + 1);
+    let (status, body) = post(
+        &sighted,
+        "/v1/changesets?approval=self",
+        &moved("198.51.100.0/25"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    inherited(entry_of(&body["diff"], "sec.zone"));
+    assert_eq!(disclosures(pool).await, before + 2);
+}
+
+/// Task 006-43: past the first 100 entries of a simulation, the objects of a sensitive key
+/// are not all named; its count is masked even with the right, the sample served and
+/// audited object by object.
+#[kartenn_testing::pg_test]
+async fn a_cut_sample_masks_the_count_of_a_sensitive_key(pool: PgPool) {
+    let scene = scene(pool).await;
+    let pool = &scene.pool;
+    let domain: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'lab'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let creates: Vec<Value> = (1..=101)
+        .map(|n| {
+            json!({"op": "create_prefix", "local": n, "domain": {"id": domain},
+                   "prefix": format!("2001:db8:0:{n:x}::/64"), "nature": "network"})
+        })
+        .collect();
+    let (status, body) = post(
+        &scene.admin,
+        "/v1/changesets?approval=self",
+        &json!(creates),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM prefix WHERE family(prefix) = 6")
+        .fetch_all(pool)
+        .await
+        .unwrap();
+    assert_eq!(ids.len(), 101);
+    let assigns: Vec<Value> = ids
+        .iter()
+        .map(|id| {
+            let mut assign = scene.assign[0].clone();
+            assign["object"] = json!({"id": id});
+            assign
+        })
+        .collect();
+    let before = disclosures(pool).await;
+    let (status, body) = post(
+        &scene.sighted,
+        "/v1/changesets?simulate=true",
+        &json!(assigns),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let count = entry_of(&body["diff"], "sec.code");
+    assert_eq!(count["count"], 101, "{body}");
+    assert!(count["after"].is_null(), "{body}");
+    assert_eq!(count["masked"], true, "{body}");
+    let sample = body["sample"].as_array().unwrap();
+    assert_eq!(sample.len(), 100);
+    assert!(sample.iter().all(|e| e["after"] == text(WRITTEN)), "{body}");
+    assert_eq!(disclosures(pool).await, before + 100);
+}
+
+/// Task 006-43: the objects of a key are read for disclosure only up to a bound; a key
+/// past it is left out, masked without a check or an event per object.
+#[kartenn_testing::pg_test]
+async fn the_objects_disclosed_are_bounded(pool: PgPool) {
+    let scene = scene(pool).await;
+    let (status, body) = post(
+        &scene.sighted,
+        "/v1/changesets?approval=self",
+        &scene.assign,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let id: Uuid = body["changeset"]["id"].as_str().unwrap().parse().unwrap();
+    let keys = ["sec.code".to_owned()];
+    let within = kartenn_store_pg::changesets::diff_objects(&scene.pool, id, &keys, 1)
+        .await
+        .unwrap();
+    assert_eq!(within["sec.code"].len(), 1);
+    let past = kartenn_store_pg::changesets::diff_objects(&scene.pool, id, &keys, 0)
+        .await
+        .unwrap();
+    assert!(past.is_empty(), "{past:?}");
+}
+
+/// Task 006-43: a write applied whose disclosure cannot be audited answers as applied,
+/// its sensitive values masked; the changeset stays written.
+#[kartenn_testing::pg_test]
+async fn an_applied_answer_whose_disclosure_fails_masks_and_keeps_the_write(pool: PgPool) {
+    let scene = scene(pool).await;
+    sqlx::raw_sql(
+        "CREATE FUNCTION pg_temp_refuse_disclosure() RETURNS trigger LANGUAGE plpgsql AS
+         $$ BEGIN RAISE EXCEPTION 'audit refused'; END $$;
+         CREATE TRIGGER refuse_disclosure BEFORE INSERT ON audit.event FOR EACH ROW
+         WHEN (NEW.name = 'data.sensitive.read') EXECUTE FUNCTION pg_temp_refuse_disclosure();",
+    )
+    .execute(&scene.pool)
+    .await
+    .unwrap();
+    let (status, body) = post(
+        &scene.sighted,
+        "/v1/changesets?approval=self",
+        &scene.assign,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_masked(&body["diff"][0]);
+    assert!(!body.to_string().contains(SECRET), "{body}");
+    let state: String = sqlx::query_scalar("SELECT state FROM changeset WHERE id = $1::uuid")
+        .bind(body["changeset"]["id"].as_str().unwrap())
+        .fetch_one(&scene.pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "applied");
 }
 
 #[kartenn_testing::pg_test]
