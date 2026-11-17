@@ -255,7 +255,11 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
   d'acceptation ; `a_view_written_and_read_back_keeps_one_rule_per_cell`, aller-retour ;
   `a_cell_is_refused_without_what_its_state_requires`).
   choix : quatrième état d'écriture `none` (vide la cellule : clôture de sa règle ; une
-  cellule déjà vide est refusée) ; une règle de vue n'appartient à aucun motif, ne cite ni
+  cellule déjà vide est refusée — depuis le 2026-11-17, tâche 002-29d4, à son écriture,
+  après les droits vérifiés avant les écritures et la lecture du type de flux, et non
+  plus par le plan, qui le disait avant les droits à un auteur sans droit, y compris pour
+  un type de flux absent (INV-63) ; même refus `policy.operation.invalid`, même 422 sur
+  `PUT /v1/policy-matrix/…` à `none`) ; une règle de vue n'appartient à aucun motif, ne cite ni
   service ni « même valeur » ; plusieurs règles dans une cellule : `deny` l'emporte, puis
   `allow` sans motif, sinon `conditional` avec l'union des motifs, et l'écriture met à jour
   la première par clé ; clé générée `matrix-<uuid>`, libellé `source → destination` par
@@ -650,3 +654,20 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     la valeur de leur réseau, pas de défaut) et l'écart des médianes est du bruit :
     au banc réduit, 1,18 s puis 0 s sans correctif, 0,15 s puis 0,99 s avec, selon la
     charge (2 à 6).
+
+- [ ] 23. (à arbitrer) Portée de `policy.inference.admin` sur les règles ancrées dans un
+  domaine : une liaison sur une entité n'atteint pas une règle d'inférence qui cite un
+  domaine dont l'entité est propriétaire (constat de la tâche 002-29d4, 2026-11-17 :
+  refus `core.object.forbidden` à la création comme à la mise à jour ; une liaison sur le
+  domaine même l'atteint). REQ-010-46 exige le droit « sur ce domaine » sans dire si une
+  liaison sur son propriétaire en hérite, comme elle le fait pour les préfixes et les
+  adresses du domaine. À trancher : (A) héritage par le propriétaire du domaine, comme
+  l'adressage ; (B) liaison sur le domaine seule, REQ-010-46 précisée — REQ-010-46 —
+  verify : test d'intégration sous `PgAuthorizer` (liaison sur l'entité propriétaire,
+  sur le domaine, sur une autre entité ; création, mise à jour et clôture d'une règle qui
+  cite le domaine) ; `k-check -p kartenn-policy`
+  où : `crates/kartenn-store-pg/migrations/` (vue `carrier_object`, fonction
+  `kartenn_visible`, `0072_vlan_core.sql` 220 à 236), `crates/kartenn-store-pg/src/rbac.rs`
+  (`outside_on`), `crates/kartenn-policy/src/handler.rs` (`write`, `register` du domaine),
+  `infer.rs` (`plan_rule`) ; test voisin `crates/kartenn-policy/tests/it/references.rs`
+  (`World::granted_on`)

@@ -150,8 +150,9 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
             continue;
         }
         let message = format!("{} object(s) need {permission}", denied.len());
+        let shown = named(tx, authorizer, (subject, check.verb), denied).await?;
         violations
-            .push(Violation::new(&rules::PROP_FORBIDDEN_EFFECT, message).with_subjects(denied));
+            .push(Violation::new(&rules::PROP_FORBIDDEN_EFFECT, message).with_subjects(shown));
     }
     crate::rbac::check(
         tx,
@@ -213,8 +214,8 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
             .await?;
         if !denied.is_empty() {
             let message = format!("{} object(s) need {permission}", denied.len());
-            violations
-                .push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(denied));
+            let shown = named(tx, authorizer, (subject, Verb::Edit), denied).await?;
+            violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(shown));
         }
     }
     Ok(())
@@ -222,6 +223,42 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
 
 /// The permission to edit an object of `kind` (005, K12; spec 024, REQ-024-9);
 /// `<type>.edit` for an object of a module (ADR 0026, clause 5).
+/// INV-63 (task 002-29d4): the objects among `denied` that `subject` reads, in order, which
+/// alone a refusal of his right to edit names; an object out of his reading, or not in
+/// force (one a plan draws), is counted in its message but not named, so that the refusal
+/// does not tell him which object a plan completed for him, nor whether it exists. The
+/// lacks of whoever applies (`verb` other than edit) keep every object: they hold the
+/// changeset for a review that needs them (REQ-024-11).
+async fn named<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    (subject, verb): (&Subject, Verb),
+    denied: Vec<Uuid>,
+) -> Result<Vec<Uuid>, StoreError> {
+    if verb != Verb::Edit {
+        return Ok(denied);
+    }
+    let mut by_read: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+    let mut read: BTreeSet<Uuid> = BTreeSet::new();
+    for (id, kind) in tx.kinds_in_force(&denied, None).await? {
+        match crate::pipeline::read_permission(kind) {
+            Some(permission) => by_read.entry(permission).or_default().push(id),
+            None => {
+                read.insert(id);
+            }
+        }
+    }
+    for (permission, ids) in by_read {
+        let unread: BTreeSet<Uuid> = authorizer
+            .authorize_in(tx, subject, &permission, &ids)
+            .await?
+            .into_iter()
+            .collect();
+        read.extend(ids.into_iter().filter(|id| !unread.contains(id)));
+    }
+    Ok(denied.into_iter().filter(|id| read.contains(id)).collect())
+}
+
 fn edit_permission(kind: ObjectKind) -> String {
     match kind {
         ObjectKind::Domain => "core.domain.edit".into(),
@@ -366,7 +403,8 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
             continue;
         }
         let message = format!("{} object(s) need {permission}", denied.len());
-        violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(denied));
+        let shown = named(tx, authorizer, (check.subject, check.verb), denied).await?;
+        violations.push(Violation::new(&rules::OBJECT_FORBIDDEN, message).with_subjects(shown));
     }
     Ok(())
 }

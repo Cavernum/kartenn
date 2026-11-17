@@ -213,6 +213,47 @@ async fn a_cell_is_refused_without_what_its_state_requires(pool: PgPool) {
     }
 }
 
+/// The versions recorded, the objects of the modules, the revisions of the policy.
+async fn traces(pool: &PgPool) -> (i64, i64, i64) {
+    sqlx::query_as(
+        "SELECT (SELECT count(*) FROM object_version), (SELECT count(*) FROM module_object),
+                (SELECT policy FROM policy.policy_revision)",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// An empty cell emptied (task 002-29d4) is refused at its write, once the rights checked
+/// before the writes are granted (INV-63): its plan writes nothing and the refusal names
+/// no object, nothing is recorded; under `if_match`, the same refusal with the tag read,
+/// `policy.matrix.stale` with another.
+#[kartenn_testing::pg_test]
+async fn an_empty_cell_emptied_is_refused_at_its_write(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let (file, _) = catalogue(&env).await;
+    let before = traces(&pool).await;
+    let tag = format!("\"{}\"", fingerprint(&read(&env).await));
+    for (extra, rule) in [
+        (json!({}), "policy.operation.invalid"),
+        (json!({ "if_match": tag }), "policy.operation.invalid"),
+        (json!({ "if_match": "\"other\"" }), "policy.matrix.stale"),
+    ] {
+        let outcome = env
+            .submit(vec![set("prod", file, "dev", "none", extra)])
+            .await;
+        let kartenn_service::Outcome::Refused { violations, .. } = &outcome else {
+            panic!("{outcome:?}")
+        };
+        let found: Vec<(&str, usize)> = violations
+            .iter()
+            .map(|v| (v.rule.id, v.subjects.len()))
+            .collect();
+        assert_eq!(found, [(rule, 0)], "{outcome:?}");
+        assert_eq!(traces(&pool).await, before, "{rule}: nothing recorded");
+    }
+}
+
 /// Under `if_match` (S35): two cells of a changeset compared with the matrix before it are
 /// applied; the same tag once the matrix changed is `policy.matrix.stale`, nothing
 /// written; the tag read again is applied; without `if_match`, no comparison.

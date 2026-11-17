@@ -136,14 +136,16 @@ impl Fixture {
     }
 
     /// Refused by the rights: the objects refused.
-    /// `grants` plus the right to write the objects themselves (005): these tests are about
-    /// the rights on the properties and their effects.
+    /// `grants` plus the right to write the objects themselves (005) and to read them, so
+    /// that a refusal names them (INV-63, task 002-29d4): these tests are about the rights
+    /// on the properties and their effects.
     fn with_objects(&self, grants: &Grants) -> Grants {
         ["prefix", "range", "address"]
             .iter()
             .fold(grants.clone(), |g, kind| {
                 g.everywhere(self.contractor, &format!("core.{kind}.edit"))
                     .everywhere(self.contractor, &format!("core.{kind}.approval.self"))
+                    .everywhere(self.contractor, &format!("core.{kind}.read"))
             })
     }
 
