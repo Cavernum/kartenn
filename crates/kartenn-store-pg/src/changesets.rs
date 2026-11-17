@@ -243,7 +243,9 @@ pub async fn page(
     Ok(rows.into_iter().map(summary).collect())
 }
 
-/// The objects of the differential detail of changeset `id` for each of `keys`.
+/// The objects of the differential detail of changeset `id` for each of `keys` that counts
+/// at most `most` of them; a key past it is left out (task 006-43: its values are masked,
+/// neither authorised nor audited object by object).
 ///
 /// # Errors
 ///
@@ -252,13 +254,20 @@ pub async fn diff_objects(
     pool: &PgPool,
     id: Uuid,
     keys: &[String],
+    most: i64,
 ) -> Result<BTreeMap<String, Vec<Uuid>>, StoreError> {
     let rows: Vec<(String, Uuid)> = sqlx::query_as(
-        "SELECT DISTINCT property_key, object_id FROM changeset_diff
-         WHERE changeset_id = $1 AND property_key = ANY($2)",
+        "WITH d AS (
+             SELECT DISTINCT property_key, object_id FROM changeset_diff
+             WHERE changeset_id = $1 AND property_key = ANY($2)
+         ), n AS (
+             SELECT property_key FROM d GROUP BY 1 HAVING count(*) <= $3
+         )
+         SELECT d.property_key, d.object_id FROM d JOIN n USING (property_key)",
     )
     .bind(id)
     .bind(keys)
+    .bind(most)
     .fetch_all(pool)
     .await
     .map_err(store_err)?;

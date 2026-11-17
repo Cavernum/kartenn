@@ -282,7 +282,13 @@ const value = (text: string | null | undefined) =>
         <ul class="k-draft-ops__counts">
           <li v-for="(count, index) in counts" :key="index">
             <span>{{ keyLabel("property", count.property) ?? count.property }}</span>
-            <DiffValue v-if="count.before && count.after" kind="changed">
+            <!-- A sensitive value the reader may not read (REQ-005-21): said « masqué » on
+                 both sides, as the counted differential of a changeset says it. -->
+            <DiffValue v-if="count.masked" kind="changed">
+              <template #before>{{ t("changesets.masked") }}</template>
+              {{ t("changesets.masked") }}
+            </DiffValue>
+            <DiffValue v-else-if="count.before && count.after" kind="changed">
               <template #before>{{ count.before }}</template>
               {{ count.after }}
             </DiffValue>

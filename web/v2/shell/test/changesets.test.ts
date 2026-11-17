@@ -515,6 +515,28 @@ describe("the screens of the changesets and the drafts", () => {
       ?.textContent?.replace(/Ctrl\s*Entrée$/, "")
       .trim();
 
+  it("says « masqué » for a sensitive count of the simulation it may not read (task 006-43)", async () => {
+    const simulated = {
+      ...valid,
+      diff: [
+        { property: "sec.code", before: null, after: null, count: 2, masked: true },
+        { property: "zone", before: null, after: '"blue"', count: 1 },
+      ],
+    };
+    const { root } = await mounted(`/drafts/${D1}`, ["core.prefix.edit"], (call) =>
+      call.url.endsWith("/simulation") ? { body: simulated } : { body: draft(OPS), etag: '"1"' },
+    );
+    const lines = () =>
+      [...root.querySelectorAll(".k-draft-ops__counts > li")].map((li) =>
+        li.textContent?.replace(/\s+/g, " ").trim(),
+      );
+    await expect.poll(lines, { timeout: 3000 }).toHaveLength(2);
+    expect(lines()[0]).toContain("sec.code");
+    expect(lines()[0]).toContain("masqué");
+    expect(lines()[0]).toContain("2 objets");
+    expect(lines()[1]).not.toContain("masqué");
+  });
+
   it("offers « Appliquer » with approval.self, « Soumettre en revue » without, its permission said", async () => {
     const answer = (call: Seen): Answer =>
       call.url.endsWith("/simulation") ? { body: valid } : { body: draft(OPS), etag: '"1"' };

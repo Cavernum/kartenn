@@ -33,6 +33,7 @@ mod plugins;
 mod quota;
 mod resources;
 mod rights;
+mod sensitive_answers;
 mod sessions;
 mod simulated;
 mod socle;

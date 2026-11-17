@@ -1172,7 +1172,7 @@
             "type": "array"
           },
           "diff": {
-            "description": "The counted differential applying would produce.",
+            "description": "The counted differential applying would produce. An entry of a sensitive property\nis masked unless the caller may read it on every object it counts and `sample`\nnames them all (REQ-005-21).",
             "items": {
               "$ref": "#/components/schemas/DiffCountDto"
             },
@@ -1724,7 +1724,7 @@
             "type": "integer"
           },
           "masked": {
-            "description": "In a changeset read: the values are masked, the caller may not read them on every\nobject counted (REQ-005-21).",
+            "description": "`true`: the values of this sensitive property are masked, the caller may not read\nthem on every object counted (REQ-005-21); absent otherwise.",
             "type": [
               "boolean",
               "null"
@@ -1788,6 +1788,13 @@
             "description": "The value before, as JSON text; `null`: no value. For a property of type\nreference, the summary of each object it names.",
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "masked": {
+            "description": "`true`: the values of this sensitive property are masked, the caller may not read\nthem on this object (REQ-005-21); absent otherwise.",
+            "type": [
+              "boolean",
               "null"
             ]
           },
