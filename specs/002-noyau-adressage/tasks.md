@@ -728,6 +728,27 @@ voir [`../README.md`](../README.md). « verify » = commande ou test qui prouve 
       apprend, identifiant par identifiant, la source du flux qu'il édite — à trancher avec la tâche 31 (lecture exigée des références) ou en
       exigeant la lecture des extrémités pour `update` comme pour `register` (modèle de
       droits)
+  - [ ] 29d7. Restes de `check_before` (revue ciblée de la 29d2, 2026-11-17,
+    `crates/kartenn-service/src/rights.rs` 243 à 284, `pipeline.rs` 2867 à 2886) :
+    (1) coût sur le chemin commun, à mesurer au banc (`bench-core`, `bench-http`, lot de
+    connecteur de 500 opérations, import de 10⁴) : `kept` clone tous les `Planned` même
+    sans lecture refusée, et chaque permission de lecture est autorisée deux fois
+    (`check_before` puis `check_guards`) ; (2) `zip(origins)` tronque en silence si les
+    longueurs divergent, ce qui sortirait des éléments du contrôle d'édition sans
+    refus : une assertion, et `authored_origins` dérivé de `authored` plutôt que
+    refiltré à part ; (3) tests manquants : plusieurs opérations (une non lue, une
+    refusée à l'édition sur un autre objet ou sur le même), revalidation avec
+    opérations de revue jointes ; (4) à arbitrer : l'upsert d'un service kube dont
+    l'adresse est déjà citée dans une grappe vivante non lue rend deux refus de lecture
+    (`kube.cluster.read`, `core.address.read`) contre un pour une grappe absente
+    (INV-63, étroit : il faut l'identifiant de la grappe et une adresse tenue) — un
+    ordre entre les lectures d'un module (contrat de module, ADR 0026 ; l'argument
+    n'est pas acquis, à établir) ou la tâche 31 ; (5) `told` de `kartenn-kube`
+    (`handler.rs` 1575) recopie le JSON interne du refus dans une violation visible —
+    verify : test rouge d'abord par point ; banc par la session principale
+    - où : `crates/kartenn-service/src/{rights.rs,pipeline.rs}`,
+      `crates/kartenn-kube/src/handler.rs`, `crates/kartenn-kube/tests/it/references.rs`
+    - dépend de : 29d2
   - [ ] 29d6. Restes du refus de droits qui ne nomme que ce que l'auteur lit (revue
     ciblée de la 29d4, 2026-11-17, `crates/kartenn-service/src/rights.rs` `named`) :
     (1) le message garde le compte des objets refusés, cachés compris : sur les effets
