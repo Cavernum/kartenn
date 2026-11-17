@@ -1152,9 +1152,9 @@ routeur complet, sauf mention « vrai TCP ».
   sous un schéma distinct, `RightsGroupRef` (décision provisoire, voir 33f).
   reste : les machines d'un nœud et de la chaîne restent `{id}` jusqu'à la fusion de la
   33d (`keys` de `machines`).
-- [ ] 33f. Flux et politique (découpée le 2026-11-15 : 33f1, 33f2, 33f3, chacune dans un
+- [x] 33f. Flux et politique (découpée le 2026-11-15 : 33f1, 33f2, 33f3, chacune dans un
   contexte d'agent) :
-  - [ ] 33f1. Flux : les extrémités d'un flux, d'une demande et d'une non-conformité en
+  - [x] 33f1. Flux : les extrémités d'un flux, d'une demande et d'une non-conformité en
     résumés ; `ModuleHandler::keys` pour `kartenn-flow` — verify : `k-check -p kartenn-flow`
     (illisible et absent laissent les mêmes octets)
     - où : `crates/kartenn-flow/src/rest.rs` (`FlowEndpoint`), `handler.rs` (`keys`, à
@@ -1165,13 +1165,39 @@ routeur complet, sauf mention « vrai TCP ».
       (l'option A, amender REQ-027-2 pour les couper comme les autres références, est
       écartée). La tâche devient : l'exemption écrite et motivée dans la garde
       (`UNSUMMARISED`, sans renvoi à cette tâche) et au design 006 « Représentations »,
-      les autres références des corps de flux qui ne sont pas des extrémités (entité,
-      service, demande) résumées, et un test que ce que REQ-027-2 laisse voir d'une
-      extrémité ne dépasse pas ce qu'elle dit.
+      et un test que ce que REQ-027-2 laisse voir d'un flux ne dépasse pas ce qu'elle
+      dit. *Ajusté à la clôture (2026-11-17), REQ-027-2 primant sur la note reconstruite* :
+      la note prévoyait de résumer les autres références des corps de flux (entité,
+      service, demande) ; REQ-027-2 range le service parmi les données du flux servies
+      sans réponse réduite selon le lecteur, et un résumé de l'entité y porterait son
+      slug, une donnée de l'objet que seule sa route sert. Aucune référence d'un corps
+      de flux n'est donc résumée : toutes sont des données du flux, par identifiant.
     - la garde de la 33f3 exempte en renvoi à cette tâche `FlowEvaluation`,
       `FlowNonconformity` et `FlowTriage` (`UNSUMMARISED`, `rest/tests/it/contract.rs`) :
       retirer ces exemptions, ne garder que ce qui n'est pas un objet du référentiel
-      (identité, changeset).
+      (identité, changeset) et, motivé par REQ-027-2, ce qui est une donnée du flux.
+    fait : `rest/tests/it/contract.rs` : les exemptions globales en renvoi remplacées par
+    une exemption par membre, motivée : `FlowEvaluation` `source`, `destination`,
+    `decisive`, `unmet_conditions`, `FlowTriage` `unmet_conditions`, `FlowNonconformity`
+    `flow`, `entity`, `rule` (données du flux, REQ-027-2), `requester` (identité),
+    `changeset` ; design 006 « Représentations » (garde : les corps d'un flux exemptés
+    des résumés, REQ-027-2 primant sur REQ-006-42). Test :
+    `flow/tests/it/by_endpoint.rs` `a_flow_carries_nothing_of_an_object_beyond_req_027_2`
+    (un flux, la liste, les flux d'une interface, les évaluations : même corps à Alice,
+    qui ne lit ni `eth1` ni `198.51.100.0/24`, au lecteur de l'entité et à un lecteur de
+    tout ; ni nom de machine ou d'interface, ni slug d'entité, aucun membre `label`,
+    `labels`, `slug`, `name` ni `href` à aucune profondeur ; chaque page non vide).
+    choix : exemption par membre plutôt que par schéma entier (`*`), pour qu'un membre
+    ajouté à un corps de flux soit relevé et motivé ; la non-conformité tenue pour un
+    corps de flux (« quelle que soit la voie de lecture »), son `rule_key` et ses textes
+    restant servis ; contrat inchangé (aucun schéma de réponse ne bouge), SDK non
+    régénérés ; le test omet les non-conformités, vides dans ce monde (la garde les
+    couvre par leur schéma) ; `ModuleHandler::keys` pour `kartenn-flow` non écrit : un
+    flux n'a pas de clé naturelle et aucun corps de flux ne résume plus rien.
+    reste : un flux nommé hors de ses propres corps (différentiel d'un changeset, 33g)
+    serait résumé `{id}` faute de clé ; à décider avec la 33g s'il lui faut un `label`
+    (ses extrémités ?). Le constat de la 002-29d3 (un demandeur nomme une extrémité qu'il
+    ne lit pas et relit sa valeur dans le flux créé) reste à la tâche 31, inchangé ici.
   - [x] 33f2. Politique : extrémités, points, résolutions d'axe et lignes de rapport en
     résumés ; `ModuleHandler::keys` pour `kartenn-policy` — verify :
     `k-check -p kartenn-policy` (illisible et absent laissent les mêmes octets)

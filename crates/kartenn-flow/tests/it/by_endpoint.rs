@@ -456,6 +456,91 @@ async fn acceptance_of_req_027_2_a_flow_served_as_is(pool: PgPool) {
     assert_eq!(status, StatusCode::OK);
 }
 
+/// The members by which a summary or a record of an object would name it to a human.
+const NAMING: [&str; 5] = ["label", "labels", "slug", "name", "href"];
+
+/// The JSON pointers, within `body`, of the members of [`NAMING`].
+fn naming(body: &Value, at: &str, found: &mut Vec<String>) {
+    match body {
+        Value::Object(members) => {
+            for (member, inner) in members {
+                let pointer = format!("{at}/{member}");
+                if NAMING.contains(&member.as_str()) {
+                    found.push(pointer.clone());
+                }
+                naming(inner, &pointer, found);
+            }
+        }
+        Value::Array(items) => {
+            for (i, inner) in items.iter().enumerate() {
+                naming(inner, &format!("{at}/{i}"), found);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// REQ-027-2 against the summaries (task 006-33f1, option B): the bodies of a flow are no
+/// summaries cut by the reader. The flows, their list, the flows of an endpoint, their
+/// evaluations carry nothing of an object of the referential
+/// beyond what REQ-027-2 names (kind, identifier, value or addresses): no name of a
+/// machine or of an interface, no slug of an entity, no `label` of an object, the same
+/// body to Alice, who reads neither `eth1` nor `198.51.100.0/24`, to a reader of the
+/// entity of the flows and to a reader of everything.
+#[kartenn_testing::pg_test]
+async fn a_flow_carries_nothing_of_an_object_beyond_req_027_2(pool: PgPool) {
+    let w = world(&pool).await;
+    let entity = w.env.person().await;
+    grant(&w.env, entity, &["flow.read"], "entity", Some(w.env.acme)).await;
+    let all = w.env.person().await;
+    grant(
+        &w.env,
+        all,
+        &[
+            "flow.read",
+            "core.entity.read",
+            "core.prefix.read",
+            "core.address.read",
+            "machines.read",
+            "machines.interface.read",
+        ],
+        "global",
+        None,
+    )
+    .await;
+    let readers = [w.env.app(w.alice), w.env.app(entity), w.env.app(all)];
+    let mut paths = vec![
+        "/v1/flows".to_owned(),
+        format!("/v1/interfaces/{}/flows", w.eth0),
+    ];
+    for flow in [w.outgoing, w.incoming, w.to_eth1] {
+        paths.push(format!("/v1/flows/{flow}"));
+        paths.push(format!("/v1/flows/{flow}/evaluations"));
+    }
+    for path in &paths {
+        let mut bodies = Vec::new();
+        for reader in &readers {
+            let (status, body) = call(reader, Method::GET, path, None).await;
+            assert_eq!(status, StatusCode::OK, "{path}: {body}");
+            bodies.push(body);
+        }
+        let seen = &bodies[0];
+        for body in &bodies[1..] {
+            assert_eq!(body, seen, "{path}: the same body to every reader");
+        }
+        no_name(seen);
+        for slug in ["\"acme\"", "\"beta\"", "\"other\""] {
+            assert!(!seen.to_string().contains(slug), "{slug} in {path}: {seen}");
+        }
+        let mut found = Vec::new();
+        naming(seen, "", &mut found);
+        assert!(found.is_empty(), "{path}: names an object at {found:?}");
+        // Not vacuous: a flow, or a page of them or of their evaluations.
+        let items = seen["items"].as_array().map_or(1, Vec::len);
+        assert!(items > 0, "{path}: {seen}");
+    }
+}
+
 /// REQ-027-3: the writes keep to REQ-011-17 (the 404 of an absent flow); a filter by
 /// object keeps to the objects Alice reads, a filter by value meets every endpoint.
 #[kartenn_testing::pg_test]
