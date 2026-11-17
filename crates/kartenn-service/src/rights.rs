@@ -240,10 +240,10 @@ pub(crate) async fn check_guards<T: WriteTx + Send, A: Authorizer>(
 /// may not read (the namespace a cluster holds under a name), they would tell him that
 /// this object exists. `at`, the start of the period of the changeset.
 ///
-/// # Panics
+/// # Errors
 ///
-/// When `origins` and `planned` differ in length: zipped, the longer would be cut, and
-/// what it planned would escape the check of the edit without a refusal (task 002-29d7).
+/// A [`StoreError`] when `origins` and `planned` differ in length ([`aligned`]), or from the
+/// store or the authoriser.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
@@ -255,11 +255,7 @@ pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
     required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
-    assert_eq!(
-        planned.len(),
-        origins.len(),
-        "one origin for each operation planned"
-    );
+    aligned(planned, origins)?;
     let created: BTreeSet<Uuid> = crate::resolution::created(planned).into_iter().collect();
     let mut asked: BTreeMap<String, Vec<(Uuid, usize)>> = BTreeMap::new();
     for (p, origin) in planned.iter().zip(origins) {
@@ -318,9 +314,10 @@ pub(crate) async fn check_before<T: WriteTx + Send, A: Authorizer>(
 /// reads ([`read_among`]); the others, out of his reading or not in force (one a plan
 /// draws), are neither named nor counted, so that the refusal tells him neither which
 /// object a plan completed for him, nor whether it exists, nor how many objects out of his
-/// reading a write reaches. The lacks of whoever applies (`verb` other than edit) keep
-/// every object, for a review that needs them (REQ-024-11): `pipeline.rs` tells them
-/// through [`read_among`], and their message counts as that presentation names.
+/// reading a write reaches. They are kept in [`Violation::withheld`]: the audit of the
+/// refusal targets every object refused (REQ-012-8, 10), and the lacks of whoever applies
+/// decide a validation on all of them (REQ-024-11). Judged when the refusal is found, on
+/// the objects as they are then: before the writes for those a changeset closes.
 async fn refusal<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     authorizer: &A,
@@ -330,13 +327,26 @@ async fn refusal<T: WriteTx + Send, A: Authorizer>(
     at: Option<Instant>,
 ) -> Result<Violation, StoreError> {
     let shown = read_among(tx, authorizer, check.subject, &denied, at).await?;
-    let message = needed(shown.len(), permission);
-    let subjects = if check.verb == Verb::Edit {
-        shown
+    let named: BTreeSet<Uuid> = shown.iter().copied().collect();
+    let withheld = denied.into_iter().filter(|id| !named.contains(id));
+    Ok(Violation::new(rule, needed(shown.len(), permission))
+        .with_subjects(shown)
+        .with_withheld(withheld))
+}
+
+/// `origins` gives the operation of each of `planned` (task 002-29d7): zipped, a longer
+/// `planned` would be cut, and what it planned would escape the check of the edit without
+/// a refusal. A store error, internal, rather than a panic of the request.
+fn aligned(planned: &[Planned], origins: &[usize]) -> Result<(), StoreError> {
+    if planned.len() == origins.len() {
+        Ok(())
     } else {
-        denied
-    };
-    Ok(Violation::new(rule, message).with_subjects(subjects))
+        Err(StoreError(format!(
+            "{} operations planned for {} origins: the rights are not checked",
+            planned.len(),
+            origins.len()
+        )))
+    }
 }
 
 /// The message of a refusal of `permission` that names `named` objects: none named, it
@@ -535,4 +545,29 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
 /// Objects of the differential, all properties.
 pub(crate) fn diff_objects(effects: &Effects) -> BTreeSet<Uuid> {
     effects.values().flatten().copied().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Task 002-29d7: operations and origins of different lengths are an internal error,
+    /// never a check cut short nor a panic.
+    #[test]
+    fn origins_out_of_step_are_an_internal_error() {
+        let planned = [Planned::Close {
+            kind: ObjectKind::Address,
+            id: Uuid::nil(),
+            expected: None,
+            cascade: false,
+            shared: false,
+        }];
+        assert!(aligned(&planned, &[0]).is_ok());
+        let error = aligned(&planned, &[]).expect_err("one origin missing");
+        assert!(
+            error.0.contains("1 operations planned for 0 origins"),
+            "{error:?}"
+        );
+        assert!(aligned(&[], &[0]).is_err());
+    }
 }

@@ -538,9 +538,165 @@ async fn a_validator_is_told_only_the_objects_he_reads(pool: PgPool) {
             Vec::new()
         )
     );
+    // REQ-012-8, 10: the audit of the refusal targets every object refused.
+    let addr = f.id("10.5.0.1").await;
+    assert_eq!(audited(&f.pool, changeset).await, [vec![addr]]);
     // The same once a second address is hidden below the network: a new proposal.
     another_address(&f).await;
     assert_eq!(refused().await, first);
+    let second = f.id("10.5.0.7").await;
+    assert_eq!(
+        audited(&f.pool, changeset).await,
+        [vec![addr], sorted(vec![addr, second])]
+    );
+}
+
+/// The targets of the `authz.access.denied` events of `changeset`, in order, each sorted.
+async fn audited(pool: &PgPool, changeset: Uuid) -> Vec<Vec<Uuid>> {
+    let targets: Vec<Vec<Uuid>> = sqlx::query_scalar(
+        "SELECT target_ids FROM audit.event
+         WHERE name = 'authz.access.denied' AND changeset_id = $1 ORDER BY seq",
+    )
+    .bind(changeset)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    targets.into_iter().map(sorted).collect()
+}
+
+/// INV-63 and REQ-012-8, 10 (task 002-29d6, review): the refusal of the right on the
+/// effects names nothing its author does not read, while its audit targets every object
+/// refused.
+#[kartenn_testing::pg_test]
+async fn the_audit_of_a_refusal_targets_what_its_answer_does_not_name(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let net = f.id("10.5.0.0/24").await;
+    let addr = f.id("10.5.0.1").await;
+    let grants = blind_to_addresses(&f, Grants::new().on(f.contractor, EDIT, [net]));
+    let outcome = f
+        .submit(
+            &grants,
+            f.contractor,
+            vec![f.assign(Ref::Id(net), ObjectKind::Prefix, "prod")],
+        )
+        .await;
+    let Outcome::Refused {
+        changeset,
+        violations,
+    } = outcome
+    else {
+        panic!("expected refused, got {outcome:?}")
+    };
+    assert_eq!(
+        violations
+            .iter()
+            .map(|v| v.subjects.clone())
+            .collect::<Vec<_>>(),
+        [Vec::<Uuid>::new()]
+    );
+    let stored: serde_json::Value =
+        sqlx::query_scalar("SELECT violations FROM changeset WHERE id = $1")
+            .bind(changeset)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    assert!(
+        !stored.to_string().contains(&addr.to_string()),
+        "the journal keeps what is answered: {stored}"
+    );
+    assert_eq!(audited(&f.pool, changeset).await, [vec![addr]]);
+}
+
+/// Task 002-29d6 (review): what the reason of a changeset held tells is judged on the
+/// state before its writes: an address its author reads, edits and closes, without its
+/// `approval.self`, is named, though the changeset closed it.
+#[kartenn_testing::pg_test]
+async fn the_reason_names_an_object_the_changeset_closes(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let addr = f.id("10.5.0.1").await;
+    let grants = Grants::new()
+        .everywhere(f.contractor, EDIT)
+        .everywhere(f.contractor, OWN)
+        .everywhere(f.contractor, "core.address.edit")
+        .everywhere(f.contractor, "core.address.read");
+    let close = vec![Operation::Close {
+        kind: ObjectKind::Address,
+        id: Ref::Id(addr),
+        expected: None,
+        cascade: false,
+    }];
+    let outcome = f.submit(&grants, f.contractor, close).await;
+    let Outcome::Pending {
+        reason: Some(reason),
+        ..
+    } = outcome
+    else {
+        panic!("expected a pending changeset with its reason, got {outcome:?}")
+    };
+    assert_eq!(
+        whole(&reason),
+        (
+            "changeset.approval.self.missing",
+            "its author lacks approval.self: 1 object(s) need core.address.approval.self"
+                .to_owned(),
+            vec![addr]
+        )
+    );
+}
+
+/// Task 002-29d6 (review): a validator who reads the address a proposal closes, without
+/// its application, is refused naming it.
+#[kartenn_testing::pg_test]
+async fn a_validator_is_told_an_object_the_changeset_closes(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let addr = f.id("10.5.0.1").await;
+    let validator = f.admin;
+    let author = Grants::new()
+        .everywhere(f.contractor, EDIT)
+        .everywhere(f.contractor, "core.address.edit");
+    let request = ChangesetRequest {
+        author: f.contractor,
+        motive: "test".into(),
+        period: None,
+        operations: vec![Operation::Close {
+            kind: ObjectKind::Address,
+            id: Ref::Id(addr),
+            expected: None,
+            cascade: false,
+        }],
+        simulate: false,
+        idempotency_key: None,
+        approval_self: false,
+    };
+    let Outcome::Pending { changeset, .. } = submit(&f.store, &author, &request, MAX_OPERATIONS)
+        .await
+        .unwrap()
+    else {
+        panic!("expected a proposal")
+    };
+    let grants = author
+        .everywhere(validator, "prop.custom.environment.apply")
+        .everywhere(validator, "core.address.read");
+    match kartenn_service::review::validate_pending(
+        &f.store,
+        &grants,
+        &kartenn_service::expected::Sources::none(),
+        changeset,
+        &validator.into(),
+        MAX_OPERATIONS,
+    )
+    .await
+    {
+        Err(kartenn_service::RequestError::Review(v)) => assert_eq!(
+            whole(&v),
+            (
+                "changeset.approval.forbidden",
+                format!("{validator} lacks the right to validate on 1 object(s)"),
+                vec![addr]
+            )
+        ),
+        other => panic!("expected a refused validation, got {other:?}"),
+    }
 }
 
 /// Task 002-29d6, point 5: a refusal names the objects in force over the period of its

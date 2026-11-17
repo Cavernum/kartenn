@@ -289,7 +289,9 @@ pub(crate) fn denial(
     let mut event = context
         .event(&AUTHZ_DENIED, Outcome::Denied)
         .map_err(|e| audit_err(&e))?
-        .target("object", violation.subjects.iter().copied())
+        // Every object refused, those withheld from the answer included (INV-63, task
+        // 002-29d6; REQ-012-8, 10).
+        .target("object", violation.objects())
         .reason(violation.rule.id);
     if let Some(changeset) = changeset {
         event = event.changeset(changeset);
