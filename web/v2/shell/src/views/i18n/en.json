@@ -418,7 +418,7 @@
       "valid": "The closure passes the rules",
       "alone": "This object alone closes.",
       "withIt": "Closed with it: {list}.",
-      "unreadable": "Objects you may not read",
+      "unreadable": "Objects you cannot read, or that no longer exist",
       "refused": "Closure refused by the rules",
       "refusedDependents": "If it has dependents, tick “Also close what depends on it” to close them with it.",
       "warnings": "Warnings of the closure",

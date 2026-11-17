@@ -110,6 +110,35 @@ describe("quick edit (REQ-021-16, 24; D-7)", () => {
     expect([stale(roots.queryKey), stale(children.queryKey)]).toEqual([true, true]);
   });
 
+  it("200: a closure without its kind reads every list again, one with it its type's (006-33g1)", async () => {
+    const V1 = "00000000-0000-4000-8000-0000000000a1";
+    for (const [closed, vlans] of [
+      [[{ id: V1, kind: "vlan" }], true],
+      [[], false],
+      [[{ id: V1 }], true],
+    ] as const) {
+      const cache = setup(() =>
+        json({
+          changeset: { id: C1, href: `/v1/changesets/${C1}` },
+          state: "applied",
+          warnings: [],
+          diff: [],
+          cascaded: closed,
+        }),
+      );
+      const list = cache.reads.list("/v1/vlans", null, null);
+      cache.queryClient.setQueryData(list.queryKey, { pages: [], pageParams: [] });
+      await cache.queryClient.fetchQuery(cache.options);
+      await cache.writes.quick({
+        key: cache.options.queryKey,
+        patch: { value: "10.0.1.0/24" },
+        motive: "resize",
+      });
+      const state = cache.queryClient.getQueryState(list.queryKey);
+      expect(state?.isInvalidated, JSON.stringify(closed)).toBe(vlans);
+    }
+  });
+
   it("202: proposed, back to the value read, never shown applied", async () => {
     const cache = setup(() =>
       json(
