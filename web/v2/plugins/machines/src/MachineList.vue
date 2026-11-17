@@ -11,7 +11,9 @@
 // SDK), one model for the bar and the filters of the columns (020, A7), held in the query of
 // the page as the route takes them; the route takes one value of each, a second refused
 // before anything is sent. Three states: skeleton rows, an empty list with what to do, an
-// error with its codes. Below, the creation of a machine, added to the draft (W10).
+// error with its codes. The grid in the main panel of a list screen (`Panel` `list`), which
+// the shell's host gives the rest of the window (task 021-22f-i3); the creation of a machine,
+// added to the draft (W10), in a drawer opened from the panel's header.
 import {
   ApiProblem,
   filterModel,
@@ -25,6 +27,7 @@ import {
   Button,
   checkFilter,
   DataGrid,
+  Drawer,
   EmptyState,
   ErrorState,
   FilterPicker,
@@ -33,8 +36,8 @@ import {
   Heading,
   InlineAlert,
   KeyLabel,
+  Panel,
   Select,
-  Stack,
   TextField,
   type CellRef,
   type Filter,
@@ -329,6 +332,18 @@ const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : und
 
 // ----------------------------------------------------------------------------- creation
 
+/** What the creation of a machine asks of the user. */
+const CREATE = "machines.edit";
+/** Without it, the button stays, refused with its reason (the drawer never opens). */
+const canCreate = computed(() => context.value.user.has(CREATE));
+/** Whether the drawer of the creation is open. */
+const creating = ref(false);
+// Closed when the dates leave the present (the drawer gone with its button), never opened
+// again of itself when they come back.
+watch(present, (now) => {
+  if (!now) creating.value = false;
+});
+
 const entities = useList<{ id: string; slug: string }, never>(() =>
   present() ? (reads.list("/v1/entities") as never) : null,
 );
@@ -405,110 +420,117 @@ function added(): void {
 </script>
 
 <template>
-  <Stack gap="6">
-    <header>
-      <Stack gap="1">
-        <Heading :level="1" tabindex="-1">{{ t("machines.title") }}</Heading>
-        <p>{{ t("machines.intro") }}</p>
-      </Stack>
-    </header>
-    <Stack gap="4">
+  <!-- The page's title, said and focused on arrival by a link; the panel shows it, as on a
+       list screen of the shell. -->
+  <Heading :level="1" tabindex="-1" class="k-visually-hidden">{{ t("machines.title") }}</Heading>
+  <Panel :title="t('machines.title')" main flush list>
+    <template v-if="present()" #actions>
+      <Button
+        icon="plus"
+        aria-haspopup="dialog"
+        :aria-expanded="creating"
+        :forbidden="canCreate ? undefined : CREATE"
+        @click="creating = true"
+        >{{ t("machines.create") }}</Button
+      >
+    </template>
+    <template #toolbar>
       <FilterPicker ref="picker" v-model="filters" :model="model" :label="t('filter.label')" />
-      <InlineAlert
-        v-if="repeated.length"
-        tone="ko"
-        :title="t('filter.once', { names: repeated.join(', ') })"
-      />
-      <ErrorState
-        v-else-if="failure"
-        :title="t('machines.failed')"
-        :problem="problemOf(failure)"
-        :retry-label="t('retry')"
-        @retry="retry"
-      >
-        {{ problemOf(failure) ? "" : t("network") }}
-      </ErrorState>
-      <EmptyState
-        v-else-if="state.items?.length === 0 && !state.previous"
-        :title="applied.length ? t('machines.noneFiltered') : t('machines.none')"
-      >
-        {{ applied.length ? t("machines.noneFilteredText") : t("machines.noneText") }}
-        <template v-if="applied.length" #action>
-          <Button variant="ghost" icon="x" @click="clearFilters">{{ t("filter.clear") }}</Button>
-        </template>
-      </EmptyState>
-      <template v-else>
-        <RetryAlert
-          v-if="nextFailure"
-          :title="t('machines.failed')"
-          :error="nextFailure"
-          @retry="list.retry()"
-        />
-        <InlineAlert v-if="capped" tone="info" :title="t('machines.first', { n: rows.length })" />
-        <DataGrid
-          :label="t('machines.title')"
-          :columns="columns"
-          :rows="rows"
-          row-key="id"
-          :loading="state.items === undefined"
-          :loading-rows="8"
-          :filtered="filtered"
-          :row-count="state.items !== undefined && !state.more ? rows.length : -1"
-          @filter="onColumnFilter"
-          @activate="onActivate"
-          @window="onWindow"
-        >
-          <template #cell="{ row, column }">
-            <a v-if="column.id === 'name'" :href="recordOf(row)">{{ row.name }}</a>
-            <KeyLabel
-              v-else-if="column.id === 'kind'"
-              :value="row.kind"
-              :label="t(`kind.${row.kind}`)"
-              plain
-            />
-            <CitedName v-else-if="column.id === 'owner'" :summary="row.owner" />
-            <CitedName v-else-if="column.id === 'site'" :summary="row.site" />
-            <CitedName
-              v-else-if="column.id === 'host'"
-              :summary="row.host"
-              :page="hostPageOf(row.host)"
-            />
-          </template>
-        </DataGrid>
+    </template>
+    <InlineAlert
+      v-if="repeated.length"
+      tone="ko"
+      :title="t('filter.once', { names: repeated.join(', ') })"
+    />
+    <ErrorState
+      v-else-if="failure"
+      :title="t('machines.failed')"
+      :problem="problemOf(failure)"
+      :retry-label="t('retry')"
+      @retry="retry"
+    >
+      {{ problemOf(failure) ? "" : t("network") }}
+    </ErrorState>
+    <EmptyState
+      v-else-if="state.items?.length === 0 && !state.previous"
+      :title="applied.length ? t('machines.noneFiltered') : t('machines.none')"
+    >
+      <!-- The button the text names is there at the present only. -->
+      {{
+        applied.length
+          ? t("machines.noneFilteredText")
+          : present()
+            ? t("machines.noneText")
+            : t("form.dated")
+      }}
+      <template v-if="applied.length" #action>
+        <Button variant="ghost" icon="x" @click="clearFilters">{{ t("filter.clear") }}</Button>
       </template>
-    </Stack>
-    <section v-if="present()" aria-labelledby="k-machines-create">
-      <Stack gap="4">
-        <Heading id="k-machines-create" :level="2">{{ t("machines.create") }}</Heading>
-        <DraftForm
-          permission="machines.edit"
-          :operation="creation"
-          :violations="violations"
-          @added="added"
-        >
-          <TextField v-model="name" :label="t('machines.name')" :error="errors.name" required />
-          <Select
-            v-model="kind"
-            :label="t('machines.kind')"
-            :options="kinds"
-            :error="errors.kind"
-            required
+    </EmptyState>
+    <template v-else>
+      <RetryAlert
+        v-if="nextFailure"
+        :title="t('machines.failed')"
+        :error="nextFailure"
+        @retry="list.retry()"
+      />
+      <InlineAlert v-if="capped" tone="info" :title="t('machines.first', { n: rows.length })" />
+      <DataGrid
+        :label="t('machines.title')"
+        :columns="columns"
+        :rows="rows"
+        row-key="id"
+        :loading="state.items === undefined"
+        :loading-rows="8"
+        :filtered="filtered"
+        :row-count="state.items !== undefined && !state.more ? rows.length : -1"
+        @filter="onColumnFilter"
+        @activate="onActivate"
+        @window="onWindow"
+      >
+        <template #cell="{ row, column }">
+          <a v-if="column.id === 'name'" :href="recordOf(row)">{{ row.name }}</a>
+          <KeyLabel
+            v-else-if="column.id === 'kind'"
+            :value="row.kind"
+            :label="t(`kind.${row.kind}`)"
+            plain
           />
-          <div ref="ownerField">
-            <Select
-              :key="owners.length"
-              v-model="owner"
-              :label="t('machines.owner')"
-              :options="owners"
-              :placeholder="entities.state.value.pending ? t('loading') : undefined"
-              :readonly="owners.length === 0"
-              :error="errors.owner"
-              mono
-              required
-            />
-          </div>
-        </DraftForm>
-      </Stack>
-    </section>
-  </Stack>
+          <CitedName v-else-if="column.id === 'owner'" :summary="row.owner" />
+          <CitedName v-else-if="column.id === 'site'" :summary="row.site" />
+          <CitedName
+            v-else-if="column.id === 'host'"
+            :summary="row.host"
+            :page="hostPageOf(row.host)"
+          />
+        </template>
+      </DataGrid>
+    </template>
+  </Panel>
+  <!-- Out of the page: the grid alone fills the window, the form beside it on demand. -->
+  <Drawer v-if="present()" v-model:open="creating" :title="t('machines.create')" size="md">
+    <DraftForm :permission="CREATE" :operation="creation" :violations="violations" @added="added">
+      <TextField v-model="name" :label="t('machines.name')" :error="errors.name" required />
+      <Select
+        v-model="kind"
+        :label="t('machines.kind')"
+        :options="kinds"
+        :error="errors.kind"
+        required
+      />
+      <div ref="ownerField">
+        <Select
+          :key="owners.length"
+          v-model="owner"
+          :label="t('machines.owner')"
+          :options="owners"
+          :placeholder="entities.state.value.pending ? t('loading') : undefined"
+          :readonly="owners.length === 0"
+          :error="errors.owner"
+          mono
+          required
+        />
+      </div>
+    </DraftForm>
+  </Drawer>
 </template>

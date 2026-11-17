@@ -1133,13 +1133,31 @@ onBeforeUnmount(
    * fills the surface, never less than its content: one elastic row, and the grid of the
    * panel counted at its floor (a header and six rows), not at a list's height, so that a
    * short window still shrinks it there and the surface scrolls only below (021-22f-h,
-   * contract of `Panel`, 021-22f-i1). Every other screen keeps its own height. */
-  /* stylelint-disable-next-line selector-max-compound-selectors -- the chain of the panel's rules, whole, so that the surface never fills alone */
-  .k-frame__surface:has(> [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]) {
+   * contract of `Panel`, 021-22f-i1). Every other screen keeps its own height.
+   * The page of a plugin (`PluginView`) whose element holds such a panel as a child (its
+   * root, task 021-22f-i3): the host of the element (`ExtensionElement`) and the element
+   * each fill as the surface does, one elastic row whose minimum is their content, so that
+   * the height passes down to the panel without the plugin knowing the frame. */
+  /* stylelint-disable selector-max-compound-selectors -- the chain of the panel's rules, whole, so that the surface never fills alone */
+  .k-frame__surface:has(> [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]),
+  .k-frame__surface:has(
+    > .k-extension > * > [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]
+  ) {
     --k-panel-list-basis: var(--k-space-0);
 
     grid-template-rows: minmax(auto, 1fr);
   }
+
+  .k-frame__surface
+    > .k-extension:has(> * > [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]),
+  .k-frame__surface
+    > .k-extension
+    > :has(> [data-list] > .k-panel__body > .k-data-grid-frame > [data-virtual]) {
+    display: grid;
+    grid-template-rows: minmax(auto, 1fr);
+    min-inline-size: 0;
+  }
+  /* stylelint-enable selector-max-compound-selectors */
 
   .k-frame__layers {
     display: contents;

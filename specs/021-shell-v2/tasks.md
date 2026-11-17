@@ -8461,7 +8461,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       pied) et les changesets (les deux), une page suivante annoncée par une route du
       parcours (`links.next`, sa lecture laissée en attente), la grille au-delà de 800 px.
     - reste : les grilles du plugin `machines` (22f-i, 22f-j).
-  - [ ] 22f-i. Écran de liste du plugin `machines` (`MachineList`, liste paginée virtualisée
+  - [x] 22f-i. Écran de liste du plugin `machines` (`MachineList`, liste paginée virtualisée
     dès sa première page) : il garde le plafond de 480 px dans une surface qui défile ; même
     forme que les écrans de liste du shell (la grille au reste de la fenêtre), à porter dans
     l'élément du plugin, que le shell héberge sans `ViewPanel` — verify : parcours
@@ -8594,7 +8594,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         cette tâche, qui ne devait en changer aucune. La règle de `ShellFrame` dépend des
         classes internes de `Panel` (`.k-panel__body`) : seuls les captures et le parcours
         de la 22f-h en verraient un renommage.
-    - [ ] 22f-i3. Plugin `machines`, liste des machines : `MachineList` dans un `Panel`
+    - [x] 22f-i3. Plugin `machines`, liste des machines : `MachineList` dans un `Panel`
       `list`, la grille paginée au reste de la fenêtre comme les écrans du shell ; le
       formulaire de création (`DraftForm`) déplacé hors de la surface qui défile (sous
       l'en-tête du panneau ou dans un `Drawer`, à trancher à la lecture de la maquette
@@ -8609,6 +8609,38 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         (hôte de la page) ; règle de la surface dans `shell/src/frame/ShellFrame.vue`
         (après la 22f-i2) ; maquette `shell/src/_ui/ecrans/E10Plugin.vue`
       - dépend de : 22f-i2
+      - fait : `MachineList` rend un `h1` caché (focalisé à l'arrivée par un lien) et un
+        `Panel` `main flush list` (« Machines ») : `FilterPicker` dans `toolbar`, alertes,
+        états et `DataGrid` dans le corps ; « Créer une machine » au bout de l'en-tête
+        (`actions`, `aria-haspopup="dialog"`, refusé avec `machines.edit` sans le droit,
+        absent hors du présent) ouvre un `Drawer` `md` qui tient le `DraftForm` ; `PageRoot`
+        sans boîte (son écouteur de clic et la recherche du `h1` sur l'élément, `useHosted`),
+        pour que le panneau soit enfant de l'élément ; dans `ShellFrame`, la règle de la
+        surface reconnaît aussi `> .k-extension > * > [data-list] > …`, et l'hôte de
+        l'élément (`.k-extension`) et l'élément deviennent chacun une grille d'une rangée
+        `minmax(auto, 1fr)` (`min-inline-size: 0`) ; phrase `machines.intro` retirée,
+        `machines.noneText` renvoie au bouton ; Vitest de la création réécrits (tiroir),
+        parcours `machines.spec.ts` : création dans le tiroir (focus au premier champ,
+        Échap rend le focus au bouton) et nouveau test de hauteur (page suivante annoncée,
+        comme la 22f-h) ; ligne 42 de l'inventaire (design 020) et ligne `Panel` de la skill.
+      - choix : un `Drawer` plutôt que le formulaire sous l'en-tête (E10 édite dans le
+        panneau de droite, que le plugin n'a pas ; un formulaire de trois champs dans la
+        barre aurait repoussé la grille) ; `PageRoot` sans enveloppe plutôt qu'une règle du
+        shell qui supposerait une boîte du plugin (`> * > * >`) : le shell ne connaît que son
+        hôte et l'élément qu'il crée ; l'introduction de la page retirée, comme les écrans de
+        liste du shell, qui n'en ont pas ; aucun raccourci `c` (le SDK l'offrirait par
+        `shortcuts.register`, hors de cette tâche).
+      - relectures : `ui-reviewer` et `a11y-auditor`, sans écart bloquant ; corrigés : le
+        texte de la liste vide, hors du présent, ne renvoie plus au bouton absent
+        (`form.dated`) ; le tiroir fermé quand les dates quittent le présent (sans quoi il
+        se rouvrait seul au retour). Gardé : `aria-expanded` sur l'ouvreur, comme le
+        contrat de `Dialog` et `Drawer` de la skill.
+      - reste : le tiroir reste ouvert après l'ajout, la confirmation dite dans lui seul
+        (comme l'ancien formulaire) ; pas d'action « Créer une machine » dans l'état vide
+        (un second bouton du même nom) ; la règle de `ShellFrame` suppose le panneau enfant
+        de l'élément : une enveloppe du plugin autour de lui perd le remplissage (le
+        parcours le garde pour `machines`) ; la colonne « Nature » coupe ses libellés à
+        1 440 px (antérieur).
   - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
     `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
     défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà

@@ -247,7 +247,9 @@ describe("the list of the machines (task 18cb)", () => {
       fetch: fakeFetch({ ...reads, "GET /v1/machines": () => page([]) }),
     });
     await text(mounted.element, "No machine");
-    expect(mounted.element.textContent).toContain("Add one to the draft with the form below.");
+    expect(mounted.element.textContent).toContain(
+      "Add one to the draft with « Create a machine ».",
+    );
   });
 
   it("filters by the parameters of the route, held in the query of the page", async () => {
@@ -395,9 +397,21 @@ describe("the list of the machines (task 18cb)", () => {
       }),
     });
     const { element } = mounted;
+    await text(element, "No machine");
+    // In a drawer opened from the header of the list's panel (task 021-22f-i3), out of the
+    // element (the layers of the page).
+    const opener = buttonOf(element, "Create a machine");
+    expect(opener.getAttribute("aria-haspopup")).toBe("dialog");
+    opener.click();
+    const drawer = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>("[role=dialog]");
+      expect(found?.textContent).toContain("Create a machine");
+      return found!;
+    });
+    expect(opener.getAttribute("aria-expanded")).toBe("true");
     // The first owner taken once read.
-    await text(element, "exemple");
-    const form = element.querySelector("section form") as HTMLFormElement;
+    await text(drawer, "exemple");
+    const form = drawer.querySelector("form") as HTMLFormElement;
     form.requestSubmit();
     const name = await vi.waitFor(() => {
       const input = form.querySelector<HTMLInputElement>("input[aria-invalid=true]");
@@ -407,9 +421,9 @@ describe("the list of the machines (task 18cb)", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(name));
     expect(form.textContent).toContain("Required field.");
     expect(posted).toEqual([]);
-    type(element, "Name", "srv-c");
+    type(drawer, "Name", "srv-c");
     form.requestSubmit();
-    await text(element, "Operation added; the draft holds 1.");
+    await text(drawer, "Operation added; the draft holds 1.");
     expect(posted).toMatchObject([
       {
         operations: [
@@ -421,25 +435,22 @@ describe("the list of the machines (task 18cb)", () => {
     expect(name.hasAttribute("aria-invalid")).toBe(false);
   });
 
-  it("keeps the button visible but refused without the permission, the form gone at another date", async () => {
-    const posted: unknown[] = [];
+  it("keeps the button visible but refused without the permission, the button gone at another date", async () => {
     history.replaceState(null, "", "/x/machines/machines");
     mounted = mount("machines-machines", {
       context: { locale: "en", user: user(["machines.edit"]) },
-      fetch: fakeFetch({
-        ...reads,
-        "GET /v1/machines": () => page([]),
-        "POST /v1/drafts": ({ body }) => (posted.push(body), draftOf([])),
-      }),
+      fetch: fakeFetch({ ...reads, "GET /v1/machines": () => page([]) }),
     });
     const { element } = mounted;
     await text(element, "No machine");
-    const submit = element.querySelector<HTMLButtonElement>("section button[type=submit]")!;
-    expect(submit.getAttribute("aria-disabled")).toBe("true");
-    type(element, "Name", "srv-c");
-    submit.closest("form")!.requestSubmit();
-    await text(element, "Needs the permission machines.edit");
-    expect(posted).toEqual([]);
+    const opener = buttonOf(element, "Create a machine");
+    expect(opener.getAttribute("aria-disabled")).toBe("true");
+    // Its reason, the permission, in its description.
+    const reason = document.getElementById(opener.getAttribute("aria-describedby") ?? "");
+    expect(reason?.textContent).toContain("machines.edit");
+    opener.click();
+    await new Promise((done) => setTimeout(done, 20));
+    expect(document.querySelector("[role=dialog]")).toBeNull();
     mounted.unmount();
     queryClient.clear();
     mounted = mount("machines-machines", {
@@ -447,7 +458,11 @@ describe("the list of the machines (task 18cb)", () => {
       fetch: fakeFetch({ ...reads, "GET /v1/machines": () => page([]) }),
     });
     await text(mounted.element, "No machine");
-    expect(mounted.element.querySelector("section")).toBeNull();
+    expect(buttonOf(mounted.element, "Create a machine")).toBeUndefined();
+    // The empty list names no button that is not there.
+    expect(mounted.element.textContent).toContain(
+      "The draft takes operations at the present only.",
+    );
   });
 });
 
