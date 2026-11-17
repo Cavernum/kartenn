@@ -8641,6 +8641,24 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
         de l'élément : une enveloppe du plugin autour de lui perd le remplissage (le
         parcours le garde pour `machines`) ; la colonne « Nature » coupe ses libellés à
         1 440 px (antérieur).
+  - [ ] 22f-k. (contrat d'hébergement, à valider par l'utilisateur) La règle par laquelle
+    le shell donne la hauteur de la fenêtre à la liste d'un plugin, écrite au design 021
+    « API des plugins » : un `Panel` `list` enfant direct de l'élément du plugin, sa
+    grille virtualisée enfant direct de son corps, remplit la surface ; toute autre
+    structure (un `div` autour du panneau, un en-tête visible avant lui) retombe au
+    plafond d'une liste, sans erreur — aujourd'hui dite seulement dans l'inventaire du
+    design 020 (ligne 42) et dans le skill. Avec les mineurs de la revue de la 22f-i3 :
+    l'état vide de `MachineList` nomme « Créer une machine » à qui le bouton est refusé
+    (`MachineList.vue` vers 462) ; aucun parcours ne prouve le focus sur le `h1` caché
+    de la liste à l'arrivée par un lien, ni son indicateur visible face aux listes du
+    shell ; `PageRoot.vue` en fragment, attributs non déclarés sans cible — verify :
+    design relu ; Vitest de l'état vide sans `machines.edit` ; un cas de
+    `machines.spec.ts` (fiche vers liste, focus)
+    - où : `specs/021-shell-v2/design.md` (« API des plugins », vers 694),
+      `web/v2/shell/src/frame/ShellFrame.vue` (règles de la surface, 1141 à 1160),
+      `web/v2/plugins/machines/src/{MachineList,PageRoot}.vue`,
+      `web/v2/e2e/journeys/machines.spec.ts`
+    - dépend de : 22f-i
   - [ ] 22f-j. Grilles dans les onglets d'une fiche du plugin `machines` (`MachineRecord`,
     `ClusterRecord`, `InterfacesTab`) : plafonnées à `--k-size-list-max` dans une fiche qui
     défile, deux défileurs imbriqués (`InterfacesTab` : `more` vrai pour toujours au-delà
