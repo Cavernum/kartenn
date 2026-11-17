@@ -201,6 +201,28 @@ struct Slot<T: Part> {
 
 type Slots<T> = Mutex<HashMap<String, Slot<T>>>;
 
+/// What a computation of a key came to.
+enum Computed<T> {
+    /// Kept under its key.
+    Kept(Snap<T>),
+    /// The rights of its key no longer those of its subject: the key is dropped. The body
+    /// when it ran (a first computation, which answers its read).
+    Moved(Option<Snap<T>>),
+    /// A write of rights ran during it, or was in flight: not kept, the key keeps its
+    /// snapshot (a first computation answers its read, the key dropped). The body when it
+    /// ran: a recomputation is not run while a write is in flight (task 006-41).
+    Unsettled(Option<Snap<T>>),
+}
+
+impl<T> Computed<T> {
+    fn ran(&self) -> bool {
+        matches!(
+            self,
+            Self::Kept(_) | Self::Moved(Some(_)) | Self::Unsettled(Some(_))
+        )
+    }
+}
+
 /// What a read of a key finds.
 enum Found<T> {
     /// Its snapshot, and whether this read started its recomputation.
@@ -219,6 +241,9 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 trait Part: PartialEq + Send + Sync + Sized + 'static {
     /// What a computation needs besides the API.
     type Origin: Clone + Send + Sync + 'static;
+    /// Whether its computation reads rights at its moment, not from its origin alone: a
+    /// write of rights during it then leaves it unkept (task 006-41).
+    const READS_RIGHTS: bool;
     fn compute(
         api: &Api,
         origin: &Self::Origin,
@@ -238,6 +263,7 @@ trait Part: PartialEq + Send + Sync + Sized + 'static {
 impl Part for Shared {
     /// The read scope, and whether it reads the changesets.
     type Origin = (Arc<ReadScope>, bool);
+    const READS_RIGHTS: bool = false;
 
     async fn compute(
         api: &Api,
@@ -265,6 +291,8 @@ impl Part for Own {
     /// The subject, its read scope, and where it holds the rights its own counters depend
     /// on beyond it, as its key names them ([`held`]).
     type Origin = (Arc<Subject>, Arc<ReadScope>, Arc<str>);
+    /// The pending proposals it may apply, and the counters of the modules.
+    const READS_RIGHTS: bool = true;
 
     async fn compute(
         api: &Api,
@@ -299,6 +327,7 @@ pub struct Snapshots {
     own: Slots<Own>,
     permits: Arc<Semaphore>,
     computations: AtomicU64,
+    unsettled: AtomicU64,
     changed: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
@@ -322,6 +351,7 @@ impl Snapshots {
             own: Mutex::default(),
             permits: Arc::new(Semaphore::new(concurrent)),
             computations: AtomicU64::new(0),
+            unsettled: AtomicU64::new(0),
             changed: OnceLock::new(),
         })
     }
@@ -345,6 +375,13 @@ impl Snapshots {
     #[must_use]
     pub fn computations(&self) -> u64 {
         self.computations.load(Ordering::Relaxed)
+    }
+
+    /// The computations not kept, or not run, for a write of rights during them or in
+    /// flight ([`Computed::Unsettled`]; the event `stats.snapshot.unsettled`).
+    #[must_use]
+    pub fn unsettled(&self) -> u64 {
+        self.unsettled.load(Ordering::Relaxed)
     }
 
     /// Whether `snap` is due at `revision`, `today`: old enough, and the outbox moved past
@@ -474,7 +511,9 @@ impl Snapshots {
     /// changed calls the signal. A failure keeps the previous snapshot, if any. A key
     /// whose rights are no longer those of its subject, before or after the computation,
     /// is dropped: a recomputation is not run, a first computation answers the read that
-    /// started it (task 006-40).
+    /// started it (task 006-40). A computation during which rights were written, or while
+    /// a write of rights is in flight, is not kept, the key keeping its snapshot (task
+    /// 006-41).
     async fn recompute<T: Part>(&self, api: &Api, key: &str) -> Result<Snap<T>, Problem> {
         let origin = lock(T::slots(self))
             .get(key)
@@ -484,31 +523,46 @@ impl Snapshots {
             None => Err(Problem::new(ProblemKind::Internal)),
         };
         let mut slots = lock(T::slots(self));
-        if let Ok(Some(_)) = computed {
+        if computed.as_ref().is_ok_and(Computed::ran) {
             // Under the lock: whoever sees the count sees the snapshot.
             self.computations.fetch_add(1, Ordering::Relaxed);
         }
+        if let Ok(Computed::Unsettled(body)) = &computed {
+            let unsettled = self.unsettled.fetch_add(1, Ordering::Relaxed) + 1;
+            tracing::info!(name: "stats.snapshot.unsettled", unsettled, ran = body.is_some(), "a snapshot of the statistics was not kept: rights were written during its computation");
+        }
         let Some(slot) = slots.get_mut(key) else {
-            return match (computed, origin) {
-                (Ok(Some((snap, _))), _) => Ok(snap),
-                (Ok(None), Some((_, Some(before)))) => Ok(before),
-                (Ok(None), _) => Err(Problem::new(ProblemKind::Internal)),
-                (Err(problem), _) => Err(problem),
+            return match computed {
+                Ok(
+                    Computed::Kept(snap)
+                    | Computed::Moved(Some(snap))
+                    | Computed::Unsettled(Some(snap)),
+                ) => Ok(snap),
+                Ok(Computed::Moved(None) | Computed::Unsettled(None)) => origin
+                    .and_then(|(_, before)| before)
+                    .ok_or_else(|| Problem::new(ProblemKind::Internal)),
+                Err(problem) => Err(problem),
             };
         };
         slot.busy = false;
         slot.ready.notify_waiters();
         match computed {
-            Ok(None) => {
+            Ok(Computed::Moved(body)) => {
                 let before = slot.snap.take();
                 slots.remove(key);
-                before.ok_or_else(|| Problem::new(ProblemKind::Internal))
+                body.or(before)
+                    .ok_or_else(|| Problem::new(ProblemKind::Internal))
             }
-            Ok(Some((snap, false))) => {
-                slots.remove(key);
-                Ok(snap)
+            Ok(Computed::Unsettled(body)) => {
+                let before = slot.snap.clone();
+                if before.is_none() {
+                    slots.remove(key);
+                }
+                before
+                    .or(body)
+                    .ok_or_else(|| Problem::new(ProblemKind::Internal))
             }
-            Ok(Some((snap, true))) => {
+            Ok(Computed::Kept(snap)) => {
                 let changed = slot
                     .snap
                     .as_ref()
@@ -530,32 +584,56 @@ impl Snapshots {
     }
 
     /// A computation of a part, and whether it may be kept: the rights of its key held
-    /// before and after it ([`Part::holds`]); `None`, not run, when they no longer hold
-    /// before it and it is not the `first` of its key (whose read waits for a body). The
-    /// revision of the outbox is read first, so that a change committed during it makes
-    /// the snapshot due again.
+    /// before and after it ([`Part::holds`]); not run when they no longer hold before it
+    /// and it is not the `first` of its key (whose read waits for a body). The revision
+    /// of the outbox is read first, so that a change committed during it makes the
+    /// snapshot due again. A part that reads rights at its moment
+    /// ([`Part::READS_RIGHTS`]) is kept only when no write of rights ran from before the
+    /// first read of its rights to after the last, nor was in flight at the first
+    /// ([`rbac::rights_written`], task 006-41): its rights the same at both ends, a right
+    /// given then withdrawn in between would leave under its key a count made with the
+    /// right. While a write is in flight, a recomputation is not run, and a first
+    /// computation waits for a place among [`Freshness::concurrent`], as recomputations
+    /// do: its key is not kept, so that each read computes again.
     async fn compute<T: Part>(
         &self,
         api: &Api,
         origin: &T::Origin,
         first: bool,
-    ) -> Result<Option<(Snap<T>, bool)>, Problem> {
+    ) -> Result<Computed<T>, Problem> {
         let revision = outbox::revision(&api.pool).await?;
+        let written = rights_written::<T>(api).await?;
+        let _permit = match (written, first) {
+            (None, false) => return Ok(Computed::Unsettled(None)),
+            (None, true) => Some(
+                self.permits
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| Problem::new(ProblemKind::Internal))?,
+            ),
+            (Some(_), _) => None,
+        };
         let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
         let before = T::holds(api, origin, now).await?;
         if !before && !first {
-            return Ok(None);
+            return Ok(Computed::Moved(None));
         }
         let body = T::compute(api, origin, now).await?;
         let later = read::now(&api.pool).await.map_err(|e| store(&e))?;
-        let kept = before && T::holds(api, origin, later).await?;
         let snap = Snap {
             body: Arc::new(body),
             at: now,
             revision,
             made: Instant::now(),
         };
-        Ok(Some((snap, kept)))
+        if !(before && T::holds(api, origin, later).await?) {
+            return Ok(Computed::Moved(Some(snap)));
+        }
+        if written.is_none() || rights_written::<T>(api).await? != written {
+            return Ok(Computed::Unsettled(Some(snap)));
+        }
+        Ok(Computed::Kept(snap))
     }
 
     /// Forgets the keys of a level unread for [`Freshness::forget`]; whether one read
@@ -636,6 +714,16 @@ impl Snapshots {
                 tracing::warn!(name: "stats.sweep.failed", problem = ?problem, "the snapshots of the statistics could not be swept");
             }
         }
+    }
+}
+
+/// The count of the writes of rights when `T` reads rights at its moment, `None` while
+/// one is in flight; `Some(0)` for a part that reads none.
+async fn rights_written<T: Part>(api: &Api) -> Result<Option<i64>, Problem> {
+    if T::READS_RIGHTS {
+        Ok(rbac::rights_written(&api.pool).await?)
+    } else {
+        Ok(Some(0))
     }
 }
 

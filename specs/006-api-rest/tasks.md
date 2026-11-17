@@ -1668,7 +1668,7 @@ routeur complet, sauf mention « vrai TCP ».
   donc la clé, de chaque appelant (calcul en ligne au prochain appel) ; la description
   OpenAPI de `GET /v1/stats` (« at most every 30 s once something changed ») à compléter
   de l'âge maximal au prochain changement du contrat.
-- [ ] 41. (à arbitrer : migration ou refonte des lectures) La séquence A-B-A des
+- [x] 41. (à arbitrer : migration ou refonte des lectures) La séquence A-B-A des
   instantanés des compteurs : un droit donné puis retiré pendant le calcul d'une clé
   laisse sous cette clé un compteur fait avec le droit (reste de la tâche 40, INV-63 :
   fuite d'un nombre, fenêtre d'un calcul, servi jusqu'au recalcul suivant, 5 min au
@@ -1687,6 +1687,73 @@ routeur complet, sauf mention « vrai TCP ».
   - dépend de : 40 ; arbitrage de l'utilisateur (schéma)
   - arbitrage de l'utilisateur (2026-11-16) : voie A, le compteur des écritures de
     droits tenu par déclencheur (une migration nouvelle).
+  - fait (2026-11-17) : migration `0079_rights_writes.sql` — séquence
+    `kartenn_rights_writes`, déclencheur par instruction (`AFTER INSERT OR UPDATE OR
+    DELETE OR TRUNCATE … FOR EACH STATEMENT`) sur `role`, `role_permission`, `binding`,
+    `rbac_group`, `group_member`, `issuer_attachment`, `property_declaration`, lu par
+    `kartenn_rights_written()` (`rbac::rights_written`) ; `Snapshots::compute` le lit
+    avant la première lecture des droits et après la dernière, pour une partie qui lit
+    des droits à son moment (`Part::READS_RIGHTS` : `Own` ; `Shared` lit les siens de son
+    origine) ; valeurs différentes ou `None` : corps non gardé, la clé garde son
+    instantané (`Computed::Unsettled`, soumis comme avant à `holds` et à l'âge maximal) ;
+    `None` à la première lecture : un recalcul ne tourne pas, un premier calcul répond
+    sans être gardé mais prend une place de `Freshness::concurrent` comme les recalculs ;
+    chaque cas compté (`Snapshots::unsettled`) et tracé (`stats.snapshot.unsettled`).
+    Tests, rouges avant : `rest/tests/it/stats.rs` —
+    `a_right_given_and_withdrawn_during_a_computation_is_not_kept` (module de test
+    `probe` : son `StatsContributor`, trait déjà présent, donne le droit puis le retire au
+    milieu du recalcul par le balayage ; `held` valait 1 sous la clé « sans »),
+    `a_write_of_rights_in_flight_keeps_the_snapshot_of_the_key` (seconde lecture puis
+    première refusées, premier calcul non gardé) ; `store-pg/tests/it/rbac_schema.rs` —
+    `the_writes_of_rights_are_counted_in_flight_too`, `two_readers_of_the_count_read_it_both`
+    (revue : la prise exclusive sans attente faisait se refuser deux lecteurs).
+    choix : une séquence plutôt qu'une ligne compteur (une ligne mise à jour par
+    déclencheur sérialise les transactions qui écrivent des droits jusqu'à leur
+    validation ; `nextval` n'attend personne). `CACHE 1` : chaque `nextval` déplace la
+    valeur stockée, lue hors instantané (une séquence n'est pas versionnée), donc vue dès
+    le déclencheur, avant la validation. Écriture non validée à la seconde lecture : son
+    déclencheur a tourné après la première lecture (valeur différente, non gardé, à tort
+    peut-être mais sans fuite) ou n'a pas encore tourné (elle valide après la seconde
+    lecture, donc après toutes les lectures du calcul : invisible de lui). Le cas que la
+    séquence seule manque est l'écriture en cours à la *première* lecture (déclencheur
+    passé, valeur déjà comptée, validation pendant le calcul) : deux écritures de droits
+    en vol (une liaison ajoutée, une adhésion retirée) ou une seule dont la période
+    finit entre `now` et `later` referaient l'A-B-A. D'où un verrou consultatif partagé
+    pris par le déclencheur jusqu'à la fin de sa transaction (partagé entre écrivains :
+    aucune attente entre eux), pris avant son `nextval` ; la lecture ne prend aucun
+    verrou : elle lit la valeur, *puis* cherche ce verrou accordé dans `pg_locks` (même
+    base). Une écriture comptée dans la valeur lue a pris son verrou avant : encore en
+    vol, son verrou est vu et la lecture rend `NULL` (non gardé) ; finie, elle est validée
+    avant la lecture des droits. Les lecteurs ne s'attendent ni ne se refusent entre eux,
+    et ne font jamais attendre un écrivain (une prise exclusive, même sans attente, les
+    faisait se refuser l'un l'autre et rendait `NULL` sans écriture ; une prise de session
+    sérialisée par une seconde clé les aurait fait s'attendre). Coût : `pg_locks` lit la
+    table des verrous de toute l'instance, deux fois par calcul d'une clé propre. Un
+    corps non gardé pour un compteur qui a bougé garde l'instantané de la clé plutôt que
+    de la retirer (ses droits sont ceux de la clé aux deux bouts : l'ancien corps reste
+    juste, et des écritures de droits fréquentes n'évincent pas les clés). Déclencheur par instruction plutôt que par ligne (un `nextval` par
+    instruction, une instruction sans ligne compte aussi : prudent). Tables : en plus des
+    cinq de la tâche, `issuer_attachment` (le confinement) et `property_declaration` (la
+    sensibilité d'un droit `prop.*`), lues par `visibilities_on` ; `breakglass::create`
+    écrit `group_member`, compté. Les arbres d'entités, de sites et les préfixes portés
+    par une liaison, objets écrits par les imports, ne sont pas comptés : ils font avancer
+    l'outbox (instantané de nouveau dû) et les compter laisserait non gardé tout calcul
+    pendant un import. Pas de lecture du compteur pour `Shared`.
+    reste : une transaction longue qui écrit des droits (un import de liaisons) gèle les
+    instantanés propres pendant sa durée (servis tels quels jusqu'à l'âge maximal) et
+    fait calculer en ligne, dans la limite des places, chaque premier appel ; coût non
+    mesuré au banc (`bench-http`, REQ-024-16) ; l'A-B-A d'un arbre d'entités ou de sites
+    (une entité déplacée puis remise pendant un calcul) reste couvert par la seule
+    révision de l'outbox (au plus 30 s). Revue : (a) une session qui tient la clé
+    consultative en exclusif (`pg_advisory_lock(7737591478723635048)`, fonctions de
+    verrou consultatif exécutables par PUBLIC, donc par `kartenn_app`) bloque toute
+    écriture de droits, compte de secours compris, jusqu'à sa fin — piste : un
+    `lock_timeout` local au déclencheur (`SET lock_timeout` de la fonction), qui ferait
+    échouer l'écriture plutôt que l'attendre sans fin ; (b) une écriture directe dans les
+    tables `*_history` n'est pas comptée : `kartenn_app` n'y a que `SELECT`
+    (`kartenn_make_versioned`), seul leur propriétaire peut y écrire, et les vues
+    `*_asserted` n'en lisent que les lignes de `sys_end = now()` ; (c) le module de test
+    `Probe` lit le droit à `now_utc()` et non au `now` du calcul (`read.valid_at()`).
 - [ ] 42. Références des corps des droits, hors du recensement de la 33 (relevées par la
   garde de la 33f3) : l'entité d'un rattachement d'émetteur (`AttachmentItem.entity`,
   `GET /v1/issuer-attachments`, identifiant nu) et la portée d'une liaison (`Scope`,

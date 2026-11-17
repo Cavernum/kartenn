@@ -2,6 +2,7 @@
 //! break-glass accounts out of reach of the application (spec 005, REQ-005-11, 14, 18;
 //! task 005-3).
 
+use kartenn_store_pg::rbac;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
@@ -152,6 +153,70 @@ async fn the_application_cannot_create_a_break_glass_account(pool: PgPool) {
             .await
             .unwrap();
     }
+}
+
+/// Task 006-41 (migration 0079): a write of rights by the application moves the count of
+/// the writes of rights, which reads `None` while it is in flight; a write elsewhere does
+/// not move it.
+#[kartenn_testing::pg_test]
+async fn the_writes_of_rights_are_counted_in_flight_too(pool: PgPool) {
+    let before = rbac::rights_written(&pool)
+        .await
+        .unwrap()
+        .expect("none in flight");
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("SET LOCAL ROLE kartenn_app")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+         VALUES (gen_random_uuid(), 'g-counted', '{\"fr\": \"g\"}', tstzrange(now(), NULL),
+                 gen_random_uuid())",
+    )
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(rbac::rights_written(&pool).await.unwrap(), None);
+    tx.commit().await.unwrap();
+    let after = rbac::rights_written(&pool)
+        .await
+        .unwrap()
+        .expect("none in flight");
+    assert!(after > before, "{before} then {after}");
+    // A statement that writes no row still counts; a write of an object does not.
+    sqlx::query("DELETE FROM binding WHERE false")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let deleted = rbac::rights_written(&pool)
+        .await
+        .unwrap()
+        .expect("none in flight");
+    assert!(deleted > after, "{after} then {deleted}");
+    sqlx::query("INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(rbac::rights_written(&pool).await.unwrap(), Some(deleted));
+}
+
+/// Task 006-41: readers of the count do not hinder one another. A reader within a
+/// transaction still open, nothing written: another reader reads the count, not `None`.
+#[kartenn_testing::pg_test]
+async fn two_readers_of_the_count_read_it_both(pool: PgPool) {
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("SET LOCAL ROLE kartenn_app")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let first: Option<i64> = sqlx::query_scalar("SELECT kartenn_rights_written()")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    assert!(first.is_some());
+    assert_eq!(rbac::rights_written(&pool).await.unwrap(), first);
+    tx.commit().await.unwrap();
 }
 
 /// R5 (spec 018, task 018-1): a role entry may be a permission of two segments

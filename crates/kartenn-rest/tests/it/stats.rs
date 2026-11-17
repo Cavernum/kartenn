@@ -4,6 +4,8 @@
 //! the `ETag`, `computed_at` and the snapshots recomputed once the outbox moved (M18).
 
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use axum::body::Body;
@@ -21,13 +23,18 @@ use kartenn_rest::transport::Settings;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::{IdentityKind, Method, Principal};
 use kartenn_service::authz::Unrestricted;
+use kartenn_service::module::{
+    BoxFuture, Contribution, Module, ModuleRead, ModuleRegistry, StatsContributor, StatsScope,
+};
 use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::port::StoreError;
 use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
+use kartenn_store_pg::rbac;
 use kartenn_store_pg::write::PgStore;
 use serde_json::{Value, json};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use tower::ServiceExt;
@@ -563,4 +570,226 @@ async fn to_apply_follows_a_withdrawn_right_of_application(pool: PgPool) {
     .unwrap();
     let (_, _, after) = stats(&mine, None).await;
     assert_eq!(after["pending"]["to_apply"], 0, "{after}");
+}
+
+/// The right the counter of [`Probe`] depends on.
+const PROBE: &str = "probe.gauge.read";
+
+/// A module of test whose counter `held` says whether its caller holds [`PROBE`] at the
+/// moment of the computation, and `calls` how many computations it took part in (task
+/// 006-41). Armed, it gives the right before reading it and withdraws it after, in the
+/// middle of the computation of a key; holding, it begins a write of rights and leaves it
+/// in flight until [`Probe::release`].
+#[derive(Debug)]
+struct Probe {
+    pool: PgPool,
+    armed: AtomicBool,
+    hold: AtomicBool,
+    open: Mutex<Option<Transaction<'static, Postgres>>>,
+    calls: AtomicU64,
+}
+
+impl Probe {
+    fn new(pool: &PgPool) -> Arc<Self> {
+        Arc::new(Self {
+            pool: pool.clone(),
+            armed: AtomicBool::new(false),
+            hold: AtomicBool::new(false),
+            open: Mutex::new(None),
+            calls: AtomicU64::new(0),
+        })
+    }
+
+    fn calls(&self) -> u64 {
+        self.calls.load(Ordering::SeqCst)
+    }
+
+    /// Commits the write left in flight.
+    async fn release(&self) {
+        let open = self.open.lock().unwrap().take();
+        open.expect("a write in flight").commit().await.unwrap();
+    }
+}
+
+impl StatsContributor for Probe {
+    fn contribute<'a>(
+        &'a self,
+        _read: &'a mut dyn ModuleRead,
+        scope: &'a StatsScope<'a>,
+    ) -> BoxFuture<'a, Result<Contribution, StoreError>> {
+        Box::pin(async move {
+            let subject = scope.subject.expect("a caller");
+            let calls = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+            if self.hold.swap(false, Ordering::SeqCst) {
+                let mut tx = self.pool.begin().await.unwrap();
+                sqlx::query(
+                    "INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+                     VALUES (gen_random_uuid(), 'g-in-flight', '{\"fr\": \"g\"}',
+                             tstzrange(now(), NULL), gen_random_uuid())",
+                )
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+                *self.open.lock().unwrap() = Some(tx);
+            }
+            let armed = self.armed.swap(false, Ordering::SeqCst);
+            if armed {
+                probe_right(&self.pool, subject.id, true).await;
+            }
+            let mut conn = self.pool.acquire().await.unwrap();
+            let held =
+                rbac::visibilities_on(&mut conn, subject, &[PROBE], OffsetDateTime::now_utc())
+                    .await?
+                    .pop()
+                    .is_some_and(|v| v.global);
+            if armed {
+                probe_right(&self.pool, subject.id, false).await;
+            }
+            Ok(Contribution {
+                objects: Vec::new(),
+                counters: vec![("held", u64::from(held)), ("calls", calls)],
+            })
+        })
+    }
+
+    fn permissions(&self) -> &'static [&'static str] {
+        &[PROBE]
+    }
+}
+
+/// Gives [`PROBE`] to the roles `identity` is bound to, or withdraws it, as an
+/// administrator editing the role would.
+async fn probe_right(pool: &PgPool, identity: Uuid, given: bool) {
+    let sql = if given {
+        "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+         SELECT b.role_id, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid()
+           FROM binding b JOIN group_member m ON m.group_id = b.group_id
+          WHERE m.identity_id = $1"
+    } else {
+        "DELETE FROM role_permission
+          WHERE permission = $2
+            AND role_id IN (SELECT b.role_id FROM binding b
+                              JOIN group_member m ON m.group_id = b.group_id
+                             WHERE m.identity_id = $1)"
+    };
+    let moved = sqlx::query(sql)
+        .bind(identity)
+        .bind(PROBE)
+        .execute(pool)
+        .await
+        .unwrap()
+        .rows_affected();
+    assert_eq!(moved, 1);
+}
+
+#[derive(Debug)]
+struct ProbeModule(Arc<Probe>);
+
+impl Module for ProbeModule {
+    fn name(&self) -> &'static str {
+        "probe"
+    }
+    fn version(&self) -> &'static str {
+        "0.0.1"
+    }
+    fn stats(&self) -> Option<Arc<dyn StatsContributor>> {
+        Some(self.0.clone())
+    }
+}
+
+/// Task 006-41: a right given then withdrawn in the middle of the computation of a key,
+/// the same before and after it, leaves no counter made with the right under the key
+/// without it. The key « without » is born, the outbox moves, and the sweep recomputes
+/// it while the right comes and goes: the next read counts without the right.
+#[kartenn_testing::pg_test]
+async fn a_right_given_and_withdrawn_during_a_computation_is_not_kept(pool: PgPool) {
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let probe = Probe::new(&pool);
+    let (api, snapshots) = probed(&pool, &probe);
+    let mine = probed_app(&api, &snapshots, &pool, reader);
+    let (_, _, before) = stats(&mine, None).await;
+    assert_eq!(before["modules"]["probe"]["held"], 0, "{before}");
+    probe.armed.store(true, Ordering::SeqCst);
+    domain(&pool, "moved").await;
+    snapshots.sweep(&api).await.unwrap();
+    assert!(
+        !probe.armed.load(Ordering::SeqCst),
+        "the sweep recomputed the key"
+    );
+    let (_, _, after) = stats(&mine, None).await;
+    assert_eq!(after["modules"]["probe"]["held"], 0, "{after}");
+}
+
+/// The API of a build with the module [`Probe`], and snapshots due at once.
+fn probed(pool: &PgPool, probe: &Arc<Probe>) -> (Api, Arc<Snapshots>) {
+    let module = Arc::new(ProbeModule(probe.clone()));
+    let api = Api {
+        modules: Arc::new(ModuleRegistry::new(vec![module]).unwrap()),
+        ..api(pool)
+    };
+    (api, snapshots(Duration::ZERO))
+}
+
+fn probed_app(api: &Api, snapshots: &Arc<Snapshots>, pool: &PgPool, who: Principal) -> Router {
+    router(
+        kartenn_rest::v1(api.clone()).layer(Extension(snapshots.clone())),
+        pool,
+        who,
+    )
+}
+
+/// The counter `calls` of [`Probe`] as served to `app`.
+async fn calls(app: &Router) -> Value {
+    let (_, _, body) = stats(app, None).await;
+    body["modules"]["probe"]["calls"].clone()
+}
+
+/// Task 006-41: a write of rights in flight degrades within bounds. Begun during a
+/// recomputation and in flight after it (the second read of the count refused), the key
+/// keeps its snapshot; in flight before one (the first read refused), the recomputation
+/// is not run and the key keeps its snapshot; a first computation then answers its read
+/// without being kept. Once the write ends, the key is recomputed and kept.
+#[kartenn_testing::pg_test]
+async fn a_write_of_rights_in_flight_keeps_the_snapshot_of_the_key(pool: PgPool) {
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let other = person(&pool, &READ_ALL, ("global", None)).await;
+    let probe = Probe::new(&pool);
+    let (api, snapshots) = probed(&pool, &probe);
+    let mine = probed_app(&api, &snapshots, &pool, reader);
+    assert_eq!(calls(&mine).await, 1);
+    // The second read refused.
+    probe.hold.store(true, Ordering::SeqCst);
+    domain(&pool, "during").await;
+    snapshots.sweep(&api).await.unwrap();
+    assert_eq!(probe.calls(), 2, "the sweep recomputed the key");
+    assert!(snapshots.unsettled() >= 1);
+    assert_eq!(calls(&mine).await, 1, "the snapshot kept");
+    // The first read refused: nothing runs, the snapshot is kept.
+    domain(&pool, "before").await;
+    snapshots.sweep(&api).await.unwrap();
+    assert_eq!(
+        probe.calls(),
+        2,
+        "no recomputation while the write is in flight"
+    );
+    assert!(snapshots.unsettled() >= 2);
+    assert_eq!(calls(&mine).await, 1, "the snapshot kept");
+    // A first computation answers, unkept: the next read computes again.
+    let theirs = probed_app(&api, &snapshots, &pool, other);
+    assert_eq!(calls(&theirs).await, 3);
+    assert_eq!(calls(&theirs).await, 4);
+    // The write ended: recomputed and kept.
+    probe.release().await;
+    domain(&pool, "after").await;
+    snapshots.sweep(&api).await.unwrap();
+    let mut served = calls(&mine).await;
+    for _ in 0..400 {
+        if served != 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        served = calls(&mine).await;
+    }
+    assert!(served.as_u64() > Some(4), "{served}");
+    assert_eq!(calls(&mine).await, served, "kept");
 }

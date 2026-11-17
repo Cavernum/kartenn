@@ -537,6 +537,21 @@ pub async fn outside_now(
     outside_on(conn, &visibility, objects, now).await
 }
 
+/// The count of the writes of rights (migration 0079), `None` while one is in flight:
+/// read before and after a computation under the rights of a subject, any write of
+/// rights committed or running in between makes the two differ, or one `None` (task
+/// 006-41).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn rights_written(pool: &PgPool) -> Result<Option<i64>, StoreError> {
+    sqlx::query_scalar("SELECT kartenn_rights_written()")
+        .fetch_one(pool)
+        .await
+        .map_err(store_err)
+}
+
 impl PgAuthorizer {
     /// On `pool`.
     #[must_use]

@@ -123,7 +123,14 @@ par sa date change la clé —, et l'application de ce qu'exigent les propositio
 attente, dont dépend `to_apply`, tâche 006-40), le dernier corps calculé, sa date et la
 révision de l'outbox qu'il a vue. Un calcul d'une clé propre relit ces droits avant et
 après : s'ils ne sont plus ceux de la clé, la clé est retirée (un recalcul ne tourne pas ;
-un premier calcul répond à sa requête sans être gardé) :
+un premier calcul répond à sa requête sans être gardé). Il lit aussi, avant et après, le
+compteur des écritures de droits (migration 0079, tâche 006-41 : déclencheur sur les
+rôles, leurs permissions, les liaisons, les groupes, leurs membres, les rattachements
+d'émetteurs et les déclarations de propriétés) : une écriture validée ou en cours entre
+les deux — un droit donné puis retiré pendant le calcul, mêmes droits aux deux bouts —
+ne le garde pas, la clé gardant son instantané (en vol dès la première lecture, un
+recalcul ne tourne pas ; un premier calcul répond sans être gardé, dans la limite des
+recalculs simultanés) :
 
 - la route sert l'instantané tel quel, `computed_at` dans le corps ; s'il n'y en a pas
   encore pour cette clé (premier appel depuis le démarrage, ou clé oubliée), elle calcule
