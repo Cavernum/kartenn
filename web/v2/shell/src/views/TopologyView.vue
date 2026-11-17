@@ -120,7 +120,7 @@ type Shown = Node extends infer N
 type Pages = InfiniteData<{ data: { items: Node[] } }, string | null>;
 type Result = InfiniteQueryObserverResult<Pages>;
 
-const { t, te, locale } = useI18n();
+const { t, te, locale, messages } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
@@ -229,11 +229,38 @@ const ICONS: Record<Node["kind"], IconName> = {
 };
 const valueOf = (node: Shown) =>
   node.kind === "range" ? `${node.first} – ${node.last}` : node.value;
+// The words of a node, read once per language (task 22e-k): those of its kind from the
+// dictionary (018), those of a nature or a usage from the catalogs, each value once. They
+// start again with the language or the dictionary read again. A catalog merged later
+// (`mergeLocaleMessage`) is not seen by `messages.value`: without effect while the natures
+// and the usages are in the shared catalog, loaded with the i18n instance
+// (`views/i18n/shared`); a value without words is never kept, it is looked up again.
+const kindWords = computed(
+  () =>
+    new Map(
+      (Object.keys(ICONS) as Node["kind"][]).map((kind) => [
+        kind,
+        keyLabel("kind", `core.${kind}`) ?? kind,
+      ]),
+    ),
+);
+const kindOf = (kind: Node["kind"]) => kindWords.value.get(kind) ?? kind;
+const valueWords = computed(() => {
+  void locale.value;
+  void messages.value;
+  return new Map<string, string>();
+});
 /** The nature of a prefix, the usage of a range, in words. */
 const detailWords = (kind: Node["kind"], value: string | null | undefined) => {
   if (!value || kind === "address") return "";
   const key = `views.value.${kind === "prefix" ? "nature" : "usage"}.${value}`;
-  return te(key) ? t(key) : value;
+  const known = valueWords.value;
+  const kept = known.get(key);
+  if (kept !== undefined) return kept;
+  if (!te(key)) return value;
+  const words = t(key);
+  known.set(key, words);
+  return words;
 };
 const detailOf = (node: Shown) =>
   detailWords(
@@ -314,16 +341,34 @@ const treeAsk = computed(() => edit.askOf(TREE_GRID));
 
 // The occupancy of a prefix comes with its page (021/A11): no read for a row. The node is
 // named by its value read (the tree places it by the present); its detail is the one shown.
-const nodeOf = (item: Node): TreeNode => ({
-  id: item.id,
-  label: valueOf(item),
-  icon: ICONS[item.kind],
-  cells: {
-    occupancy: (item.kind === "prefix" ? shareOf(item.occupancy) : undefined) ?? "",
-    detail: detailOf(shownById.value.get(item.id) ?? item),
-  },
-  detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
+// Built once per object read (task 22e-k): a level notified again (a page read, a read after
+// an invalidation, another node opened) builds only the nodes of the objects it did not
+// hold — an object read again is another one —; all of them start again with their words
+// (the language, the dictionary) or the values the draft and this session lay over them.
+const built = computed(() => {
+  void kindWords.value;
+  void valueWords.value;
+  void edit.laidValues.value;
+  return new WeakMap<Node, TreeNode>();
 });
+const nodeOf = (item: Node): TreeNode => {
+  const known = built.value;
+  let node = known.get(item);
+  if (node === undefined) {
+    node = {
+      id: item.id,
+      label: valueOf(item),
+      icon: ICONS[item.kind],
+      cells: {
+        occupancy: (item.kind === "prefix" ? shareOf(item.occupancy) : undefined) ?? "",
+        detail: detailOf(edit.shownRow(item as unknown as Item) as unknown as Node),
+      },
+      detail: kindOf(item.kind),
+    };
+    known.set(item, node);
+  }
+  return node;
+};
 const roots = computed(() => results.get(null));
 
 // Past the pages the cache keeps of a level (021/A34, 10⁴ children), the row under its
@@ -437,7 +482,7 @@ function shiftOf(shift: Shift, children: TreeNode[] | undefined): TreeNode {
           ? detailOf(row)
           : "",
     },
-    detail: keyLabel("kind", `core.${shift.kind}`) ?? shift.kind,
+    detail: kindOf(shift.kind),
   };
 }
 // Each node placed once, even while its levels are read again (`topology.ts`); the preview
@@ -774,9 +819,7 @@ function onCancelAsk(): void {
   edit.cancel();
   if (ask) void afterAsk(edit.cellOf(ask));
 }
-const detailKind = computed(() =>
-  chosen.value ? (keyLabel("kind", `core.${chosen.value.kind}`) ?? chosen.value.kind) : "",
-);
+const detailKind = computed(() => (chosen.value ? kindOf(chosen.value.kind) : ""));
 
 // The children of a closed node, read on intent.
 const tree = useTemplateRef<HTMLElement>("tree");

@@ -7798,6 +7798,48 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     - taille : moyenne (une vue, deux modules, des tests) ; à mesurer avant (le banc n'écrit
       pas le domaine du conteneur pendant la fenêtre)
     - dépend de : 22e-j
+    - codé le 2026-11-17 (agent, sur `bdcf45a5`), non coché (passe du banc à faire) :
+      `nodeOf` (`TopologyView.vue`) garde le
+      nœud de chaque objet lu dans une `WeakMap` que rend `built`, recalculé (la carte vidée)
+      au changement des mots des genres (`kindWords` : langue, dictionnaire), des mots des
+      natures et des usages (`valueWords`, mémoire par clé : `locale` et `messages` de
+      vue-i18n) ou des valeurs que posent le brouillon et la session (`laidValues`, nouveau
+      de `inline.ts` : `drafted` et `shown`) ; le détail se lit de `edit.shownRow(item)`,
+      plus de la carte `shownById` rebâtie sur tous les nœuds à chaque notification (encore
+      lue par l'aperçu). `nodesOf` (`topology.ts`) ne modifie plus le nœud reçu : celui qui
+      porte des enfants est une copie. Test `shell/test/topology-nodes.test.ts` (vue montée,
+      un réseau et une adresse sous le préfixe) : un niveau relu à l'identique garde le nœud
+      de l'adresse (`toBe`), un objet relu à une autre version et une autre nature est
+      rebâti ; la langue (« Réseau » → « Network », « Préfixe » → « Prefix »), le
+      dictionnaire relu (« Bloc »), le brouillon activé puis quitté (« Conteneur », puis
+      « Réseau ») ; chaque dépendance de `built` et de `valueWords` retirée à tour de rôle
+      rend rouge son test. `topology.test.ts` inchangé. Mesure indicative en Vitest
+      (`happy-dom`, sans ralentissement du CPU, même machine chargée à 25, fichier jetable
+      hors du dépôt, `nodesOf` chronométré par `vi.mock`) : un niveau de 10⁴ enfants
+      invalidé six fois, deux appels de `nodesOf` par relecture : médiane **614 et 624 ms**
+      avant, **23,5 et 23,0 ms** après (une passe plus tôt, charge 6 : 281 ms avant, 22 ms
+      après). `laidValues` a son test dans `edit.test.ts` (une page relue ne le change pas,
+      une écriture de la session le change, puis sa ligne relue à la version écrite).
+      Banc : fenêtre `INFO` écrite (`invalidatedAtRest` de `budgets.spec.ts`), dernière
+      chose de son test, après tous ses verdicts et témoins : l'arbre rouvert dans la page
+      (`popstate`, le cache gardé), le conteneur rouvert et relu jusqu'au bout, puis ×4, au
+      repos, un changeset dans le domaine du conteneur (un réseau /96 de 2001:db8::/32 tiré
+      de l'horloge en ms, racine du domaine) ; la fenêtre se ferme quand plus aucune lecture
+      sous /v1/ n'est en vol (le flux à part), plafond de 60 s dit en `INFO` ; tâches
+      longues, la plus longue, enfants tenus, pages relues, changements au flux.
+    - reste : passe filtrée deux fois par la session principale, machine calme.
+    - choix : la carte vidée par un `computed` qui en rend une neuve (aucun effet à tenir),
+      les mots des genres lus pour les trois genres d'un coup, ceux des natures et usages à
+      la demande, une valeur sans traduction jamais gardée (cherchée de nouveau) ;
+      `valueWords` suit `locale` et `messages` de vue-i18n, mais un `mergeLocaleMessage`
+      tardif n'est pas vu par `messages.value` : sans effet tant que natures et usages sont
+      dans le catalogue partagé (`views/i18n/shared`), chargé avec l'instance i18n.
+      `laidValues` exposé par l'édition plutôt qu'une comparaison des lignes montrées dans
+      la vue. Les nœuds qui portent des enfants restent neufs à chaque passe (une copie,
+      ses enfants du moment). Fenêtre du banc au repos plutôt que pendant le défilement (le
+      défilement mesure déjà le dessin) ; la racine créée reste (la base est recréée à
+      chaque `serve.sh budgets`). Pas de relecture `ui-reviewer` ni `a11y-auditor` : rien de
+      rendu ne change.
   - [ ] 22e-g. (B1, à arbitrer) Le « + » monté sur la seule ligne active (focus,
     sélection, survol) au lieu d'un bouton transparent sur chaque ligne (ce que
     l'utilisateur perd : en mode navigation, le lecteur d'écran ne lit plus le « + » des

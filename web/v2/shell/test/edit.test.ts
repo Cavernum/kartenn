@@ -817,6 +817,48 @@ describe("a list edited in place", () => {
     });
   });
 
+  // What the nodes of the tree are kept by (`laidValues`, task 021-22e-k): a page read alone
+  // leaves it; a write of this session changes it, and again once its row is read anew.
+  it("the values laid over the rows: a write of the session changes them, a page read not", async () => {
+    const { edit, rows } = await mounted(
+      ["core.range.edit", "core.range.approval.self"],
+      (call) =>
+        call.method === "PATCH"
+          ? {
+              status: 200,
+              body: {
+                changeset: { id: "cs-3", href: "h" },
+                state: "applied",
+                warnings: [],
+                diff: [],
+                cascaded: [],
+              },
+            }
+          : { status: 200, body: { items: [], links: {} } },
+      "/",
+      nodeEdit([]),
+    );
+    rows.value = NODES;
+    await nextTick();
+    const range = NODES[1] as Item;
+    const before = edit().laidValues.value;
+    rows.value = [...NODES];
+    await nextTick();
+    expect(edit().laidValues.value).toBe(before);
+
+    edit().onCommit({ row: R1, column: "detail", value: "DHCP", now: true });
+    expect(await edit().confirm("motif", "dhcp")).toBe(true);
+    const written = edit().laidValues.value;
+    expect(written).not.toBe(before);
+    expect(edit().shownRow(range)).toMatchObject({ usage: "dhcp" });
+
+    // Its row read at the version written: the value is the row's, the session's gone.
+    rows.value = [NODES[0]!, { ...range, usage: "dhcp", version: V2 }, NODES[2]!];
+    await nextTick();
+    expect(edit().laidValues.value).not.toBe(written);
+    expect(edit().laidValues.value[1]).toEqual([]);
+  });
+
   it("one editing for the tree and the content of a node: rows joined, both read again (12f2)", async () => {
     const reread: string[] = [];
     const contentReread: string[] = [];

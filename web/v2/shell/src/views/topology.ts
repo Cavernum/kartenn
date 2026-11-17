@@ -170,15 +170,15 @@ export function nodesOf<I extends { id: string }>(
   const level = levelOf(parent);
   const items = (level?.items ?? []).filter((item) => !placed.has(item.id));
   for (const item of items) placed.add(item.id);
+  // The node `nodeOf` gives is never changed: it may keep it for the next call (task 22e-k);
+  // one that holds children is a copy, its children those read now.
   const nodes = items.map((item) => {
     const node = nodeOf(item);
     if (!holds(item)) return node;
     const below = levelOf(item.id);
-    if (below) {
-      node.children = nodesOf(levelOf, nodeOf, holds, notice, item.id, placed);
-      if (below.more) node.more = true;
-    } else node.hasChildren = true;
-    return node;
+    if (!below) return { ...node, hasChildren: true };
+    const children = nodesOf(levelOf, nodeOf, holds, notice, item.id, placed);
+    return below.more ? { ...node, children, more: true } : { ...node, children };
   });
   if (level?.capped && notice) nodes.push(notice(parent));
   return nodes;
