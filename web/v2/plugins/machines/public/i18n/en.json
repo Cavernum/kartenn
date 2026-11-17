@@ -25,7 +25,6 @@
   },
   "machines": {
     "title": "Machines",
-    "intro": "Inventory of the readable machines, by name: kind, owner, site and hosting.",
     "record": "Machine",
     "name": "Name",
     "kind": "Kind",
@@ -37,7 +36,7 @@
     "failed": "The machines could not be read",
     "failedOne": "The machine could not be read",
     "none": "No machine",
-    "noneText": "Add one to the draft with the form below.",
+    "noneText": "Add one to the draft with « Create a machine ».",
     "noneFiltered": "No machine matches these filters",
     "noneFilteredText": "Change or remove a filter to see more machines.",
     "first": "Only the first {n} machines are listed: a filter narrows the list.",

@@ -433,7 +433,11 @@ test("a machine created in the draft from its list, no changeset sent", async ({
   const tag = `zz-draft-${info.project.name}-${Date.now() % 1_000_000}`;
   await page.goto("/x/machines/machines");
   const view = page.locator("machines-machines");
-  const creation = view.getByRole("region", { name: "Créer une machine" });
+  // In a drawer opened from the header of the list's panel (task 021-22f-i3), its first
+  // field focused.
+  await view.getByRole("button", { name: "Créer une machine" }).click();
+  const creation = page.getByRole("dialog", { name: "Créer une machine" });
+  await expect(creation.getByRole("textbox", { name: /^Nom/ })).toBeFocused();
   // The first owner taken once the entities are read.
   const owner = creation.getByRole("combobox", { name: /Propriétaire/ });
   await expect(owner).not.toHaveText(/^\s*$/);
@@ -459,6 +463,10 @@ test("a machine created in the draft from its list, no changeset sent", async ({
     creation.getByText(/^Opération ajoutée ; le brouillon en compte \d+\.$/),
   ).toBeVisible();
   await expectAccessible(page);
+  // Escape closes it, the focus back on its button.
+  await page.keyboard.press("Escape");
+  await expect(creation).toBeHidden();
+  await expect(view.getByRole("button", { name: "Créer une machine" })).toBeFocused();
   expect(changesets).toEqual([]);
   // In the draft of the server, not in the referential.
   const drafts = (await apiCall(page, "GET", "/v1/drafts")).body as {
@@ -479,4 +487,72 @@ test("a machine created in the draft from its list, no changeset sent", async ({
     items: unknown[];
   };
   expect(listed.items).toEqual([]);
+});
+
+/** The heights of the window, the surface, the plugin's main panel and its grid. */
+const heightsOf = (page: Page) =>
+  page.evaluate(() => {
+    const surface = document.getElementById("k-surface")!;
+    const panel = surface.querySelector<HTMLElement>("machines-machines .k-panel[data-main]")!;
+    const grid = panel.querySelector<HTMLElement>("[role='grid']")!;
+    const style = getComputedStyle(grid);
+    return {
+      window: {
+        scroll: document.documentElement.scrollHeight,
+        client: document.documentElement.clientHeight,
+      },
+      surface: { scroll: surface.scrollHeight, client: surface.clientHeight },
+      // The room of the surface (its content box) and the panel's outer height.
+      room: surface.clientHeight - parseFloat(getComputedStyle(surface).paddingBlockStart) * 2,
+      panel: panel.getBoundingClientRect().height,
+      grid: { scroll: grid.scrollHeight, client: grid.clientHeight },
+      root: grid.closest(".k-data-grid-frame")!.getBoundingClientRect().height,
+      virtual: grid.hasAttribute("data-virtual"),
+      least:
+        parseFloat(style.getPropertyValue("--k-header-height")) +
+        6 * parseFloat(style.getPropertyValue("--k-row-height")),
+    };
+  });
+
+test("the list of the machines takes the rest of the window as a list screen of the shell", async ({
+  page,
+  login,
+}) => {
+  // A next page announced on the first page (the data set holds one), its read left
+  // pending: the grid stays virtualised from its first row (task 021-22f-i3, as the 22f-h).
+  const MORE = "e2e-more";
+  await page.route(/\/v1\/machines(\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("cursor") === MORE) return;
+    // Not compressed: Firefox's fetch of a route hands the body over still encoded.
+    const headers = { ...route.request().headers(), "accept-encoding": "identity" };
+    const response = await route.fetch({ headers });
+    if (response.status() !== 200) return route.fulfill({ response });
+    const body = (await response.json()) as { links?: Record<string, string> };
+    body.links = { ...body.links, next: `${url.pathname}?cursor=${MORE}` };
+    await route.fulfill({ response, json: body });
+  });
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  await login("alice");
+  await page.goto("/x/machines/machines");
+  const grid = page.locator("machines-machines").getByRole("grid", { name: "Machines" });
+  await expect(grid.getByRole("row").nth(1)).toBeVisible();
+  await expect(grid).toHaveAttribute("data-virtual", "true");
+
+  // One scroller: neither the window nor the surface scrolls, the panel fills the surface
+  // through the host of the element and the element, the grid past a list's height.
+  let seen = await heightsOf(page);
+  expect(seen.window.scroll).toBe(seen.window.client);
+  expect(seen.surface.scroll).toBeLessThanOrEqual(seen.surface.client);
+  expect(Math.abs(seen.panel - seen.room)).toBeLessThanOrEqual(1);
+  expect(seen.grid.client).toBeGreaterThan(800);
+
+  // A short window (or zoomed, WCAG 1.4.10): the grid keeps a header and six rows, the
+  // surface scrolls to reach the rest.
+  await page.setViewportSize({ width: 1440, height: 320 });
+  await expect(async () => {
+    seen = await heightsOf(page);
+    expect(seen.root).toBeGreaterThanOrEqual(seen.least - 1);
+    expect(seen.surface.scroll).toBeGreaterThan(seen.surface.client);
+  }).toPass({ timeout: 5_000 });
 });
