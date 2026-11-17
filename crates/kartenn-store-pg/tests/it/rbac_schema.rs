@@ -201,6 +201,24 @@ async fn the_writes_of_rights_are_counted_in_flight_too(pool: PgPool) {
     assert_eq!(rbac::rights_written(&pool).await.unwrap(), Some(deleted));
 }
 
+/// Task 006-41: readers of the count do not hinder one another. A reader within a
+/// transaction still open, nothing written: another reader reads the count, not `None`.
+#[kartenn_testing::pg_test]
+async fn two_readers_of_the_count_read_it_both(pool: PgPool) {
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("SET LOCAL ROLE kartenn_app")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let first: Option<i64> = sqlx::query_scalar("SELECT kartenn_rights_written()")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    assert!(first.is_some());
+    assert_eq!(rbac::rights_written(&pool).await.unwrap(), first);
+    tx.commit().await.unwrap();
+}
+
 /// R5 (spec 018, task 018-1): a role entry may be a permission of two segments
 /// (`flow.read`), not a single word nor a name ending in a dot.
 #[kartenn_testing::pg_test]

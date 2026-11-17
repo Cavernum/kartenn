@@ -16,9 +16,12 @@
 -- already run (the value read includes it) but its commit after, possibly visible to the
 -- computation and not to the rights read before it. The trigger therefore holds, until
 -- the end of its transaction, a shared advisory lock, which writers of rights share
--- without waiting for one another; the first read tries the exclusive lock without
--- waiting (it never stalls a writer): taken, no write of rights is in flight and every
--- write counted is committed; refused, it answers NULL and the snapshot is not kept.
+-- without waiting for one another, taken before its `nextval`. A read takes no lock: it
+-- reads the count, then looks in `pg_locks` for that lock granted in this database. A
+-- write counted in the value read took its lock before it; still in flight, its lock is
+-- seen and the read answers NULL (the snapshot is not kept); ended, it is committed (or
+-- rolled back) before the rights are read. Readers neither wait for one another nor make
+-- a writer wait.
 --
 -- The tables: the roles and their permissions, the bindings, the groups and their
 -- members (`kartenn_member_of`), the attachments of the issuers (the confinement of a
@@ -41,15 +44,23 @@ END $$;
 REVOKE ALL ON FUNCTION public.kartenn_rights_written_trigger() FROM PUBLIC;
 
 -- The count of the writes of rights, NULL while one is in flight (its transaction not
--- ended).
+-- ended). The count first, then the locks: in this order, a write counted is either
+-- seen in flight or ended. A key of one bigint is in `pg_locks` as its high 32 bits
+-- (`classid`, 1801548404), its low 32 bits (`objid`, 1382639464) and `objsubid` 1.
 CREATE FUNCTION public.kartenn_rights_written() RETURNS bigint
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+    written bigint;
 BEGIN
-    IF NOT pg_try_advisory_xact_lock(7737591478723635048) THEN
+    written := (SELECT CASE WHEN is_called THEN last_value ELSE 0 END
+                  FROM public.kartenn_rights_writes);
+    IF EXISTS (SELECT FROM pg_locks
+                WHERE locktype = 'advisory' AND mode = 'ShareLock' AND granted
+                  AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND classid = 1801548404 AND objid = 1382639464 AND objsubid = 1) THEN
         RETURN NULL;
     END IF;
-    RETURN (SELECT CASE WHEN is_called THEN last_value ELSE 0 END
-              FROM public.kartenn_rights_writes);
+    RETURN written;
 END $$;
 REVOKE ALL ON FUNCTION public.kartenn_rights_written() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.kartenn_rights_written() TO kartenn_app;
