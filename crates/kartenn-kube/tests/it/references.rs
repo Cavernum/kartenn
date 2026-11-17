@@ -1032,7 +1032,44 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
             blind,
             Box::new(shop),
             prod,
-            vec![unknown, old, payments, far],
+            // An object of another kind out of reach: a namespace it reads (`payments`) is
+            // named by the refusal, which tells nothing it does not read (task 002-29d4).
+            vec![unknown, old, away, far],
+            true,
+        ),
+        // The refusals of a plan that reads the cluster, withheld until its read is
+        // granted (review of 002-29d2): a workload in a namespace it does not hold, the
+        // closure of an object it does not hold, an action that is none.
+        (
+            "sync.cluster: a workload in no namespace",
+            connector,
+            Box::new(|x| {
+                sync(
+                    "upsert",
+                    "workload",
+                    x,
+                    "web",
+                    json!({"namespace": "nowhere", "kind": "deployment"}),
+                )
+            }),
+            far,
+            vec![unknown, far_gone],
+            true,
+        ),
+        (
+            "sync.cluster: the closure of nothing",
+            connector,
+            Box::new(|x| sync("close", "namespace", x, "nothing", json!({}))),
+            far,
+            vec![unknown, far_gone],
+            true,
+        ),
+        (
+            "sync.cluster: no action",
+            blind,
+            Box::new(|x| sync("explode", "namespace", x, "shop", json!({}))),
+            prod,
+            vec![unknown, old],
             true,
         ),
         (
@@ -1148,18 +1185,48 @@ async fn no_right_reaches_through_a_hidden_reference(pool: PgPool) {
     assert!(leaks.is_empty(), "{leaks:#?}");
 }
 
-/// `POST /v1/changesets?approval=self` of the `sync` of the namespace `shop` of `cluster`
+/// Task 002-29d2 (review): a `sync` of a cluster the same changeset creates, which its
+/// completion does not read, is refused, nothing written: never accepted without writing.
+#[kartenn_testing::pg_test]
+async fn a_sync_of_a_cluster_created_by_its_changeset_is_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let mut fresh = env.cluster("fresh", json!({}));
+    fresh["local"] = json!(1);
+    let before = env.written().await;
+    let outcome = env
+        .submit(vec![
+            op("create_cluster", fresh),
+            op(
+                "sync",
+                json!({"action": "upsert", "type": "kube.namespace",
+                       "cluster": {"local": 1}, "name": "shop"}),
+            ),
+        ])
+        .await;
+    assert_eq!(
+        seen(&outcome),
+        [(
+            "kube.operation.invalid",
+            "cluster: a cluster created by the same changeset is not synced by it".to_owned(),
+            Some(1),
+            0
+        )]
+    );
+    assert_eq!(env.written().await, before, "nothing is written");
+}
+
+/// `POST /v1/changesets?approval=self` of the `sync` of the namespace `name` of `cluster`
 /// from `start` (microseconds) on, by `app`: its status and the bytes of its body, but the
 /// identifiers of the request itself, each the same in every answer: the problem and the
 /// changeset refused (`instance`, `changeset`), fresh per request, and `cluster`, which
 /// its author wrote.
-async fn posted(app: &Router, start: i64, cluster: Uuid) -> (StatusCode, String) {
+async fn posted(app: &Router, start: i64, cluster: Uuid, name: &str) -> (StatusCode, String) {
     let from = OffsetDateTime::from_unix_timestamp_nanos(i128::from(start) * 1000)
         .unwrap()
         .format(&Rfc3339)
         .unwrap();
     let operations = json!([{"op": "kube.sync", "action": "upsert", "type": "kube.namespace",
-                             "cluster": {"id": cluster}, "name": "shop"}]);
+                             "cluster": {"id": cluster}, "name": name}]);
     let body = json!({"motive": "batch", "valid_from": from, "operations": operations});
     let request = Request::builder()
         .method("POST")
@@ -1220,6 +1287,9 @@ async fn a_cluster_not_read_answers_over_http_as_an_absent_one(pool: PgPool) {
     let far = env.new_cluster("far", theirs("far")).await;
     let old = env.new_cluster("old", theirs("old")).await;
     env.applied(vec![close("kube.cluster", old, true)]).await;
+    // A name every living cluster holds: its upsert changes an object that exists.
+    env.namespace(far, "default").await;
+    env.namespace(prod, "default").await;
     let start = env.instant().await;
     let late = env.new_cluster("late", theirs("late")).await;
     let writes = [
@@ -1239,11 +1309,18 @@ async fn a_cluster_not_read_answers_over_http_as_an_absent_one(pool: PgPool) {
             crate::observations::route::principal(who, IdentityKind::ServiceAccount),
             None,
         );
-        let expected = posted(&app, start, living).await;
-        assert!(expected.0.is_client_error(), "{expected:?}");
-        for cluster in absent {
-            let answer = posted(&app, start, cluster).await;
-            assert_eq!(answer, expected, "{cluster} answers as {living}");
+        // A new name, and one the living cluster holds already (task 002-29d2, review):
+        // the read of the cluster refused alone, not with the edit of its namespace.
+        for name in ["shop", "default"] {
+            let expected = posted(&app, start, living, name).await;
+            assert!(expected.0.is_client_error(), "{expected:?}");
+            for cluster in absent {
+                let answer = posted(&app, start, cluster, name).await;
+                assert_eq!(
+                    answer, expected,
+                    "{name} of {cluster} answers as of {living}"
+                );
+            }
         }
     }
     assert_eq!(env.written().await, before, "nothing is written");
